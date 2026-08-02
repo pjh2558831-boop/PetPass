@@ -1,0 +1,56 @@
+import { z } from "zod";
+import { geocodeAddress } from "@/lib/kakao/local";
+import { apiFailure, apiSuccess, providerErrorResponse } from "@/lib/shared/api-response";
+import {
+  consumeRateLimit,
+  getRequestClientId,
+  rateLimitHeaders,
+} from "@/lib/shared/rate-limit";
+
+const querySchema = z.object({
+  address: z.string().trim().min(2).max(150),
+  size: z.coerce.number().int().min(1).max(10).default(5),
+});
+
+export async function GET(request: Request) {
+  const rateLimit = consumeRateLimit(
+    "kakao-local-geocode",
+    getRequestClientId(request),
+    { limit: 30, windowMs: 60_000 },
+  );
+  if (!rateLimit.allowed) {
+    return apiFailure(
+      {
+        code: "RATE_LIMITED",
+        message: "주소 검색 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+        retryable: true,
+      },
+      429,
+      rateLimitHeaders(rateLimit),
+    );
+  }
+
+  const params = new URL(request.url).searchParams;
+  const parsed = querySchema.safeParse({
+    address: params.get("address"),
+    size: params.get("size") ?? undefined,
+  });
+  if (!parsed.success) {
+    return apiFailure(
+      {
+        code: "INVALID_REQUEST",
+        message: "두 글자 이상의 올바른 주소가 필요합니다.",
+        retryable: false,
+      },
+      400,
+    );
+  }
+
+  try {
+    return apiSuccess(await geocodeAddress(parsed.data.address, parsed.data.size), 200, {
+      "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+    });
+  } catch (error) {
+    return providerErrorResponse(error);
+  }
+}

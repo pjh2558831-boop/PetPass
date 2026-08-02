@@ -158,6 +158,7 @@ export const apiErrorSchema = z.object({
     "UPSTREAM_ERROR",
     "INVALID_RESPONSE",
     "INVALID_REQUEST",
+    "RATE_LIMITED",
   ]),
   message: z.string().min(1),
   retryable: z.boolean(),

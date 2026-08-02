@@ -1,5 +1,7 @@
+"use client";
+
 import Link from "next/link";
-import { ArrowRight, Clock3, MapPin } from "lucide-react";
+import { ArrowRight, Clock3, LocateFixed, MapPin } from "lucide-react";
 import { StatusBadge } from "@/components/pet-access/status-badge";
 import { DemoBadge } from "@/components/ui/demo-badge";
 import { MissingImage } from "@/components/ui/missing-image";
@@ -9,12 +11,21 @@ import type { PetPlace } from "@/types/place";
 export function PlaceCard({
   place,
   order,
+  selected = false,
+  onSelect,
 }: {
   place: PetPlace;
   order?: number;
+  selected?: boolean;
+  onSelect?: () => void;
 }) {
   return (
-    <article className="surface-card overflow-hidden p-3">
+    <article
+      id={`place-card-${place.contentId}`}
+      className={`surface-card overflow-hidden p-3 transition ${
+        selected ? "border-[#3d8b68] ring-2 ring-[#3d8b68]/20" : ""
+      }`}
+    >
       <div className="grid gap-4 sm:grid-cols-[170px_1fr]">
         <div className="relative">
           <MissingImage label={place.name} />
@@ -46,18 +57,31 @@ export function PlaceCard({
               {place.openingHours ?? "운영시간 미확인"}
             </p>
           </div>
-          <div className="mt-4 flex items-center justify-between gap-3">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs font-bold text-[#6e7e75]">
               {place.accessAssessment.reason}
             </p>
-            <Link
-              href={`/places/${place.contentId}`}
-              className="inline-flex shrink-0 items-center gap-1 text-sm font-extrabold text-[#236148]"
-              aria-label={`${place.name} 상세 보기`}
-            >
-              근거 보기
-              <ArrowRight size={15} aria-hidden="true" />
-            </Link>
+            <span className="ml-auto flex items-center gap-2">
+              {onSelect ? (
+                <button
+                  type="button"
+                  onClick={onSelect}
+                  className="inline-flex items-center gap-1 text-xs font-extrabold text-[#52665b] hover:text-[#236148]"
+                  aria-label={`${place.name} 지도에서 보기`}
+                >
+                  <LocateFixed size={14} aria-hidden="true" />
+                  지도
+                </button>
+              ) : null}
+              <Link
+                href={`/places/${place.contentId}`}
+                className="inline-flex shrink-0 items-center gap-1 text-sm font-extrabold text-[#236148]"
+                aria-label={`${place.name} 상세 보기`}
+              >
+                근거 보기
+                <ArrowRight size={15} aria-hidden="true" />
+              </Link>
+            </span>
           </div>
         </div>
       </div>

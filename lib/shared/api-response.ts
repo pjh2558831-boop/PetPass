@@ -1,22 +1,30 @@
 import { ConfigurationRequiredError, ProviderResponseError } from "@/lib/shared/errors";
 import type { ApiError, ApiResult } from "@/types/api";
 
-export function apiSuccess<T>(data: T, status = 200): Response {
+export function apiSuccess<T>(
+  data: T,
+  status = 200,
+  headers?: HeadersInit,
+): Response {
   const result: ApiResult<T> = {
     ok: true,
     data,
     requestId: crypto.randomUUID(),
   };
-  return Response.json(result, { status });
+  return Response.json(result, { status, headers });
 }
 
-export function apiFailure(error: ApiError, status: number): Response {
+export function apiFailure(
+  error: ApiError,
+  status: number,
+  headers?: HeadersInit,
+): Response {
   const result: ApiResult<never> = {
     ok: false,
     error,
     requestId: crypto.randomUUID(),
   };
-  return Response.json(result, { status });
+  return Response.json(result, { status, headers });
 }
 
 export function providerErrorResponse(error: unknown): Response {

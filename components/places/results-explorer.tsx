@@ -4,10 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Filter, Route } from "lucide-react";
 import { MapPanel } from "@/components/map/map-panel";
+import { KakaoPlaceSearch } from "@/components/places/kakao-place-search";
 import { PlaceCard } from "@/components/places/place-card";
 import { Button } from "@/components/ui/button";
 import { DemoBadge } from "@/components/ui/demo-badge";
 import { demoItinerary, demoPlaces, demoProfile } from "@/fixtures/demo-data";
+import {
+  formatRouteDistance,
+  formatRouteDuration,
+} from "@/lib/kakao/directions-client";
+import { useDrivingRoute } from "@/lib/kakao/use-driving-route";
 import { evaluatePetAccess } from "@/lib/pet-access/evaluator";
 import { CATEGORY_LABELS } from "@/lib/shared/format";
 import {
@@ -16,6 +22,7 @@ import {
 } from "@/lib/storage/profile-storage";
 import { saveDraftItinerary } from "@/lib/storage/itinerary-storage";
 import type { PetProfile, PlaceCategory, TravelPreferences } from "@/types/pet";
+import type { KakaoPlaceSearchResult } from "@/types/kakao";
 
 const filterOptions: Array<PlaceCategory | "ALL"> = [
   "ALL",
@@ -33,6 +40,9 @@ export function ResultsExplorer() {
   );
   const [category, setCategory] = useState<PlaceCategory | "ALL">("ALL");
   const [error, setError] = useState("");
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
+  const [selectedSearchResult, setSelectedSearchResult] =
+    useState<KakaoPlaceSearchResult | null>(null);
 
   useEffect(() => {
     const savedProfile = loadPetProfile();
@@ -64,11 +74,61 @@ export function ResultsExplorer() {
     [assessedPlaces, category],
   );
 
+  const routeLocations = useMemo(
+    () =>
+      demoItinerary.stops.map((stop, index) => {
+        const place =
+          assessedPlaces.find(
+            (candidate) => candidate.contentId === stop.place.contentId,
+          ) ?? stop.place;
+        return {
+          id: place.contentId,
+          name: place.name,
+          address: place.address,
+          coordinates: place.coordinates,
+          order: index + 1,
+        };
+      }),
+    [assessedPlaces],
+  );
+  const {
+    route: drivingRoute,
+    loading: routeLoading,
+    error: routeError,
+  } = useDrivingRoute(routeLocations);
+
   const sizeLabel = {
     SMALL: "소형",
     MEDIUM: "중형",
     LARGE: "대형",
   }[profile.size];
+
+  const mapLocations = useMemo(() => {
+    const locations = filteredPlaces.map((place, index) => ({
+      id: place.contentId,
+      name: place.name,
+      address: place.address,
+      coordinates: place.coordinates,
+      order: index + 1,
+    }));
+    if (selectedSearchResult) {
+      locations.push({
+        id: `kakao-local:${selectedSearchResult.id}`,
+        name: selectedSearchResult.name,
+        address: selectedSearchResult.roadAddress ?? selectedSearchResult.address,
+        coordinates: selectedSearchResult.coordinates,
+        order: locations.length + 1,
+      });
+    }
+    return locations;
+  }, [filteredPlaces, selectedSearchResult]);
+
+  useEffect(() => {
+    if (!selectedLocationId || selectedLocationId.startsWith("kakao-local:")) return;
+    document
+      .getElementById(`place-card-${selectedLocationId}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [selectedLocationId]);
 
   return (
     <div className="space-y-6">
@@ -77,7 +137,7 @@ export function ResultsExplorer() {
           <div className="flex flex-wrap items-center gap-2">
             <DemoBadge />
             <span className="text-xs font-bold text-[#6b7972]">
-              외부 API 호출 없음
+              장소 규정은 로컬 데모 · 지도 검색은 Kakao
             </span>
           </div>
           <p className="mt-3 text-sm font-extrabold text-[#2a4036]">
@@ -139,13 +199,42 @@ export function ResultsExplorer() {
         </p>
       ) : null}
 
+      <KakaoPlaceSearch
+        selectedId={selectedLocationId}
+        onSelect={(result) => {
+          const id = `kakao-local:${result.id}`;
+          setSelectedSearchResult(result);
+          setSelectedLocationId(id);
+        }}
+      />
+
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(380px,.92fr)]">
         <div className="lg:sticky lg:top-24 lg:self-start">
-          <MapPanel />
+          <MapPanel
+            locations={mapLocations}
+            routeCoordinates={drivingRoute?.coordinates ?? []}
+            selectedLocationId={selectedLocationId}
+            onLocationSelect={setSelectedLocationId}
+          />
           <div className="mt-3 flex items-center justify-between px-1 text-xs font-semibold text-[#6c7b73]">
-            <span>예상 이동 4.8km</span>
-            <span>차량 약 28분</span>
+            <span>
+              {drivingRoute
+                ? `실시간 이동 ${formatRouteDistance(drivingRoute.totalDistanceMeters)}`
+                : "예상 이동 4.8km"}
+            </span>
+            <span>
+              {drivingRoute
+                ? `차량 ${formatRouteDuration(drivingRoute.totalDurationSeconds)}`
+                : routeLoading
+                  ? "실시간 경로 계산 중"
+                  : "차량 약 28분"}
+            </span>
           </div>
+          {routeError ? (
+            <p role="status" className="mt-2 px-1 text-xs font-bold text-[#8d5d38]">
+              실시간 경로를 불러오지 못해 데모 예상값을 표시합니다.
+            </p>
+          ) : null}
         </div>
 
         <section aria-labelledby="places-heading">
@@ -182,7 +271,13 @@ export function ResultsExplorer() {
 
           <div className="space-y-4">
             {filteredPlaces.map((place, index) => (
-              <PlaceCard key={place.contentId} place={place} order={index + 1} />
+              <PlaceCard
+                key={place.contentId}
+                place={place}
+                order={index + 1}
+                selected={selectedLocationId === place.contentId}
+                onSelect={() => setSelectedLocationId(place.contentId)}
+              />
             ))}
           </div>
 

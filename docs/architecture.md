@@ -27,7 +27,7 @@ flowchart LR
 
 ## Request and data flow
 
-The planned live search flow is:
+The live provider flow is:
 
 1. A server-side request calls `areaBasedList2` for a bounded regional candidate
    set.
@@ -38,8 +38,8 @@ The planned live search flow is:
 5. `detailIntro2` contributes opening and closed-day information.
 6. Candidate selection and scoring exclude `NOT_MATCHED`, deprioritize
    `NEEDS_CONFIRMATION`, and balance categories.
-7. Kakao directions supplies road distance and duration after candidate count is
-   reduced.
+7. Kakao directions supplies validated road distance, duration, and route geometry
+   after candidate count is reduced.
 8. The UI renders the assessment, its source evidence, and any contact action.
 
 The current phase uses `fixtures/demo-data.ts` only for an explicitly labeled
@@ -61,8 +61,10 @@ keys are absent; they never substitute the fixture.
 ## Provider adapters
 
 `lib/tour-api/client.ts` owns service-key use, timeouts, caching, operation
-allowlisting, and upstream validation. `lib/kakao/maps.ts` is the only planned
-client-side provider boundary; Local and Mobility keys remain server-only.
+allowlisting, and upstream validation. `lib/kakao/maps.ts` owns the JavaScript SDK
+browser boundary. `lib/kakao/local.ts` and `lib/kakao/directions.ts` validate and
+normalize Local and Mobility responses on the server; their REST key remains
+server-only.
 `lib/licenses/client.ts` is intentionally unconfigured until the exact local
 administrative dataset is selected. `matcher.ts` only identifies potential
 matches; it does not infer legality.

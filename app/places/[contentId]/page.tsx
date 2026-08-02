@@ -150,7 +150,19 @@ export default async function PlaceDetailPage({
             <h2 className="text-xl font-black tracking-[-0.03em]">위치와 이동</h2>
           </div>
           <div className="mt-4">
-            <MapPanel compact title={`${place.name} 주변 데모 지도`} />
+            <MapPanel
+              compact
+              title={`${place.name} 주변 데모 지도`}
+              locations={[
+                {
+                  id: place.contentId,
+                  name: place.name,
+                  address: place.address,
+                  coordinates: place.coordinates,
+                  order: 1,
+                },
+              ]}
+            />
           </div>
         </div>
         <section aria-labelledby="alternatives-heading">

@@ -19,7 +19,9 @@ export async function GET(request: Request) {
   }
 
   try {
-    return apiSuccess(await geocodeAddress(address));
+    return apiSuccess(await geocodeAddress(address), 200, {
+      "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+    });
   } catch (error) {
     return providerErrorResponse(error);
   }

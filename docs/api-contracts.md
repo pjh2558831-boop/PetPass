@@ -12,7 +12,8 @@ type ApiResult<T> =
           | "CONFIGURATION_REQUIRED"
           | "UPSTREAM_ERROR"
           | "INVALID_RESPONSE"
-          | "INVALID_REQUEST";
+          | "INVALID_REQUEST"
+          | "RATE_LIMITED";
         message: string;
         retryable: boolean;
       };
@@ -36,11 +37,39 @@ JSON body is validated before success.
 Query: `address`. Uses the server-only Kakao REST key and returns validated
 address documents with address text, longitude, and latitude.
 
+## `GET /api/kakao/local/search`
+
+Query: `query`, with optional bounded `page` and `size`. The server adds the
+Haeundae search center and radius. Results are normalized to application place
+objects and cached briefly at the CDN boundary.
+
+## `GET /api/kakao/local/geocode`
+
+Query: `address`, with an optional bounded `size`. This is the canonical Kakao
+Local geocode endpoint; `/api/geocode` remains a compatibility route.
+
 ## `GET /api/directions`
 
 Query: `originLat`, `originLng`, `destinationLat`, `destinationLng`. Coordinates
 are range-validated. Kakao Mobility remains responsible for road distance and
 duration.
+
+## `POST /api/kakao/directions`
+
+JSON body:
+
+```ts
+{
+  origin: { name: string; x: number; y: number };
+  destination: { name: string; x: number; y: number };
+  waypoints: Array<{ name: string; x: number; y: number }>;
+}
+```
+
+`x` is longitude and `y` is latitude. At most five waypoints are accepted, and
+origin and destination must differ. The response contains normalized total
+distance and duration, optional fares, per-section summaries, and an ordered
+latitude/longitude polyline. The REST key is never accepted from the client.
 
 ## `GET /api/licenses`
 
@@ -55,4 +84,4 @@ must not describe the business as illegal or unlicensed.
 
 Missing configuration returns 503 and never falls back to demo data. Invalid
 input returns 400. Invalid or failing upstream responses return 502 with a
-retryable flag.
+retryable flag. Requests over a Route Handler's small local limit return 429.

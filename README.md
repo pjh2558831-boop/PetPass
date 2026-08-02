@@ -13,10 +13,61 @@ silently.
 
 ```bash
 npm install
+Copy-Item .env.example .env.local
 npm run dev
 ```
 
-Open `http://localhost:3000`. No external API key is required to run the demo.
+Set the following values in the project-root `.env.local` before starting the
+development server:
+
+```dotenv
+NEXT_PUBLIC_KAKAO_MAP_JS_KEY=
+KAKAO_REST_API_KEY=
+```
+
+`NEXT_PUBLIC_KAKAO_MAP_JS_KEY` is intentionally exposed to the browser for the
+Kakao Maps JavaScript SDK. `KAKAO_REST_API_KEY` is server-only and must never use
+the `NEXT_PUBLIC_` prefix. Kakao Local and Kakao Mobility requests run only through
+Next.js Route Handlers. Restart `npm run dev` whenever an environment variable is
+added or changed.
+
+Open `http://localhost:3000` after the server starts.
+
+The Kakao Developers application must allow the browser origins that load the
+JavaScript SDK. Register `http://localhost:3000`, the production origin
+`https://pet-pass-two.vercel.app`, and each preview origin used for browser
+verification. A REST API key does not replace the JavaScript key or its web-domain
+registration.
+
+## Kakao integration
+
+- The browser loads Kakao Maps with `NEXT_PUBLIC_KAKAO_MAP_JS_KEY` and renders
+  numbered place markers, a selected-place overlay, and Mobility route geometry.
+- `GET /api/kakao/local/search` performs a bounded Kakao Local keyword search.
+- `GET /api/kakao/local/geocode` resolves an address through Kakao Local.
+- `POST /api/kakao/directions` accepts an origin, destination, and at most five
+  waypoints. It returns normalized distance, duration, fares, sections, and route
+  coordinates.
+- All REST and Mobility requests are made by server-only modules using
+  `KAKAO_REST_API_KEY`. Provider responses are schema-validated and upstream
+  response bodies are not included in user-facing errors or logs.
+
+The Route Handlers apply small in-memory per-instance rate limits. For sustained
+multi-region production traffic, replace these with a shared durable limiter.
+
+## Vercel environment variables
+
+Add both `NEXT_PUBLIC_KAKAO_MAP_JS_KEY` and `KAKAO_REST_API_KEY` in the Vercel
+project's Settings → Environment Variables for Production, Preview, and
+Development. Redeploy after changing them. Keep the REST key server-only and mark
+it sensitive in Production and Preview. The linked Vercel project is `pet-pass`,
+whose production URL is `https://pet-pass-two.vercel.app`.
+
+If the map shows a configuration error, verify that the JavaScript key exists in
+the current environment and that the current origin is registered in Kakao
+Developers, then restart or redeploy. If Local or Mobility calls return a
+configuration error, verify only the server-side `KAKAO_REST_API_KEY`; never move
+that key into browser code to work around the error.
 
 ## Verify
 
@@ -29,7 +80,7 @@ npm run build
 ```
 
 Provider credentials belong in `.env.local`; copy the names from `.env.example`
-and never commit real values.
+and never commit real values. `.env.local` is excluded by `.gitignore`.
 
 See `docs/architecture.md` and `docs/api-contracts.md` for system boundaries and
 the next integration phase.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowDown,
@@ -16,12 +16,33 @@ import { StatusBadge } from "@/components/pet-access/status-badge";
 import { ButtonLink } from "@/components/ui/button";
 import { DemoBadge } from "@/components/ui/demo-badge";
 import { demoItinerary } from "@/fixtures/demo-data";
+import {
+  formatRouteDistance,
+  formatRouteDuration,
+} from "@/lib/kakao/directions-client";
+import { useDrivingRoute } from "@/lib/kakao/use-driving-route";
 import { loadDraftItinerary, saveDraftItinerary } from "@/lib/storage/itinerary-storage";
 import type { Itinerary } from "@/types/itinerary";
 
 export function ItineraryEditor() {
   const [itinerary, setItinerary] = useState<Itinerary>(demoItinerary);
   const [message, setMessage] = useState("데모 일정이 준비됐어요.");
+  const mapLocations = useMemo(
+    () =>
+      itinerary.stops.map((stop, index) => ({
+        id: stop.place.contentId,
+        name: stop.place.name,
+        address: stop.place.address,
+        coordinates: stop.place.coordinates,
+        order: index + 1,
+      })),
+    [itinerary.stops],
+  );
+  const {
+    route: drivingRoute,
+    loading: routeLoading,
+    error: routeError,
+  } = useDrivingRoute(mapLocations);
 
   useEffect(() => {
     const saved = loadDraftItinerary();
@@ -72,7 +93,11 @@ export function ItineraryEditor() {
   return (
     <div className="grid gap-7 lg:grid-cols-[minmax(0,.9fr)_minmax(440px,1.1fr)]">
       <div className="lg:sticky lg:top-24 lg:self-start">
-        <MapPanel title="편집 중인 부산 데모 일정" />
+        <MapPanel
+          title="편집 중인 부산 데모 일정"
+          locations={mapLocations}
+          routeCoordinates={drivingRoute?.coordinates ?? []}
+        />
         <div className="surface-card mt-4 p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-base font-black">한눈에 보는 준비</h2>
@@ -92,13 +117,31 @@ export function ItineraryEditor() {
           <dl className="mt-5 grid grid-cols-2 gap-3 border-t border-[#e0e6e2] pt-4">
             <div>
               <dt className="text-xs font-bold text-[#718078]">예상 이동 거리</dt>
-              <dd className="mt-1 text-lg font-black">{itinerary.totalDistanceKm}km</dd>
+              <dd className="mt-1 text-lg font-black">
+                {drivingRoute
+                  ? formatRouteDistance(drivingRoute.totalDistanceMeters)
+                  : `${itinerary.totalDistanceKm}km`}
+              </dd>
             </div>
             <div>
               <dt className="text-xs font-bold text-[#718078]">차량 이동</dt>
-              <dd className="mt-1 text-lg font-black">약 {itinerary.totalDriveMinutes}분</dd>
+              <dd className="mt-1 text-lg font-black">
+                {drivingRoute
+                  ? formatRouteDuration(drivingRoute.totalDurationSeconds)
+                  : `약 ${itinerary.totalDriveMinutes}분`}
+              </dd>
             </div>
           </dl>
+          {routeLoading ? (
+            <p className="mt-3 text-xs font-bold text-[#64746c]" role="status">
+              변경된 방문 순서로 실시간 경로를 계산하고 있어요.
+            </p>
+          ) : null}
+          {routeError ? (
+            <p className="mt-3 text-xs font-bold text-[#8d5d38]" role="status">
+              실시간 경로를 불러오지 못해 저장된 예상값을 표시합니다.
+            </p>
+          ) : null}
         </div>
       </div>
 
