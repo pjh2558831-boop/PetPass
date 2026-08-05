@@ -14,6 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "verify:tour-live": "node --conditions=react-server --import tsx scripts/verify-tour-live.ts",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build"
   },
   "dependencies": {
@@ -21,6 +22,7 @@
     "next": "16.2.6",
     "react": "19.2.6",
     "react-dom": "19.2.6",
+    "server-only": "^0.0.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {
@@ -33,6 +35,7 @@
     "eslint-config-next": "16.2.6",
     "jsdom": "^26.1.0",
     "tailwindcss": "4.2.1",
+    "tsx": "^4.23.5",
     "typescript": "5.9.3",
     "vitest": "^3.2.4"
   }
