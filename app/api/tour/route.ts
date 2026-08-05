@@ -2,8 +2,8 @@ import { requestTourOperation } from "@/lib/tour-api/client";
 import {
   apiFailure,
   apiSuccess,
-  providerErrorResponse,
 } from "@/lib/shared/api-response";
+import { tourProviderErrorResponse } from "@/lib/tour-api/errors";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -26,6 +26,6 @@ export async function GET(request: Request) {
     const data = await requestTourOperation(operation, params);
     return apiSuccess(data);
   } catch (error) {
-    return providerErrorResponse(error);
+    return tourProviderErrorResponse(error);
   }
 }

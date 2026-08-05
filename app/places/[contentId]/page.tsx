@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import {
   ArrowLeft,
   Building2,
@@ -12,6 +11,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { MapPanel } from "@/components/map/map-panel";
+import { LivePlaceDetail } from "@/components/places/live-place-detail";
 import { AssessmentPanel } from "@/components/pet-access/assessment-panel";
 import { StatusBadge } from "@/components/pet-access/status-badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -43,12 +43,19 @@ export async function generateMetadata({
 
 export default async function PlaceDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ contentId: string }>;
+  searchParams: Promise<{ contentTypeId?: string }>;
 }) {
   const { contentId } = await params;
+  const { contentTypeId } = await searchParams;
   const place = getDemoPlace(contentId);
-  if (!place) notFound();
+  if (!place) {
+    return (
+      <LivePlaceDetail contentId={contentId} contentTypeId={contentTypeId} />
+    );
+  }
 
   const alternatives = demoPlaces
     .filter(

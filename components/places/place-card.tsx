@@ -1,12 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Clock3, LocateFixed, MapPin } from "lucide-react";
-import { StatusBadge } from "@/components/pet-access/status-badge";
-import { DemoBadge } from "@/components/ui/demo-badge";
-import { MissingImage } from "@/components/ui/missing-image";
-import { CATEGORY_LABELS } from "@/lib/shared/format";
-import type { PetPlace } from "@/types/place";
+import { ArrowRight, LocateFixed, MapPin } from "lucide-react";
+import { PlaceImage } from "@/components/places/place-image";
+import { TOUR_CATEGORY_LABELS } from "@/lib/shared/format";
+import type { TourPlaceSummary } from "@/types/place";
 
 export function PlaceCard({
   place,
@@ -14,11 +12,17 @@ export function PlaceCard({
   selected = false,
   onSelect,
 }: {
-  place: PetPlace;
+  place: TourPlaceSummary;
   order?: number;
   selected?: boolean;
   onSelect?: () => void;
 }) {
+  const title = place.title ?? "이름 미확인";
+  const address = [place.address, place.detailAddress].filter(Boolean).join(" ");
+  const detailQuery = place.contentTypeId
+    ? `?contentTypeId=${place.contentTypeId}`
+    : "";
+
   return (
     <article
       id={`place-card-${place.contentId}`}
@@ -28,7 +32,10 @@ export function PlaceCard({
     >
       <div className="grid gap-4 sm:grid-cols-[170px_1fr]">
         <div className="relative">
-          <MissingImage label={place.name} />
+          <PlaceImage
+            imageUrl={place.thumbnailUrl ?? place.imageUrl}
+            title={title}
+          />
           {order ? (
             <span className="absolute left-3 top-3 grid size-8 place-items-center rounded-full bg-[#236148] text-xs font-black text-white shadow">
               {order}
@@ -38,28 +45,23 @@ export function PlaceCard({
         <div className="flex min-w-0 flex-col p-1 sm:py-2 sm:pr-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-extrabold text-[#66776e]">
-              {CATEGORY_LABELS[place.category]}
+              {TOUR_CATEGORY_LABELS[place.category]}
             </span>
-            <StatusBadge status={place.accessAssessment.status} />
-            {place.source.isDemo ? <DemoBadge compact /> : null}
+            <span className="rounded-full bg-[#edf8f2] px-2.5 py-1 text-[11px] font-extrabold text-[#236148]">
+              한국관광공사 실시간 정보
+            </span>
           </div>
-          <h3 className="mt-3 text-lg font-black tracking-[-0.03em]">{place.name}</h3>
-          <p className="mt-1 line-clamp-2 text-sm leading-6 text-[#617068]">
-            {place.summary}
-          </p>
+          <h3 className="mt-3 text-lg font-black tracking-[-0.03em]">{title}</h3>
           <div className="mt-3 space-y-1.5 text-xs font-semibold text-[#65746c]">
             <p className="flex items-start gap-2">
               <MapPin size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
-              {place.address}
+              {address || "주소 정보 없음"}
             </p>
-            <p className="flex items-start gap-2">
-              <Clock3 size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
-              {place.openingHours ?? "운영시간 미확인"}
-            </p>
+            <p>운영시간과 반려동물 동반 원문은 상세 화면에서 확인합니다.</p>
           </div>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs font-bold text-[#6e7e75]">
-              {place.accessAssessment.reason}
+              동반 가능 여부는 아직 판정하지 않습니다.
             </p>
             <span className="ml-auto flex items-center gap-2">
               {onSelect ? (
@@ -67,18 +69,18 @@ export function PlaceCard({
                   type="button"
                   onClick={onSelect}
                   className="inline-flex items-center gap-1 text-xs font-extrabold text-[#52665b] hover:text-[#236148]"
-                  aria-label={`${place.name} 지도에서 보기`}
+                  aria-label={`${title} 지도에서 보기`}
                 >
                   <LocateFixed size={14} aria-hidden="true" />
                   지도
                 </button>
               ) : null}
               <Link
-                href={`/places/${place.contentId}`}
+                href={`/places/${place.contentId}${detailQuery}`}
                 className="inline-flex shrink-0 items-center gap-1 text-sm font-extrabold text-[#236148]"
-                aria-label={`${place.name} 상세 보기`}
+                aria-label={`${title} 원문 상세 보기`}
               >
-                근거 보기
+                원문 상세
                 <ArrowRight size={15} aria-hidden="true" />
               </Link>
             </span>

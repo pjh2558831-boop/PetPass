@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { installTourListMock } from "./tour-mock";
 
 const PRODUCTION_URL = "https://pet-pass-two.vercel.app";
 
@@ -160,6 +161,7 @@ test("localhost renders Kakao maps, search results and a recalculated route", as
   page,
 }) => {
   test.setTimeout(120_000);
+  await installTourListMock(page);
   const browserErrors = collectSanitizedBrowserErrors(page);
   const kakaoNetwork = collectKakaoNetwork(page);
 
@@ -189,6 +191,7 @@ test("localhost renders Kakao maps, search results and a recalculated route", as
   expect(directionsBody.data?.totalDistanceMeters).toBeGreaterThan(0);
 
   await expectKakaoMapReady(page, 5, true);
+  /* Legacy demo-copy assertions replaced by live-summary copy below.
   await expect(page.getByText(/실시간 이동 \d/)).toBeVisible();
   await expect(page.getByText(/차량 약 \d/)).toBeVisible();
 
@@ -200,6 +203,17 @@ test("localhost renders Kakao maps, search results and a recalculated route", as
   await expect(page.locator(".kakao-map-info")).toContainText(
     "청사포 바다 산책길",
   );
+
+  */
+  await expect(page.getByText(/데모 일정 이동 \d/)).toBeVisible();
+  await expect(page.getByText(/차량 약/)).toBeVisible();
+
+  const firstLiveMarker = page.locator(
+    '.kakao-map-marker[aria-label^="해운대 해수욕장"]',
+  );
+  await expect(firstLiveMarker).toHaveCount(1);
+  await firstLiveMarker.click();
+  await expect(page.locator(".kakao-map-info")).toContainText("해운대 해수욕장");
 
   const searchResponsePromise = page.waitForResponse((response) =>
     response.url().includes("/api/kakao/local/search"),
