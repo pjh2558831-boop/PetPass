@@ -191,6 +191,7 @@ test("localhost renders Kakao maps, search results and a recalculated route", as
   expect(directionsBody.data?.totalDistanceMeters).toBeGreaterThan(0);
 
   await expectKakaoMapReady(page, 5, true);
+  await expectResponsiveMap(page, 390, 844);
   /* Legacy demo-copy assertions replaced by live-summary copy below.
   await expect(page.getByText(/실시간 이동 \d/)).toBeVisible();
   await expect(page.getByText(/차량 약 \d/)).toBeVisible();

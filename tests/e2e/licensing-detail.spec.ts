@@ -4,7 +4,7 @@ import { installTourListMock } from "./tour-mock";
 
 test("shows a high-confidence general-restaurant match", async ({ page }) => {
   await installDetailMock(page, "matched_high", "general_restaurants");
-  await page.goto("/places/1005?contentTypeId=82");
+  await page.goto("/places/1005?contentTypeId=39");
   await expect(page.getByRole("heading", { name: "인허가 정보" })).toBeVisible();
   await expect(page.getByText("인허가 기록 일치")).toBeVisible();
   await expect(page.getByText("확인된 세부 유형: 일반음식점")).toBeVisible();
@@ -12,13 +12,13 @@ test("shows a high-confidence general-restaurant match", async ({ page }) => {
 
 test("shows a high-confidence rest-cafe match", async ({ page }) => {
   await installDetailMock(page, "matched_high", "rest_cafes");
-  await page.goto("/places/1005?contentTypeId=82");
+  await page.goto("/places/1005?contentTypeId=39");
   await expect(page.getByText("확인된 세부 유형: 휴게음식점")).toBeVisible();
 });
 
 test("does not present one ambiguous candidate as confirmed", async ({ page }) => {
   await installDetailMock(page, "ambiguous");
-  await page.goto("/places/1005?contentTypeId=82");
+  await page.goto("/places/1005?contentTypeId=39");
   await expect(page.getByText("일치 가능한 인허가 기록이 여러 개입니다")).toBeVisible();
   await expect(page.getByText("아래 후보 중 하나를 확정하지 않았습니다.")).toBeVisible();
   await expect(page.getByText("확인된 세부 유형:")).toHaveCount(0);
@@ -26,7 +26,7 @@ test("does not present one ambiguous candidate as confirmed", async ({ page }) =
 
 test("shows the required no-result clarification without prohibited labels", async ({ page }) => {
   await installDetailMock(page, "not_found");
-  await page.goto("/places/1005?contentTypeId=82");
+  await page.goto("/places/1005?contentTypeId=39");
   await expect(page.getByText("공공데이터에서 일치 기록을 찾지 못했습니다")).toBeVisible();
   await expect(
     page.getByText("일치 기록이 검색되지 않았다는 의미이며, 무허가 업소라는 뜻은 아닙니다."),
@@ -37,7 +37,7 @@ test("shows the required no-result clarification without prohibited labels", asy
 
 test("keeps Tourism and pet evidence visible when licensing is unavailable", async ({ page }) => {
   await installDetailMock(page, "unavailable");
-  await page.goto("/places/1005?contentTypeId=82");
+  await page.goto("/places/1005?contentTypeId=39");
   await expect(page.getByRole("heading", { name: "마린 테라스 식탁" })).toBeVisible();
   await expect(page.getByText("현재 인허가 정보를 확인할 수 없습니다").first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "반려동물 동반 안내" })).toBeVisible();
@@ -51,7 +51,7 @@ test("hides licensing for non-food details and makes no licensing request", asyn
     }
   });
   await installDetailMock(page, "not_applicable");
-  await page.goto("/places/1001?contentTypeId=76");
+  await page.goto("/places/1001?contentTypeId=12");
   await expect(page.getByRole("heading", { name: "해운대 해수욕장" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "인허가 정보" })).toHaveCount(0);
   expect(licensingRequests).toBe(0);

@@ -103,8 +103,8 @@ function accommodationDetail(
   return {
     summary: {
       contentId: "8001",
-      contentTypeId: "80",
-      providerContentTypeId: "80",
+      contentTypeId: "32",
+      providerContentTypeId: "32",
       category: "accommodation",
       title: "블루웨이브 호텔",
       address: "부산광역시 해운대구 달맞이길 10",
@@ -607,14 +607,14 @@ describe("deterministic accommodation matching", () => {
     const search = searchMock(async (dataset) => searchResult(dataset, []));
     const unsupported = accommodationDetail({
       category: "attraction",
-      contentTypeId: "76",
-      providerContentTypeId: "76",
+      contentTypeId: "12",
+      providerContentTypeId: "12",
     });
     expect(
       (await new LicenseMatchingService(search).matchTourPlace(unsupported))
         .matchState,
     ).toBe("not_applicable");
-    const spoofed = accommodationDetail({ providerContentTypeId: "39" });
+    const spoofed = accommodationDetail({ providerContentTypeId: "38" });
     expect(
       (await new LicenseMatchingService(search).matchTourPlace(spoofed)).matchState,
     ).toBe("not_applicable");
@@ -633,13 +633,25 @@ describe("deterministic accommodation matching", () => {
     const food = accommodationDetail({
       title: "마린 테라스 식탁",
       category: "food",
-      contentTypeId: "82",
-      providerContentTypeId: "82",
+      contentTypeId: "39",
+      providerContentTypeId: "39",
     });
     await service.matchTourPlace(food);
     expect(new Set(search.search.mock.calls.map(([query]) => query.dataset))).toEqual(
       new Set(["general_restaurants", "rest_cafes"]),
     );
+
+    search.search.mockClear();
+    const shopping = accommodationDetail({
+      title: "반려동물 쇼핑시설",
+      category: "shopping",
+      contentTypeId: "38",
+      providerContentTypeId: "38",
+    });
+    expect((await service.matchTourPlace(shopping)).matchState).toBe(
+      "not_applicable",
+    );
+    expect(search.search).not.toHaveBeenCalled();
   });
 
   it("never compares EPSG:5174-looking LocalData coordinates", () => {
@@ -674,7 +686,7 @@ describe("deterministic accommodation matching", () => {
       }),
     };
     const response = await createTourPlaceDetailHandler(tourismService, matcher)(
-      new Request("http://localhost/api/tour/places/8001?contentTypeId=80"),
+      new Request("http://localhost/api/tour/places/8001?contentTypeId=32"),
       { params: Promise.resolve({ contentId: "8001" }) },
     );
     expect(response.status).toBe(200);

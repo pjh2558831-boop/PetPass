@@ -30,7 +30,7 @@ test("keeps the existing demo detail evidence screen working", async ({ page }) 
 test("returns a structured validation error without substituting demo data", async ({
   request,
 }) => {
-  const response = await request.get("/api/tour/places?contentTypeId=12");
+  const response = await request.get("/api/tour/places?contentTypeId=75");
   expect(response.status()).toBe(400);
   await expect(response.json()).resolves.toMatchObject({
     ok: false,

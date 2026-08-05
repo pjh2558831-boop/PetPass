@@ -51,13 +51,13 @@ async function main() {
   const tourism = new KoreaTourismService();
   const list = await tourism.listPlaces({
     regionCode: "26",
-    contentTypeId: "80",
+    contentTypeId: "32",
     page: 1,
     pageSize: 3,
   });
   const place = list.places.find(
     (candidate) =>
-      candidate.providerContentTypeId === "80" &&
+      candidate.providerContentTypeId === "32" &&
       candidate.category === "accommodation",
   );
   console.log(`LIVE_TOUR_ACCOMMODATION_COUNT=${list.places.length}`);
@@ -66,12 +66,12 @@ async function main() {
   if (!place) {
     console.log("LIVE_ACCOMMODATION_MATCH_STATE=not_applicable");
     console.log(
-      "LIVE_ACCOMMODATION_REASON=no_current_busan_content_type_80_record",
+      "LIVE_ACCOMMODATION_REASON=no_current_busan_content_type_32_record",
     );
     return;
   }
 
-  const detail = await tourism.getPlaceDetail(place.contentId, "80");
+  const detail = await tourism.getPlaceDetail(place.contentId, "32");
   const matcher = new LicenseMatchingService(new LocalDataClient(provider));
   const result = await matcher.matchAccommodationPlace(detail);
   for (const datasetResult of result.perDatasetResults) {

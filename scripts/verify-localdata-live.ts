@@ -24,12 +24,12 @@ async function main() {
   const tourism = new KoreaTourismService();
   const list = await tourism.listPlaces({
     regionCode: "26",
-    contentTypeId: "82",
+    contentTypeId: "39",
     page: 1,
     pageSize: 10,
   });
   const place = list.places.find(
-    (candidate) => candidate.category === "food" && candidate.contentTypeId === "82",
+    (candidate) => candidate.category === "food" && candidate.contentTypeId === "39",
   );
 
   if (!place) {
@@ -55,7 +55,7 @@ async function main() {
     return;
   }
 
-  const detail = await tourism.getPlaceDetail(place.contentId, "82");
+  const detail = await tourism.getPlaceDetail(place.contentId, "39");
   const businessName = detail.summary.title;
   if (!businessName) throw new Error("TRUSTED_TITLE_REQUIRED");
   const [general, cafes, match] = await Promise.all([

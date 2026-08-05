@@ -53,7 +53,7 @@ function primaryEvidence(
 
 function fallbackEvidence(
   value: string,
-  field: TourIntroPetPolicyEvidence["field"] = "chkpet",
+  field: TourIntroPetPolicyEvidence["field"] = "chkpetshopping",
 ): TourIntroPetPolicyEvidence {
   return {
     field,
@@ -78,7 +78,7 @@ function trustedInput(options: {
 } = {}): TrustedTourPetAccessInput {
   return {
     contentId: "100",
-    providerContentTypeId: options.providerContentTypeId ?? "76",
+    providerContentTypeId: options.providerContentTypeId ?? "38",
     retrievedAt: RETRIEVED_AT,
     providerModifiedTime: "20260805000000",
     primary: {
@@ -217,6 +217,24 @@ describe("deterministic Tourism pet-access verdicts", () => {
 });
 
 describe("Tourism pet-access evidence and source states", () => {
+  it("evaluates current type-38 primary evidence instead of rejecting applicability", () => {
+    const result = evaluateTourPetAccess(
+      trustedInput({
+        providerContentTypeId: "38",
+        fields: { acmpyTypeCd: "전구역 동반가능" },
+      }),
+    );
+    expect(result).toMatchObject({
+      verdict: "allowed",
+      evaluationState: "complete",
+    });
+    expect(result.evidence[0]).toMatchObject({
+      operation: "detailPetTour2",
+      field: "acmpyTypeCd",
+    });
+    expect(result.sources[0].status).toBe("available");
+  });
+
   it("keeps a dangerous-dog restriction compatible with general allowance", () => {
     const result = assess({
       acmpyPsblCpam: "전 견종 동반 가능",
@@ -267,6 +285,7 @@ describe("Tourism pet-access evidence and source states", () => {
       trustedInput({ primaryStatus: "unavailable", fallbackStatus: "unavailable" }),
     );
     expect(result).toMatchObject({ verdict: "unknown", evaluationState: "unavailable" });
+    expect(result.sources[0].status).toBe("unavailable");
   });
 
   it("distinguishes a valid empty response from provider failure", () => {
@@ -291,6 +310,7 @@ describe("Tourism pet-access evidence and source states", () => {
       scope: "whole_place",
       priority: 1,
     });
+    expect(result.sources[0].status).toBe("available");
   });
 
   it("turns broad allowance plus a compatible condition into conditional", () => {
@@ -394,19 +414,20 @@ describe("Tourism pet-access evidence and source states", () => {
   it("does not accept unsupported legacy provider records", () => {
     const result = evaluateTourPetAccess(
       trustedInput({
-        providerContentTypeId: "39",
+        providerContentTypeId: "75",
         fields: { etcAcmpyInfo: "반려동물 동반 가능" },
       }),
     );
     expect(result).toMatchObject({ verdict: "unknown", evaluationState: "not_applicable" });
     expect(result.evidence).toEqual([]);
+    expect(result.sources[0].status).toBe("available");
   });
 
   it("ignores a fallback field that does not match the provider-owned type", () => {
     const result = evaluateTourPetAccess(
       trustedInput({
         primaryStatus: "unavailable",
-        providerContentTypeId: "76",
+        providerContentTypeId: "38",
         fallback: fallbackEvidence("반려동물 동반 가능", "chkpetculture"),
       }),
     );

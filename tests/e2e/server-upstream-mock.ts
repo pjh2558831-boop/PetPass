@@ -1,7 +1,7 @@
 type Scenario = {
   title: string;
   address: string;
-  contentTypeId: "80" | "82" | "76";
+  contentTypeId: "12" | "32" | "38" | "39" | "75";
   petPolicy?: Record<string, string | null>;
   introPetPolicy?: Record<string, string>;
   petResponse?: "empty" | "unavailable";
@@ -11,81 +11,81 @@ const scenarios: Record<string, Scenario> = {
   "2001": {
     title: "라군스테이 호텔",
     address: "부산광역시 해운대구 달맞이길 10",
-    contentTypeId: "80",
+    contentTypeId: "32",
   },
   "2002": {
     title: "마린크라운 호텔",
     address: "부산광역시 해운대구 달맞이길 20",
-    contentTypeId: "80",
+    contentTypeId: "32",
   },
   "2003": {
     title: "솔바람 관광펜션",
     address: "부산광역시 해운대구 달맞이길 30",
-    contentTypeId: "80",
+    contentTypeId: "32",
   },
   "2004": {
     title: "코랄베이 호텔",
     address: "부산광역시 해운대구 달맞이길 40",
-    contentTypeId: "80",
+    contentTypeId: "32",
   },
   "2005": {
     title: "블루웨이브",
     address: "부산광역시 해운대구 달맞이길 50",
-    contentTypeId: "80",
+    contentTypeId: "32",
   },
   "2006": {
     title: "찾을수없는숙소",
     address: "부산광역시 해운대구 달맞이길 60",
-    contentTypeId: "80",
+    contentTypeId: "32",
   },
   "2007": {
     title: "파셜뷰 호텔",
     address: "부산광역시 해운대구 달맞이길 70",
-    contentTypeId: "80",
+    contentTypeId: "32",
   },
   "2008": {
     title: "폴트브레이크 호텔",
     address: "부산광역시 해운대구 달맞이길 80",
-    contentTypeId: "80",
+    contentTypeId: "32",
   },
   "2009": {
     title: "올드포트 호텔",
     address: "부산광역시 해운대구 달맞이길 90",
-    contentTypeId: "80",
+    contentTypeId: "32",
   },
   "2010": {
     title: "듀얼스테이트 호텔",
     address: "부산광역시 해운대구 달맞이길 100",
-    contentTypeId: "80",
+    contentTypeId: "32",
   },
   "2011": {
     title: "해운대 해수욕장",
     address: "부산광역시 해운대구 해운대해변로 264",
-    contentTypeId: "76",
+    contentTypeId: "12",
     petPolicy: { acmpyTypeCd: "전구역 동반가능" },
   },
   "2012": {
     title: "마린 테라스 식탁",
     address: "부산광역시 해운대구 달맞이길 110",
-    contentTypeId: "82",
+    contentTypeId: "39",
     petPolicy: { acmpyTypeCd: "전구역 동반가능" },
   },
   "3001": {
     title: "반려동물 전구역 관광지",
     address: "부산광역시 수영구 광안해변로 1",
-    contentTypeId: "76",
+    contentTypeId: "38",
     petPolicy: { acmpyTypeCd: "전구역 동반가능" },
   },
   "3002": {
     title: "소형견 동반 관광지",
     address: "부산광역시 수영구 광안해변로 2",
-    contentTypeId: "76",
+    contentTypeId: "38",
     petPolicy: { acmpyPsblCpam: "소형견만 가능" },
   },
   "3003": {
     title: "이동장 필수 관광지",
     address: "부산광역시 수영구 광안해변로 3",
-    contentTypeId: "76",
+    contentTypeId: "38",
     petPolicy: {
       acmpyPsblCpam: "반려동물 동반 가능",
       acmpyNeedMtr: "이동장 사용 필수",
@@ -94,37 +94,37 @@ const scenarios: Record<string, Scenario> = {
   "3004": {
     title: "야외 동반 관광지",
     address: "부산광역시 수영구 광안해변로 4",
-    contentTypeId: "76",
+    contentTypeId: "38",
     petPolicy: { etcAcmpyInfo: "실내 동반 불가하지만 야외 동반 가능" },
   },
   "3005": {
     title: "반려동물 지정 객실",
     address: "부산광역시 수영구 광안해변로 5",
-    contentTypeId: "80",
+    contentTypeId: "32",
     petPolicy: { etcAcmpyInfo: "일부 지정 객실만 반려동물 동반 가능" },
   },
   "3006": {
     title: "반려동물 출입 제한 관광지",
     address: "부산광역시 수영구 광안해변로 6",
-    contentTypeId: "76",
+    contentTypeId: "38",
     petPolicy: { etcAcmpyInfo: "반려동물 동반 불가" },
   },
   "3007": {
     title: "반려동물 정보 미제공 관광지",
     address: "부산광역시 수영구 광안해변로 7",
-    contentTypeId: "76",
+    contentTypeId: "38",
     petResponse: "empty",
   },
   "3008": {
     title: "반려동물 문의 관광지",
     address: "부산광역시 수영구 광안해변로 8",
-    contentTypeId: "76",
+    contentTypeId: "38",
     petPolicy: { etcAcmpyInfo: "반려동물 동반 가능 여부는 전화 문의" },
   },
   "3009": {
     title: "반려동물 정책 상충 관광지",
     address: "부산광역시 수영구 광안해변로 9",
-    contentTypeId: "76",
+    contentTypeId: "38",
     petPolicy: {
       acmpyPsblCpam: "반려동물 동반 가능",
       etcAcmpyInfo: "반려동물 동반 불가",
@@ -133,24 +133,29 @@ const scenarios: Record<string, Scenario> = {
   "3010": {
     title: "반려동물 원문 장애 관광지",
     address: "부산광역시 수영구 광안해변로 10",
-    contentTypeId: "76",
+    contentTypeId: "38",
     petResponse: "unavailable",
   },
   "3011": {
     title: "반려동물 보조 원문 관광지",
     address: "부산광역시 수영구 광안해변로 11",
-    contentTypeId: "76",
+    contentTypeId: "38",
     petResponse: "unavailable",
-    introPetPolicy: { chkpet: "반려동물 동반 가능" },
+    introPetPolicy: { chkpetshopping: "반려동물 동반 가능" },
   },
   "3012": {
     title: "안전한 원문 관광지",
     address: "부산광역시 수영구 광안해변로 12",
-    contentTypeId: "76",
+    contentTypeId: "38",
     petPolicy: {
       etcAcmpyInfo:
         "<img src=x onerror=alert(1)>반려동물 동반 가능<br>목줄 착용 필수",
     },
+  },
+  "3013": {
+    title: "지원 대상이 아닌 레거시 관광 기록",
+    address: "부산광역시 수영구 광안해변로 13",
+    contentTypeId: "75",
   },
 };
 
@@ -179,7 +184,7 @@ function tourismResponse(url: URL): Response {
   if (operation === "areaBasedList2") {
     return json(
       Object.entries(scenarios)
-        .filter(([, item]) => item.contentTypeId === "80")
+        .filter(([, item]) => item.contentTypeId === "32")
         .slice(0, 5)
         .map(([id, item]) => ({
           contentid: id,

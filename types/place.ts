@@ -41,14 +41,13 @@ export interface PetPlace {
 }
 
 export const TOUR_CONTENT_TYPE_IDS = [
-  "75",
-  "76",
-  "77",
-  "78",
-  "79",
-  "80",
-  "82",
-  "85",
+  "12",
+  "14",
+  "15",
+  "28",
+  "32",
+  "38",
+  "39",
 ] as const;
 
 export type TourContentTypeId = (typeof TOUR_CONTENT_TYPE_IDS)[number];

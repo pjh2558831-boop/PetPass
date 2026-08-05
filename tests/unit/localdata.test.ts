@@ -109,7 +109,7 @@ function searchResult(
 
 function detail(
   category: TourPlaceDetail["summary"]["category"] = "food",
-  contentTypeId: TourPlaceDetail["summary"]["contentTypeId"] = "82",
+  contentTypeId: TourPlaceDetail["summary"]["contentTypeId"] = "39",
 ): TourPlaceDetail {
   return {
     summary: {
@@ -447,7 +447,7 @@ describe("deterministic food-license matching", () => {
   it("returns not_applicable without provider calls for non-food records", async () => {
     const search = searchMock(async (dataset) => searchResult(dataset, []));
     const result = await new FoodLicenseMatchingService(search).matchTourPlace(
-      detail("attraction", "76"),
+      detail("attraction", "12"),
     );
     expect(result.matchState).toBe("not_applicable");
     expect(search.search).not.toHaveBeenCalled();
@@ -455,8 +455,8 @@ describe("deterministic food-license matching", () => {
 
   it("does not trust a browser content-type hint over the provider-reported type", async () => {
     const search = searchMock(async (dataset) => searchResult(dataset, []));
-    const spoofed = detail("food", "82");
-    spoofed.summary.providerContentTypeId = "39";
+    const spoofed = detail("food", "39");
+    spoofed.summary.providerContentTypeId = "38";
     const result = await new FoodLicenseMatchingService(search).matchTourPlace(spoofed);
     expect(result.matchState).toBe("not_applicable");
     expect(search.search).not.toHaveBeenCalled();
@@ -499,7 +499,7 @@ describe("deterministic food-license matching", () => {
     };
     const matcher: FoodLicenseMatcher = { matchTourPlace: vi.fn(async () => unavailableResult) };
     const response = await createTourPlaceDetailHandler(tourismService, matcher)(
-      new Request("http://localhost/api/tour/places/100?contentTypeId=82"),
+      new Request("http://localhost/api/tour/places/100?contentTypeId=39"),
       { params: Promise.resolve({ contentId: "100" }) },
     );
     expect(response.status).toBe(200);

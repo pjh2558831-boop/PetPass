@@ -170,8 +170,8 @@ export function liveDetail(
   const detail: TourPlaceDetail = {
     summary: {
       contentId: food ? "1005" : "1001",
-      contentTypeId: food ? "82" : "76",
-      providerContentTypeId: food ? "82" : "76",
+      contentTypeId: food ? "39" : "12",
+      providerContentTypeId: food ? "39" : "12",
       category: food ? "food" : "attraction",
       title: food ? "마린 테라스 식탁" : "해운대 해수욕장",
       address: "부산광역시 해운대구 달맞이길 10",
