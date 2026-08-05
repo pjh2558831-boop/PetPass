@@ -1,10 +1,15 @@
 import "server-only";
 
+import {
+  INTRO_PET_FIELD_BY_CONTENT_TYPE,
+  PET_ACCESS_LIMITS,
+} from "@/lib/pet-access/tourism/constants";
 import type { TourItem } from "@/lib/tour-api/schemas";
 import {
   TOUR_CONTENT_TYPE_IDS,
   type Coordinates,
   type TourContentTypeId,
+  type TourIntroPetPolicyEvidence,
   type TourOperationName,
   type TourPetPolicyEvidence,
   type TourPetPolicyFields,
@@ -129,8 +134,9 @@ export function normalizeTourPlaceSummary(
 ): TourPlaceSummary | null {
   const contentId = value(item, "contentid") ?? context.fallbackContentId ?? null;
   if (!contentId) return null;
+  const providerContentTypeId = value(item, "contenttypeid");
   const contentTypeId =
-    normalizeTourContentTypeId(value(item, "contenttypeid")) ??
+    normalizeTourContentTypeId(providerContentTypeId) ??
     context.fallbackContentTypeId ??
     null;
   const coordinates = normalizeCoordinates(item);
@@ -139,7 +145,8 @@ export function normalizeTourPlaceSummary(
   return {
     contentId,
     contentTypeId,
-    category: normalizeTourCategory(contentTypeId),
+    providerContentTypeId,
+    category: normalizeTourCategory(providerContentTypeId),
     title: sanitizeProviderText(value(item, "title")),
     address: sanitizeProviderText(value(item, "addr1")),
     detailAddress: sanitizeProviderText(value(item, "addr2")),
@@ -198,6 +205,13 @@ function firstText(item: TourItem | null, keys: string[]): string | null {
   return sanitizeProviderText(value(item, ...keys));
 }
 
+function boundedProviderText(input: string | null | undefined): string | null {
+  const sanitized = sanitizeProviderText(input);
+  return sanitized
+    ? Array.from(sanitized).slice(0, PET_ACCESS_LIMITS.sourceFieldCharacters).join("")
+    : null;
+}
+
 export function normalizeTourIntroDetails(
   item: TourItem | null,
 ): NormalizedTourIntroDetails {
@@ -252,15 +266,15 @@ export function normalizePetPolicyEvidence(
 ): TourPetPolicyEvidence | null {
   if (!item) return null;
   const fields: TourPetPolicyFields = {
-    acmpyTypeCd: value(item, "acmpyTypeCd"),
-    acmpyPsblCpam: value(item, "acmpyPsblCpam"),
-    acmpyNeedMtr: value(item, "acmpyNeedMtr"),
-    etcAcmpyInfo: value(item, "etcAcmpyInfo"),
-    relaAcdntRiskMtr: value(item, "relaAcdntRiskMtr"),
-    relaPosesFclty: value(item, "relaPosesFclty"),
-    relaFrnshPrdlst: value(item, "relaFrnshPrdlst"),
-    relaPurcPrdlst: value(item, "relaPurcPrdlst"),
-    relaRntlPrdlst: value(item, "relaRntlPrdlst"),
+    acmpyTypeCd: boundedProviderText(value(item, "acmpyTypeCd")),
+    acmpyPsblCpam: boundedProviderText(value(item, "acmpyPsblCpam")),
+    acmpyNeedMtr: boundedProviderText(value(item, "acmpyNeedMtr")),
+    etcAcmpyInfo: boundedProviderText(value(item, "etcAcmpyInfo")),
+    relaAcdntRiskMtr: boundedProviderText(value(item, "relaAcdntRiskMtr")),
+    relaPosesFclty: boundedProviderText(value(item, "relaPosesFclty")),
+    relaFrnshPrdlst: boundedProviderText(value(item, "relaFrnshPrdlst")),
+    relaPurcPrdlst: boundedProviderText(value(item, "relaPurcPrdlst")),
+    relaRntlPrdlst: boundedProviderText(value(item, "relaRntlPrdlst")),
   };
   const providerModifiedTime = value(item, "modifiedtime");
   return {
@@ -272,6 +286,31 @@ export function normalizePetPolicyEvidence(
       providerModifiedTime,
       retrievedAt: context.retrievedAt,
       originalEvidenceFields: { ...fields },
+    },
+  };
+}
+
+export function normalizeIntroPetPolicyEvidence(
+  item: TourItem | null,
+  providerContentTypeId: TourContentTypeId | null,
+  context: { contentId: string; retrievedAt: string },
+): TourIntroPetPolicyEvidence | null {
+  if (!item || !providerContentTypeId) return null;
+  const field = INTRO_PET_FIELD_BY_CONTENT_TYPE[providerContentTypeId];
+  if (!field) return null;
+  const normalizedValue = boundedProviderText(value(item, field));
+  if (!normalizedValue) return null;
+  const providerModifiedTime = value(item, "modifiedtime");
+  return {
+    field,
+    value: normalizedValue,
+    sourceEvidence: {
+      provider: TOUR_PROVIDER,
+      operation: "detailIntro2",
+      contentId: context.contentId,
+      retrievedAt: context.retrievedAt,
+      providerModifiedTime,
+      originalValue: normalizedValue,
     },
   };
 }

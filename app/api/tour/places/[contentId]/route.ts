@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  attachTourPetAccessEvaluationTime,
+  createTrustedTourPetAccessInput,
+  evaluateTourPetAccess,
+} from "@/lib/pet-access/tourism/evaluator";
 import { apiFailure, apiSuccess } from "@/lib/shared/api-response";
 import {
   consumeRateLimit,
@@ -11,11 +16,20 @@ import {
   type TourPlaceService,
 } from "@/lib/tour-api/service";
 import { TOUR_CONTENT_TYPE_IDS } from "@/types/place";
+import {
+  createUnavailableLicenseResult,
+  getDefaultLicenseMatchingService,
+  type LicenseMatcher,
+} from "@/lib/licenses/service";
 
 const contentIdSchema = z.string().regex(/^\d{1,30}$/);
 const contentTypeIdSchema = z.enum(TOUR_CONTENT_TYPE_IDS).optional();
 
-export function createTourPlaceDetailHandler(service: TourPlaceService) {
+export function createTourPlaceDetailHandler(
+  service: TourPlaceService,
+  licenseMatcher?: LicenseMatcher,
+  now: () => Date = () => new Date(),
+) {
   return async function GET(
     request: Request,
     context: { params: Promise<{ contentId: string }> },
@@ -54,10 +68,36 @@ export function createTourPlaceDetailHandler(service: TourPlaceService) {
     }
 
     try {
-      const data = await service.getPlaceDetail(
+      const tourismDetail = await service.getPlaceDetail(
         contentIdResult.data,
         contentTypeIdResult.data,
       );
+      const petAccessAssessment = attachTourPetAccessEvaluationTime(
+        evaluateTourPetAccess(createTrustedTourPetAccessInput(tourismDetail)),
+        now().toISOString(),
+      );
+      let licensing;
+      try {
+        licensing = await (
+          licenseMatcher ?? getDefaultLicenseMatchingService()
+        ).matchTourPlace(tourismDetail);
+      } catch {
+        licensing = createUnavailableLicenseResult(
+          tourismDetail.summary.providerContentTypeId === "80" &&
+            tourismDetail.summary.category === "accommodation"
+            ? "accommodation"
+            : "food",
+        );
+      }
+      const data = {
+        ...tourismDetail,
+        petAccessAssessment,
+        licensing,
+        sections: {
+          ...tourismDetail.sections,
+          licensing: licensing.section,
+        },
+      };
       return apiSuccess(data, 200, {
         "Cache-Control": "public, s-maxage=900, stale-while-revalidate=120",
       });
@@ -71,5 +111,8 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ contentId: string }> },
 ): Promise<Response> {
-  return createTourPlaceDetailHandler(getDefaultTourService())(request, context);
+  return createTourPlaceDetailHandler(
+    getDefaultTourService(),
+    getDefaultLicenseMatchingService(),
+  )(request, context);
 }

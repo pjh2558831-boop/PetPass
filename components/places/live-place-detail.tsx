@@ -14,24 +14,11 @@ import {
 } from "lucide-react";
 import { MapPanel } from "@/components/map/map-panel";
 import { PlaceImage } from "@/components/places/place-image";
+import { LicenseInformationPanel } from "@/components/places/license-information-panel";
+import { PetAccessAssessmentPanel } from "@/components/places/pet-access-assessment-panel";
 import { TOUR_CATEGORY_LABELS } from "@/lib/shared/format";
 import type { ApiResult } from "@/types/api";
-import type {
-  TourPetPolicyFields,
-  TourPlaceDetail,
-} from "@/types/place";
-
-const evidenceLabels: Record<keyof TourPetPolicyFields, string> = {
-  acmpyTypeCd: "동반 유형 코드",
-  acmpyPsblCpam: "동반 가능 동물",
-  acmpyNeedMtr: "동반 필요 사항",
-  etcAcmpyInfo: "기타 동반 정보",
-  relaAcdntRiskMtr: "관련 사고 위험 사항",
-  relaPosesFclty: "관련 보유 시설",
-  relaFrnshPrdlst: "관련 비치 물품",
-  relaPurcPrdlst: "관련 구매 물품",
-  relaRntlPrdlst: "관련 대여 물품",
-};
+import type { TourPlaceDetailResponse } from "@/types/place";
 
 type DetailState = "loading" | "ready" | "error";
 
@@ -43,7 +30,7 @@ export function LivePlaceDetail({
   contentTypeId?: string;
 }) {
   const [state, setState] = useState<DetailState>("loading");
-  const [detail, setDetail] = useState<TourPlaceDetail | null>(null);
+  const [detail, setDetail] = useState<TourPlaceDetailResponse | null>(null);
   const [error, setError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
 
@@ -58,7 +45,7 @@ export function LivePlaceDetail({
           `/api/tour/places/${encodeURIComponent(contentId)}${query}`,
           { signal: controller.signal, headers: { Accept: "application/json" } },
         );
-        const body = (await response.json()) as ApiResult<TourPlaceDetail>;
+        const body = (await response.json()) as ApiResult<TourPlaceDetailResponse>;
         if (!response.ok || !body.ok) {
           const timeout = !body.ok && body.error.code === "UPSTREAM_TIMEOUT";
           throw new Error(
@@ -128,7 +115,7 @@ export function LivePlaceDetail({
           longitude: detail.summary.longitude,
         };
   const unavailableSections = Object.values(detail.sections).filter(
-    (section) => section.status === "unavailable",
+    (section) => section.status !== "available",
   );
 
   return (
@@ -203,42 +190,10 @@ export function LivePlaceDetail({
           </div>
         </div>
 
-        <section className="surface-card p-5 sm:p-6" aria-labelledby="pet-source-heading">
-          <p className="eyebrow">SOURCE EVIDENCE</p>
-          <h2 id="pet-source-heading" className="mt-2 text-xl font-black tracking-[-0.03em]">
-            반려동물 동반 정보 원문
-          </h2>
-          <p className="mt-3 rounded-2xl bg-[#fff8f1] p-4 text-sm font-semibold leading-6 text-[#6a5547]">
-            이 단계에서는 원문만 제공합니다. 동반 가능·조건부·불일치 판정은 하지 않습니다.
-          </p>
-          {detail.petPolicyEvidence ? (
-            <dl className="mt-5 space-y-3">
-              {Object.entries(detail.petPolicyEvidence.fields).map(([key, value]) => (
-                <div key={key} className="rounded-2xl border border-[#dce6df] bg-white p-4">
-                  <dt className="text-xs font-extrabold text-[#607269]">
-                    {evidenceLabels[key as keyof TourPetPolicyFields]}
-                  </dt>
-                  <dd className="mt-2 whitespace-pre-line text-sm leading-6 text-[#344a40]">
-                    {value || "제공 정보 없음"}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          ) : (
-            <p className="mt-5 rounded-2xl bg-[#f3f5f3] p-4 text-sm font-semibold text-[#68776f]">
-              반려동물 동반 원문 섹션을 사용할 수 없습니다.
-            </p>
-          )}
-          <div className="mt-5 border-t border-[#dce6df] pt-4 text-xs leading-6 text-[#6b7972]">
-            <p>제공처: Korea Tourism Organization</p>
-            <p>작업: detailPetTour2</p>
-            <p>콘텐츠 ID: {contentId}</p>
-            <p>조회 시각: {detail.source.retrievedAt}</p>
-            {detail.providerModifiedTime ? (
-              <p>제공처 수정 시각: {detail.providerModifiedTime}</p>
-            ) : null}
-          </div>
-        </section>
+        <div className="space-y-5">
+          <LicenseInformationPanel licensing={detail.licensing} />
+          <PetAccessAssessmentPanel assessment={detail.petAccessAssessment} />
+        </div>
       </div>
 
       {coordinates ? (

@@ -6,6 +6,7 @@ import { TourProviderError } from "@/lib/tour-api/errors";
 import {
   extractSafeHomepageUrl,
   getTourProviderName,
+  normalizeIntroPetPolicyEvidence,
   normalizePetPolicyEvidence,
   normalizeTourContentTypeId,
   normalizeTourIntroDetails,
@@ -260,6 +261,14 @@ export class KoreaTourismService implements TourPlaceService {
       contentId,
       retrievedAt,
     });
+    const trustedProviderContentTypeId = normalizeTourContentTypeId(
+      summary.providerContentTypeId,
+    );
+    const introPetPolicyEvidence = normalizeIntroPetPolicyEvidence(
+      introItem,
+      trustedProviderContentTypeId,
+      { contentId, retrievedAt },
+    );
     const providerModifiedTime =
       rawValue(commonItem, "modifiedtime") ??
       rawValue(introItem, "modifiedtime") ??
@@ -272,14 +281,15 @@ export class KoreaTourismService implements TourPlaceService {
       ...intro,
       providerModifiedTime,
       petPolicyEvidence,
+      introPetPolicyEvidence,
       sections: {
-        common: commonItem
+        common: commonResult.status === "fulfilled"
           ? available()
           : unavailable("기본 상세 정보를 불러오지 못했습니다."),
-        intro: introItem
+        intro: introResult.status === "fulfilled"
           ? available()
           : unavailable("운영 상세 정보를 불러오지 못했습니다."),
-        petPolicy: petItem
+        petPolicy: petResult.status === "fulfilled"
           ? available()
           : unavailable("반려동물 동반 원문 정보를 불러오지 못했습니다."),
       },
