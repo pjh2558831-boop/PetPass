@@ -191,8 +191,8 @@ export function LivePlaceDetail({
         </div>
 
         <div className="space-y-5">
-          <LicenseInformationPanel licensing={detail.licensing} />
           <PetAccessAssessmentPanel assessment={detail.petAccessAssessment} />
+          <LicenseInformationPanel licensing={detail.licensing} />
         </div>
       </div>
 

@@ -220,15 +220,21 @@ function collectFallbackEvidence(
 
 function sourceStates(
   input: TrustedTourPetAccessInput,
-  state: EvidenceBuildState,
 ): TourPetAccessSourceState[] {
+  const primaryHasRecognizedValue = Object.values(
+    input.primary.evidence?.fields ?? {},
+  ).some((value) => Boolean(value?.trim()));
+  const fallbackHasRecognizedValue = Boolean(
+    input.fallback.evidence?.value.trim(),
+  );
+
   return [
     {
       operation: "detailPetTour2",
       status:
         input.primary.status === "unavailable"
           ? "unavailable"
-          : state.primaryRawFieldCount > 0
+          : primaryHasRecognizedValue
             ? "available"
             : "empty",
       retrievedAt:
@@ -241,7 +247,7 @@ function sourceStates(
       status:
         input.fallback.status === "unavailable"
           ? "unavailable"
-          : state.fallbackRawFieldCount > 0
+          : fallbackHasRecognizedValue
             ? "available"
             : "empty",
       retrievedAt:
@@ -395,7 +401,7 @@ export function evaluateTourPetAccess(
       conflicts: [],
       verificationItems: [],
       providerModifiedTime: input.providerModifiedTime,
-      sources: sourceStates(input, state),
+      sources: sourceStates(input),
       warnings: ["지원되지 않거나 제공기관 유형을 확인할 수 없는 관광 기록입니다."],
     };
   }
@@ -475,7 +481,7 @@ export function evaluateTourPetAccess(
       conflicts,
     ),
     providerModifiedTime: input.providerModifiedTime,
-    sources: sourceStates(input, state),
+    sources: sourceStates(input),
     warnings: [...new Set(state.warnings)],
   };
 }

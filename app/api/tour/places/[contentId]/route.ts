@@ -83,7 +83,7 @@ export function createTourPlaceDetailHandler(
         ).matchTourPlace(tourismDetail);
       } catch {
         licensing = createUnavailableLicenseResult(
-          tourismDetail.summary.providerContentTypeId === "80" &&
+          tourismDetail.summary.providerContentTypeId === "32" &&
             tourismDetail.summary.category === "accommodation"
             ? "accommodation"
             : "food",

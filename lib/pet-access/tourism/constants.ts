@@ -28,10 +28,10 @@ export const VERIFIED_COMPANION_TYPE_CODES = {
 export const INTRO_PET_FIELD_BY_CONTENT_TYPE: Partial<
   Record<TourContentTypeId, TourIntroPetPolicyField>
 > = {
-  "75": "chkpetleports",
-  "76": "chkpet",
-  "78": "chkpetculture",
-  "79": "chkpetshopping",
+  "12": "chkpet",
+  "14": "chkpetculture",
+  "28": "chkpetleports",
+  "38": "chkpetshopping",
 };
 
 export const PET_POLICY_FIELD_PRIORITY: Record<keyof TourPetPolicyFields, 1 | 2 | 4> = {

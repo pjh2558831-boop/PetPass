@@ -258,7 +258,7 @@ export class LicenseMatchingService implements LicenseMatcher {
 
   matchFoodPlace(detail: TourPlaceDetail): Promise<FoodLicenseMatchResult> {
     const supported =
-      detail.summary.providerContentTypeId === "82" &&
+      detail.summary.providerContentTypeId === "39" &&
       detail.summary.category === "food";
     if (!supported) return Promise.resolve(foodNotApplicable());
 
@@ -396,7 +396,7 @@ export class LicenseMatchingService implements LicenseMatcher {
     detail: TourPlaceDetail,
   ): Promise<AccommodationLicenseMatchResult> {
     const supported =
-      detail.summary.providerContentTypeId === "80" &&
+      detail.summary.providerContentTypeId === "32" &&
       detail.summary.category === "accommodation";
     if (!supported) return Promise.resolve(accommodationNotApplicable());
 
@@ -622,13 +622,13 @@ export class LicenseMatchingService implements LicenseMatcher {
 
   matchTourPlace(detail: TourPlaceDetail): Promise<LicensingMatchResult> {
     if (
-      detail.summary.providerContentTypeId === "82" &&
+      detail.summary.providerContentTypeId === "39" &&
       detail.summary.category === "food"
     ) {
       return this.matchFoodPlace(detail);
     }
     if (
-      detail.summary.providerContentTypeId === "80" &&
+      detail.summary.providerContentTypeId === "32" &&
       detail.summary.category === "accommodation"
     ) {
       return this.matchAccommodationPlace(detail);

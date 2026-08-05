@@ -18,14 +18,13 @@ import {
 } from "@/types/place";
 
 const CONTENT_TYPE_CATEGORIES: Record<TourContentTypeId, TourPlaceCategory> = {
-  "75": "leisure",
-  "76": "attraction",
-  "77": "transportation",
-  "78": "culture",
-  "79": "shopping",
-  "80": "accommodation",
-  "82": "food",
-  "85": "festival",
+  "12": "attraction",
+  "14": "culture",
+  "15": "festival",
+  "28": "leisure",
+  "32": "accommodation",
+  "38": "shopping",
+  "39": "food",
 };
 
 const TOUR_PROVIDER = "Korea Tourism Organization" as const;

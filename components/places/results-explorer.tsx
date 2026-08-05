@@ -256,8 +256,8 @@ export function ResultsExplorer() {
         }}
       />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(380px,.92fr)]">
-        <div className="lg:sticky lg:top-24 lg:self-start">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(380px,.92fr)]">
+        <div className="min-w-0 lg:sticky lg:top-24 lg:self-start">
           <MapPanel
             locations={mapLocations}
             routeCoordinates={drivingRoute?.coordinates ?? []}
@@ -285,7 +285,7 @@ export function ResultsExplorer() {
           ) : null}
         </div>
 
-        <section aria-labelledby="places-heading">
+        <section className="min-w-0" aria-labelledby="places-heading">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="eyebrow">부산 실시간 관광 데이터</p>

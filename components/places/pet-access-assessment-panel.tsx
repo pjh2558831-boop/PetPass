@@ -1,4 +1,10 @@
 import {
+  Ban,
+  CircleAlert,
+  CircleCheckBig,
+  CircleHelp,
+} from "lucide-react";
+import {
   TOUR_PET_ACCESS_SCOPE_LABELS,
   TOUR_PET_ACCESS_VERDICT_LABELS,
 } from "@/lib/pet-access/tourism/constants";
@@ -14,6 +20,13 @@ const VERDICT_STYLES: Record<TourPetAccessAssessment["verdict"], string> = {
   not_allowed: "border-[#e5bdb7] bg-[#fff1ef] text-[#823f36]",
   unknown: "border-[#d4dcd7] bg-[#f3f5f3] text-[#52665b]",
 };
+
+const VERDICT_ICONS = {
+  allowed: CircleCheckBig,
+  conditional: CircleAlert,
+  not_allowed: Ban,
+  unknown: CircleHelp,
+} as const;
 
 const CONFIDENCE_LABELS: Record<TourPetAccessAssessment["confidence"], string> = {
   high: "근거 강도 높음",
@@ -49,6 +62,8 @@ export function PetAccessAssessmentPanel({
 }: {
   assessment: TourPetAccessAssessment;
 }) {
+  const VerdictIcon = VERDICT_ICONS[assessment.verdict];
+
   return (
     <section className="surface-card p-5 sm:p-6" aria-labelledby="pet-access-heading">
       <p className="eyebrow">PET ACCESS ASSESSMENT</p>
@@ -57,7 +72,14 @@ export function PetAccessAssessmentPanel({
       </h2>
 
       <div className={`mt-4 rounded-2xl border p-4 ${VERDICT_STYLES[assessment.verdict]}`}>
-        <p className="text-base font-black">
+        <p className="flex items-center gap-2 text-base font-black">
+          <VerdictIcon
+            aria-hidden="true"
+            className="shrink-0"
+            data-verdict-icon={assessment.verdict}
+            size={20}
+            strokeWidth={2.5}
+          />
           {TOUR_PET_ACCESS_VERDICT_LABELS[assessment.verdict]}
         </p>
         <p className="mt-2 text-sm font-semibold leading-6">{assessment.summary}</p>

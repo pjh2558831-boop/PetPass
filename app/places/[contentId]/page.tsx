@@ -36,7 +36,7 @@ export async function generateMetadata({
   const { contentId } = await params;
   const place = getDemoPlace(contentId);
   return {
-    title: place?.name ?? "장소를 찾을 수 없음",
+    title: place?.name ?? "장소 상세",
     description: place?.summary,
   };
 }
