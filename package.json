@@ -16,6 +16,8 @@
     "test:e2e": "playwright test",
     "verify:tour-live": "node --conditions=react-server --import tsx scripts/verify-tour-live.ts",
     "verify:pet-access-live": "node --conditions=react-server --import tsx scripts/verify-pet-access-live.ts",
+    "diagnose:tour-service2-live": "node --conditions=react-server --import tsx scripts/diagnose-tour-service2-live.ts",
+    "verify:pet-access-samples-live": "node --conditions=react-server --import tsx scripts/find-live-pet-access-samples.ts",
     "verify:localdata-live": "node --conditions=react-server --import tsx scripts/verify-localdata-live.ts",
     "verify:accommodation-live": "node --conditions=react-server --import tsx scripts/verify-accommodation-localdata-live.ts",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build"
