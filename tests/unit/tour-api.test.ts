@@ -11,6 +11,8 @@ import {
 } from "@/lib/tour-api/errors";
 import {
   extractSafeHomepageUrl,
+  normalizeIntroPetPolicyEvidence,
+  normalizePetPolicyEvidence,
   normalizeTourCategory,
   normalizeTourPlaceSummary,
 } from "@/lib/tour-api/normalizers";
@@ -23,6 +25,8 @@ import {
 import type { ParsedTourResponse, TourItem } from "@/lib/tour-api/schemas";
 import { createTourPlacesHandler } from "@/app/api/tour/places/route";
 import { createTourPlaceDetailHandler } from "@/app/api/tour/places/[contentId]/route";
+import { createUnavailableLicenseResult } from "@/lib/licenses/service";
+import type { LicenseMatcher } from "@/lib/licenses/service";
 
 const config: NonNullable<TourApiClientOptions["config"]> = {
   baseUrl: "https://apis.data.go.kr/B551011/KorPetTourService2",
@@ -160,6 +164,35 @@ describe("Korea Tourism Organization provider", () => {
     );
   });
 
+  it("normalizes only the documented intro pet field for a trusted content type", () => {
+    const evidence = normalizeIntroPetPolicyEvidence(
+      { chkpet: "<b>반려동물 동반 가능</b>", chkpetculture: "동반 불가" },
+      "76",
+      { contentId: "100", retrievedAt: "2026-08-05T00:00:00.000Z" },
+    );
+    expect(evidence).toMatchObject({
+      field: "chkpet",
+      value: "반려동물 동반 가능",
+      sourceEvidence: { operation: "detailIntro2", contentId: "100" },
+    });
+    expect(
+      normalizeIntroPetPolicyEvidence(
+        { chkpet: "반려동물 동반 가능" },
+        "80",
+        { contentId: "100", retrievedAt: "2026-08-05T00:00:00.000Z" },
+      ),
+    ).toBeNull();
+  });
+
+  it("removes raw HTML and bounds normalized pet policy evidence", () => {
+    const evidence = normalizePetPolicyEvidence(
+      { contentid: "100", etcAcmpyInfo: `<script>unsafe()</script>${"가".repeat(2_100)}` },
+      { contentId: "100", retrievedAt: "2026-08-05T00:00:00.000Z" },
+    );
+    expect(evidence?.fields.etcAcmpyInfo).not.toContain("<script>");
+    expect(Array.from(evidence?.fields.etcAcmpyInfo ?? "")).toHaveLength(2_000);
+  });
+
   it("normalizes only the current KorPetTourService2 content types", () => {
     expect(normalizeTourCategory("75")).toBe("leisure");
     expect(normalizeTourCategory("76")).toBe("attraction");
@@ -170,6 +203,20 @@ describe("Korea Tourism Organization provider", () => {
     expect(normalizeTourCategory("82")).toBe("food");
     expect(normalizeTourCategory("85")).toBe("festival");
     expect(normalizeTourCategory("12")).toBe("unknown");
+
+    const legacy = normalizeTourPlaceSummary(
+      { contentid: "legacy", contenttypeid: "39" },
+      {
+        operation: "detailCommon2",
+        retrievedAt: "2026-08-05T00:00:00.000Z",
+        fallbackContentTypeId: "82",
+      },
+    );
+    expect(legacy).toMatchObject({
+      contentTypeId: "82",
+      providerContentTypeId: "39",
+      category: "unknown",
+    });
   });
 
   it("returns structured 400 responses for obsolete content types and invalid ids", async () => {
@@ -218,6 +265,65 @@ describe("Korea Tourism Organization provider", () => {
       petPolicy: { status: "available" },
     });
     expect(detail.petPolicyEvidence?.fields.acmpyNeedMtr).toBe("목줄 지참");
+  });
+
+  it("keeps a fulfilled empty pet response distinct from provider failure", async () => {
+    const client: TourClientLike = {
+      request: vi.fn(async (operation) => {
+        if (operation === "detailCommon2") {
+          return parsed([{ contentid: "100", contenttypeid: "76" }]);
+        }
+        if (operation === "detailIntro2") return parsed([]);
+        if (operation === "detailPetTour2") return parsed([]);
+        return parsed([]);
+      }),
+    };
+    const service = new KoreaTourismService(client, new TourRequestCache());
+    const detail = await service.getPlaceDetail("100", "76");
+    expect(detail.sections.petPolicy.status).toBe("available");
+    expect(detail.petPolicyEvidence).toBeNull();
+    expect(detail.introPetPolicyEvidence).toBeNull();
+  });
+
+  it("returns a partial assessment from trusted intro fallback without licensing influence", async () => {
+    const client: TourClientLike = {
+      request: vi.fn(async (operation) => {
+        if (operation === "detailCommon2") {
+          return parsed([{ contentid: "100", contenttypeid: "76", title: "부산 관광지" }]);
+        }
+        if (operation === "detailIntro2") {
+          return parsed([{ contentid: "100", contenttypeid: "76", chkpet: "반려동물 동반 가능" }]);
+        }
+        if (operation === "detailPetTour2") {
+          throw new TourProviderError("TIMEOUT", "timeout", { operation });
+        }
+        return parsed([]);
+      }),
+    };
+    const service = new KoreaTourismService(
+      client,
+      new TourRequestCache(),
+      () => new Date("2026-08-05T00:00:00.000Z"),
+    );
+    const licenseMatcher = {
+      matchTourPlace: vi.fn(async () => createUnavailableLicenseResult("food")),
+    } as unknown as LicenseMatcher;
+    const response = await createTourPlaceDetailHandler(
+      service,
+      licenseMatcher,
+      () => new Date("2026-08-05T01:00:00.000Z"),
+    )(
+      new Request("http://localhost/api/tour/places/100?contentTypeId=76"),
+      { params: Promise.resolve({ contentId: "100" }) },
+    );
+    const body = await response.json();
+    expect(body.data.petAccessAssessment).toMatchObject({
+      verdict: "allowed",
+      evaluationState: "partial",
+      confidence: "medium",
+      evaluatedAt: "2026-08-05T01:00:00.000Z",
+    });
+    expect(licenseMatcher.matchTourPlace).toHaveBeenCalledOnce();
   });
 
   it("deduplicates simultaneous list requests and never falls back to fixtures", async () => {

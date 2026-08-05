@@ -14,6 +14,7 @@ function place(
   return {
     contentId,
     contentTypeId,
+    providerContentTypeId: contentTypeId,
     category,
     title,
     address: "부산광역시 해운대구",

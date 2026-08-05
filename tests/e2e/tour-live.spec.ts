@@ -41,7 +41,7 @@ test("displays live Busan Tourism places and original pet-policy evidence", asyn
   const detailResponse = await detailResponsePromise;
   expect(detailResponse.status()).toBe(200);
   await expect(
-    page.getByRole("heading", { name: "반려동물 동반 정보 원문" }),
+    page.getByRole("heading", { name: "반려동물 동반 안내" }),
   ).toBeVisible();
   await expect(page.getByText("제공처: Korea Tourism Organization")).toBeVisible();
   await expect(

@@ -1,6 +1,11 @@
 import type { PetAccessAssessment, PetPolicy } from "@/types/access";
-import type { LicenseVerification } from "@/types/license";
+import type {
+  LicenseVerification,
+  LicensingMatchResult,
+  LicensingSectionState,
+} from "@/types/license";
 import type { PlaceCategory } from "@/types/pet";
+import type { TourPetAccessAssessment } from "@/types/tour-pet-access";
 
 export interface DataSourceMetadata {
   sourceName: string;
@@ -85,6 +90,7 @@ export interface TourSourceReference {
 export interface TourPlaceSummary {
   contentId: string;
   contentTypeId: TourContentTypeId | null;
+  providerContentTypeId: string | null;
   category: TourPlaceCategory;
   title: string | null;
   address: string | null;
@@ -132,10 +138,26 @@ export interface TourPetPolicyEvidence {
   };
 }
 
+export type TourIntroPetPolicyField =
+  | "chkpet"
+  | "chkpetculture"
+  | "chkpetleports"
+  | "chkpetshopping";
+
+export interface TourIntroPetPolicyEvidence {
+  field: TourIntroPetPolicyField;
+  value: string;
+  sourceEvidence: TourSourceReference & {
+    operation: "detailIntro2";
+    contentId: string;
+    originalValue: string;
+  };
+}
+
 export type TourDetailSectionName = "common" | "intro" | "petPolicy";
 
 export interface TourDetailSectionState {
-  status: "available" | "unavailable";
+  status: "available" | "partial" | "unavailable";
   message?: string;
 }
 
@@ -150,6 +172,14 @@ export interface TourPlaceDetail {
   contactInformation: string | null;
   providerModifiedTime: string | null;
   petPolicyEvidence: TourPetPolicyEvidence | null;
-  sections: Record<TourDetailSectionName, TourDetailSectionState>;
+  introPetPolicyEvidence: TourIntroPetPolicyEvidence | null;
+  licensing?: LicensingMatchResult;
+  sections: Record<TourDetailSectionName, TourDetailSectionState> & {
+    licensing?: LicensingSectionState;
+  };
   source: TourSourceReference;
+}
+
+export interface TourPlaceDetailResponse extends TourPlaceDetail {
+  petAccessAssessment: TourPetAccessAssessment;
 }
