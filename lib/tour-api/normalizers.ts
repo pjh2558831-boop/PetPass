@@ -134,10 +134,12 @@ export function normalizeTourPlaceSummary(
   const contentId = value(item, "contentid") ?? context.fallbackContentId ?? null;
   if (!contentId) return null;
   const providerContentTypeId = value(item, "contenttypeid");
+  const normalizedProviderContentTypeId = normalizeTourContentTypeId(
+    providerContentTypeId,
+  );
   const contentTypeId =
-    normalizeTourContentTypeId(providerContentTypeId) ??
-    context.fallbackContentTypeId ??
-    null;
+    normalizedProviderContentTypeId ??
+    (providerContentTypeId === null ? context.fallbackContentTypeId ?? null : null);
   const coordinates = normalizeCoordinates(item);
   const modifiedTime = value(item, "modifiedtime");
 
@@ -145,7 +147,7 @@ export function normalizeTourPlaceSummary(
     contentId,
     contentTypeId,
     providerContentTypeId,
-    category: normalizeTourCategory(providerContentTypeId),
+    category: normalizeTourCategory(contentTypeId),
     title: sanitizeProviderText(value(item, "title")),
     address: sanitizeProviderText(value(item, "addr1")),
     detailAddress: sanitizeProviderText(value(item, "addr2")),
@@ -184,7 +186,11 @@ export function normalizeTourPlaceSummary(
 
 export function normalizeTourPlaceSummaries(
   items: TourItem[],
-  context: { operation: TourOperationName; retrievedAt: string },
+  context: {
+    operation: TourOperationName;
+    retrievedAt: string;
+    fallbackContentTypeId?: TourContentTypeId | null;
+  },
 ): TourPlaceSummary[] {
   return items
     .map((item) => normalizeTourPlaceSummary(item, context))

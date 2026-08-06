@@ -5,16 +5,19 @@ import { useRouter } from "next/navigation";
 import { BedDouble, Coffee, Landmark, Utensils } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import {
+  BUSAN_DISTRICTS,
+  BUSAN_REGION,
+  isBusanDistrictCode,
+} from "@/lib/tour-api/catalog";
+import {
   loadTravelPreferences,
   saveTravelPreferences,
 } from "@/lib/storage/profile-storage";
 import type { PlaceCategory, TravelPreferences } from "@/types/pet";
 
 const defaultPreferences: TravelPreferences = {
-  regionCode: "26",
-  regionName: "부산",
-  districtCode: "16",
-  districtName: "해운대구",
+  regionCode: BUSAN_REGION.code,
+  regionName: BUSAN_REGION.name,
   tripDate: "2026-08-15",
   tripType: "DAY_TRIP",
   startTime: "10:00",
@@ -37,8 +40,24 @@ export function TripPreferencesForm() {
   useEffect(() => {
     const saved = loadTravelPreferences();
     // Hydrate validated client-only storage after the server render.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (saved) setPreferences(saved);
+    if (saved) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPreferences({
+        ...saved,
+        regionCode: BUSAN_REGION.code,
+        regionName: BUSAN_REGION.name,
+        districtCode:
+          saved.regionCode === BUSAN_REGION.code &&
+          isBusanDistrictCode(saved.districtCode)
+            ? saved.districtCode
+            : undefined,
+        districtName:
+          saved.regionCode === BUSAN_REGION.code &&
+          isBusanDistrictCode(saved.districtCode)
+            ? saved.districtName
+            : undefined,
+      });
+    }
   }, []);
 
   const toggleCategory = (category: PlaceCategory) => {
@@ -66,7 +85,7 @@ export function TripPreferencesForm() {
           setError("여행 조건을 이 브라우저에 저장하지 못했어요.");
           return;
         }
-        router.push("/results");
+        router.push("/results?tab=recommendations");
       }}
     >
       <div className="grid gap-4 sm:grid-cols-2">
@@ -78,18 +97,17 @@ export function TripPreferencesForm() {
             id="region"
             value={preferences.regionCode}
             onChange={(event) => {
-              const isBusan = event.target.value === "26";
               setPreferences((current) => ({
                 ...current,
                 regionCode: event.target.value,
-                regionName: isBusan ? "부산" : "제주",
-                districtCode: isBusan ? "16" : undefined,
-                districtName: isBusan ? "해운대구" : undefined,
+                regionName: BUSAN_REGION.name,
+                districtCode: undefined,
+                districtName: undefined,
               }));
             }}
             className="min-h-12 w-full rounded-2xl border border-[#cfd9d3] bg-white px-4 font-semibold"
           >
-            <option value="26">부산</option>
+            <option value={BUSAN_REGION.code}>부산</option>
             <option value="39" disabled>
               제주 · 다음 단계에서 지원
             </option>
@@ -101,11 +119,25 @@ export function TripPreferencesForm() {
           </label>
           <select
             id="district"
-            value={preferences.districtCode}
-            disabled
-            className="min-h-12 w-full rounded-2xl border border-[#cfd9d3] bg-[#f1f3f1] px-4 font-semibold text-[#617068]"
+            value={preferences.districtCode ?? "all"}
+            onChange={(event) => {
+              const district = BUSAN_DISTRICTS.find(
+                ({ code }) => code === event.target.value,
+              );
+              setPreferences((current) => ({
+                ...current,
+                districtCode: district?.code,
+                districtName: district?.name,
+              }));
+            }}
+            className="min-h-12 w-full rounded-2xl border border-[#cfd9d3] bg-white px-4 font-semibold"
           >
-            <option value="16">해운대구</option>
+            <option value="all">부산 전체</option>
+            {BUSAN_DISTRICTS.map((district) => (
+              <option key={district.code} value={district.code}>
+                {district.name}
+              </option>
+            ))}
           </select>
         </div>
         <div>
@@ -212,8 +244,9 @@ export function TripPreferencesForm() {
       </fieldset>
 
       <div className="rounded-2xl border border-[#e6d1bb] bg-[#fff8f1] p-4 text-sm leading-6 text-[#6a5547]">
-        이 단계에서는 부산 소형견·이동장 보유 시나리오를 로컬 데모 데이터로
-        보여줘요. 실제 관광 API 실패를 데모 데이터로 조용히 대체하지 않습니다.
+        저장한 지역·날짜·장소 유형은 추천 코스의 기본값이 됩니다. 추천 단계에서는
+        한국관광공사 동반 근거를 확인한 실제 장소만 사용하며, 제공자 실패를 데모
+        데이터로 대체하지 않습니다.
       </div>
 
       {error ? (

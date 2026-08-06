@@ -39,6 +39,7 @@ const DEFAULT_LOCATIONS: KakaoMapLocation[] = [
 export function MapPanel({
   compact = false,
   title = "부산 해운대 데모 경로",
+  locationLabel = "부산 · 해운대구",
   locations = DEFAULT_LOCATIONS,
   routeCoordinates = [],
   selectedLocationId = null,
@@ -46,6 +47,7 @@ export function MapPanel({
 }: {
   compact?: boolean;
   title?: string;
+  locationLabel?: string;
   locations?: KakaoMapLocation[];
   routeCoordinates?: Coordinates[];
   selectedLocationId?: string | null;
@@ -177,6 +179,8 @@ export function MapPanel({
     <section className="relative" aria-label={title}>
       <div
         className={`map-canvas kakao-map-canvas ${compact ? "!min-h-[300px]" : ""}`}
+        data-location-count={locations.length}
+        data-route-point-count={routeCoordinates.length}
       >
         <div ref={mapContainerRef} className="absolute inset-0" aria-hidden="true" />
         {loadState === "loading" ? (
@@ -197,10 +201,10 @@ export function MapPanel({
             좌표 확인이 필요한 장소 {missingCoordinateCount}곳은 지도에서 제외했어요.
           </p>
         ) : null}
-        <div className="map-watermark">Kakao Maps · 데모 장소 경로</div>
+        <div className="map-watermark">Kakao Maps · 실제 장소 및 경로</div>
         <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3 py-2 text-xs font-bold text-[#314b3f] shadow-sm">
           <MapPinned size={15} aria-hidden="true" />
-          부산 · 해운대구
+          {locationLabel}
         </div>
         <button
           type="button"

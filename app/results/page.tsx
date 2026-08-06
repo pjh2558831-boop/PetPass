@@ -6,7 +6,12 @@ export const metadata: Metadata = {
   title: "추천 경로",
 };
 
-export default function ResultsPage() {
+export default async function ResultsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab } = await searchParams;
   return (
     <div className="page-shell py-8 sm:py-12">
       <PlannerProgress current={3} />
@@ -20,12 +25,12 @@ export default function ResultsPage() {
           </h1>
         </div>
         <p className="max-w-md text-sm leading-7 text-[#66766e]">
-          장소의 운영시간, 동반 규정과 카테고리 균형을 반영한 로컬 데모
-          결과예요. 실제 데이터 연결 전에는 모든 장소를 데모로 표시합니다.
+          한국관광공사 실시간 장소와 반려동물 동반 원문을 확인하고, 조건을
+          충족하는 후보만 카카오 실제 이동 경로로 계산합니다.
         </p>
       </div>
       <div className="mt-8">
-        <ResultsExplorer />
+        <ResultsExplorer initialTab={tab === "recommendations" ? "recommendations" : "catalog"} />
       </div>
     </div>
   );

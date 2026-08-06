@@ -92,7 +92,7 @@ export function KakaoPlaceSearch({
               setError("");
             }
           }}
-          placeholder="예: 해운대 카페, 청사포"
+          placeholder="예: 부산 카페, 기장 산책"
           className="min-h-12 w-full rounded-2xl border border-[#cfd9d3] bg-white py-3 pl-11 pr-12 text-sm font-semibold shadow-sm"
           aria-label="카카오 장소 검색"
           aria-describedby="kakao-search-help"
@@ -106,7 +106,7 @@ export function KakaoPlaceSearch({
         ) : null}
       </div>
       <p id="kakao-search-help" className="mt-2 text-xs text-[#748078]">
-        두 글자 이상 입력하면 0.35초 후 부산 해운대 주변을 검색합니다.
+        두 글자 이상 입력하면 0.35초 후 입력한 지역명과 장소명으로 검색합니다.
       </p>
 
       {error ? (

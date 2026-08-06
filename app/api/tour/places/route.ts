@@ -7,6 +7,12 @@ import {
 } from "@/lib/shared/rate-limit";
 import { tourProviderErrorResponse } from "@/lib/tour-api/errors";
 import {
+  BUSAN_REGION,
+  isBusanDistrictCode,
+  type BusanDistrictCode,
+} from "@/lib/tour-api/catalog";
+import { listTourCatalog } from "@/lib/tour-api/catalog-service";
+import {
   getDefaultTourService,
   type TourPlaceService,
 } from "@/lib/tour-api/service";
@@ -14,8 +20,11 @@ import { TOUR_CONTENT_TYPE_IDS } from "@/types/place";
 
 const codeSchema = z.string().regex(/^\d{1,10}$/);
 const querySchema = z.object({
-  regionCode: codeSchema.default("26"),
-  districtCode: codeSchema.optional(),
+  regionCode: z.literal(BUSAN_REGION.code).default(BUSAN_REGION.code),
+  districtCode: codeSchema
+    .refine(isBusanDistrictCode)
+    .transform((value) => value as BusanDistrictCode)
+    .optional(),
   contentTypeId: z.enum(TOUR_CONTENT_TYPE_IDS).optional(),
   page: z.coerce.number().int().min(1).max(1_000).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(20),
@@ -60,7 +69,7 @@ export function createTourPlacesHandler(service: TourPlaceService) {
     }
 
     try {
-      const data = await service.listPlaces(parsed.data);
+      const data = await listTourCatalog(service, parsed.data);
       return apiSuccess(data, 200, {
         "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60",
       });

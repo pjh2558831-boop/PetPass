@@ -116,6 +116,7 @@ export class KoreaTourismService implements TourPlaceService {
       places: normalizeTourPlaceSummaries(response.items, {
         operation: "areaBasedList2",
         retrievedAt,
+        fallbackContentTypeId: query.contentTypeId,
       }),
       page: response.pageNo || query.page,
       pageSize: response.numOfRows || query.pageSize,

@@ -1,64 +1,76 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowRight, Filter, RefreshCw, Route } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight, Filter, RefreshCw, Route, Rows3 } from "lucide-react";
+import { RecommendationPlanner } from "@/components/itinerary/recommendation-planner";
 import { MapPanel } from "@/components/map/map-panel";
 import { KakaoPlaceSearch } from "@/components/places/kakao-place-search";
 import { PlaceCard } from "@/components/places/place-card";
-import { Button } from "@/components/ui/button";
-import { DemoBadge } from "@/components/ui/demo-badge";
-import { demoItinerary, demoPlaces, demoProfile } from "@/fixtures/demo-data";
 import {
-  formatRouteDistance,
-  formatRouteDuration,
-} from "@/lib/kakao/directions-client";
-import { useDrivingRoute } from "@/lib/kakao/use-driving-route";
-import { evaluatePetAccess } from "@/lib/pet-access/evaluator";
-import { TOUR_CATEGORY_LABELS } from "@/lib/shared/format";
-import {
-  loadPetProfile,
-  loadTravelPreferences,
-} from "@/lib/storage/profile-storage";
-import { saveDraftItinerary } from "@/lib/storage/itinerary-storage";
+  BUSAN_DISTRICTS,
+  BUSAN_REGION,
+  getBusanDistrictName,
+  getCatalogContentTypeId,
+  isBusanDistrictCode,
+  TOUR_CATALOG_FILTERS,
+  type BusanDistrictCode,
+  type TourCatalogFilter,
+} from "@/lib/tour-api/catalog";
+import { loadPetProfile, loadTravelPreferences } from "@/lib/storage/profile-storage";
 import type { ApiResult } from "@/types/api";
 import type { KakaoPlaceSearchResult } from "@/types/kakao";
 import type { PetProfile, TravelPreferences } from "@/types/pet";
-import type {
-  TourPlaceCategory,
-  TourPlaceList,
-  TourPlaceSummary,
-} from "@/types/place";
+import type { TourPlaceList, TourPlaceSummary } from "@/types/place";
+import type { GeneratedItinerary } from "@/types/route-generation";
 
-const filterOptions: Array<TourPlaceCategory | "all"> = [
-  "all",
-  "attraction",
-  "culture",
-  "leisure",
-  "food",
-  "accommodation",
-  "shopping",
-  "festival",
-  "transportation",
-];
+const CATALOG_PAGE_SIZE = 12;
 
-type ListState = "loading" | "ready" | "empty" | "error";
+const DEFAULT_PROFILE: PetProfile = {
+  id: "route-profile",
+  name: "내 반려동물",
+  species: "DOG",
+  size: "SMALL",
+  hasCarrier: true,
+  hasLeash: true,
+  hasMuzzle: false,
+  acceptsOutdoorOnly: true,
+};
 
-export function ResultsExplorer() {
-  const router = useRouter();
-  const [profile, setProfile] = useState<PetProfile>(demoProfile);
-  const [preferences, setPreferences] = useState<TravelPreferences>(
-    demoItinerary.preferences,
-  );
+const DEFAULT_PREFERENCES: TravelPreferences = {
+  regionCode: BUSAN_REGION.code,
+  regionName: BUSAN_REGION.name,
+  tripDate: "2026-08-15",
+  tripType: "DAY_TRIP",
+  startTime: "10:00",
+  preferredCategories: ["ATTRACTION", "RESTAURANT", "WALK"],
+};
+
+type ExplorerTab = "catalog" | "recommendations";
+type ListState = "loading" | "ready" | "empty" | "unavailable";
+
+export function ResultsExplorer({
+  initialTab = "catalog",
+}: {
+  initialTab?: ExplorerTab;
+}) {
+  const [activeTab, setActiveTab] = useState<ExplorerTab>(initialTab);
+  const [profile, setProfile] = useState<PetProfile>(DEFAULT_PROFILE);
+  const [preferences, setPreferences] =
+    useState<TravelPreferences>(DEFAULT_PREFERENCES);
   const [places, setPlaces] = useState<TourPlaceSummary[]>([]);
   const [listState, setListState] = useState<ListState>("loading");
   const [listError, setListError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
-  const [category, setCategory] = useState<TourPlaceCategory | "all">("all");
-  const [error, setError] = useState("");
+  const [districtCode, setDistrictCode] =
+    useState<BusanDistrictCode | "all">("all");
+  const [category, setCategory] = useState<TourCatalogFilter>("all");
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
   const [selectedSearchResult, setSelectedSearchResult] =
     useState<KakaoPlaceSearchResult | null>(null);
+  const [selectedItinerary, setSelectedItinerary] =
+    useState<GeneratedItinerary | null>(null);
 
   useEffect(() => {
     const savedProfile = loadPetProfile();
@@ -66,34 +78,54 @@ export function ResultsExplorer() {
     // Hydrate validated client-only storage after the server render.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (savedProfile) setProfile(savedProfile);
-    if (savedPreferences) setPreferences(savedPreferences);
+    if (savedPreferences) {
+      setPreferences(savedPreferences);
+      setDistrictCode(
+        savedPreferences.regionCode === BUSAN_REGION.code &&
+          isBusanDistrictCode(savedPreferences.districtCode)
+          ? savedPreferences.districtCode
+          : "all",
+      );
+    }
   }, []);
 
   useEffect(() => {
     const controller = new AbortController();
     const load = async () => {
+      setListState("loading");
       try {
-        const response = await fetch(
-          "/api/tour/places?regionCode=26&page=1&pageSize=20",
-          { signal: controller.signal, headers: { Accept: "application/json" } },
-        );
+        const params = new URLSearchParams({
+          regionCode: BUSAN_REGION.code,
+          page: String(page),
+          pageSize: String(CATALOG_PAGE_SIZE),
+        });
+        if (districtCode !== "all") params.set("districtCode", districtCode);
+        const contentTypeId = getCatalogContentTypeId(category);
+        if (contentTypeId) params.set("contentTypeId", contentTypeId);
+        const response = await fetch(`/api/tour/places?${params}`, {
+          signal: controller.signal,
+          headers: { Accept: "application/json" },
+        });
         const body = (await response.json()) as ApiResult<TourPlaceList>;
         if (!response.ok || !body.ok) {
           const timeout = !body.ok && body.error.code === "UPSTREAM_TIMEOUT";
           throw new Error(
             timeout
-              ? "관광 API 응답 시간이 초과되었습니다."
+              ? "관광공사 응답 시간이 초과되었습니다."
               : !body.ok
                 ? body.error.message
                 : "관광지 목록을 불러오지 못했습니다.",
           );
         }
         setPlaces(body.data.places);
+        setTotalCount(body.data.totalCount);
         setListState(body.data.places.length > 0 ? "ready" : "empty");
         setListError("");
       } catch (loadError) {
         if (controller.signal.aborted) return;
-        setListState("error");
+        setPlaces([]);
+        setTotalCount(0);
+        setListState("unavailable");
         setListError(
           loadError instanceof Error
             ? loadError.message
@@ -103,52 +135,33 @@ export function ResultsExplorer() {
     };
     void load();
     return () => controller.abort();
-  }, [retryCount]);
+  }, [category, districtCode, page, retryCount]);
 
-  const assessedDemoPlaces = useMemo(
-    () =>
-      demoPlaces.map((place) => ({
-        ...place,
-        accessAssessment: evaluatePetAccess(profile, place.petPolicy, {
-          sourceName: place.source.sourceName,
-          retrievedAt: place.source.retrievedAt,
-          phone: place.phone,
-        }),
-      })),
-    [profile],
+  const invalidateSelectedRoute = useCallback(() => {
+    setSelectedItinerary(null);
+    setSelectedLocationId(null);
+  }, []);
+
+  const changeDistrict = useCallback(
+    (nextDistrict: BusanDistrictCode | "all") => {
+      setDistrictCode(nextDistrict);
+      setPage(1);
+      setSelectedSearchResult(null);
+      invalidateSelectedRoute();
+    },
+    [invalidateSelectedRoute],
   );
 
-  const filteredPlaces = useMemo(
-    () =>
-      places.filter(
-        (place) => category === "all" || place.category === category,
-      ),
-    [category, places],
-  );
-
-  const routeLocations = useMemo(
-    () =>
-      demoItinerary.stops.map((stop, index) => ({
-        id: stop.place.contentId,
-        name: stop.place.name,
-        address: stop.place.address,
-        coordinates: stop.place.coordinates,
-        order: index + 1,
-      })),
-    [],
-  );
-  const {
-    route: drivingRoute,
-    loading: routeLoading,
-    error: routeError,
-  } = useDrivingRoute(routeLocations);
+  const selectMapLocation = useCallback((contentId: string) => {
+    setSelectedLocationId(contentId || null);
+  }, []);
 
   const sizeLabel = { SMALL: "소형", MEDIUM: "중형", LARGE: "대형" }[
     profile.size
   ];
 
-  const mapLocations = useMemo(() => {
-    const locations = filteredPlaces.map((place, index) => ({
+  const catalogLocations = useMemo(() => {
+    const locations = places.map((place, index) => ({
       id: place.contentId,
       name: place.title ?? "이름 미확인",
       address: [place.address, place.detailAddress].filter(Boolean).join(" "),
@@ -156,7 +169,7 @@ export function ResultsExplorer() {
         place.latitude === null || place.longitude === null
           ? null
           : { latitude: place.latitude, longitude: place.longitude },
-      order: index + 1,
+      order: (page - 1) * CATALOG_PAGE_SIZE + index + 1,
     }));
     if (selectedSearchResult) {
       locations.push({
@@ -168,14 +181,42 @@ export function ResultsExplorer() {
       });
     }
     return locations;
-  }, [filteredPlaces, selectedSearchResult]);
+  }, [page, places, selectedSearchResult]);
+
+  const routeLocations = useMemo(
+    () =>
+      (selectedItinerary?.stops ?? []).map((stop) => ({
+        id: stop.contentId,
+        name: stop.title,
+        address: stop.address ?? "주소 정보 없음",
+        coordinates: stop.coordinates,
+        order: stop.order,
+      })),
+    [selectedItinerary],
+  );
+
+  const districtName =
+    districtCode === "all"
+      ? "부산 전체"
+      : getBusanDistrictName(districtCode) ?? "부산 전체";
+  const totalPages = Math.max(1, Math.ceil(totalCount / CATALOG_PAGE_SIZE));
+  const mapLocations =
+    activeTab === "recommendations" ? routeLocations : catalogLocations;
+  const routeCoordinates =
+    activeTab === "recommendations" ? selectedItinerary?.geometry ?? [] : [];
 
   useEffect(() => {
-    if (!selectedLocationId || selectedLocationId.startsWith("kakao-local:")) return;
+    if (
+      activeTab !== "catalog" ||
+      !selectedLocationId ||
+      selectedLocationId.startsWith("kakao-local:")
+    ) {
+      return;
+    }
     document
       .getElementById(`place-card-${selectedLocationId}`)
       ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [selectedLocationId]);
+  }, [activeTab, selectedLocationId]);
 
   return (
     <div className="space-y-6">
@@ -183,136 +224,163 @@ export function ResultsExplorer() {
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-[#edf8f2] px-3 py-1.5 text-xs font-extrabold text-[#236148]">
-              장소 목록 · 한국관광공사 실시간 데이터
+              한국관광공사 실시간 장소 · 카카오 실제 경로
             </span>
-            <DemoBadge />
-            <span className="text-xs font-bold text-[#6b7972]">
-              일정 생성 기능은 기존 데모 시나리오
+            <span className="rounded-full border border-[#cadbd2] bg-white px-3 py-1.5 text-xs font-extrabold text-[#315b48]">
+              선택 범위 {districtName}
             </span>
           </div>
           <p className="mt-3 text-sm font-extrabold text-[#2a4036]">
             {profile.name} · {sizeLabel} 반려동물 · {profile.hasCarrier ? "이동장 있음" : "이동장 없음"}
           </p>
           <p className="mt-1 text-xs text-[#718078]">
-            부산 전체 · {preferences.tripDate} · {preferences.startTime} 출발
+            {districtName} · {preferences.tripDate} · {preferences.startTime} 출발
           </p>
         </div>
-        <Button
-          type="button"
-          onClick={() => {
-            const currentPlaces = new Map(
-              assessedDemoPlaces.map((place) => [place.contentId, place]),
-            );
-            const stops = demoItinerary.stops
-              .map((stop) => {
-                const place = currentPlaces.get(stop.place.contentId);
-                if (!place || place.accessAssessment.status === "NOT_MATCHED") {
-                  return null;
-                }
-                return {
-                  ...stop,
-                  place,
-                  accessAssessment: place.accessAssessment,
-                  alternatives: stop.alternatives.map((alternative) => ({
-                    ...alternative,
-                    place:
-                      currentPlaces.get(alternative.place.contentId) ??
-                      alternative.place,
-                  })),
-                };
-              })
-              .filter((stop) => stop !== null);
-            const saved = saveDraftItinerary({
-              ...demoItinerary,
-              title: `${profile.name}와 부산 바다 하루`,
-              preferences,
-              stops,
-              updatedAt: new Date().toISOString(),
-            });
-            if (!saved) {
-              setError("일정을 브라우저에 저장하지 못했습니다.");
-              return;
-            }
-            router.push("/itinerary");
-          }}
-        >
-          <Route size={17} aria-hidden="true" />
-          데모 경로로 일정 만들기
-        </Button>
+        <p className="max-w-sm text-xs font-bold leading-5 text-[#64746c]">
+          장소 목록과 추천 코스는 같은 부산 범위를 사용합니다. 추천은 지원되는 동반 근거가 있는 실제 장소만 결정론적으로 조합합니다.
+        </p>
       </div>
 
-      {error ? (
-        <p role="alert" className="rounded-2xl bg-[#fceeee] p-4 text-sm font-bold text-[#8d3838]">
-          {error}
-        </p>
-      ) : null}
+      <div
+        className="inline-flex w-full rounded-2xl border border-[#d7e0da] bg-white p-1 sm:w-auto"
+        role="tablist"
+        aria-label="장소 및 추천 보기"
+      >
+        <button
+          id="catalog-tab"
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "catalog"}
+          aria-controls="catalog-panel"
+          onClick={() => {
+            setActiveTab("catalog");
+            setSelectedLocationId(null);
+          }}
+          className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-5 text-sm font-extrabold sm:flex-none ${
+            activeTab === "catalog"
+              ? "bg-[#236148] text-white"
+              : "text-[#52665b] hover:bg-[#edf6f0]"
+          }`}
+        >
+          <Rows3 size={16} aria-hidden="true" /> 전체 장소
+        </button>
+        <button
+          id="recommendations-tab"
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "recommendations"}
+          aria-controls="recommendations-panel"
+          onClick={() => {
+            setActiveTab("recommendations");
+            setSelectedLocationId(null);
+          }}
+          className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-5 text-sm font-extrabold sm:flex-none ${
+            activeTab === "recommendations"
+              ? "bg-[#236148] text-white"
+              : "text-[#52665b] hover:bg-[#edf6f0]"
+          }`}
+        >
+          <Route size={16} aria-hidden="true" /> 추천 코스
+        </button>
+      </div>
 
-      <KakaoPlaceSearch
-        selectedId={selectedLocationId}
-        onSelect={(result) => {
-          const id = `kakao-local:${result.id}`;
-          setSelectedSearchResult(result);
-          setSelectedLocationId(id);
-        }}
-      />
-
-      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(380px,.92fr)]">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.02fr)_minmax(390px,.98fr)]">
         <div className="min-w-0 lg:sticky lg:top-24 lg:self-start">
           <MapPanel
             locations={mapLocations}
-            routeCoordinates={drivingRoute?.coordinates ?? []}
+            routeCoordinates={routeCoordinates}
             selectedLocationId={selectedLocationId}
-            onLocationSelect={setSelectedLocationId}
+            onLocationSelect={selectMapLocation}
+            title={
+              activeTab === "recommendations"
+                ? `${selectedItinerary?.title ?? districtName} 추천 경로 지도`
+                : `${districtName} 관광 장소 지도`
+            }
+            locationLabel={
+              activeTab === "recommendations" && selectedItinerary
+                ? `${selectedItinerary.title} · ${selectedItinerary.stops.length}곳`
+                : districtName
+            }
           />
-          <div className="mt-3 flex items-center justify-between px-1 text-xs font-semibold text-[#6c7b73]">
-            <span>
-              {drivingRoute
-                ? `데모 일정 이동 ${formatRouteDistance(drivingRoute.totalDistanceMeters)}`
-                : "데모 일정 이동거리 계산 중"}
-            </span>
-            <span>
-              {drivingRoute
-                ? `차량 약 ${formatRouteDuration(drivingRoute.totalDurationSeconds)}`
-                : routeLoading
-                  ? "실시간 경로 계산 중"
-                  : "경로 정보 없음"}
-            </span>
-          </div>
-          {routeError ? (
-            <p role="status" className="mt-2 px-1 text-xs font-bold text-[#8d5d38]">
-              실시간 경로를 불러오지 못했습니다. 장소 목록은 계속 이용할 수 있습니다.
-            </p>
-          ) : null}
+          <p className="mt-3 px-1 text-xs font-semibold leading-5 text-[#6c7b73]">
+            {activeTab === "recommendations"
+              ? selectedItinerary
+                ? "선택한 실제 경로의 정류장과 카카오 폴리라인만 표시합니다. 번호는 방문 순서입니다."
+                : "조건을 제출하면 선택한 실제 경로만 이 지도에 표시됩니다."
+              : "현재 카탈로그 페이지의 실제 장소를 표시합니다. 쇼핑 장소는 선택 필터를 켰을 때만 나타납니다."}
+          </p>
         </div>
 
-        <section className="min-w-0" aria-labelledby="places-heading">
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <section
+          id="catalog-panel"
+          role="tabpanel"
+          aria-labelledby="catalog-tab"
+          hidden={activeTab !== "catalog"}
+          className="min-w-0"
+        >
+          <KakaoPlaceSearch
+            selectedId={selectedLocationId}
+            onSelect={(result) => {
+              const id = `kakao-local:${result.id}`;
+              setSelectedSearchResult(result);
+              setSelectedLocationId(id);
+            }}
+          />
+
+          <div className="mb-4 mt-5 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="eyebrow">부산 실시간 관광 데이터</p>
-              <h2 id="places-heading" className="mt-1 text-2xl font-black tracking-[-0.04em]">
-                장소 {filteredPlaces.length}곳
+              <p className="eyebrow">{districtName} 실시간 관광 데이터</p>
+              <h2 className="mt-1 text-2xl font-black tracking-[-0.04em]">
+                장소 {totalCount}곳
               </h2>
             </div>
             <span className="flex items-center gap-1 text-xs font-bold text-[#6c7b73]">
               <Filter size={14} aria-hidden="true" />
-              동반 가능 여부 미판정
+              동반 가능 여부는 원문 근거 확인 후 판정
             </span>
           </div>
 
+          <div className="mb-4">
+            <label htmlFor="catalog-district" className="mb-2 block text-sm font-extrabold">
+              부산 세부 지역
+            </label>
+            <select
+              id="catalog-district"
+              value={districtCode}
+              onChange={(event) => {
+                const nextDistrict = event.target.value;
+                changeDistrict(isBusanDistrictCode(nextDistrict) ? nextDistrict : "all");
+              }}
+              className="min-h-12 w-full rounded-2xl border border-[#cfd9d3] bg-white px-4 font-semibold"
+            >
+              <option value="all">부산 전체</option>
+              {BUSAN_DISTRICTS.map((district) => (
+                <option key={district.code} value={district.code}>
+                  {district.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="mb-4 flex gap-2 overflow-x-auto pb-1" aria-label="장소 유형 필터">
-            {filterOptions.map((option) => (
+            {TOUR_CATALOG_FILTERS.map((option) => (
               <button
-                key={option}
+                key={option.value}
                 type="button"
-                aria-pressed={category === option}
-                onClick={() => setCategory(option)}
+                aria-pressed={category === option.value}
+                onClick={() => {
+                  setCategory(option.value);
+                  setPage(1);
+                  setSelectedLocationId(null);
+                }}
                 className={`min-h-10 shrink-0 rounded-full border px-4 text-xs font-extrabold ${
-                  category === option
+                  category === option.value
                     ? "border-[#236148] bg-[#236148] text-white"
                     : "border-[#d2dbd6] bg-white text-[#596c62]"
                 }`}
               >
-                {option === "all" ? "전체" : TOUR_CATEGORY_LABELS[option]}
+                {option.label}
               </button>
             ))}
           </div>
@@ -322,16 +390,15 @@ export function ResultsExplorer() {
               <p className="font-extrabold">한국관광공사 장소를 불러오는 중입니다.</p>
             </div>
           ) : null}
-          {listState === "error" ? (
+          {listState === "unavailable" ? (
             <div className="surface-card p-8 text-center" role="alert">
-              <p className="font-extrabold">{listError}</p>
+              <p className="font-extrabold">현재 장소 제공자 정보를 사용할 수 없습니다.</p>
+              <p className="mt-2 text-sm text-[#6b7972]">{listError}</p>
+              <p className="mt-2 text-xs text-[#7b6860]">제공자 오류를 반려동물 출입 거절로 해석하지 않았습니다.</p>
               <button
                 type="button"
-                onClick={() => {
-                  setListState("loading");
-                  setRetryCount((value) => value + 1);
-                }}
-                className="mt-4 inline-flex items-center gap-2 text-sm font-extrabold text-[#236148]"
+                onClick={() => setRetryCount((value) => value + 1)}
+                className="mt-4 inline-flex min-h-10 items-center gap-2 text-sm font-extrabold text-[#236148]"
               >
                 <RefreshCw size={15} aria-hidden="true" /> 다시 시도
               </button>
@@ -339,16 +406,19 @@ export function ResultsExplorer() {
           ) : null}
           {listState === "empty" ? (
             <div className="surface-card p-8 text-center">
-              <p className="font-extrabold">현재 조건으로 제공된 장소가 없습니다.</p>
+              <p className="font-extrabold">
+                {districtName}에서 이 유형으로 제공된 장소가 없습니다.
+              </p>
+              <p className="mt-2 text-xs text-[#6b7972]">다른 지역이나 카테고리를 선택해 보세요.</p>
             </div>
           ) : null}
           {listState === "ready" ? (
             <div className="space-y-4">
-              {filteredPlaces.map((place, index) => (
+              {places.map((place, index) => (
                 <PlaceCard
                   key={place.contentId}
                   place={place}
-                  order={index + 1}
+                  order={(page - 1) * CATALOG_PAGE_SIZE + index + 1}
                   selected={selectedLocationId === place.contentId}
                   onSelect={() => setSelectedLocationId(place.contentId)}
                 />
@@ -356,19 +426,57 @@ export function ResultsExplorer() {
             </div>
           ) : null}
 
-          {listState === "ready" && filteredPlaces.length === 0 ? (
-            <div className="surface-card p-8 text-center">
-              <p className="font-extrabold">이 유형의 장소가 없습니다.</p>
+          {listState === "ready" && totalPages > 1 ? (
+            <nav className="mt-5 flex items-center justify-between gap-3" aria-label="관광지 목록 페이지">
               <button
                 type="button"
-                onClick={() => setCategory("all")}
-                className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[#236148]"
+                disabled={page === 1}
+                onClick={() => {
+                  setPage((current) => Math.max(1, current - 1));
+                  setSelectedLocationId(null);
+                }}
+                className="inline-flex min-h-10 items-center gap-1 rounded-full border border-[#d2dbd6] bg-white px-4 text-sm font-bold text-[#236148] disabled:cursor-not-allowed disabled:opacity-40"
               >
-                전체 장소 보기 <ArrowRight size={15} aria-hidden="true" />
+                <ChevronLeft size={15} aria-hidden="true" /> 이전
               </button>
-            </div>
+              <span className="text-xs font-bold text-[#6c7b73]">
+                {page} / {totalPages}페이지 · 현재 {places.length}곳
+              </span>
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => {
+                  setPage((current) => Math.min(totalPages, current + 1));
+                  setSelectedLocationId(null);
+                }}
+                className="inline-flex min-h-10 items-center gap-1 rounded-full border border-[#d2dbd6] bg-white px-4 text-sm font-bold text-[#236148] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                다음 <ChevronRight size={15} aria-hidden="true" />
+              </button>
+            </nav>
           ) : null}
         </section>
+
+        <div
+          id="recommendations-panel"
+          role="tabpanel"
+          aria-labelledby="recommendations-tab"
+          hidden={activeTab !== "recommendations"}
+          className="min-w-0"
+        >
+          <RecommendationPlanner
+            districtCode={districtCode}
+            onDistrictChange={changeDistrict}
+            profile={profile}
+            preferences={preferences}
+            selectedLocationId={selectedLocationId}
+            onLocationSelect={selectMapLocation}
+            onItinerarySelect={(itinerary) => {
+              setSelectedItinerary(itinerary);
+              if (!itinerary) setSelectedLocationId(null);
+            }}
+          />
+        </div>
       </div>
     </div>
   );

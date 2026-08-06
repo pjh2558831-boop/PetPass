@@ -15,13 +15,13 @@ export const CATEGORY_LABELS: Record<PlaceCategory, string> = {
 };
 
 export const TOUR_CATEGORY_LABELS: Record<TourPlaceCategory, string> = {
-  leisure: "레저·스포츠",
+  leisure: "레저",
   attraction: "관광지",
   transportation: "교통",
   culture: "문화시설",
   shopping: "쇼핑",
   accommodation: "숙박",
-  food: "음식점·카페 미분류",
+  food: "음식점",
   festival: "축제·행사",
   unknown: "기타",
 };

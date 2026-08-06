@@ -71,6 +71,32 @@ origin and destination must differ. The response contains normalized total
 distance and duration, optional fares, per-section summaries, and an ordered
 latitude/longitude polyline. The REST key is never accepted from the client.
 
+## `POST /api/itineraries/generate`
+
+The JSON request selects all Busan or one verified district, a validated start
+coordinate, travel date and start time, either a duration (120–600 minutes) or
+a stop count (1–5), optional existing pet size, indoor-access preference,
+travel categories, and `includeShopping` (default `false`). Shopping is queried
+only when both selected and explicitly enabled.
+
+The server queries the normalized Service2 catalog, rejects malformed or
+unsupported records, shortlists before detail calls, evaluates pet access with
+the existing deterministic rules, and routes eligible proposals through Kakao
+Mobility. Only `allowed` and `conditional` stops are returned. Conditional
+terms and unknown-hours warnings stay attached, and licensing is neither read
+nor returned.
+
+The response reports the normalized request, safe exclusion counts, configured
+limits, actual call counts, up to three diverse profiles, ordered stops, raw
+provider content type plus normalized category, actual Kakao totals, and safe
+geometry. It returns a typed `insufficient_candidates`, `partial`, or
+`provider_unavailable` state instead of filling missing routes with demo data.
+
+Per request, at most 80 catalog candidates are considered, 12 composite place
+details are loaded with concurrency 3, and 6 Kakao route proposals are tried.
+The existing catalog limit of 20 provider pages per selected content type also
+applies.
+
 ## `GET /api/licenses`
 
 Query: `businessName`, `address`, and `category` (`RESTAURANT` or
