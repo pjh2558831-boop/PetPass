@@ -7,6 +7,13 @@ import { MapPanel } from "@/components/map/map-panel";
 import { KakaoPlaceSearch } from "@/components/places/kakao-place-search";
 import { PlaceCard } from "@/components/places/place-card";
 import {
+  CATALOG_PAGE_SIZE,
+  deduplicateCatalogPlaces,
+  getCatalogPageRange,
+  getMapPlaces,
+  getPaginatedPlaces,
+} from "@/components/places/catalog-collections";
+import {
   BUSAN_DISTRICTS,
   BUSAN_REGION,
   getBusanDistrictName,
@@ -16,6 +23,7 @@ import {
   type BusanDistrictCode,
   type TourCatalogFilter,
 } from "@/lib/tour-api/catalog";
+import type { KakaoMapLocation } from "@/lib/kakao/maps";
 import { loadPetProfile, loadTravelPreferences } from "@/lib/storage/profile-storage";
 import type { ApiResult } from "@/types/api";
 import type { KakaoPlaceSearchResult } from "@/types/kakao";
@@ -23,7 +31,7 @@ import type { PetProfile, TravelPreferences } from "@/types/pet";
 import type { TourPlaceList, TourPlaceSummary } from "@/types/place";
 import type { GeneratedItinerary } from "@/types/route-generation";
 
-const CATALOG_PAGE_SIZE = 12;
+const COMPLETE_CATALOG_PAGE_SIZE = 1_000;
 
 const DEFAULT_PROFILE: PetProfile = {
   id: "route-profile",
@@ -57,7 +65,7 @@ export function ResultsExplorer({
   const [profile, setProfile] = useState<PetProfile>(DEFAULT_PROFILE);
   const [preferences, setPreferences] =
     useState<TravelPreferences>(DEFAULT_PREFERENCES);
-  const [places, setPlaces] = useState<TourPlaceSummary[]>([]);
+  const [catalogPlaces, setCatalogPlaces] = useState<TourPlaceSummary[]>([]);
   const [listState, setListState] = useState<ListState>("loading");
   const [listError, setListError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
@@ -65,7 +73,6 @@ export function ResultsExplorer({
     useState<BusanDistrictCode | "all">("all");
   const [category, setCategory] = useState<TourCatalogFilter>("all");
   const [page, setPage] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
   const [selectedSearchResult, setSelectedSearchResult] =
     useState<KakaoPlaceSearchResult | null>(null);
@@ -96,8 +103,8 @@ export function ResultsExplorer({
       try {
         const params = new URLSearchParams({
           regionCode: BUSAN_REGION.code,
-          page: String(page),
-          pageSize: String(CATALOG_PAGE_SIZE),
+          page: "1",
+          pageSize: String(COMPLETE_CATALOG_PAGE_SIZE),
         });
         if (districtCode !== "all") params.set("districtCode", districtCode);
         const contentTypeId = getCatalogContentTypeId(category);
@@ -117,14 +124,15 @@ export function ResultsExplorer({
                 : "관광지 목록을 불러오지 못했습니다.",
           );
         }
-        setPlaces(body.data.places);
-        setTotalCount(body.data.totalCount);
-        setListState(body.data.places.length > 0 ? "ready" : "empty");
+        if (body.data.places.length !== body.data.totalCount) {
+          throw new Error("관광지 전체 목록을 완전하게 불러오지 못했습니다.");
+        }
+        setCatalogPlaces(body.data.places);
+        setListState(body.data.totalCount > 0 ? "ready" : "empty");
         setListError("");
       } catch (loadError) {
         if (controller.signal.aborted) return;
-        setPlaces([]);
-        setTotalCount(0);
+        setCatalogPlaces([]);
         setListState("unavailable");
         setListError(
           loadError instanceof Error
@@ -135,7 +143,7 @@ export function ResultsExplorer({
     };
     void load();
     return () => controller.abort();
-  }, [category, districtCode, page, retryCount]);
+  }, [category, districtCode, retryCount]);
 
   const invalidateSelectedRoute = useCallback(() => {
     setSelectedItinerary(null);
@@ -152,24 +160,55 @@ export function ResultsExplorer({
     [invalidateSelectedRoute],
   );
 
-  const selectMapLocation = useCallback((contentId: string) => {
-    setSelectedLocationId(contentId || null);
-  }, []);
-
   const sizeLabel = { SMALL: "소형", MEDIUM: "중형", LARGE: "대형" }[
     profile.size
   ];
 
+  const filteredPlaces = useMemo(
+    () => deduplicateCatalogPlaces(catalogPlaces),
+    [catalogPlaces],
+  );
+  const totalCount = filteredPlaces.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / CATALOG_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedPlaces = useMemo(
+    () => getPaginatedPlaces(filteredPlaces, currentPage),
+    [currentPage, filteredPlaces],
+  );
+  const mapPlaces = useMemo(() => getMapPlaces(filteredPlaces), [filteredPlaces]);
+  const pageRange = getCatalogPageRange(totalCount, currentPage);
+  const catalogPlaceIndex = useMemo(
+    () =>
+      new Map(
+        filteredPlaces.map((place, index) => [place.contentId, index] as const),
+      ),
+    [filteredPlaces],
+  );
+
+  const selectMapLocation = useCallback(
+    (contentId: string | null) => {
+      setSelectedLocationId(contentId || null);
+      if (
+        activeTab !== "catalog" ||
+        !contentId ||
+        contentId.startsWith("kakao-local:")
+      ) {
+        return;
+      }
+      const selectedIndex = catalogPlaceIndex.get(contentId);
+      if (selectedIndex === undefined) return;
+      setPage(Math.floor(selectedIndex / CATALOG_PAGE_SIZE) + 1);
+    },
+    [activeTab, catalogPlaceIndex],
+  );
+
   const catalogLocations = useMemo(() => {
-    const locations = places.map((place, index) => ({
+    const locations: KakaoMapLocation[] = mapPlaces.map((place) => ({
       id: place.contentId,
       name: place.title ?? "이름 미확인",
       address: [place.address, place.detailAddress].filter(Boolean).join(" "),
-      coordinates:
-        place.latitude === null || place.longitude === null
-          ? null
-          : { latitude: place.latitude, longitude: place.longitude },
-      order: (page - 1) * CATALOG_PAGE_SIZE + index + 1,
+      coordinates: { latitude: place.latitude!, longitude: place.longitude! },
+      markerKind: "catalog",
     }));
     if (selectedSearchResult) {
       locations.push({
@@ -177,11 +216,11 @@ export function ResultsExplorer({
         name: selectedSearchResult.name,
         address: selectedSearchResult.roadAddress ?? selectedSearchResult.address,
         coordinates: selectedSearchResult.coordinates,
-        order: locations.length + 1,
+        markerKind: "search",
       });
     }
     return locations;
-  }, [page, places, selectedSearchResult]);
+  }, [mapPlaces, selectedSearchResult]);
 
   const routeLocations = useMemo(
     () =>
@@ -191,6 +230,7 @@ export function ResultsExplorer({
         address: stop.address ?? "주소 정보 없음",
         coordinates: stop.coordinates,
         order: stop.order,
+        markerKind: "itinerary" as const,
       })),
     [selectedItinerary],
   );
@@ -199,7 +239,6 @@ export function ResultsExplorer({
     districtCode === "all"
       ? "부산 전체"
       : getBusanDistrictName(districtCode) ?? "부산 전체";
-  const totalPages = Math.max(1, Math.ceil(totalCount / CATALOG_PAGE_SIZE));
   const mapLocations =
     activeTab === "recommendations" ? routeLocations : catalogLocations;
   const routeCoordinates =
@@ -216,7 +255,7 @@ export function ResultsExplorer({
     document
       .getElementById(`place-card-${selectedLocationId}`)
       ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [activeTab, selectedLocationId]);
+  }, [activeTab, currentPage, selectedLocationId]);
 
   return (
     <div className="space-y-6">
@@ -308,7 +347,7 @@ export function ResultsExplorer({
               ? selectedItinerary
                 ? "선택한 실제 경로의 정류장과 카카오 폴리라인만 표시합니다. 번호는 방문 순서입니다."
                 : "조건을 제출하면 선택한 실제 경로만 이 지도에 표시됩니다."
-              : "현재 카탈로그 페이지의 실제 장소를 표시합니다. 쇼핑 장소는 선택 필터를 켰을 때만 나타납니다."}
+              : `현재 필터의 좌표 확인 장소 ${mapPlaces.length}곳을 모두 표시합니다. 목록 페이지를 바꿔도 지도 범위는 유지됩니다.`}
           </p>
         </div>
 
@@ -329,15 +368,30 @@ export function ResultsExplorer({
           />
 
           <div className="mb-4 mt-5 flex flex-wrap items-end justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <p className="eyebrow">{districtName} 실시간 관광 데이터</p>
               <h2 className="mt-1 text-2xl font-black tracking-[-0.04em]">
                 장소 {totalCount}곳
               </h2>
+              <div
+                className="mt-3 flex max-w-full flex-wrap gap-2 text-[11px] font-extrabold text-[#52665b]"
+                aria-live="polite"
+                aria-label="관광 장소 표시 개수"
+              >
+                <span className="rounded-full border border-[#cfd9d3] bg-white px-3 py-1.5">
+                  전체 {totalCount}곳
+                </span>
+                <span className="rounded-full border border-[#cfd9d3] bg-white px-3 py-1.5">
+                  현재 목록 {pageRange.start}–{pageRange.end}곳
+                </span>
+                <span className="rounded-full bg-[#edf8f2] px-3 py-1.5 text-[#236148]">
+                  지도 {mapPlaces.length}곳 표시
+                </span>
+              </div>
             </div>
-            <span className="flex items-center gap-1 text-xs font-bold text-[#6c7b73]">
-              <Filter size={14} aria-hidden="true" />
-              동반 가능 여부는 원문 근거 확인 후 판정
+            <span className="flex max-w-full items-start gap-1 text-xs font-bold leading-5 text-[#6c7b73]">
+              <Filter className="mt-0.5 shrink-0" size={14} aria-hidden="true" />
+              동반 가능 여부는 관광공사 원문과 추가 근거를 확인 후 판정합니다.
             </span>
           </div>
 
@@ -372,6 +426,7 @@ export function ResultsExplorer({
                 onClick={() => {
                   setCategory(option.value);
                   setPage(1);
+                  setSelectedSearchResult(null);
                   setSelectedLocationId(null);
                 }}
                 className={`min-h-10 shrink-0 rounded-full border px-4 text-xs font-extrabold ${
@@ -414,13 +469,13 @@ export function ResultsExplorer({
           ) : null}
           {listState === "ready" ? (
             <div className="space-y-4">
-              {places.map((place, index) => (
+              {paginatedPlaces.map((place, index) => (
                 <PlaceCard
                   key={place.contentId}
                   place={place}
-                  order={(page - 1) * CATALOG_PAGE_SIZE + index + 1}
+                  order={(currentPage - 1) * CATALOG_PAGE_SIZE + index + 1}
                   selected={selectedLocationId === place.contentId}
-                  onSelect={() => setSelectedLocationId(place.contentId)}
+                  onSelect={() => selectMapLocation(place.contentId)}
                 />
               ))}
             </div>
@@ -430,7 +485,7 @@ export function ResultsExplorer({
             <nav className="mt-5 flex items-center justify-between gap-3" aria-label="관광지 목록 페이지">
               <button
                 type="button"
-                disabled={page === 1}
+                disabled={currentPage === 1}
                 onClick={() => {
                   setPage((current) => Math.max(1, current - 1));
                   setSelectedLocationId(null);
@@ -440,11 +495,11 @@ export function ResultsExplorer({
                 <ChevronLeft size={15} aria-hidden="true" /> 이전
               </button>
               <span className="text-xs font-bold text-[#6c7b73]">
-                {page} / {totalPages}페이지 · 현재 {places.length}곳
+                {currentPage} / {totalPages}페이지 · 현재 {paginatedPlaces.length}곳
               </span>
               <button
                 type="button"
-                disabled={page >= totalPages}
+                disabled={currentPage >= totalPages}
                 onClick={() => {
                   setPage((current) => Math.min(totalPages, current + 1));
                   setSelectedLocationId(null);

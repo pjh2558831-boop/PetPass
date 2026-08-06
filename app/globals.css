@@ -169,9 +169,46 @@ select {
   transform: rotate(-45deg);
 }
 
+.kakao-map-marker--catalog span,
+.kakao-map-marker--search span {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.kakao-map-marker--itinerary {
+  background: #b85f40;
+  box-shadow: 0 8px 20px rgba(144, 65, 38, 0.28);
+}
+
+.kakao-map-marker--search {
+  background: #356e85;
+  box-shadow: 0 8px 20px rgba(39, 83, 101, 0.28);
+}
+
+.kakao-map-marker.is-selected {
+  outline: 4px solid rgba(241, 178, 112, 0.72);
+  outline-offset: 3px;
+}
+
+.kakao-map-marker.is-clustered {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .kakao-map-marker span {
   display: block;
   transform: rotate(45deg);
+}
+
+.kakao-map-selection {
+  width: 52px;
+  height: 52px;
+  border: 4px solid rgba(241, 178, 112, 0.88);
+  border-radius: 999px;
+  box-shadow: 0 0 0 7px rgba(255, 253, 248, 0.72);
+  pointer-events: none;
 }
 
 .kakao-map-info {

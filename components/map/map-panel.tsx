@@ -7,6 +7,7 @@ import {
   createKakaoMapController,
   getKakaoMapJavaScriptKey,
   getKakaoMapsSdkUrl,
+  isValidMapCoordinates,
   type KakaoMapController,
   type KakaoMapLocation,
 } from "@/lib/kakao/maps";
@@ -51,17 +52,28 @@ export function MapPanel({
   locations?: KakaoMapLocation[];
   routeCoordinates?: Coordinates[];
   selectedLocationId?: string | null;
-  onLocationSelect?: (id: string) => void;
+  onLocationSelect?: (id: string | null) => void;
 }) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<KakaoMapController | null>(null);
   const sdkLoadRequestedRef = useRef(false);
   const initializationRequestedRef = useRef(false);
+  const latestDataRef = useRef({
+    locations,
+    routeCoordinates,
+    selectedLocationId,
+  });
+  const onLocationSelectRef = useRef(onLocationSelect);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
     "loading",
   );
   const [loadError, setLoadError] = useState("");
   const [mapVersion, setMapVersion] = useState(0);
+
+  useEffect(() => {
+    latestDataRef.current = { locations, routeCoordinates, selectedLocationId };
+    onLocationSelectRef.current = onLocationSelect;
+  }, [locations, onLocationSelect, routeCoordinates, selectedLocationId]);
 
   const initializeMap = useCallback(() => {
     const container = mapContainerRef.current;
@@ -71,13 +83,14 @@ export function MapPanel({
     initializationRequestedRef.current = true;
 
     try {
+      const latestData = latestDataRef.current;
       controllerRef.current?.destroy();
       controllerRef.current = createKakaoMapController(container, {
-        locations,
-        routeCoordinates,
-        onLocationSelect,
+        locations: latestData.locations,
+        routeCoordinates: latestData.routeCoordinates,
+        onLocationSelect: (id) => onLocationSelectRef.current?.(id),
       });
-      controllerRef.current.selectLocation(selectedLocationId);
+      controllerRef.current.selectLocation(latestData.selectedLocationId);
       setLoadState("ready");
       setLoadError("");
       setMapVersion((value) => value + 1);
@@ -91,7 +104,7 @@ export function MapPanel({
       );
     }
     return true;
-  }, [locations, onLocationSelect, routeCoordinates, selectedLocationId]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -145,6 +158,7 @@ export function MapPanel({
     () => () => {
       controllerRef.current?.destroy();
       controllerRef.current = null;
+      initializationRequestedRef.current = false;
     },
     [],
   );
@@ -172,17 +186,24 @@ export function MapPanel({
   }
 
   const missingCoordinateCount = locations.filter(
-    (location) => !location.coordinates,
+    (location) => !isValidMapCoordinates(location.coordinates),
   ).length;
+  const validLocationCount = locations.length - missingCoordinateCount;
 
   return (
     <section className="relative" aria-label={title}>
       <div
         className={`map-canvas kakao-map-canvas ${compact ? "!min-h-[300px]" : ""}`}
-        data-location-count={locations.length}
+        data-location-count={validLocationCount}
+        data-map-version={mapVersion}
         data-route-point-count={routeCoordinates.length}
       >
-        <div ref={mapContainerRef} className="absolute inset-0" aria-hidden="true" />
+        <div
+          ref={mapContainerRef}
+          className="absolute inset-0"
+          role="group"
+          aria-label="지도 장소 마커"
+        />
         {loadState === "loading" ? (
           <p className="absolute inset-x-4 top-20 z-10 rounded-2xl bg-white/95 p-4 text-center text-sm font-bold text-[#52665b] shadow-sm">
             카카오 지도를 불러오고 있어요.

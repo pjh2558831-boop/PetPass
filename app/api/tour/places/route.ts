@@ -27,7 +27,9 @@ const querySchema = z.object({
     .optional(),
   contentTypeId: z.enum(TOUR_CONTENT_TYPE_IDS).optional(),
   page: z.coerce.number().int().min(1).max(1_000).default(1),
-  pageSize: z.coerce.number().int().min(1).max(50).default(20),
+  // A complete Busan catalog is returned to the client once per real filter.
+  // Card pagination is intentionally a client-side presentation concern.
+  pageSize: z.coerce.number().int().min(1).max(1_000).default(20),
 });
 
 export function createTourPlacesHandler(service: TourPlaceService) {
