@@ -1,5 +1,4 @@
 import { expect, test, type Page } from "@playwright/test";
-import { installTourListMock } from "./tour-mock";
 
 const PRODUCTION_URL = "https://pet-pass-two.vercel.app";
 
@@ -96,7 +95,12 @@ async function expectKakaoMapReady(
     });
 }
 
-async function expectResponsiveMap(page: Page, width: number, height: number) {
+async function expectResponsiveMap(
+  page: Page,
+  width: number,
+  height: number,
+  expectPolyline = true,
+) {
   await page.setViewportSize({ width, height });
   const fitButton = page.getByRole("button", {
     name: "표시된 장소에 지도 위치 맞추기",
@@ -153,15 +157,14 @@ async function expectResponsiveMap(page: Page, width: number, height: number) {
       searchFits: true,
       markersInsideMap: true,
       tilesStillLoaded: true,
-      polylinePathStillPresent: true,
+      polylinePathStillPresent: expectPolyline,
     });
 }
 
-test("localhost renders Kakao maps, search results and a recalculated route", async ({
+test("localhost renders Kakao maps and search without a fixed demo itinerary", async ({
   page,
 }) => {
   test.setTimeout(120_000);
-  await installTourListMock(page);
   const browserErrors = collectSanitizedBrowserErrors(page);
   const kakaoNetwork = collectKakaoNetwork(page);
 
@@ -174,40 +177,13 @@ test("localhost renders Kakao maps, search results and a recalculated route", as
     throw error;
   }
 
-  const directionsResponsePromise = page.waitForResponse(
-    (response) =>
-      response.url().includes("/api/kakao/directions") &&
-      response.request().method() === "POST",
-  );
   await page.goto(`http://localhost:3000/results?verify=${Date.now()}`);
-  const directionsResponse = await directionsResponsePromise;
-  expect(directionsResponse.status()).toBe(200);
-  const directionsBody = (await directionsResponse.json()) as {
-    ok: boolean;
-    data?: { coordinates?: unknown[]; totalDistanceMeters?: number };
-  };
-  expect(directionsBody.ok).toBe(true);
-  expect(directionsBody.data?.coordinates?.length).toBeGreaterThan(1);
-  expect(directionsBody.data?.totalDistanceMeters).toBeGreaterThan(0);
-
-  await expectKakaoMapReady(page, 5, true);
-  await expectResponsiveMap(page, 390, 844);
-  /* Legacy demo-copy assertions replaced by live-summary copy below.
-  await expect(page.getByText(/실시간 이동 \d/)).toBeVisible();
-  await expect(page.getByText(/차량 약 \d/)).toBeVisible();
-
-  const firstMarker = page.locator(
-    '.kakao-map-marker[aria-label="청사포 바다 산책길 지도 마커"]',
-  );
-  await expect(firstMarker).toHaveCount(1);
-  await firstMarker.click();
-  await expect(page.locator(".kakao-map-info")).toContainText(
-    "청사포 바다 산책길",
-  );
-
-  */
-  await expect(page.getByText(/데모 일정 이동 \d/)).toBeVisible();
-  await expect(page.getByText(/차량 약/)).toBeVisible();
+  await expectKakaoMapReady(page, 12, false);
+  await expectResponsiveMap(page, 390, 844, false);
+  await expect(
+    page.getByText(/현재 카탈로그 페이지의 실제 장소를 표시합니다/),
+  ).toBeVisible();
+  await expect(page.getByText(/데모 일정 이동/)).toHaveCount(0);
 
   const firstLiveMarker = page.locator(
     '.kakao-map-marker[aria-label^="해운대 해수욕장"]',
@@ -237,62 +213,12 @@ test("localhost renders Kakao maps, search results and a recalculated route", as
   await selectedResult.click();
   await expect(selectedResult).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".kakao-map-info")).toBeVisible();
-  await expect(page.locator(".kakao-map-marker")).toHaveCount(6);
+  await expect(page.locator(".kakao-map-marker")).toHaveCount(13);
 
-  const itineraryDirectionsPromise = page.waitForResponse(
-    (response) =>
-      response.url().includes("/api/kakao/directions") &&
-      response.request().method() === "POST",
-  );
   await page.goto(`http://localhost:3000/itinerary?verify=${Date.now()}`);
-  await itineraryDirectionsPromise;
-  await expectKakaoMapReady(page, 3, true);
-  const distanceBefore = await page.locator("dd").first().textContent();
-  const routePathsBefore = await page.evaluate(() =>
-    Array.from(
-      document.querySelectorAll<SVGPathElement>(".kakao-map-canvas path"),
-    )
-      .filter((path) =>
-        (path.getAttribute("style") ?? "").includes("rgb(35, 97, 72)"),
-      )
-      .map((path) => path.getAttribute("d") ?? "")
-      .filter(Boolean),
-  );
-  expect(routePathsBefore.length).toBeGreaterThan(0);
-
-  const recalculatedResponsePromise = page.waitForResponse(
-    (response) =>
-      response.url().includes("/api/kakao/directions") &&
-      response.request().method() === "POST",
-  );
-  await page
-    .getByRole("button", { name: "마린 테라스 식탁 한 칸 위로" })
-    .click();
-  const recalculatedResponse = await recalculatedResponsePromise;
-  expect(recalculatedResponse.status()).toBe(200);
-  const recalculatedBody = (await recalculatedResponse.json()) as {
-    ok: boolean;
-    data?: { coordinates?: unknown[] };
-  };
-  expect(recalculatedBody.ok).toBe(true);
-  expect(recalculatedBody.data?.coordinates?.length).toBeGreaterThan(1);
-  await expect(page.locator("dd").first()).not.toHaveText(distanceBefore ?? "");
-  await expectKakaoMapReady(page, 3, true);
-  const routePathsAfter = await page.evaluate(() =>
-    Array.from(
-      document.querySelectorAll<SVGPathElement>(".kakao-map-canvas path"),
-    )
-      .filter((path) =>
-        (path.getAttribute("style") ?? "").includes("rgb(35, 97, 72)"),
-      )
-      .map((path) => path.getAttribute("d") ?? "")
-      .filter(Boolean),
-  );
-  expect(routePathsAfter.length).toBeGreaterThan(0);
-  expect(routePathsAfter).not.toEqual(routePathsBefore);
-  for (const previousPath of routePathsBefore) {
-    expect(routePathsAfter).not.toContain(previousPath);
-  }
+  await expect(
+    page.getByRole("heading", { name: "추천 코스에서 일정을 만들어 주세요" }),
+  ).toBeVisible();
 
   expect(browserErrors).toEqual([]);
 });

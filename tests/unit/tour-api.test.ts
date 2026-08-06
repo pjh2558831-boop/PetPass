@@ -297,6 +297,12 @@ describe("Korea Tourism Organization provider", () => {
     expect(listResponse.status).toBe(400);
     expect(service.listPlaces).not.toHaveBeenCalled();
 
+    const legacyDistrictResponse = await createTourPlacesHandler(service)(
+      new Request("http://localhost/api/tour/places?districtCode=16"),
+    );
+    expect(legacyDistrictResponse.status).toBe(400);
+    expect(service.listPlaces).not.toHaveBeenCalled();
+
     const detailResponse = await createTourPlaceDetailHandler(service)(
       new Request("http://localhost/api/tour/places/not-valid"),
       { params: Promise.resolve({ contentId: "not-valid" }) },

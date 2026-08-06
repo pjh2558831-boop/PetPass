@@ -1,13 +1,165 @@
 type Scenario = {
   title: string;
   address: string;
-  contentTypeId: "12" | "32" | "38" | "39" | "75";
+  contentTypeId: "12" | "14" | "15" | "28" | "32" | "38" | "39" | "75";
   petPolicy?: Record<string, string | null>;
   introPetPolicy?: Record<string, string>;
   petResponse?: "empty" | "unavailable";
+  unknownHours?: boolean;
 };
 
+type CatalogScenario = {
+  contentId: string;
+  title: string;
+  address: string;
+  contentTypeId: "12" | "14" | "15" | "28" | "32" | "38" | "39";
+  districtCode: string;
+  latitude: number;
+  longitude: number;
+  omitProviderContentTypeId?: boolean;
+};
+
+const catalogScenarios: CatalogScenario[] = [
+  {
+    contentId: "1001",
+    title: "해운대 해수욕장",
+    address: "부산광역시 해운대구 해운대해변로 264",
+    contentTypeId: "12",
+    districtCode: "350",
+    latitude: 35.1596,
+    longitude: 129.1603,
+    omitProviderContentTypeId: true,
+  },
+  {
+    contentId: "1101",
+    title: "광복 전망대",
+    address: "부산광역시 중구 중앙대로 1",
+    contentTypeId: "12",
+    districtCode: "110",
+    latitude: 35.106,
+    longitude: 129.032,
+  },
+  {
+    contentId: "1102",
+    title: "송도 바다길",
+    address: "부산광역시 서구 송도해변로 1",
+    contentTypeId: "12",
+    districtCode: "140",
+    latitude: 35.076,
+    longitude: 129.017,
+  },
+  {
+    contentId: "1103",
+    title: "부산항 산책길",
+    address: "부산광역시 동구 충장대로 1",
+    contentTypeId: "12",
+    districtCode: "170",
+    latitude: 35.116,
+    longitude: 129.045,
+  },
+  {
+    contentId: "1104",
+    title: "태종대 전망길",
+    address: "부산광역시 영도구 전망로 1",
+    contentTypeId: "12",
+    districtCode: "200",
+    latitude: 35.052,
+    longitude: 129.087,
+  },
+  {
+    contentId: "1105",
+    title: "시민공원",
+    address: "부산광역시 부산진구 시민공원로 1",
+    contentTypeId: "12",
+    districtCode: "230",
+    latitude: 35.168,
+    longitude: 129.057,
+  },
+  {
+    contentId: "1106",
+    title: "광안 해변길",
+    address: "부산광역시 수영구 광안해변로 1",
+    contentTypeId: "12",
+    districtCode: "500",
+    latitude: 35.153,
+    longitude: 129.118,
+  },
+  {
+    contentId: "1107",
+    title: "희망 기장 전망대",
+    address: "부산광역시 기장군 기장해안로 1",
+    contentTypeId: "12",
+    districtCode: "710",
+    latitude: 35.244,
+    longitude: 129.222,
+  },
+  {
+    contentId: "1201",
+    title: "부산 생활문화관",
+    address: "부산광역시 부산진구 문화로 1",
+    contentTypeId: "14",
+    districtCode: "230",
+    latitude: 35.162,
+    longitude: 129.053,
+  },
+  {
+    contentId: "1301",
+    title: "수영 여름축제",
+    address: "부산광역시 수영구 축제로 1",
+    contentTypeId: "15",
+    districtCode: "500",
+    latitude: 35.155,
+    longitude: 129.12,
+  },
+  {
+    contentId: "1401",
+    title: "영도 해양레저장",
+    address: "부산광역시 영도구 해양로 1",
+    contentTypeId: "28",
+    districtCode: "200",
+    latitude: 35.08,
+    longitude: 129.07,
+  },
+  {
+    contentId: "2001",
+    title: "일광스테이 호텔",
+    address: "부산광역시 해운대구 달맞이길 10",
+    contentTypeId: "32",
+    districtCode: "350",
+    latitude: 35.16,
+    longitude: 129.17,
+  },
+  {
+    contentId: "1005",
+    title: "부산 반려동물 식당",
+    address: "부산광역시 해운대구 달맞이길 20",
+    contentTypeId: "39",
+    districtCode: "350",
+    latitude: 35.166,
+    longitude: 129.158,
+  },
+  {
+    contentId: "1501",
+    title: "부산 여행 편집숍",
+    address: "부산광역시 부산진구 서면로 1",
+    contentTypeId: "38",
+    districtCode: "230",
+    latitude: 35.157,
+    longitude: 129.059,
+  },
+];
+
 const scenarios: Record<string, Scenario> = {
+  "1005": {
+    title: "부산 반려동물 식당",
+    address: "부산광역시 해운대구 달맞이길 20",
+    contentTypeId: "39",
+    petPolicy: {
+      acmpyPsblCpam: "반려동물 동반 가능",
+      acmpyNeedMtr: "이동장 사용 필수",
+    },
+    unknownHours: true,
+  },
   "2001": {
     title: "라군스테이 호텔",
     address: "부산광역시 해운대구 달맞이길 10",
@@ -159,42 +311,78 @@ const scenarios: Record<string, Scenario> = {
   },
 };
 
-function envelope(items: Record<string, unknown>[]) {
+function envelope(
+  items: Record<string, unknown>[],
+  pagination: { numOfRows?: number; pageNo?: number; totalCount?: number } = {},
+) {
   return {
     response: {
       header: { resultCode: "00", resultMsg: "NORMAL_SERVICE" },
       body: {
         items: items.length > 0 ? { item: items } : {},
-        numOfRows: 20,
-        pageNo: 1,
-        totalCount: items.length,
+        numOfRows: pagination.numOfRows ?? 20,
+        pageNo: pagination.pageNo ?? 1,
+        totalCount: pagination.totalCount ?? items.length,
       },
     },
   };
 }
 
-function json(items: Record<string, unknown>[], status = 200): Response {
-  return Response.json(envelope(items), { status });
+function json(
+  items: Record<string, unknown>[],
+  status = 200,
+  pagination?: { numOfRows?: number; pageNo?: number; totalCount?: number },
+): Response {
+  return Response.json(envelope(items, pagination), { status });
 }
 
 function tourismResponse(url: URL): Response {
   const operation = url.pathname.split("/").at(-1);
   const contentId = url.searchParams.get("contentId") ?? "2001";
-  const scenario = scenarios[contentId] ?? scenarios["2001"];
+  const catalogScenario = catalogScenarios.find(
+    (candidate) => candidate.contentId === contentId,
+  );
+  const scenario =
+    scenarios[contentId] ??
+    (catalogScenario
+      ? {
+          title: catalogScenario.title,
+          address: catalogScenario.address,
+          contentTypeId: catalogScenario.contentTypeId,
+          petPolicy: { etcAcmpyInfo: "반려동물 동반 가능" },
+        }
+      : scenarios["2001"]);
   if (operation === "areaBasedList2") {
+    const contentTypeId = url.searchParams.get("contentTypeId");
+    const districtCode = url.searchParams.get("lDongSignguCd");
+    const pageNo = Number(url.searchParams.get("pageNo") ?? "1");
+    const providerPageSize = 4;
+    const matches = catalogScenarios.filter(
+      (item) =>
+        (!contentTypeId || item.contentTypeId === contentTypeId) &&
+        (!districtCode || item.districtCode === districtCode),
+    );
+    const offset = (pageNo - 1) * providerPageSize;
     return json(
-      Object.entries(scenarios)
-        .filter(([, item]) => item.contentTypeId === "32")
-        .slice(0, 5)
-        .map(([id, item]) => ({
-          contentid: id,
-          contenttypeid: item.contentTypeId,
-          title: item.title,
-          addr1: item.address,
-          mapx: "129.16",
-          mapy: "35.16",
-          modifiedtime: "20260805000000",
-        })),
+      matches.slice(offset, offset + providerPageSize).map((item) => ({
+        contentid: item.contentId,
+        ...(item.omitProviderContentTypeId
+          ? {}
+          : { contenttypeid: item.contentTypeId }),
+        title: item.title,
+        addr1: item.address,
+        mapx: String(item.longitude),
+        mapy: String(item.latitude),
+        lDongRegnCd: "26",
+        lDongSignguCd: item.districtCode,
+        modifiedtime: "20260805000000",
+      })),
+      200,
+      {
+        numOfRows: providerPageSize,
+        pageNo,
+        totalCount: matches.length,
+      },
     );
   }
   if (operation === "detailCommon2") {
@@ -218,6 +406,14 @@ function tourismResponse(url: URL): Response {
         contenttypeid: scenario.contentTypeId,
         checkintime: "15:00",
         checkouttime: "11:00",
+        ...(scenario.unknownHours
+          ? {}
+          : {
+              usetime: "09:00-20:00",
+              usetimeculture: "09:00-20:00",
+              usetimeleports: "09:00-20:00",
+              opentimefood: "09:00-20:00",
+            }),
         parkinglodging: "주차 가능",
         ...scenario.introPetPolicy,
       },
@@ -237,6 +433,49 @@ function tourismResponse(url: URL): Response {
     ]);
   }
   return json([], 404);
+}
+
+function parseDirectionsPoint(value: string | null): { x: number; y: number } {
+  const [x, y] = (value ?? "").split(",").map(Number);
+  return { x, y };
+}
+
+function directionsResponse(url: URL): Response {
+  const origin = parseDirectionsPoint(url.searchParams.get("origin"));
+  const destination = parseDirectionsPoint(url.searchParams.get("destination"));
+  const waypoints = (url.searchParams.get("waypoints") ?? "")
+    .split("|")
+    .filter(Boolean)
+    .map((value) => parseDirectionsPoint(value));
+  const points = [origin, ...waypoints, destination];
+  const sections = points.slice(1).map((point, index) => {
+    const previous = points[index];
+    const distance = Math.max(
+      100,
+      Math.round((Math.abs(point.x - previous.x) + Math.abs(point.y - previous.y)) * 100_000),
+    );
+    return {
+      distance,
+      duration: Math.max(60, Math.round(distance / 8)),
+      roads: [
+        {
+          vertexes: [previous.x, previous.y, point.x, point.y],
+        },
+      ],
+    };
+  });
+  return Response.json({
+    routes: [
+      {
+        result_code: 0,
+        summary: {
+          distance: sections.reduce((total, section) => total + section.distance, 0),
+          duration: sections.reduce((total, section) => total + section.duration, 0),
+        },
+        sections,
+      },
+    ],
+  });
 }
 
 function licenseItem(
@@ -377,6 +616,9 @@ export function installE2EUpstreamMock(): void {
       if (url.pathname.includes("/1741000/")) {
         return Promise.resolve(localDataResponse(url));
       }
+    }
+    if (url.hostname === "apis-navi.kakaomobility.com") {
+      return Promise.resolve(directionsResponse(url));
     }
     return state.__petPassOriginalFetch!(input, init);
   };

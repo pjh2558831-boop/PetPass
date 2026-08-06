@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test";
 import { installDetailMock } from "./license-mock";
-import { installTourListMock } from "./tour-mock";
 
 test("shows a high-confidence general-restaurant match", async ({ page }) => {
   await installDetailMock(page, "matched_high", "general_restaurants");
@@ -58,7 +57,6 @@ test("hides licensing for non-food details and makes no licensing request", asyn
 });
 
 test("preserves the existing Kakao marker-to-detail interaction", async ({ page }) => {
-  await installTourListMock(page);
   await installDetailMock(page, "matched_high", "general_restaurants");
   await page.goto("/results");
   const detailLink = page.getByRole("link", {
