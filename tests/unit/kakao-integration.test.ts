@@ -7,6 +7,7 @@ import {
 import {
   createKakaoMapController,
   getKakaoMapJavaScriptKey,
+  getKakaoMapsSdkUrl,
 } from "@/lib/kakao/maps";
 import { getKakaoRestApiKey } from "@/lib/kakao/server-config";
 
@@ -128,5 +129,180 @@ describe("Kakao integration boundaries", () => {
         locations: [],
       }),
     ).toThrow("지도 SDK");
+  });
+
+  it("loads the clusterer library exactly once in the SDK URL", () => {
+    const url = new URL(getKakaoMapsSdkUrl("test-key"));
+    expect(url.searchParams.get("libraries")).toBe("services,clusterer");
+    expect(url.searchParams.getAll("libraries")).toHaveLength(1);
+  });
+
+  it("initializes one catalog clusterer, deduplicates markers, and cleans up", () => {
+    type Listener = (...args: unknown[]) => void;
+    const listeners = new WeakMap<object, Map<string, Set<Listener>>>();
+    const addListener = vi.fn(
+      (target: object, eventName: string, handler: Listener) => {
+        const targetListeners = listeners.get(target) ?? new Map();
+        const eventListeners = targetListeners.get(eventName) ?? new Set();
+        eventListeners.add(handler);
+        targetListeners.set(eventName, eventListeners);
+        listeners.set(target, targetListeners);
+      },
+    );
+    const removeListener = vi.fn(
+      (target: object, eventName: string, handler: Listener) => {
+        listeners.get(target)?.get(eventName)?.delete(handler);
+      },
+    );
+    const emit = (target: object, eventName: string, ...args: unknown[]) => {
+      listeners.get(target)?.get(eventName)?.forEach((handler) => handler(...args));
+    };
+
+    class FakeLatLng {
+      constructor(
+        private readonly latitude: number,
+        private readonly longitude: number,
+      ) {}
+      getLat() {
+        return this.latitude;
+      }
+      getLng() {
+        return this.longitude;
+      }
+    }
+    class FakeBounds {
+      extend = vi.fn();
+    }
+    class FakeMap {
+      panTo = vi.fn();
+      relayout = vi.fn();
+      setBounds = vi.fn();
+    }
+    class FakeMarkerImage {}
+    class FakeMarker {
+      setImage = vi.fn();
+      setMap = vi.fn();
+      setZIndex = vi.fn();
+    }
+    const overlays: Array<{
+      content: HTMLElement;
+      setMap: ReturnType<typeof vi.fn>;
+    }> = [];
+    class FakeOverlay {
+      content: HTMLElement;
+      setMap = vi.fn();
+      constructor(options: { content: HTMLElement }) {
+        this.content = options.content;
+        overlays.push(this);
+      }
+    }
+    class FakePolyline {
+      setMap = vi.fn();
+    }
+    const clusterers: FakeClusterer[] = [];
+    class FakeClusterer {
+      markers: FakeMarker[] = [];
+      addMarkers = vi.fn((markers: FakeMarker[]) => {
+        this.markers = markers;
+        emit(this, "clustered", [
+          {
+            getMarkers: () => markers,
+            getSize: () => markers.length,
+          },
+        ]);
+      });
+      clear = vi.fn(() => {
+        this.markers = [];
+      });
+      constructor() {
+        clusterers.push(this);
+      }
+    }
+
+    window.kakao = {
+      maps: {
+        load: (callback: () => void) => callback(),
+        event: { addListener, removeListener },
+        LatLng: FakeLatLng,
+        LatLngBounds: FakeBounds,
+        Map: FakeMap,
+        CustomOverlay: FakeOverlay,
+        Marker: FakeMarker,
+        MarkerImage: FakeMarkerImage,
+        MarkerClusterer: FakeClusterer,
+        Point: class FakePoint {},
+        Polyline: FakePolyline,
+        Size: class FakeSize {},
+      } as unknown as NonNullable<Window["kakao"]>["maps"],
+    };
+
+    const onLocationSelect = vi.fn();
+    const container = document.createElement("div");
+    const controller = createKakaoMapController(container, {
+      locations: [
+        {
+          id: "one",
+          name: "첫 장소",
+          address: "부산",
+          coordinates: { latitude: 35.16, longitude: 129.16 },
+          markerKind: "catalog",
+        },
+        {
+          id: "one",
+          name: "중복 장소",
+          address: "부산",
+          coordinates: { latitude: 35.17, longitude: 129.17 },
+          markerKind: "catalog",
+        },
+        {
+          id: "invalid",
+          name: "좌표 오류",
+          address: "부산",
+          coordinates: { latitude: 100, longitude: 129.18 },
+          markerKind: "catalog",
+        },
+      ],
+      onLocationSelect,
+    });
+
+    expect(clusterers).toHaveLength(1);
+    expect(clusterers[0].addMarkers).toHaveBeenCalledTimes(1);
+    expect(clusterers[0].markers).toHaveLength(1);
+    expect(container.dataset.catalogMarkerCount).toBe("1");
+    expect(container.dataset.clusterCount).toBe("0");
+
+    const markerButton = overlays.find(({ content }) =>
+      content.matches('[data-location-id="one"]'),
+    )?.content as HTMLButtonElement;
+    markerButton.click();
+    expect(onLocationSelect).toHaveBeenCalledWith("one");
+    expect(overlays.some(({ content }) => content.matches(".kakao-map-info"))).toBe(
+      true,
+    );
+
+    controller.updateData(
+      [
+        {
+          id: "two",
+          name: "둘째 장소",
+          address: "부산",
+          coordinates: { latitude: 35.18, longitude: 129.18 },
+          markerKind: "catalog",
+        },
+      ],
+      [],
+    );
+    expect(clusterers).toHaveLength(1);
+    expect(clusterers[0].clear).toHaveBeenCalled();
+    expect(clusterers[0].addMarkers).toHaveBeenCalledTimes(2);
+
+    controller.destroy();
+    expect(clusterers[0].clear).toHaveBeenCalledTimes(3);
+    expect(removeListener).toHaveBeenCalledWith(
+      clusterers[0],
+      "clustered",
+      expect.any(Function),
+    );
+    expect(container.childElementCount).toBe(0);
   });
 });

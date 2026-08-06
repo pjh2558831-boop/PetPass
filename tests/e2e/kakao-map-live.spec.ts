@@ -47,6 +47,9 @@ async function expectKakaoMapReady(
         page.evaluate(
           ({ minimumMarkers, expectPolyline }) => {
             const map = document.querySelector<HTMLElement>(".kakao-map-canvas");
+            const mapRoot = map?.querySelector<HTMLElement>(
+              "[data-clusterer-ready=true]",
+            );
             const images = map ? Array.from(map.querySelectorAll("img")) : [];
             const bodyText = document.body.textContent ?? "";
             return {
@@ -56,12 +59,13 @@ async function expectKakaoMapReady(
               ).length,
               mapHasHeight: (map?.getBoundingClientRect().height ?? 0) > 250,
               mapHasInternalDom: (map?.querySelectorAll("div").length ?? 0) > 5,
+              clustererReady: mapRoot?.dataset.clustererReady === "true",
               tileLoaded: images.some(
                 (image) => image.complete && image.naturalWidth > 0,
               ),
               markerCountReady:
-                document.querySelectorAll(".kakao-map-marker").length >=
-                minimumMarkers,
+                Number(mapRoot?.dataset.catalogMarkerCount ?? 0) >= minimumMarkers ||
+                document.querySelectorAll(".kakao-map-marker").length >= minimumMarkers,
               polylinePathReady:
                 !expectPolyline ||
                 Array.from(map?.querySelectorAll<SVGPathElement>("path") ?? []).some(
@@ -87,6 +91,7 @@ async function expectKakaoMapReady(
       sdkScriptCount: 1,
       mapHasHeight: true,
       mapHasInternalDom: true,
+      clustererReady: true,
       tileLoaded: true,
       markerCountReady: true,
       polylinePathReady: true,
@@ -178,19 +183,38 @@ test("localhost renders Kakao maps and search without a fixed demo itinerary", a
   }
 
   await page.goto(`http://localhost:3000/results?verify=${Date.now()}`);
-  await expectKakaoMapReady(page, 12, false);
+  await expectKakaoMapReady(page, 13, false);
   await expectResponsiveMap(page, 390, 844, false);
   await expect(
-    page.getByText(/현재 카탈로그 페이지의 실제 장소를 표시합니다/),
+    page.getByText(/현재 필터의 좌표 확인 장소 13곳을 모두 표시합니다/),
   ).toBeVisible();
+  await expect(page.getByText("전체 13곳", { exact: true })).toBeVisible();
+  await expect(page.getByText("현재 목록 1–12곳", { exact: true })).toBeVisible();
+  await expect(page.getByText("지도 13곳 표시", { exact: true })).toBeVisible();
+  await expect
+    .poll(() =>
+      page
+        .locator("[data-clusterer-ready=true]")
+        .getAttribute("data-cluster-count")
+        .then(Number),
+    )
+    .toBeGreaterThan(0);
   await expect(page.getByText(/데모 일정 이동/)).toHaveCount(0);
 
-  const firstLiveMarker = page.locator(
-    '.kakao-map-marker[aria-label^="해운대 해수욕장"]',
+  const laterPageMarker = page.locator(
+    '.kakao-map-marker[data-location-id="1107"]',
   );
-  await expect(firstLiveMarker).toHaveCount(1);
-  await firstLiveMarker.click();
+  await expect(laterPageMarker).toBeVisible();
+  await laterPageMarker.click();
+  await expect(page.getByText("2 / 2페이지 · 현재 1곳")).toBeVisible();
+  await expect(page.locator("#place-card-1107")).toHaveClass(/ring-2/u);
+
+  await page.getByRole("button", { name: "이전" }).click();
+  await page
+    .getByRole("button", { name: "해운대 해수욕장 지도에서 보기" })
+    .click();
   await expect(page.locator(".kakao-map-info")).toContainText("해운대 해수욕장");
+  await expect(page.locator("#place-card-1001")).toHaveClass(/ring-2/u);
 
   const searchResponsePromise = page.waitForResponse((response) =>
     response.url().includes("/api/kakao/local/search"),
@@ -213,7 +237,7 @@ test("localhost renders Kakao maps and search without a fixed demo itinerary", a
   await selectedResult.click();
   await expect(selectedResult).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".kakao-map-info")).toBeVisible();
-  await expect(page.locator(".kakao-map-marker")).toHaveCount(13);
+  await expect(page.locator(".kakao-map-marker")).toHaveCount(14);
 
   await page.goto(`http://localhost:3000/itinerary?verify=${Date.now()}`);
   await expect(

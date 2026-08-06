@@ -29,7 +29,9 @@ test("displays live Busan Tourism places and original pet-policy evidence", asyn
   expect(listBody.ok).toBe(true);
   expect(listBody.data?.places?.length).toBeGreaterThanOrEqual(10);
 
-  await expect(page.getByText(/장소 \d+곳/)).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /장소 \d+곳/u }),
+  ).toBeVisible();
   await expect
     .poll(() => page.locator(".kakao-map-marker").count(), { timeout: 30_000 })
     .toBeGreaterThanOrEqual(10);
