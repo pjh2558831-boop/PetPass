@@ -30,7 +30,6 @@ import {
   createDefaultSourceLayerVisibility,
   type SourceLayerVisibility,
 } from "@/lib/places/source-layers";
-import { createTourismSourceRecord } from "@/lib/places/source-records";
 import { BUSAN_REGION_CONFIG } from "@/lib/regions/config";
 import { deriveRegionLabel } from "@/lib/regions/label";
 import { loadPetProfile, loadTravelPreferences } from "@/lib/storage/profile-storage";
@@ -204,11 +203,6 @@ export function ResultsExplorer({
       ),
     [filteredPlaces],
   );
-  const officialSourceRecords = useMemo(
-    () => filteredPlaces.map((place) => createTourismSourceRecord(place)),
-    [filteredPlaces],
-  );
-
   const selectMapLocation = useCallback(
     (contentId: string | null) => {
       setSelectedLocationId(contentId || null);
@@ -250,7 +244,7 @@ export function ResultsExplorer({
         ...kakaoCandidates.map((candidate) => ({
           id: `kakao-local:${candidate.id}`,
           name: candidate.name,
-          address: candidate.roadAddress ?? candidate.address,
+          address: candidate.address,
           coordinates: candidate.coordinates,
           markerKind: "kakao-candidate" as const,
           markerLabel: "?",
@@ -439,7 +433,12 @@ export function ResultsExplorer({
             selectedLocationId={selectedLocationId}
             onLocationSelect={selectMapLocation}
             onCurrentMapSearch={
-              activeTab === "catalog" ? setCurrentMapSearch : undefined
+              activeTab === "catalog"
+                ? (viewport) => {
+                    setCurrentMapSearch(viewport);
+                    setKakaoCandidates([]);
+                  }
+                : undefined
             }
             title={
               activeTab === "recommendations"
@@ -473,15 +472,18 @@ export function ResultsExplorer({
           <KakaoPlaceSearch
             regionId={BUSAN_REGION_CONFIG.id}
             districtCode={districtCode === "all" ? undefined : districtCode}
+            category={category}
             currentMapSearch={currentMapSearch}
             selectedId={selectedLocationId}
-            officialSources={officialSourceRecords}
             showCandidatesOnMap={sourceLayerVisibility.kakao_discovery}
             onCandidateLayerChange={(visible) =>
               toggleMapLayer("kakao_discovery", visible)
             }
             onCandidatesChange={setKakaoCandidates}
-            onConfiguredAreaSearch={() => setCurrentMapSearch(null)}
+            onConfiguredAreaSearch={() => {
+              setCurrentMapSearch(null);
+              setKakaoCandidates([]);
+            }}
             onSelect={(result) => {
               const id = `kakao-local:${result.id}`;
               toggleMapLayer("kakao_discovery", true);
@@ -555,6 +557,7 @@ export function ResultsExplorer({
                   setShoppingMapVisible(option.value === "shopping");
                   setPage(1);
                   setSelectedLocationId(null);
+                  setKakaoCandidates([]);
                 }}
                 className={`min-h-10 shrink-0 rounded-full border px-4 text-xs font-extrabold ${
                   category === option.value
@@ -615,6 +618,7 @@ export function ResultsExplorer({
                   key={place.contentId}
                   place={place}
                   order={(currentPage - 1) * CATALOG_PAGE_SIZE + index + 1}
+                  priority={currentPage === 1 && index === 0}
                   selected={selectedLocationId === place.contentId}
                   onSelect={() => selectMapLocation(place.contentId)}
                 />

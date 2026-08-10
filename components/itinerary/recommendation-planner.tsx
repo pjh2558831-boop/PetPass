@@ -32,7 +32,9 @@ import type {
   GeneratedItinerary,
   GeneratedItineraryStop,
   IndoorAccessPreference,
+  ItineraryCandidateFunnel,
   ItineraryGenerationResponse,
+  ItineraryGenerationLimits,
 } from "@/types/route-generation";
 import type { TourPetAccessScope } from "@/types/tour-pet-access";
 
@@ -45,6 +47,13 @@ const RECOMMENDATION_CATEGORIES = TOUR_CATALOG_FILTERS.filter(
 const VERDICT_LABELS = {
   allowed: "반려동물 동반 가능",
   conditional: "조건부 동반 가능",
+} as const;
+
+const SIZE_COMPATIBILITY_LABELS = {
+  compatible: "선택 크기와 근거 일치",
+  incompatible: "선택 크기와 맞지 않음",
+  verification_required: "크기 조건 확인 필요",
+  not_specified: "크기 제한 명시 없음",
 } as const;
 
 const SCOPE_LABELS: Record<TourPetAccessScope, string> = {
@@ -80,7 +89,54 @@ function isGenerationResponse(value: unknown): value is ItineraryGenerationRespo
     typeof candidate.state === "string" &&
     Array.isArray(candidate.itineraries) &&
     Array.isArray(candidate.notices) &&
-    Boolean(candidate.request)
+    Boolean(candidate.request) &&
+    Boolean(candidate.candidateFunnel)
+  );
+}
+
+function CandidateFunnel({
+  funnel,
+  limits,
+}: {
+  funnel: ItineraryCandidateFunnel;
+  limits: ItineraryGenerationLimits;
+}) {
+  const baseEligible =
+    funnel.basePetAccess.allowed + funnel.basePetAccess.conditional;
+  const sizeReview =
+    funnel.petSizeCompatibility.incompatible +
+    funnel.petSizeCompatibility.verificationRequired;
+  const stages = [
+    ["전체 일치 카탈로그", funnel.matchingCatalogCandidates],
+    ["기본 필터 통과", funnel.afterBasicFilters],
+    ["거리순 예비 후보", `${funnel.preliminaryRankedCandidates}/${limits.maxCatalogCandidates}`],
+    ["상세 근거 확인", `${funnel.detailedAssessmentCandidates}/${limits.maxDetailCalls}`],
+    ["허용·조건부 판정", baseEligible],
+    ["크기 부적합·확인 필요", sizeReview],
+    ["일정 가능 후보", funnel.itineraryEligibleCandidates],
+    ["반환 경로", funnel.returnedRoutes],
+  ] as const;
+
+  return (
+    <section className="mt-3 rounded-xl bg-white/70 p-3" aria-label="추천 후보 단계">
+      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {stages.map(([label, value]) => (
+          <div key={label} className="min-w-0 rounded-lg bg-white p-2">
+            <dt className="text-[11px] font-bold text-[#6b786f]">{label}</dt>
+            <dd className="mt-1 text-sm font-black">{value}곳</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-2 text-[11px] leading-5">
+        기본 판정: 허용 {funnel.basePetAccess.allowed} · 조건부 {funnel.basePetAccess.conditional} · 불가 {funnel.basePetAccess.notAllowed} · 근거 부족 {funnel.basePetAccess.unknown} · 평가 제외 {funnel.basePetAccess.notApplicable}
+      </p>
+      <p className="text-[11px] leading-5">
+        크기 근거: 일치 {funnel.petSizeCompatibility.compatible} · 명시 없음 {funnel.petSizeCompatibility.notSpecified} · 부적합 {funnel.petSizeCompatibility.incompatible} · 확인 필요 {funnel.petSizeCompatibility.verificationRequired}
+      </p>
+      <p className="mt-1 text-[11px] leading-5 text-[#64746c]">
+        전체 일치 카탈로그를 거리순으로 정렬한 뒤 최대 {limits.maxCatalogCandidates}곳을 예비 후보로 두고, 가까운 최대 {limits.maxDetailCalls}곳만 상세 근거를 확인합니다.
+      </p>
+    </section>
   );
 }
 
@@ -159,6 +215,9 @@ function ItineraryStopCard({
               className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${stopVerdictClass(stop)}`}
             >
               {VERDICT_LABELS[stop.petAccess.verdict]}
+            </span>
+            <span className="rounded-full border border-[#cad8d0] bg-white px-2.5 py-1 text-[11px] font-extrabold text-[#45665a]">
+              {SIZE_COMPATIBILITY_LABELS[stop.petAccess.sizeCompatibility.state]}
             </span>
             {stop.operatingHours.warning ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-[#fff1e5] px-2.5 py-1 text-[11px] font-extrabold text-[#7b4b2f]">
@@ -820,8 +879,12 @@ export function RecommendationPlanner({
             <p className="font-extrabold">{generationCopy.title}</p>
             <p className="mt-1 text-xs leading-5">{generationCopy.description}</p>
             <p className="mt-2 text-xs font-bold">
-              제공자 후보 {generation.providerCandidatesConsidered}곳 · 근거 확인 후보 {generation.shortlistedCandidates}곳 · 최종 가능 후보 {generation.eligibleCandidates}곳
+              전체 일치 후보 {generation.providerCandidatesConsidered}곳 · 상세 확인 {generation.shortlistedCandidates}곳 · 일정 가능 {generation.eligibleCandidates}곳
             </p>
+            <CandidateFunnel
+              funnel={generation.candidateFunnel}
+              limits={generation.limits}
+            />
           </div>
 
           {generation.notices.length > 0 ? (

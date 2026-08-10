@@ -126,6 +126,51 @@ export function LivePlaceDetail({
     roadAddress: detail.summary.address,
     lotNumberAddress: detail.summary.detailAddress,
   });
+  const informationCards = [
+    { icon: MapPin, label: "주소", value: address || "주소 정보 없음" },
+    {
+      icon: Phone,
+      label: "연락처",
+      value:
+        detail.contactInformation ??
+        detail.summary.phone ??
+        "연락처 정보 없음",
+    },
+    {
+      icon: Clock3,
+      label: "운영 정보",
+      value: detail.operatingInformation ?? "운영 정보 미제공",
+    },
+    ...(detail.summary.category === "accommodation"
+      ? [
+          {
+            icon: Clock3,
+            label: "체크인",
+            value: detail.checkInTime ?? "체크인 정보 미제공",
+          },
+          {
+            icon: Clock3,
+            label: "체크아웃",
+            value: detail.checkOutTime ?? "체크아웃 정보 미제공",
+          },
+        ]
+      : []),
+    {
+      icon: CalendarX2,
+      label: "휴무 정보",
+      value: detail.restDayInformation ?? "휴무 정보 미제공",
+    },
+    {
+      icon: Car,
+      label: "주차 정보",
+      value: detail.parkingInformation ?? "주차 정보 미제공",
+    },
+    {
+      icon: Phone,
+      label: "예약 정보",
+      value: detail.reservationInformation ?? "예약 정보 미제공",
+    },
+  ];
 
   return (
     <div className="page-shell py-8 sm:py-12">
@@ -180,14 +225,7 @@ export function LivePlaceDetail({
           ) : null}
 
           <div className="mt-6 grid gap-3 text-sm sm:grid-cols-2">
-            {[
-              { icon: MapPin, label: "주소", value: address || "주소 정보 없음" },
-              { icon: Phone, label: "연락처", value: detail.contactInformation ?? detail.summary.phone ?? "연락처 정보 없음" },
-              { icon: Clock3, label: "운영 정보", value: detail.operatingInformation ?? "운영 정보 미제공" },
-              { icon: CalendarX2, label: "휴무 정보", value: detail.restDayInformation ?? "휴무 정보 미제공" },
-              { icon: Car, label: "주차 정보", value: detail.parkingInformation ?? "주차 정보 미제공" },
-              { icon: Phone, label: "예약 정보", value: detail.reservationInformation ?? "예약 정보 미제공" },
-            ].map(({ icon: Icon, label, value }) => (
+            {informationCards.map(({ icon: Icon, label, value }) => (
               <div key={label} className="flex items-start gap-3 rounded-2xl bg-[#fffdf8] p-4">
                 <Icon size={18} className="mt-0.5 shrink-0 text-[#3d8b68]" aria-hidden="true" />
                 <div>

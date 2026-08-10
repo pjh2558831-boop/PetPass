@@ -9,11 +9,13 @@ import type { TourPlaceSummary } from "@/types/place";
 export function PlaceCard({
   place,
   order,
+  priority = false,
   selected = false,
   onSelect,
 }: {
   place: TourPlaceSummary;
   order?: number;
+  priority?: boolean;
   selected?: boolean;
   onSelect?: () => void;
 }) {
@@ -35,6 +37,7 @@ export function PlaceCard({
           <PlaceImage
             imageUrl={place.thumbnailUrl ?? place.imageUrl}
             title={title}
+            priority={priority}
           />
           {order ? (
             <span className="absolute left-3 top-3 grid size-8 place-items-center rounded-full bg-[#236148] text-xs font-black text-white shadow">

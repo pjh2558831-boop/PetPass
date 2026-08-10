@@ -176,9 +176,12 @@ initial district; otherwise the default is all Busan. The results URL only
 honors `tab`, so region or district URL parameters are ignored. There is no
 Tourism radius or bounding-box filter.
 
-Kakao Local is different: `app/api/kakao/local/search/route.ts:GET` always adds
-longitude 129.174, latitude 35.159, and radius 20,000 m. The UI requests only
-five results, while the server permits pages 1-3 and sizes 1-10.
+Phase 1 supersedes the generic Kakao Local search described in this dated
+audit. `GET /api/places/discovery` now accepts one supported catalog category
+and exactly one district or bounded current-map rectangle. Its keywords,
+pagination, category groups, subdivision, and call budget are server-owned;
+returned candidates are temporary, require verification, and cannot enter
+itinerary recommendation.
 
 The itinerary has a default origin of Busan Station (35.1151, 129.0414), but the
 user may edit it or use current location. Destinations are dynamically selected;
@@ -589,4 +592,3 @@ the network-enabled local server and returned the measured live data above.
 ## I. Deployment status
 
 **No deployment or Vercel promotion was performed.**
-

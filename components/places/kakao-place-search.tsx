@@ -1,59 +1,78 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { ExternalLink, Eye, EyeOff, LoaderCircle, MapPin, Search, Undo2 } from "lucide-react";
 import { createKakaoSearchPlan } from "@/lib/kakao/search-area";
-import { findBestProviderLink } from "@/lib/places/source-linking";
+import { TOUR_CATALOG_FILTERS, type TourCatalogFilter } from "@/lib/tour-api/catalog";
 import type { ApiResult } from "@/types/api";
-import type {
-  KakaoCurrentMapSearch,
-  KakaoDiscoveryCandidate,
-  KakaoLocalSearchResponse,
+import {
+  KAKAO_DISCOVERY_CATEGORIES,
+  type KakaoCurrentMapSearch,
+  type KakaoDiscoveryCandidate,
+  type KakaoDiscoveryCategory,
+  type KakaoDiscoveryResponse,
 } from "@/types/kakao";
-import type { PlaceSourceRecord } from "@/types/place-source";
+
+interface SearchState {
+  scopeKey: string;
+  loading: boolean;
+  searched: boolean;
+  error: string;
+  results: KakaoDiscoveryCandidate[];
+  response?: KakaoDiscoveryResponse;
+}
+
+const EMPTY_SEARCH: SearchState = {
+  scopeKey: "",
+  loading: false,
+  searched: false,
+  error: "",
+  results: [],
+};
+
+function isDiscoveryCategory(
+  category: TourCatalogFilter,
+): category is KakaoDiscoveryCategory {
+  return KAKAO_DISCOVERY_CATEGORIES.includes(category as KakaoDiscoveryCategory);
+}
 
 export function KakaoPlaceSearch({
   regionId,
   districtCode,
+  category,
   currentMapSearch,
   selectedId,
   onSelect,
   onConfiguredAreaSearch,
-  officialSources = [],
   showCandidatesOnMap = false,
   onCandidateLayerChange,
   onCandidatesChange,
 }: {
   regionId: string;
   districtCode?: string;
+  category: TourCatalogFilter;
   currentMapSearch?: KakaoCurrentMapSearch | null;
   selectedId?: string | null;
   onSelect: (result: KakaoDiscoveryCandidate) => void;
   onConfiguredAreaSearch?: () => void;
-  officialSources?: PlaceSourceRecord[];
   showCandidatesOnMap?: boolean;
   onCandidateLayerChange?: (visible: boolean) => void;
   onCandidatesChange?: (results: KakaoDiscoveryCandidate[]) => void;
 }) {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<KakaoDiscoveryCandidate[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
-  const [error, setError] = useState("");
-  const [searchMeta, setSearchMeta] = useState<
-    Pick<KakaoLocalSearchResponse, "area" | "truncated"> & { scopeKey: string } | undefined
-  >();
-  const onCandidatesChangeRef = useRef(onCandidatesChange);
-  useEffect(() => {
-    onCandidatesChangeRef.current = onCandidatesChange;
-  }, [onCandidatesChange]);
+  const [searchState, setSearchState] = useState<SearchState>(EMPTY_SEARCH);
   const scopeKey = useMemo(
     () =>
       currentMapSearch
-        ? `${regionId}:current:${currentMapSearch.center.longitude}:${currentMapSearch.center.latitude}:${currentMapSearch.radiusMeters}`
-        : `${regionId}:configured:${districtCode ?? "all"}`,
-    [currentMapSearch, districtCode, regionId],
+        ? `${category}:viewport:${currentMapSearch.rectangle.west}:${currentMapSearch.rectangle.south}:${currentMapSearch.rectangle.east}:${currentMapSearch.rectangle.north}`
+        : `${category}:district:${districtCode ?? "none"}`,
+    [category, currentMapSearch, districtCode],
   );
+  const activeState =
+    searchState.scopeKey === scopeKey ? searchState : EMPTY_SEARCH;
+  const supportedCategory = isDiscoveryCategory(category);
+  const scopeReady = Boolean(currentMapSearch || districtCode);
+  const categoryLabel =
+    TOUR_CATALOG_FILTERS.find(({ value }) => value === category)?.label ?? category;
   const areaPreview = useMemo(
     () =>
       createKakaoSearchPlan({
@@ -65,65 +84,63 @@ export function KakaoPlaceSearch({
     [currentMapSearch, districtCode, regionId],
   );
 
-  useEffect(() => {
-    const normalized = query.trim();
-    if (normalized.length < 2) return;
-
+  const search = async () => {
+    if (!supportedCategory || !scopeReady) return;
     const controller = new AbortController();
-    const timer = window.setTimeout(async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const params = new URLSearchParams({
-          query: normalized,
-          size: "5",
-          regionId,
-          mode: currentMapSearch ? "current-map" : "configured",
-        });
-        if (districtCode) params.set("districtCode", districtCode);
-        if (currentMapSearch) {
-          params.set("longitude", String(currentMapSearch.center.longitude));
-          params.set("latitude", String(currentMapSearch.center.latitude));
-          params.set("radiusMeters", String(currentMapSearch.radiusMeters));
-        }
-        const response = await fetch(`/api/kakao/local/search?${params}`, {
-          signal: controller.signal,
-        });
-        const body = (await response.json()) as ApiResult<KakaoLocalSearchResponse>;
-        if (!response.ok || !body.ok) {
-          throw new Error(
-            body.ok ? "장소 검색에 실패했습니다." : body.error.message,
-          );
-        }
-        setResults(body.data.results);
-        onCandidatesChangeRef.current?.(body.data.results);
-        setSearchMeta({
-          area: body.data.area,
-          truncated: body.data.truncated,
-          scopeKey,
-        });
-        setSearched(true);
-      } catch (requestError) {
-        if (controller.signal.aborted) return;
-        setResults([]);
-        onCandidatesChangeRef.current?.([]);
-        setSearchMeta(undefined);
-        setSearched(true);
-        setError(
-          requestError instanceof Error
-            ? requestError.message
-            : "장소 검색에 실패했습니다.",
-        );
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
+    setSearchState({
+      scopeKey,
+      loading: true,
+      searched: false,
+      error: "",
+      results: [],
+    });
+    onCandidatesChange?.([]);
+    try {
+      const params = new URLSearchParams({ category });
+      if (currentMapSearch) {
+        params.set("west", String(currentMapSearch.rectangle.west));
+        params.set("south", String(currentMapSearch.rectangle.south));
+        params.set("east", String(currentMapSearch.rectangle.east));
+        params.set("north", String(currentMapSearch.rectangle.north));
+        params.set("centerLongitude", String(currentMapSearch.center.longitude));
+        params.set("centerLatitude", String(currentMapSearch.center.latitude));
+      } else if (districtCode) {
+        params.set("districtCode", districtCode);
       }
-    }, 350);
-
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [currentMapSearch, districtCode, query, regionId, scopeKey]);
+      const response = await fetch(`/api/places/discovery?${params}`, {
+        signal: controller.signal,
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+      const body = (await response.json()) as ApiResult<KakaoDiscoveryResponse>;
+      if (!response.ok || !body.ok) {
+        throw new Error(
+          body.ok ? "추가 장소 후보 검색에 실패했습니다." : body.error.message,
+        );
+      }
+      onCandidatesChange?.(body.data.candidates);
+      setSearchState({
+        scopeKey,
+        loading: false,
+        searched: true,
+        error: "",
+        results: body.data.candidates,
+        response: body.data,
+      });
+    } catch (error) {
+      onCandidatesChange?.([]);
+      setSearchState({
+        scopeKey,
+        loading: false,
+        searched: true,
+        error:
+          error instanceof Error
+            ? error.message
+            : "추가 장소 후보 검색에 실패했습니다.",
+        results: [],
+      });
+    }
+  };
 
   return (
     <section className="surface-card p-4 sm:p-5" aria-labelledby="kakao-search-heading">
@@ -131,50 +148,45 @@ export function KakaoPlaceSearch({
         <div>
           <p className="eyebrow">Kakao Local</p>
           <h2 id="kakao-search-heading" className="mt-1 text-lg font-black">
-            주변 장소 직접 찾기
+            추가 장소 후보 찾기
           </h2>
         </div>
         <p className="text-xs leading-5 text-[#6b7972]">
-          선택한 결과는 지도에 표시되며, 반려동물 동반 조건은 별도 확인이 필요해요.
+          카카오 후보는 일정 추천에 포함되지 않으며 동반 조건을 별도로 확인해야 해요.
         </p>
       </div>
 
-      <div className="relative mt-4">
-        <Search
-          size={18}
-          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#6d7d74]"
-          aria-hidden="true"
-        />
-        <input
-          type="search"
-          value={query}
-          onChange={(event) => {
-            const value = event.target.value;
-            setQuery(value);
-            if (value.trim().length < 2) {
-              setResults([]);
-              onCandidatesChangeRef.current?.([]);
-              setLoading(false);
-              setSearched(false);
-              setError("");
-            }
-          }}
-          placeholder="예: 부산 카페, 기장 산책"
-          className="min-h-12 w-full rounded-2xl border border-[#cfd9d3] bg-white py-3 pl-11 pr-12 text-sm font-semibold shadow-sm"
-          aria-label="카카오 장소 검색"
-          aria-describedby="kakao-search-help"
-        />
-        {loading ? (
-          <LoaderCircle
-            size={18}
-            className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-[#3d8b68]"
-            aria-label="장소 검색 중"
-          />
+      <div className="mt-4 rounded-2xl border border-[#cfd9d3] bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold text-[#748078]">선택한 장소 유형</p>
+            <p className="mt-1 text-sm font-black text-[#2a4036]">{categoryLabel}</p>
+          </div>
+          <button
+            type="button"
+            disabled={!supportedCategory || !scopeReady || activeState.loading}
+            onClick={() => void search()}
+            className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#236148] px-4 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            {activeState.loading ? (
+              <LoaderCircle size={17} className="animate-spin" aria-hidden="true" />
+            ) : (
+              <Search size={17} aria-hidden="true" />
+            )}
+            {activeState.loading ? "후보 찾는 중" : "추가 후보 찾기"}
+          </button>
+        </div>
+        {!supportedCategory ? (
+          <p className="mt-3 text-xs font-bold text-[#76542f]" role="status">
+            전체·축제·쇼핑 필터에서는 카카오 추가 후보 검색을 제공하지 않습니다.
+          </p>
+        ) : !scopeReady ? (
+          <p className="mt-3 text-xs font-bold text-[#76542f]" role="status">
+            부산 세부 지역을 선택하거나 지도에서 검색 범위를 지정해 주세요.
+          </p>
         ) : null}
       </div>
-      <p id="kakao-search-help" className="mt-2 text-xs text-[#748078]">
-        두 글자 이상 입력하면 0.35초 후 입력한 지역명과 장소명으로 검색합니다.
-      </p>
+
       <div
         className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#edf8f2] px-3 py-2 text-xs font-bold text-[#285c45]"
         aria-live="polite"
@@ -196,7 +208,7 @@ export function KakaoPlaceSearch({
       <button
         type="button"
         aria-pressed={showCandidatesOnMap}
-        disabled={results.length === 0}
+        disabled={activeState.results.length === 0}
         onClick={() => onCandidateLayerChange?.(!showCandidatesOnMap)}
         className={`mt-3 inline-flex min-h-10 items-center gap-2 rounded-full border px-3 text-xs font-extrabold disabled:cursor-not-allowed disabled:opacity-45 ${
           showCandidatesOnMap
@@ -208,34 +220,27 @@ export function KakaoPlaceSearch({
         주변 후보 함께 보기
       </button>
 
-      {error ? (
+      {activeState.error ? (
         <p role="alert" className="mt-3 rounded-xl bg-[#fceeee] p-3 text-sm font-bold text-[#8d3838]">
-          {error}
+          {activeState.error}
         </p>
       ) : null}
-
-      {searched && !loading && !error && results.length === 0 ? (
+      {activeState.searched && !activeState.error && activeState.results.length === 0 ? (
         <p className="mt-3 rounded-xl bg-[#f4f6f4] p-3 text-sm font-semibold text-[#66756d]">
-          검색 결과가 없어요. 장소명이나 지역명을 바꿔보세요.
+          이 범위에서 검증 대기 중인 추가 후보를 찾지 못했어요.
         </p>
       ) : null}
-
-      {searched &&
-      !loading &&
-      !error &&
-      searchMeta?.scopeKey === scopeKey &&
-      searchMeta.truncated ? (
+      {activeState.response?.metadata.partial ? (
         <p className="mt-3 rounded-xl bg-[#fff8f1] p-3 text-xs font-bold text-[#76542f]" role="status">
-          카카오 요청 제한 내의 일부 결과만 표시합니다. 더 정확한 장소명을 입력해 주세요.
+          안전한 요청 한도 내의 일부 후보만 표시합니다.
         </p>
       ) : null}
 
-      {results.length > 0 ? (
+      {activeState.results.length > 0 ? (
         <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {results.map((result) => {
+          {activeState.results.map((result) => {
             const mapId = `kakao-local:${result.id}`;
             const selected = selectedId === mapId;
-            const link = findBestProviderLink(result.sourceRecord, officialSources);
             return (
               <li key={result.id}>
                 <article
@@ -259,23 +264,14 @@ export function KakaoPlaceSearch({
                     {result.name}
                   </span>
                   <span className="mt-1.5 line-clamp-2 block text-xs leading-5 text-[#6b7972]">
-                    {result.roadAddress ?? result.address}
+                    {result.address}
                   </span>
                   <span className="mt-2 text-[11px] font-bold text-[#68776f]">
-                    정보 신뢰도: 낮음 · 확률 또는 동반 판정 아님
+                    반려동물 동반 판정: 확인 필요 · 자동 추천 제외
                   </span>
-                  {link ? (
-                    <span className={`mt-2 rounded-xl p-2 text-[11px] font-bold leading-5 ${
-                      link.classification === "exact"
-                        ? "bg-[#edf8f2] text-[#285c45]"
-                        : "bg-[#fff8f1] text-[#76542f]"
-                    }`}>
-                      {link.classification === "exact"
-                        ? "관광공사 기록과 정확히 연결됨 · 출처 2개 보존"
-                        : `동일 장소 ${link.classification === "probable" ? "유력" : "가능"} · 관리자 검토 필요`}
-                      {link.conflicts.length > 0
-                        ? ` · 출처 충돌 ${link.conflicts.length}건`
-                        : ""}
+                  {result.exactExistingPlaceLink ? (
+                    <span className="mt-2 rounded-xl bg-[#edf8f2] p-2 text-[11px] font-bold leading-5 text-[#285c45]">
+                      관광공사 기록과 정확히 연결됨 · 출처는 병합하지 않음
                     </span>
                   ) : null}
                   <div className="mt-auto flex flex-wrap items-center justify-end gap-3 pt-3">
