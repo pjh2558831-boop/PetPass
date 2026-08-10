@@ -397,6 +397,18 @@ describe("Korea Tourism Organization provider", () => {
       evaluatedAt: "2026-08-05T01:00:00.000Z",
     });
     expect(licenseMatcher.matchTourPlace).toHaveBeenCalledOnce();
+    expect(body.data.sourceRecords).toEqual([
+      expect.objectContaining({
+        layer: "tourism_official",
+        providerIds: [
+          { provider: "Korea Tourism Organization", id: "100" },
+        ],
+      }),
+    ]);
+    expect(body.data.trust).toMatchObject({
+      ruleVersion: "petpass-trust-v1",
+      level: "medium",
+    });
   });
 
   it("deduplicates simultaneous list requests and never falls back to fixtures", async () => {

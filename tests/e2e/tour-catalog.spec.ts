@@ -41,11 +41,63 @@ test("uses all Busan by default and exposes every verified district", async ({
   await expect(
     page.getByRole("heading", { name: "장소 13곳", exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("전체 13곳", { exact: true })).toBeVisible();
+  await expect(page.getByText("제공자 전체 13곳", { exact: true })).toBeVisible();
   await expect(page.getByText("현재 목록 1–12곳", { exact: true })).toBeVisible();
   await expect(page.getByText("지도 13곳 표시", { exact: true })).toBeVisible();
   await expect(page.getByText("부산 전체", { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText("활성 검색 범위: 부산 전체 · 3개 기준점 · 각 최대 20km"),
+  ).toBeVisible();
   await expect(page.getByText("부산 여행 편집숍")).toHaveCount(0);
+});
+
+test("updates the visible Kakao area with the selected district", async ({
+  page,
+}) => {
+  const localSearchRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/api/kakao/local/search")) {
+      localSearchRequests.push(request.url());
+    }
+  });
+  await page.goto("/results");
+  await expect(
+    page.getByRole("heading", { name: "장소 13곳", exact: true }),
+  ).toBeVisible();
+
+  await page.getByLabel("부산 세부 지역").selectOption("500");
+  await expect(
+    page.getByText("활성 검색 범위: 부산 · 수영구 중심 · 반경 8km"),
+  ).toBeVisible();
+  expect(localSearchRequests).toEqual([]);
+
+  const searchResponsePromise = page.waitForResponse((response) =>
+    response.url().includes("/api/kakao/local/search"),
+  );
+  await page.getByRole("searchbox", { name: "카카오 장소 검색" }).fill("수영 카페");
+  const searchResponse = await searchResponsePromise;
+  expect(searchResponse.status()).toBe(200);
+  const searchUrl = new URL(searchResponse.url());
+  expect(searchUrl.searchParams.get("districtCode")).toBe("500");
+  expect(searchUrl.searchParams.get("mode")).toBe("configured");
+  const searchBody = (await searchResponse.json()) as {
+    ok: boolean;
+    data?: { results?: unknown[]; area?: { mode?: string } };
+  };
+  expect(searchBody.ok).toBe(true);
+  expect(searchBody.data?.results?.length).toBeGreaterThan(0);
+  expect(searchBody.data?.area?.mode).toBe("district");
+});
+
+test("labels a non-Haeundae live detail from its address", async ({ page }) => {
+  await page.goto("/places/1106?contentTypeId=12");
+  await expect(page.getByRole("heading", { name: "광안 해변길" })).toBeVisible();
+  await expect(page.getByText("부산 · 수영구", { exact: true })).toBeVisible();
+  await expect(page.getByText("부산 · 해운대구", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "출처와 정보 신뢰도" })).toBeVisible();
+  await expect(page.getByText(/정보 신뢰도: (높음|보통|낮음)/u)).toBeVisible();
+  await expect(page.getByText("관광공사 공식 데이터", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("정보 오류 제보문 만들기")).toBeVisible();
 });
 
 test("changes the upstream district scope and renders a truthful empty state", async ({
@@ -75,7 +127,7 @@ test("changes the upstream district scope and renders a truthful empty state", a
   );
   await page.getByRole("button", { name: "축제·행사" }).click();
   expect((await festivalResponse).status()).toBe(200);
-  await expect(page.getByText("전체 0곳", { exact: true })).toBeVisible();
+  await expect(page.getByText("제공자 전체 0곳", { exact: true })).toBeVisible();
   await expect(page.getByText("지도 0곳 표시", { exact: true })).toBeVisible();
   await expect(
     page.getByText("해운대구에서 이 유형으로 제공된 장소가 없습니다."),
@@ -102,14 +154,33 @@ test("keeps shopping opt-in and known requested types out of 기타", async ({
   const shoppingResponse = page.waitForResponse((response) =>
     response.url().includes("contentTypeId=38"),
   );
-  await page.getByRole("button", { name: "쇼핑(선택)" }).click();
+  await page.getByRole("button", { name: "쇼핑", exact: true }).click();
   expect((await shoppingResponse).status()).toBe(200);
   await expect(
     page.getByRole("heading", { name: "장소 1곳", exact: true }),
   ).toBeVisible();
   await expect(page.getByText("부산 여행 편집숍")).toBeVisible();
-  await expect(page.getByText("쇼핑", { exact: true })).toBeVisible();
+  await expect(
+    page.locator("#place-card-1501").getByText("쇼핑", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("쇼핑은 선택형 카테고리입니다.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /쇼핑\(선택형\) 1/u })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
   await expect(page.getByText("기타", { exact: true })).toHaveCount(0);
+
+  const allResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/tour/places?") &&
+      !response.url().includes("contentTypeId="),
+  );
+  await page.getByRole("button", { name: "전체", exact: true }).click();
+  expect((await allResponse).status()).toBe(200);
+  await expect(
+    page.getByRole("heading", { name: "장소 13곳", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("부산 여행 편집숍")).toHaveCount(0);
 });
 
 test("paginates the completed provider catalog instead of hiding later pages", async ({
@@ -153,7 +224,7 @@ test("updates category cards and map markers together without mobile overflow", 
   );
   await page.getByRole("button", { name: "관광지", exact: true }).click();
   expect((await attractionResponse).status()).toBe(200);
-  await expect(page.getByText("전체 8곳", { exact: true })).toBeVisible();
+  await expect(page.getByText("제공자 전체 8곳", { exact: true })).toBeVisible();
   await expect(page.getByText("지도 8곳 표시", { exact: true })).toBeVisible();
   await expect(page.locator('[id^="place-card-"]')).toHaveCount(8);
   await expect(page.locator(".kakao-map-canvas")).toHaveAttribute(
@@ -171,6 +242,8 @@ test("saves an official planner district code and uses it on results", async ({
   page,
 }) => {
   await page.goto("/planner/trip");
+  await expect(page.getByLabel("여행 지역").locator("option")).toHaveCount(1);
+  await expect(page.getByLabel("여행 지역")).not.toContainText("제주");
   const plannerDistrict = page.getByLabel("세부 지역");
   await expect(plannerDistrict).toHaveValue("all");
   await expect(plannerDistrict.locator("option")).toHaveCount(17);

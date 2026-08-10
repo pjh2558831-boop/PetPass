@@ -6,6 +6,7 @@ import type {
 } from "@/types/license";
 import type { PlaceCategory } from "@/types/pet";
 import type { TourPetAccessAssessment } from "@/types/tour-pet-access";
+import type { PlaceSourceRecord, PlaceTrustResult } from "@/types/place-source";
 
 export interface DataSourceMetadata {
   sourceName: string;
@@ -181,4 +182,6 @@ export interface TourPlaceDetail {
 
 export interface TourPlaceDetailResponse extends TourPlaceDetail {
   petAccessAssessment: TourPetAccessAssessment;
+  sourceRecords: PlaceSourceRecord[];
+  trust: PlaceTrustResult;
 }

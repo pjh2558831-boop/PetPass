@@ -4,6 +4,8 @@ import {
   createTrustedTourPetAccessInput,
   evaluateTourPetAccess,
 } from "@/lib/pet-access/tourism/evaluator";
+import { createTourismSourceRecord } from "@/lib/places/source-records";
+import { computePlaceTrust } from "@/lib/trust/calculator";
 import type {
   FoodLicenseMatchResult,
   LocalDataDataset,
@@ -254,12 +256,28 @@ export function liveDetail(
       contentId: food ? "1005" : "1001",
     },
   };
-  return {
-    ...detail,
-    petAccessAssessment: attachTourPetAccessEvaluationTime(
+  const petAccessAssessment = attachTourPetAccessEvaluationTime(
       evaluateTourPetAccess(createTrustedTourPetAccessInput(detail)),
       retrievedAt,
-    ),
+    );
+  return {
+    ...detail,
+    petAccessAssessment,
+    sourceRecords: [
+      createTourismSourceRecord(
+        detail.summary,
+        `반려동물 원문 근거 ${petAccessAssessment.evidence.length}건`,
+      ),
+    ],
+    trust: computePlaceTrust({
+      computedAt: retrievedAt,
+      hasAnySource: true,
+      tourism: {
+        hasPetSpecificEvidence: true,
+        retrievedAt,
+      },
+      licensingOperatingState: licensing.operatingState,
+    }),
   };
 }
 

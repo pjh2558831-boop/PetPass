@@ -6,9 +6,13 @@ import {
 } from "@/lib/kakao/local";
 import {
   createKakaoMapController,
+} from "@/lib/kakao/maps";
+import { KAKAO_CURRENT_MAP_MAX_RADIUS_METERS } from "@/lib/kakao/search-area";
+import { BUSAN_REGION_CONFIG } from "@/lib/regions/config";
+import {
   getKakaoMapJavaScriptKey,
   getKakaoMapsSdkUrl,
-} from "@/lib/kakao/maps";
+} from "@/lib/kakao/sdk-loader";
 import { getKakaoRestApiKey } from "@/lib/kakao/server-config";
 
 const originalRestKey = process.env.KAKAO_REST_API_KEY;
@@ -172,8 +176,25 @@ describe("Kakao integration boundaries", () => {
     }
     class FakeBounds {
       extend = vi.fn();
+      getNorthEast() {
+        return new FakeLatLng(35.3, 129.3);
+      }
+      getSouthWest() {
+        return new FakeLatLng(35.05, 128.9);
+      }
     }
+    const mapInstances: FakeMap[] = [];
     class FakeMap {
+      private readonly center: FakeLatLng;
+      constructor(
+        _container: HTMLElement,
+        options: { center: FakeLatLng },
+      ) {
+        this.center = options.center;
+        mapInstances.push(this);
+      }
+      getBounds = vi.fn(() => new FakeBounds());
+      getCenter = vi.fn(() => this.center);
       panTo = vi.fn();
       relayout = vi.fn();
       setBounds = vi.fn();
@@ -270,6 +291,11 @@ describe("Kakao integration boundaries", () => {
     expect(clusterers[0].markers).toHaveLength(1);
     expect(container.dataset.catalogMarkerCount).toBe("1");
     expect(container.dataset.clusterCount).toBe("0");
+    expect(mapInstances[0].setBounds).toHaveBeenCalledTimes(1);
+    expect(controller.getSearchViewport()).toEqual({
+      center: BUSAN_REGION_CONFIG.defaultMapCenter,
+      radiusMeters: KAKAO_CURRENT_MAP_MAX_RADIUS_METERS,
+    });
 
     const markerButton = overlays.find(({ content }) =>
       content.matches('[data-location-id="one"]'),
@@ -291,10 +317,12 @@ describe("Kakao integration boundaries", () => {
         },
       ],
       [],
+      { fitBounds: false },
     );
     expect(clusterers).toHaveLength(1);
     expect(clusterers[0].clear).toHaveBeenCalled();
     expect(clusterers[0].addMarkers).toHaveBeenCalledTimes(2);
+    expect(mapInstances[0].setBounds).toHaveBeenCalledTimes(1);
 
     controller.destroy();
     expect(clusterers[0].clear).toHaveBeenCalledTimes(3);
@@ -304,5 +332,30 @@ describe("Kakao integration boundaries", () => {
       expect.any(Function),
     );
     expect(container.childElementCount).toBe(0);
+
+    delete (window.kakao?.maps as unknown as Record<string, unknown>)
+      .MarkerClusterer;
+    const fallbackOverlayStart = overlays.length;
+    const fallbackContainer = document.createElement("div");
+    const fallbackController = createKakaoMapController(fallbackContainer, {
+      locations: [
+        {
+          id: "fallback",
+          name: "일반 마커 장소",
+          address: "부산",
+          coordinates: { latitude: 35.16, longitude: 129.16 },
+          markerKind: "catalog",
+        },
+      ],
+    });
+
+    expect(fallbackContainer.dataset.clustererReady).toBe("false");
+    expect(fallbackContainer.dataset.catalogMarkerCount).toBe("1");
+    expect(
+      overlays.slice(fallbackOverlayStart).some(({ content }) =>
+        content.matches('[data-location-id="fallback"]'),
+      ),
+    ).toBe(true);
+    fallbackController.destroy();
   });
 });

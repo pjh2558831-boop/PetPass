@@ -54,9 +54,13 @@ async function expectKakaoMapReady(
             const bodyText = document.body.textContent ?? "";
             return {
               sdkReady: Boolean(window.kakao?.maps?.Map),
+              clustererConstructorReady: Boolean(
+                window.kakao?.maps?.MarkerClusterer,
+              ),
               sdkScriptCount: document.querySelectorAll(
                 'script[src*="dapi.kakao.com/v2/maps/sdk.js"]',
               ).length,
+              mapVersion: Number(map?.dataset.mapVersion ?? 0),
               mapHasHeight: (map?.getBoundingClientRect().height ?? 0) > 250,
               mapHasInternalDom: (map?.querySelectorAll("div").length ?? 0) > 5,
               clustererReady: mapRoot?.dataset.clustererReady === "true",
@@ -88,7 +92,9 @@ async function expectKakaoMapReady(
     )
     .toEqual({
       sdkReady: true,
+      clustererConstructorReady: true,
       sdkScriptCount: 1,
+      mapVersion: 1,
       mapHasHeight: true,
       mapHasInternalDom: true,
       clustererReady: true,
@@ -172,6 +178,12 @@ test("localhost renders Kakao maps and search without a fixed demo itinerary", a
   test.setTimeout(120_000);
   const browserErrors = collectSanitizedBrowserErrors(page);
   const kakaoNetwork = collectKakaoNetwork(page);
+  const localSearchRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/api/kakao/local/search")) {
+      localSearchRequests.push(request.url());
+    }
+  });
 
   await page.goto(`http://localhost:3000/?verify=${Date.now()}`);
   await expect(page.getByRole("heading", { name: /함께 들어갈 수 있는 곳/ })).toBeVisible();
@@ -184,11 +196,28 @@ test("localhost renders Kakao maps and search without a fixed demo itinerary", a
 
   await page.goto(`http://localhost:3000/results?verify=${Date.now()}`);
   await expectKakaoMapReady(page, 13, false);
+  await expectResponsiveMap(page, 1_440, 900, false);
+  const clustererRoot = page.locator("[data-clusterer-ready=true]");
+  const clusterCountBeforeClick = Number(
+    await clustererRoot.getAttribute("data-cluster-count"),
+  );
+  expect(clusterCountBeforeClick).toBeGreaterThan(0);
+  const clickableClusters = clustererRoot.locator(
+    'div[style*="cursor: pointer"][style*="width: 46px"][style*="height: 46px"]',
+  );
+  expect(await clickableClusters.count()).toBeGreaterThan(0);
+  await clickableClusters.last().click();
+  await expect
+    .poll(() =>
+      clustererRoot.getAttribute("data-cluster-count").then(Number),
+    )
+    .not.toBe(clusterCountBeforeClick);
+  await expectResponsiveMap(page, 768, 900, false);
   await expectResponsiveMap(page, 390, 844, false);
   await expect(
     page.getByText(/현재 필터의 좌표 확인 장소 13곳을 모두 표시합니다/),
   ).toBeVisible();
-  await expect(page.getByText("전체 13곳", { exact: true })).toBeVisible();
+  await expect(page.getByText("제공자 전체 13곳", { exact: true })).toBeVisible();
   await expect(page.getByText("현재 목록 1–12곳", { exact: true })).toBeVisible();
   await expect(page.getByText("지도 13곳 표시", { exact: true })).toBeVisible();
   await expect
@@ -224,20 +253,41 @@ test("localhost renders Kakao maps and search without a fixed demo itinerary", a
   expect(searchResponse.status()).toBe(200);
   const searchBody = (await searchResponse.json()) as {
     ok: boolean;
-    data?: unknown[];
+    data?: { results?: unknown[] };
   };
   expect(searchBody.ok).toBe(true);
-  expect(searchBody.data?.length).toBeGreaterThan(0);
+  expect(searchBody.data?.results?.length).toBeGreaterThan(0);
 
   const searchRegion = page.getByRole("region", { name: "주변 장소 직접 찾기" });
   const resultButtons = searchRegion.locator("li button");
   const resultCount = await resultButtons.count();
   expect(resultCount).toBeGreaterThan(0);
+  await expect(
+    searchRegion.getByRole("button", { name: "주변 후보 함께 보기" }),
+  ).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".kakao-map-marker")).toHaveCount(13);
   const selectedResult = resultButtons.nth(0);
   await selectedResult.click();
   await expect(selectedResult).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    searchRegion.getByRole("button", { name: "주변 후보 함께 보기" }),
+  ).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".kakao-map-info")).toBeVisible();
-  await expect(page.locator(".kakao-map-marker")).toHaveCount(14);
+  await expect(page.locator(".kakao-map-marker")).toHaveCount(13 + resultCount);
+  await expect(searchRegion.getByText("카카오 검색 후보").first()).toBeVisible();
+  await expect(searchRegion.getByText("동반 여부 확인 필요").first()).toBeVisible();
+
+  const configuredSearchCount = localSearchRequests.length;
+  await page.waitForTimeout(500);
+  expect(localSearchRequests).toHaveLength(configuredSearchCount);
+  const currentMapResponsePromise = page.waitForResponse((response) =>
+    response.url().includes("/api/kakao/local/search") &&
+    response.url().includes("mode=current-map"),
+  );
+  await page.getByRole("button", { name: "현재 지도에서 검색" }).click();
+  expect((await currentMapResponsePromise).status()).toBe(200);
+  await expect(page.getByText(/활성 검색 범위: 현재 지도 중심/)).toBeVisible();
+  expect(localSearchRequests).toHaveLength(configuredSearchCount + 1);
 
   await page.goto(`http://localhost:3000/itinerary?verify=${Date.now()}`);
   await expect(
@@ -245,6 +295,34 @@ test("localhost renders Kakao maps and search without a fixed demo itinerary", a
   ).toBeVisible();
 
   expect(browserErrors).toEqual([]);
+});
+
+test("a complete Kakao SDK request failure keeps the map error state", async ({
+  page,
+}) => {
+  await page.route("https://dapi.kakao.com/v2/maps/sdk.js**", (route) =>
+    route.abort("failed"),
+  );
+  await page.goto(`http://localhost:3000/?sdk-failure=${Date.now()}`);
+
+  const alert = page.locator('.kakao-map-canvas [role="alert"]');
+  await expect(alert).toContainText("카카오 지도 SDK를 불러오지 못했습니다");
+  await expect(page.locator(".kakao-map-canvas")).toBeVisible();
+  const failureState = await page.evaluate(() => ({
+    mapHeight:
+      document.querySelector<HTMLElement>(".kakao-map-canvas")
+        ?.getBoundingClientRect().height ?? 0,
+    sdkScriptCount: document.querySelectorAll(
+      'script[src*="dapi.kakao.com/v2/maps/sdk.js"]',
+    ).length,
+    mapConstructorReady: typeof window.kakao?.maps?.Map === "function",
+  }));
+  expect(failureState).toEqual({
+    mapHeight: expect.any(Number),
+    sdkScriptCount: 1,
+    mapConstructorReady: false,
+  });
+  expect(failureState.mapHeight).toBeGreaterThan(250);
 });
 
 test("production renders the authenticated Kakao map responsively", async ({

@@ -478,6 +478,42 @@ function directionsResponse(url: URL): Response {
   });
 }
 
+function kakaoLocalResponse(url: URL): Response {
+  const query = url.searchParams.get("query") ?? "카페";
+  const x = url.searchParams.get("x") ?? "129.0756";
+  const y = url.searchParams.get("y") ?? "35.1796";
+  const centerId = `${x}-${y}`.replace(/[^0-9]/gu, "");
+  return Response.json({
+    meta: { total_count: 2, pageable_count: 2, is_end: true },
+    documents: [
+      {
+        id: "shared-kakao-place",
+        place_name: `${query} 공통 결과`,
+        category_name: "음식점 > 카페",
+        phone: "051-000-0000",
+        address_name: "부산광역시 수영구 광안동 1",
+        road_address_name: "부산광역시 수영구 광안해변로 1",
+        place_url: "https://place.map.kakao.com/shared-kakao-place",
+        distance: "100",
+        x,
+        y,
+      },
+      {
+        id: `center-${centerId}`,
+        place_name: `${query} 지역 결과`,
+        category_name: "음식점 > 카페",
+        phone: "",
+        address_name: "부산광역시 중구 중앙동 1",
+        road_address_name: "부산광역시 중구 중앙대로 1",
+        place_url: `https://place.map.kakao.com/center-${centerId}`,
+        distance: "250",
+        x,
+        y,
+      },
+    ],
+  });
+}
+
 function licenseItem(
   dataset: string,
   businessName: string,
@@ -619,6 +655,12 @@ export function installE2EUpstreamMock(): void {
     }
     if (url.hostname === "apis-navi.kakaomobility.com") {
       return Promise.resolve(directionsResponse(url));
+    }
+    if (
+      url.hostname === "dapi.kakao.com" &&
+      url.pathname === "/v2/local/search/keyword.json"
+    ) {
+      return Promise.resolve(kakaoLocalResponse(url));
     }
     return state.__petPassOriginalFetch!(input, init);
   };
