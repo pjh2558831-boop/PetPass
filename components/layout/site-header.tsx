@@ -1,41 +1,54 @@
 import Link from "next/link";
 import { Map, PawPrint } from "lucide-react";
+import { MobileNavigation } from "@/components/layout/mobile-navigation";
+
+const navigationLinks = [
+  { href: "/results", label: "장소 찾기" },
+  { href: "/itinerary", label: "내 일정" },
+] as const;
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-50 border-b border-[#dfe5df]/90 bg-[#f7f5ef]/92 backdrop-blur">
-      <div className="page-shell flex min-h-16 items-center justify-between gap-5">
+    <header className="sticky top-0 z-50 border-b border-[var(--line)] bg-[var(--background)]">
+      <div className="page-shell flex min-h-[72px] items-center justify-between gap-4">
         <Link
           href="/"
-          className="flex items-center gap-2 text-lg font-black tracking-[-0.03em] text-[#21312a]"
+          className="flex min-h-11 items-center gap-2.5 text-xl font-black tracking-[-0.04em] text-[var(--foreground)]"
           aria-label="PetPass 홈"
         >
-          <span className="grid size-9 place-items-center rounded-full bg-[#236148] text-white">
-            <PawPrint size={19} aria-hidden="true" />
+          <span className="grid size-10 place-items-center rounded-full bg-[var(--brand)] text-white">
+            <PawPrint size={20} aria-hidden="true" />
           </span>
           PetPass
         </Link>
-        <nav aria-label="주요 메뉴" className="flex items-center gap-1 sm:gap-2">
+        <nav aria-label="주요 메뉴" className="hidden items-center gap-1 md:flex">
+          {navigationLinks.map((link) => (
+            <Link
+              key={link.href}
+              className="inline-flex min-h-11 items-center rounded-lg px-4 text-sm font-bold text-[#486057] transition-colors hover:bg-white hover:text-[var(--brand)]"
+              href={link.href}
+            >
+              {link.label}
+            </Link>
+          ))}
           <Link
-            className="rounded-full px-3 py-2 text-sm font-semibold text-[#52645b] hover:bg-white"
-            href="/results"
-          >
-            장소 찾기
-          </Link>
-          <Link
-            className="hidden rounded-full px-3 py-2 text-sm font-semibold text-[#52645b] hover:bg-white sm:inline-flex"
-            href="/itinerary"
-          >
-            내 일정
-          </Link>
-          <Link
-            className="inline-flex min-h-10 items-center gap-2 rounded-full bg-[#236148] px-4 text-sm font-bold text-white"
+            className="ml-2 inline-flex min-h-11 items-center gap-2 rounded-full bg-[var(--brand)] px-5 text-sm font-extrabold text-white shadow-[var(--shadow-button)] transition-colors hover:bg-[var(--brand-deep)]"
             href="/planner/pet"
           >
             <Map size={16} aria-hidden="true" />
             여행 만들기
           </Link>
         </nav>
+        <div className="flex items-center gap-2 md:hidden">
+          <Link
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-[var(--brand)] px-3.5 text-sm font-extrabold text-white shadow-[var(--shadow-button)] transition-colors hover:bg-[var(--brand-deep)]"
+            href="/planner/pet"
+          >
+            <Map size={16} aria-hidden="true" />
+            여행 만들기
+          </Link>
+          <MobileNavigation links={navigationLinks} />
+        </div>
       </div>
     </header>
   );

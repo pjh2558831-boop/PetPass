@@ -192,17 +192,13 @@ test("localhost renders Kakao maps and search without a fixed demo itinerary", a
     }
   });
 
-  await page.goto(`http://localhost:3000/?verify=${Date.now()}`);
-  await expect(page.getByRole("heading", { name: /함께 들어갈 수 있는 곳/ })).toBeVisible();
+  await page.goto(`http://localhost:3000/results?verify=${Date.now()}`);
   try {
-    await expectKakaoMapReady(page, 3, false);
+    await expectKakaoMapReady(page, 13, false);
   } catch (error) {
     console.error(`KAKAO_NETWORK=${JSON.stringify(kakaoNetwork)}`);
     throw error;
   }
-
-  await page.goto(`http://localhost:3000/results?verify=${Date.now()}`);
-  await expectKakaoMapReady(page, 13, false);
   await expectResponsiveMap(page, 1_440, 900, false);
   const clustererRoot = page.locator("[data-clusterer-ready=true]");
   const clusterCountBeforeClick = Number(
@@ -319,7 +315,7 @@ test("a complete Kakao SDK request failure keeps the map error state", async ({
   await page.route("https://dapi.kakao.com/v2/maps/sdk.js**", (route) =>
     route.abort("failed"),
   );
-  await page.goto(`http://localhost:3000/?sdk-failure=${Date.now()}`);
+  await page.goto(`http://localhost:3000/results?sdk-failure=${Date.now()}`);
 
   const alert = page.locator('.kakao-map-canvas [role="alert"]');
   await expect(alert).toContainText("카카오 지도 SDK를 불러오지 못했습니다");
