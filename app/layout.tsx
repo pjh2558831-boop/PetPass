@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
+import { PlannerStateProvider } from "@/components/planner/planner-state";
 import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -60,7 +61,9 @@ export default function RootLayout({
     <html lang="ko" data-scroll-behavior="smooth">
       <body>
         <SiteHeader />
-        <main>{children}</main>
+        <PlannerStateProvider>
+          <main>{children}</main>
+        </PlannerStateProvider>
         <SiteFooter />
       </body>
     </html>

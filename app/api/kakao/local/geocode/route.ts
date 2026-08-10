@@ -12,6 +12,12 @@ const querySchema = z.object({
   size: z.coerce.number().int().min(1).max(10).default(5),
 });
 
+function noStoreHeaders(headers?: HeadersInit): Headers {
+  const result = new Headers(headers);
+  result.set("Cache-Control", "no-store");
+  return result;
+}
+
 export async function GET(request: Request) {
   const rateLimit = consumeRateLimit(
     "kakao-local-geocode",
@@ -26,7 +32,7 @@ export async function GET(request: Request) {
         retryable: true,
       },
       429,
-      rateLimitHeaders(rateLimit),
+      noStoreHeaders(rateLimitHeaders(rateLimit)),
     );
   }
 
@@ -43,14 +49,17 @@ export async function GET(request: Request) {
         retryable: false,
       },
       400,
+      noStoreHeaders(),
     );
   }
 
   try {
-    return apiSuccess(await geocodeAddress(parsed.data.address, parsed.data.size), 200, {
-      "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
-    });
+    return apiSuccess(
+      await geocodeAddress(parsed.data.address, parsed.data.size),
+      200,
+      noStoreHeaders(),
+    );
   } catch (error) {
-    return providerErrorResponse(error);
+    return providerErrorResponse(error, noStoreHeaders());
   }
 }

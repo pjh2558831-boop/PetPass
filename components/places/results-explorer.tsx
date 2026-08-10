@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Filter, RefreshCw, Route, Rows3 } from "lucide-react";
 import { RecommendationPlanner } from "@/components/itinerary/recommendation-planner";
 import { MapPanel, type MapLayerControl } from "@/components/map/map-panel";
+import { usePlannerState } from "@/components/planner/planner-state";
 import { KakaoPlaceSearch } from "@/components/places/kakao-place-search";
 import { PlaceCard } from "@/components/places/place-card";
 import {
@@ -32,7 +33,6 @@ import {
 } from "@/lib/places/source-layers";
 import { BUSAN_REGION_CONFIG } from "@/lib/regions/config";
 import { deriveRegionLabel } from "@/lib/regions/label";
-import { loadPetProfile, loadTravelPreferences } from "@/lib/storage/profile-storage";
 import type { ApiResult } from "@/types/api";
 import type {
   KakaoCurrentMapSearch,
@@ -73,17 +73,30 @@ export function ResultsExplorer({
 }: {
   initialTab?: ExplorerTab;
 }) {
+  const {
+    profile: plannerProfile,
+    preferences: plannerPreferences,
+    profileConfirmed,
+    preferencesConfirmed,
+    generationRequested,
+    consumeGenerationRequest,
+  } = usePlannerState();
+  const profile = profileConfirmed ? plannerProfile : DEFAULT_PROFILE;
+  const preferences = preferencesConfirmed
+    ? plannerPreferences
+    : DEFAULT_PREFERENCES;
   const [activeTab, setActiveTab] = useState<ExplorerTab>(initialTab);
-  const [profile, setProfile] = useState<PetProfile>(DEFAULT_PROFILE);
-  const [preferences, setPreferences] =
-    useState<TravelPreferences>(DEFAULT_PREFERENCES);
   const [catalogPlaces, setCatalogPlaces] = useState<TourPlaceSummary[]>([]);
   const [providerTotalCount, setProviderTotalCount] = useState(0);
   const [listState, setListState] = useState<ListState>("loading");
   const [listError, setListError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
-  const [districtCode, setDistrictCode] =
-    useState<BusanDistrictCode | "all">("all");
+  const [districtCode, setDistrictCode] = useState<BusanDistrictCode | "all">(
+    preferences.regionCode === BUSAN_REGION.code &&
+      isBusanDistrictCode(preferences.districtCode)
+      ? preferences.districtCode
+      : "all",
+  );
   const [category, setCategory] = useState<TourCatalogFilter>("all");
   const [page, setPage] = useState(1);
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
@@ -96,23 +109,6 @@ export function ResultsExplorer({
     useState<GeneratedItinerary | null>(null);
   const [currentMapSearch, setCurrentMapSearch] =
     useState<KakaoCurrentMapSearch | null>(null);
-
-  useEffect(() => {
-    const savedProfile = loadPetProfile();
-    const savedPreferences = loadTravelPreferences();
-    // Hydrate validated client-only storage after the server render.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (savedProfile) setProfile(savedProfile);
-    if (savedPreferences) {
-      setPreferences(savedPreferences);
-      setDistrictCode(
-        savedPreferences.regionCode === BUSAN_REGION.code &&
-          isBusanDistrictCode(savedPreferences.districtCode)
-          ? savedPreferences.districtCode
-          : "all",
-      );
-    }
-  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -669,6 +665,8 @@ export function ResultsExplorer({
             onDistrictChange={changeDistrict}
             profile={profile}
             preferences={preferences}
+            autoGenerate={generationRequested}
+            onAutoGenerateStart={consumeGenerationRequest}
             selectedLocationId={selectedLocationId}
             onLocationSelect={selectMapLocation}
             onItinerarySelect={(itinerary) => {

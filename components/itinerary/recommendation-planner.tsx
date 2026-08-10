@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   Clock3,
   LoaderCircle,
-  LocateFixed,
   MapPin,
   PawPrint,
   RefreshCw,
@@ -76,6 +75,11 @@ const SCOPE_LABELS: Record<TourPetAccessScope, string> = {
 
 type PlanningMode = "stop_count" | "duration";
 
+const DEFAULT_DEPARTURE = {
+  label: "부산역",
+  coordinates: { latitude: 35.1151, longitude: 129.0414 },
+} as const;
+
 const PREFERENCE_CATEGORY_MAP = {
   ATTRACTION: "attraction",
   RESTAURANT: "food",
@@ -83,6 +87,18 @@ const PREFERENCE_CATEGORY_MAP = {
   ACCOMMODATION: "accommodation",
   WALK: "leisure",
 } as const satisfies Record<TravelPreferences["preferredCategories"][number], TourCatalogCategory>;
+
+function categoriesFromPreferences(
+  preferredCategories: TravelPreferences["preferredCategories"],
+): TourCatalogCategory[] {
+  return Array.from(
+    new Set(
+      preferredCategories.map(
+        (category) => PREFERENCE_CATEGORY_MAP[category],
+      ),
+    ),
+  );
+}
 
 function isGenerationResponse(value: unknown): value is ItineraryGenerationResponse {
   if (!value || typeof value !== "object") return false;
@@ -328,6 +344,8 @@ export function RecommendationPlanner({
   onDistrictChange,
   profile,
   preferences,
+  autoGenerate = false,
+  onAutoGenerateStart,
   selectedLocationId,
   onLocationSelect,
   onItinerarySelect,
@@ -336,64 +354,50 @@ export function RecommendationPlanner({
   onDistrictChange: (district: BusanDistrictCode | "all") => void;
   profile: PetProfile;
   preferences: TravelPreferences;
+  autoGenerate?: boolean;
+  onAutoGenerateStart?: () => void;
   selectedLocationId: string | null;
   onLocationSelect: (contentId: string) => void;
   onItinerarySelect: (itinerary: GeneratedItinerary | null) => void;
 }) {
-  const [startLabel, setStartLabel] = useState("부산역");
-  const [latitude, setLatitude] = useState("35.1151");
-  const [longitude, setLongitude] = useState("129.0414");
+  const initialDeparture = preferences.departure ?? DEFAULT_DEPARTURE;
+  const departureLocked = Boolean(preferences.departure);
+  const [startLabel, setStartLabel] = useState(initialDeparture.label);
+  const [latitude, setLatitude] = useState(
+    String(initialDeparture.coordinates.latitude),
+  );
+  const [longitude, setLongitude] = useState(
+    String(initialDeparture.coordinates.longitude),
+  );
   const [travelDate, setTravelDate] = useState(preferences.tripDate);
   const [startTime, setStartTime] = useState(preferences.startTime);
-  const [planningMode, setPlanningMode] = useState<PlanningMode>("stop_count");
-  const [stopCount, setStopCount] = useState(3);
-  const [durationMinutes, setDurationMinutes] = useState(360);
+  const [planningMode, setPlanningMode] = useState<PlanningMode>(
+    preferences.planningMode ?? "stop_count",
+  );
+  const [stopCount, setStopCount] = useState(preferences.desiredStopCount ?? 3);
+  const [durationMinutes, setDurationMinutes] = useState(
+    preferences.desiredDurationMinutes ?? 360,
+  );
   const [petSize, setPetSize] = useState<PetSize>(profile.size);
   const [indoorPreference, setIndoorPreference] =
-    useState<IndoorAccessPreference>("any");
-  const [selectedCategories, setSelectedCategories] = useState<TourCatalogCategory[]>([
-    "attraction",
-    "leisure",
-    "food",
-  ]);
-  const [includeShopping, setIncludeShopping] = useState(false);
+    useState<IndoorAccessPreference>(preferences.indoorAccessPreference ?? "any");
+  const [selectedCategories, setSelectedCategories] = useState<TourCatalogCategory[]>(
+    () => categoriesFromPreferences(preferences.preferredCategories),
+  );
+  const [includeShopping, setIncludeShopping] = useState(
+    preferences.includeShopping ?? false,
+  );
   const [generation, setGeneration] =
     useState<ItineraryGenerationResponse | null>(null);
   const [selectedItineraryId, setSelectedItineraryId] = useState<string | null>(null);
   const [validationError, setValidationError] = useState("");
   const [requestError, setRequestError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [locating, setLocating] = useState(false);
-  const [locationMessage, setLocationMessage] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
+  const autoGenerateStartedRef = useRef(false);
   const submittingRef = useRef(false);
   const requestControllerRef = useRef<AbortController | null>(null);
   const recentRouteSignaturesRef = useRef<string[]>([]);
-
-  useEffect(() => {
-    // Hydrated, schema-validated planner values become the practical defaults.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setTravelDate(preferences.tripDate);
-    setStartTime(preferences.startTime);
-    setSelectedCategories(
-      Array.from(
-        new Set(
-          preferences.preferredCategories.map(
-            (category) => PREFERENCE_CATEGORY_MAP[category],
-          ),
-        ),
-      ),
-    );
-  }, [
-    preferences.preferredCategories,
-    preferences.startTime,
-    preferences.tripDate,
-  ]);
-
-  useEffect(() => {
-    // Keep the supported pet-size input aligned with the saved pet profile.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPetSize(profile.size);
-  }, [profile.size]);
 
   useEffect(
     () => () => {
@@ -408,6 +412,17 @@ export function RecommendationPlanner({
       .getElementById(`route-stop-${selectedLocationId}`)
       ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [selectedLocationId]);
+
+  useEffect(() => {
+    if (!autoGenerate || autoGenerateStartedRef.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      if (autoGenerateStartedRef.current) return;
+      autoGenerateStartedRef.current = true;
+      onAutoGenerateStart?.();
+      formRef.current?.requestSubmit();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [autoGenerate, onAutoGenerateStart]);
 
   const invalidateGeneratedRoute = () => {
     requestControllerRef.current?.abort();
@@ -434,30 +449,6 @@ export function RecommendationPlanner({
     setSelectedItineraryId(itinerary.id);
     onItinerarySelect(itinerary);
     onLocationSelect(itinerary.stops[0]?.contentId ?? "");
-  };
-
-  const useCurrentLocation = () => {
-    invalidateGeneratedRoute();
-    if (!navigator.geolocation) {
-      setLocationMessage("이 브라우저에서는 현재 위치를 사용할 수 없습니다.");
-      return;
-    }
-    setLocating(true);
-    setLocationMessage("현재 위치를 확인하고 있어요.");
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLatitude(position.coords.latitude.toFixed(6));
-        setLongitude(position.coords.longitude.toFixed(6));
-        setStartLabel("현재 위치");
-        setLocating(false);
-        setLocationMessage("현재 위치를 출발지로 입력했습니다.");
-      },
-      () => {
-        setLocating(false);
-        setLocationMessage("현재 위치를 확인하지 못했습니다. 출발 좌표를 직접 입력해 주세요.");
-      },
-      { enableHighAccuracy: false, timeout: 8_000, maximumAge: 300_000 },
-    );
   };
 
   const validate = (): string | null => {
@@ -621,6 +612,7 @@ export function RecommendationPlanner({
       </div>
 
       <form
+        ref={formRef}
         className="surface-card space-y-6 p-4 sm:p-6"
         onSubmit={(event) => {
           event.preventDefault();
@@ -639,11 +631,18 @@ export function RecommendationPlanner({
                 id="route-start-label"
                 value={startLabel}
                 maxLength={80}
+                readOnly={departureLocked}
+                aria-readonly={departureLocked || undefined}
                 onChange={(event) => {
+                  if (departureLocked) return;
                   invalidateGeneratedRoute();
                   setStartLabel(event.target.value);
                 }}
-                className="min-h-11 w-full rounded-xl border border-[#cfd9d3] bg-white px-3 font-semibold"
+                className={`min-h-11 w-full rounded-xl border border-[#cfd9d3] px-3 font-semibold ${
+                  departureLocked
+                    ? "bg-[#f4f7f4] text-[#52645b]"
+                    : "bg-white"
+                }`}
               />
             </div>
             <div>
@@ -654,11 +653,18 @@ export function RecommendationPlanner({
                 id="route-start-latitude"
                 inputMode="decimal"
                 value={latitude}
+                readOnly={departureLocked}
+                aria-readonly={departureLocked || undefined}
                 onChange={(event) => {
+                  if (departureLocked) return;
                   invalidateGeneratedRoute();
                   setLatitude(event.target.value);
                 }}
-                className="min-h-11 w-full rounded-xl border border-[#cfd9d3] bg-white px-3 font-semibold"
+                className={`min-h-11 w-full rounded-xl border border-[#cfd9d3] px-3 font-semibold ${
+                  departureLocked
+                    ? "bg-[#f4f7f4] text-[#52645b]"
+                    : "bg-white"
+                }`}
               />
             </div>
             <div>
@@ -669,25 +675,25 @@ export function RecommendationPlanner({
                 id="route-start-longitude"
                 inputMode="decimal"
                 value={longitude}
+                readOnly={departureLocked}
+                aria-readonly={departureLocked || undefined}
                 onChange={(event) => {
+                  if (departureLocked) return;
                   invalidateGeneratedRoute();
                   setLongitude(event.target.value);
                 }}
-                className="min-h-11 w-full rounded-xl border border-[#cfd9d3] bg-white px-3 font-semibold"
+                className={`min-h-11 w-full rounded-xl border border-[#cfd9d3] px-3 font-semibold ${
+                  departureLocked
+                    ? "bg-[#f4f7f4] text-[#52645b]"
+                    : "bg-white"
+                }`}
               />
             </div>
           </div>
-          <button
-            type="button"
-            onClick={useCurrentLocation}
-            disabled={locating || submitting}
-            className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-full border border-[#cbd8d0] bg-white px-4 text-xs font-extrabold text-[#315b48] disabled:opacity-50"
-          >
-            <LocateFixed size={15} aria-hidden="true" />
-            {locating ? "현재 위치 확인 중" : "현재 위치 사용"}
-          </button>
-          <p className="mt-2 text-xs text-[#66766e]" aria-live="polite">
-            {locationMessage || "기본 출발지는 부산역입니다. 좌표를 직접 바꾸거나 현재 위치를 사용할 수 있습니다."}
+          <p className="mt-2 text-xs leading-5 text-[#66766e]">
+            {departureLocked
+              ? "여행 조건에서 검증한 주소를 사용합니다. 주소를 바꾸려면 여행 조건 단계로 돌아가 주세요."
+              : "기존 직접 진입 흐름은 부산역을 기본 출발지로 유지하며, 이름과 좌표를 직접 조정할 수 있습니다."}
           </p>
         </fieldset>
 

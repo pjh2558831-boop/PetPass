@@ -253,21 +253,38 @@ test("updates category cards and map markers together without mobile overflow", 
   ).toBe(true);
 });
 
-test("saves an official planner district code and uses it on results", async ({
+test("keeps an official planner district code in memory and uses it on results", async ({
   page,
 }) => {
   await page.goto("/planner/trip");
-  await expect(page.getByLabel("여행 지역").locator("option")).toHaveCount(1);
-  await expect(page.getByLabel("여행 지역")).not.toContainText("제주");
-  const plannerDistrict = page.getByLabel("세부 지역");
+  const plannerRegion = page.getByRole("combobox", {
+    name: "여행 지역",
+    exact: true,
+  });
+  await expect(plannerRegion.locator("option")).toHaveCount(1);
+  await expect(plannerRegion).not.toContainText("제주");
+  const plannerDistrict = page.getByRole("combobox", {
+    name: "세부 지역",
+    exact: true,
+  });
   await expect(plannerDistrict).toHaveValue("all");
   await expect(plannerDistrict.locator("option")).toHaveCount(17);
   await plannerDistrict.selectOption("230");
 
+  const departureResponse = page.waitForResponse((response) =>
+    response.url().includes("/api/kakao/local/geocode"),
+  );
+  await page.getByRole("combobox", { name: "출발지 주소" }).fill("부산광역시청");
+  expect((await departureResponse).status()).toBe(200);
+  const departureResults = page.getByRole("listbox", {
+    name: "출발지 주소 검색 결과",
+  });
+  await departureResults.getByRole("option").first().click();
+
   const scopedResponse = page.waitForResponse((response) =>
     response.url().includes("districtCode=230"),
   );
-  await page.getByRole("button", { name: "추천 경로 보기" }).click();
+  await page.getByRole("button", { name: "추천 경로 만들기" }).click();
   expect((await scopedResponse).status()).toBe(200);
   await expect(page).toHaveURL(/\/results\?tab=recommendations$/u);
   await expect(page.getByLabel("여행 범위")).toHaveValue("230");

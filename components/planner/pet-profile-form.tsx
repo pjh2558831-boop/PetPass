@@ -1,27 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Backpack, Dog, House, ShieldCheck } from "lucide-react";
+import {
+  ArrowRight,
+  Backpack,
+  Cat,
+  Check,
+  Dog,
+  House,
+  PawPrint,
+  ShieldCheck,
+} from "lucide-react";
+import { usePlannerState } from "@/components/planner/planner-state";
 import { Button } from "@/components/ui/button";
-import { loadPetProfile, savePetProfile } from "@/lib/storage/profile-storage";
 import type { PetProfile, PetSize, PetSpecies } from "@/types/pet";
 
-const defaultProfile: PetProfile = {
-  id: "latest-pet",
-  name: "보리",
-  species: "DOG",
-  size: "SMALL",
-  hasCarrier: true,
-  hasLeash: true,
-  hasMuzzle: false,
-  acceptsOutdoorOnly: true,
-};
-
-const speciesOptions: Array<{ value: PetSpecies; label: string }> = [
-  { value: "DOG", label: "강아지" },
-  { value: "CAT", label: "고양이" },
-  { value: "OTHER", label: "기타 반려동물" },
+const speciesOptions: Array<{
+  value: PetSpecies;
+  label: string;
+  icon: typeof Dog;
+}> = [
+  { value: "DOG", label: "강아지", icon: Dog },
+  { value: "CAT", label: "고양이", icon: Cat },
+  { value: "OTHER", label: "기타 반려동물", icon: PawPrint },
 ];
 
 const sizeOptions: Array<{ value: PetSize; label: string; note: string }> = [
@@ -30,156 +32,271 @@ const sizeOptions: Array<{ value: PetSize; label: string; note: string }> = [
   { value: "LARGE", label: "대형", note: "약 25kg 이상" },
 ];
 
+const equipmentOptions = [
+  { key: "hasCarrier" as const, label: "이동장", icon: Backpack },
+  { key: "hasLeash" as const, label: "목줄", icon: ShieldCheck },
+  { key: "hasMuzzle" as const, label: "입마개", icon: Dog },
+];
+
+const speciesLabels: Record<PetSpecies, string> = {
+  DOG: "강아지",
+  CAT: "고양이",
+  OTHER: "기타 반려동물",
+};
+
+const sizeLabels: Record<PetSize, string> = {
+  SMALL: "소형",
+  MEDIUM: "중형",
+  LARGE: "대형",
+};
+
 export function PetProfileForm() {
   const router = useRouter();
-  const [profile, setProfile] = useState<PetProfile>(defaultProfile);
-  const [storageError, setStorageError] = useState("");
-
-  useEffect(() => {
-    const saved = loadPetProfile();
-    // Hydrate validated client-only storage after the server render.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (saved) setProfile(saved);
-  }, []);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const { profile, setProfile, confirmProfile } = usePlannerState();
+  const [nameError, setNameError] = useState("");
 
   const update = <K extends keyof PetProfile>(key: K, value: PetProfile[K]) => {
     setProfile((current) => ({ ...current, [key]: value }));
   };
 
+  const selectedEquipment = equipmentOptions
+    .filter(({ key }) => profile[key])
+    .map(({ label }) => label);
+
   return (
-    <form
-      className="space-y-8"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (!savePetProfile(profile)) {
-          setStorageError("이 브라우저에 프로필을 저장하지 못했어요. 설정을 확인해 주세요.");
-          return;
-        }
-        router.push("/planner/trip");
-      }}
-    >
-      <div>
-        <label htmlFor="pet-name" className="mb-2 block text-sm font-extrabold">
-          반려동물 이름
-        </label>
-        <input
-          id="pet-name"
-          value={profile.name}
-          required
-          maxLength={30}
-          onChange={(event) => update("name", event.target.value)}
-          className="min-h-12 w-full rounded-2xl border border-[#cfd9d3] bg-white px-4 text-base font-semibold shadow-sm placeholder:text-[#9aa49f]"
-          placeholder="이름을 입력하세요"
-        />
-      </div>
-
-      <fieldset>
-        <legend className="text-sm font-extrabold">어떤 반려동물과 여행하나요?</legend>
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {speciesOptions.map((option) => (
-            <label
-              key={option.value}
-              className={`flex min-h-20 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border p-3 text-center text-sm font-bold transition ${
-                profile.species === option.value
-                  ? "border-[#3d8b68] bg-[#edf8f2] text-[#236148]"
-                  : "border-[#d6ded9] bg-white text-[#607168] hover:border-[#91ae9e]"
-              }`}
-            >
-              <input
-                type="radio"
-                name="species"
-                className="sr-only"
-                value={option.value}
-                checked={profile.species === option.value}
-                onChange={() => update("species", option.value)}
-              />
-              <Dog size={20} aria-hidden="true" />
-              {option.label}
-            </label>
-          ))}
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend className="text-sm font-extrabold">크기를 알려주세요</legend>
-        <p className="mt-1 text-xs leading-5 text-[#748078]">
-          시설마다 기준이 다르므로 실제 규정의 무게·크기 표현을 우선해요.
-        </p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-3">
-          {sizeOptions.map((option) => (
-            <label
-              key={option.value}
-              className={`cursor-pointer rounded-2xl border p-4 transition ${
-                profile.size === option.value
-                  ? "border-[#3d8b68] bg-[#edf8f2]"
-                  : "border-[#d6ded9] bg-white hover:border-[#91ae9e]"
-              }`}
-            >
-              <input
-                type="radio"
-                name="size"
-                className="sr-only"
-                value={option.value}
-                checked={profile.size === option.value}
-                onChange={() => update("size", option.value)}
-              />
-              <span className="block text-sm font-extrabold">{option.label}</span>
-              <span className="mt-1 block text-xs text-[#748078]">{option.note}</span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend className="text-sm font-extrabold">지금 준비할 수 있는 물품</legend>
-        <div className="mt-3 grid gap-2 sm:grid-cols-3">
-          {[
-            { key: "hasCarrier" as const, label: "이동장", icon: Backpack },
-            { key: "hasLeash" as const, label: "목줄", icon: ShieldCheck },
-            { key: "hasMuzzle" as const, label: "입마개", icon: Dog },
-          ].map(({ key, label, icon: Icon }) => (
-            <label
-              key={key}
-              className="flex cursor-pointer items-center gap-3 rounded-2xl border border-[#d6ded9] bg-white p-4 text-sm font-bold hover:border-[#91ae9e]"
-            >
-              <input
-                type="checkbox"
-                checked={profile[key]}
-                onChange={(event) => update(key, event.target.checked)}
-                className="size-4 accent-[#236148]"
-              />
-              <Icon size={18} className="text-[#3d8b68]" aria-hidden="true" />
-              {label}
-            </label>
-          ))}
-        </div>
-      </fieldset>
-
-      <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[#d6ded9] bg-white p-4">
-        <input
-          type="checkbox"
-          className="mt-1 size-4 accent-[#236148]"
-          checked={profile.acceptsOutdoorOnly}
-          onChange={(event) => update("acceptsOutdoorOnly", event.target.checked)}
-        />
-        <House size={19} className="mt-0.5 shrink-0 text-[#3d8b68]" aria-hidden="true" />
-        <span>
-          <span className="block text-sm font-extrabold">야외 공간만 이용해도 괜찮아요</span>
-          <span className="mt-1 block text-xs leading-5 text-[#748078]">
-            선택하지 않으면 실내 이용이 필요한 것으로 판단해요.
+    <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+      <form
+        className="surface-panel p-5 sm:p-7 lg:p-8"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          const trimmedName = profile.name.trim();
+          if (!trimmedName || trimmedName.length > 30) {
+            setNameError("반려동물 이름을 1자 이상 30자 이하로 입력해 주세요.");
+            nameInputRef.current?.focus();
+            return;
+          }
+          if (trimmedName !== profile.name) update("name", trimmedName);
+          setNameError("");
+          confirmProfile();
+          router.push("/planner/trip");
+        }}
+      >
+        <div className="flex items-center gap-3 border-b border-[var(--line)] pb-5">
+          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[var(--brand-soft)] text-[var(--brand)]">
+            <PawPrint size={21} aria-hidden="true" />
           </span>
-        </span>
-      </label>
+          <div>
+            <h2 className="text-lg font-black">반려동물 프로필</h2>
+            <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+              현재 지원되는 조건만 정확하게 입력해요.
+            </p>
+          </div>
+        </div>
 
-      {storageError ? (
-        <p className="rounded-xl bg-[#fceeee] p-3 text-sm font-semibold text-[#8d3838]" role="alert">
-          {storageError}
+        <div className="mt-7">
+          <label htmlFor="pet-name" className="mb-2 block text-sm font-extrabold">
+            반려동물 이름
+          </label>
+          <input
+            ref={nameInputRef}
+            id="pet-name"
+            value={profile.name}
+            maxLength={30}
+            aria-invalid={Boolean(nameError)}
+            aria-describedby={nameError ? "pet-name-error" : "pet-name-help"}
+            onChange={(event) => {
+              update("name", event.target.value);
+              if (nameError) setNameError("");
+            }}
+            className="min-h-12 w-full rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-4 text-base font-semibold shadow-sm placeholder:text-[#9aa49f]"
+            placeholder="이름을 입력하세요"
+          />
+          <p id="pet-name-help" className="mt-2 text-xs text-[var(--muted)]">
+            추천 결과와 일정에서 반려동물을 구분할 때 사용해요.
+          </p>
+          {nameError ? (
+            <p id="pet-name-error" className="mt-2 text-sm font-bold text-[#a44537]" role="alert">
+              {nameError}
+            </p>
+          ) : null}
+        </div>
+
+        <fieldset className="mt-8 border-t border-[var(--line)] pt-7">
+          <legend className="text-sm font-extrabold">어떤 반려동물과 여행하나요?</legend>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            {speciesOptions.map((option) => {
+              const selected = profile.species === option.value;
+              const Icon = option.icon;
+              return (
+                <label
+                  key={option.value}
+                  className={`relative flex min-h-24 cursor-pointer flex-col items-center justify-center gap-2 rounded-[var(--radius-card)] border p-3 text-center text-sm font-extrabold transition-colors focus-within:outline focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-[#3d8b6859] ${
+                    selected
+                      ? "border-[var(--mint-500)] bg-[var(--brand-soft)] text-[var(--brand)]"
+                      : "border-[var(--line)] bg-white text-[#607168] hover:border-[#91ae9e]"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="species"
+                    className="sr-only"
+                    value={option.value}
+                    checked={selected}
+                    onChange={() => update("species", option.value)}
+                  />
+                  {selected ? (
+                    <span className="absolute right-3 top-3 grid size-5 place-items-center rounded-full bg-[var(--brand)] text-white">
+                      <Check size={12} aria-hidden="true" />
+                    </span>
+                  ) : null}
+                  <Icon size={23} aria-hidden="true" />
+                  <span>{option.label}</span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+
+        <fieldset className="mt-8 border-t border-[var(--line)] pt-7">
+          <legend className="text-sm font-extrabold">크기를 알려주세요</legend>
+          <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+            시설마다 기준이 다르므로 실제 원문의 무게·크기 표현을 우선합니다.
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            {sizeOptions.map((option) => {
+              const selected = profile.size === option.value;
+              return (
+                <label
+                  key={option.value}
+                  className={`relative min-h-20 cursor-pointer rounded-[var(--radius-card)] border p-4 transition-colors focus-within:outline focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-[#3d8b6859] ${
+                    selected
+                      ? "border-[var(--mint-500)] bg-[var(--brand-soft)]"
+                      : "border-[var(--line)] bg-white hover:border-[#91ae9e]"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="size"
+                    className="sr-only"
+                    value={option.value}
+                    checked={selected}
+                    onChange={() => update("size", option.value)}
+                  />
+                  {selected ? (
+                    <Check className="absolute right-3 top-3 text-[var(--brand)]" size={16} aria-hidden="true" />
+                  ) : null}
+                  <span className="block text-sm font-extrabold">{option.label}</span>
+                  <span className="mt-1 block text-xs text-[var(--muted)]">{option.note}</span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+
+        <fieldset className="mt-8 border-t border-[var(--line)] pt-7">
+          <legend className="text-sm font-extrabold">지금 준비할 수 있는 물품</legend>
+          <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+            선택 상태는 시설의 필수 준비물 조건과 그대로 비교됩니다.
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            {equipmentOptions.map(({ key, label, icon: Icon }) => {
+              const selected = profile[key];
+              return (
+                <label
+                  key={key}
+                  className={`flex min-h-20 cursor-pointer items-center gap-3 rounded-[var(--radius-card)] border p-4 text-sm font-bold transition-colors ${
+                    selected
+                      ? "border-[var(--mint-500)] bg-[var(--brand-soft)] text-[var(--brand)]"
+                      : "border-[var(--line)] bg-white text-[#607168] hover:border-[#91ae9e]"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected}
+                    onChange={(event) => update(key, event.target.checked)}
+                    className="size-5 shrink-0 accent-[var(--brand)]"
+                  />
+                  <Icon size={19} aria-hidden="true" />
+                  <span>
+                    <span className="block">{label}</span>
+                    <span className="mt-0.5 block text-[11px] font-semibold text-[var(--muted)]">
+                      {selected ? "준비 가능" : "준비 안 됨"}
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+
+        <label
+          className={`mt-8 flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border p-4 transition-colors ${
+            profile.acceptsOutdoorOnly
+              ? "border-[var(--mint-500)] bg-[var(--brand-soft)]"
+              : "border-[var(--line)] bg-white"
+          }`}
+        >
+          <input
+            type="checkbox"
+            className="mt-1 size-5 shrink-0 accent-[var(--brand)]"
+            checked={profile.acceptsOutdoorOnly}
+            onChange={(event) => update("acceptsOutdoorOnly", event.target.checked)}
+          />
+          <House size={20} className="mt-0.5 shrink-0 text-[var(--brand)]" aria-hidden="true" />
+          <span>
+            <span className="block text-sm font-extrabold">야외 전용 장소도 포함해요</span>
+            <span className="mt-1 block text-xs leading-5 text-[var(--muted)]">
+              선택하지 않으면 실내 이용이 필요한 조건으로 유지합니다.
+            </span>
+          </span>
+        </label>
+
+        <div className="mt-8 flex justify-end">
+          <Button type="submit" variant="brand" className="w-full sm:w-auto">
+            여행 조건 정하기 <ArrowRight size={17} aria-hidden="true" />
+          </Button>
+        </div>
+      </form>
+
+      <aside
+        className="surface-panel bg-[var(--surface-sage)] p-5 sm:p-6 lg:sticky lg:top-24"
+        aria-labelledby="pet-summary-heading"
+      >
+        <p className="eyebrow">현재 선택</p>
+        <h2 id="pet-summary-heading" className="mt-2 text-xl font-black">
+          입력한 정보 요약
+        </h2>
+        <div className="mt-5 flex items-center gap-3 rounded-[var(--radius-card)] border border-white/80 bg-white/75 p-4">
+          <span className="grid size-12 shrink-0 place-items-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]">
+            <PawPrint size={22} aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate font-black">{profile.name.trim() || "이름 미입력"}</p>
+            <p className="mt-1 text-xs font-semibold text-[var(--muted)]">
+              {speciesLabels[profile.species]} · {sizeLabels[profile.size]}
+            </p>
+          </div>
+        </div>
+        <dl className="mt-5 space-y-4 text-sm">
+          <div>
+            <dt className="text-xs font-bold text-[var(--muted)]">준비 가능한 물품</dt>
+            <dd className="mt-1 font-extrabold">
+              {selectedEquipment.length > 0 ? selectedEquipment.join(" · ") : "선택 없음"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-bold text-[var(--muted)]">공간 조건</dt>
+            <dd className="mt-1 font-extrabold">
+              {profile.acceptsOutdoorOnly ? "야외 전용 장소 포함" : "실내 이용 필요"}
+            </dd>
+          </div>
+        </dl>
+        <p className="mt-6 rounded-[var(--radius-control)] border border-[#d9c5aa] bg-[var(--orange-soft)] p-4 text-xs font-semibold leading-5 text-[#6f543f]">
+          이 값은 시설이 공개한 반려동물 동반 원문과 비교하는 조건으로만 사용합니다.
         </p>
-      ) : null}
-
-      <div className="flex justify-end">
-        <Button type="submit">여행 조건 정하기</Button>
-      </div>
-    </form>
+      </aside>
+    </div>
   );
 }

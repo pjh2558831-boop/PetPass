@@ -10,6 +10,11 @@ export const placeCategorySchema = z.enum([
   "WALK",
 ]);
 
+export const coordinatesSchema = z.object({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+});
+
 export const petProfileSchema = z.object({
   id: z.string().min(1),
   name: z.string().trim().min(1).max(30),
@@ -30,6 +35,17 @@ export const travelPreferencesSchema = z.object({
   tripType: z.enum(["DAY_TRIP", "OVERNIGHT"]),
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
   preferredCategories: z.array(placeCategorySchema).min(1),
+  departure: z
+    .object({
+      label: z.string().trim().min(1).max(80),
+      coordinates: coordinatesSchema,
+    })
+    .optional(),
+  planningMode: z.enum(["stop_count", "duration"]).optional(),
+  desiredStopCount: z.number().int().min(1).max(5).optional(),
+  desiredDurationMinutes: z.number().int().min(120).max(600).optional(),
+  indoorAccessPreference: z.enum(["any", "preferred", "required"]).optional(),
+  includeShopping: z.boolean().optional(),
 });
 
 export const petPolicySchema = z.object({
@@ -95,11 +111,6 @@ export const dataSourceMetadataSchema = z.object({
   modifiedAt: z.string().datetime().optional(),
   isDemo: z.boolean(),
   copyrightCode: z.string().optional(),
-});
-
-export const coordinatesSchema = z.object({
-  latitude: z.number().min(-90).max(90),
-  longitude: z.number().min(-180).max(180),
 });
 
 export const petPlaceSchema = z.object({

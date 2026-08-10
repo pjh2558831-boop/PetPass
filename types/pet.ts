@@ -13,12 +13,22 @@ export interface PetProfile {
 }
 
 export type TripType = "DAY_TRIP" | "OVERNIGHT";
+export type PlannerPlanningMode = "stop_count" | "duration";
+export type PlannerIndoorAccessPreference = "any" | "preferred" | "required";
 export type PlaceCategory =
   | "ATTRACTION"
   | "RESTAURANT"
   | "CAFE"
   | "ACCOMMODATION"
   | "WALK";
+
+export interface ResolvedDeparture {
+  label: string;
+  coordinates: {
+    latitude: number;
+    longitude: number;
+  };
+}
 
 export interface TravelPreferences {
   regionCode: string;
@@ -29,4 +39,10 @@ export interface TravelPreferences {
   tripType: TripType;
   startTime: string;
   preferredCategories: PlaceCategory[];
+  departure?: ResolvedDeparture;
+  planningMode?: PlannerPlanningMode;
+  desiredStopCount?: number;
+  desiredDurationMinutes?: number;
+  indoorAccessPreference?: PlannerIndoorAccessPreference;
+  includeShopping?: boolean;
 }

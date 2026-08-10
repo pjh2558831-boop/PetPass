@@ -544,6 +544,46 @@ function kakaoLocalResponse(url: URL): Response {
   });
 }
 
+function kakaoAddressResponse(url: URL): Promise<Response> {
+  const query = url.searchParams.get("query") ?? "부산광역시청";
+
+  if (query.includes("검색 실패")) {
+    return Promise.resolve(
+      new Response("mock Kakao address failure", { status: 503 }),
+    );
+  }
+
+  const response = Response.json({
+    meta: { total_count: 2, pageable_count: 2, is_end: true },
+    documents: [
+      {
+        address_name: `${query} 지번 1000`,
+        address_type: "ROAD_ADDR",
+        x: "129.075600",
+        y: "35.179600",
+        road_address: {
+          address_name: "부산광역시 연제구 중앙대로 1001",
+        },
+      },
+      {
+        address_name: `${query} 지번 1001`,
+        address_type: "REGION_ADDR",
+        x: "129.076100",
+        y: "35.180100",
+        road_address: null,
+      },
+    ],
+  });
+
+  if (query.includes("느린 주소")) {
+    return new Promise((resolve) => {
+      setTimeout(() => resolve(response), 900);
+    });
+  }
+
+  return Promise.resolve(response);
+}
+
 function licenseItem(
   dataset: string,
   businessName: string,
@@ -697,6 +737,12 @@ export function installE2EUpstreamMock(): void {
       url.pathname === "/v2/local/search/keyword.json"
     ) {
       return Promise.resolve(kakaoLocalResponse(url));
+    }
+    if (
+      url.hostname === "dapi.kakao.com" &&
+      url.pathname === "/v2/local/search/address.json"
+    ) {
+      return kakaoAddressResponse(url);
     }
     return state.__petPassOriginalFetch!(input, init);
   };
