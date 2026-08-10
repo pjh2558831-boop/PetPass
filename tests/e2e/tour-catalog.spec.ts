@@ -256,7 +256,9 @@ test("updates category cards and map markers together without mobile overflow", 
 test("keeps an official planner district code in memory and uses it on results", async ({
   page,
 }) => {
-  await page.goto("/planner/trip");
+  await page.goto("/planner/pet");
+  await page.getByRole("button", { name: "여행 조건 정하기" }).click();
+  await expect(page).toHaveURL(/\/planner\/trip$/u);
   const plannerRegion = page.getByRole("combobox", {
     name: "여행 지역",
     exact: true,
@@ -281,14 +283,21 @@ test("keeps an official planner district code in memory and uses it on results",
   });
   await departureResults.getByRole("option").first().click();
 
+  const generationResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/itineraries/generate" &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "추천 경로 만들기" }).click();
+  expect((await generationResponse).status()).toBe(200);
+  await expect(page).toHaveURL(/\/results\?tab=recommendations$/u);
+  await expect(page.getByText(/→ 부산진구/u).first()).toBeVisible();
+
   const scopedResponse = page.waitForResponse((response) =>
     response.url().includes("districtCode=230"),
   );
-  await page.getByRole("button", { name: "추천 경로 만들기" }).click();
-  expect((await scopedResponse).status()).toBe(200);
-  await expect(page).toHaveURL(/\/results\?tab=recommendations$/u);
-  await expect(page.getByLabel("여행 범위")).toHaveValue("230");
   await page.getByRole("tab", { name: "전체 장소" }).click();
+  expect((await scopedResponse).status()).toBe(200);
   await expect(page.getByLabel("부산 세부 지역")).toHaveValue("230");
   await expect(
     page.getByRole("heading", { name: "장소 2곳", exact: true }),

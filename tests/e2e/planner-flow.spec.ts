@@ -3,6 +3,23 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 const GEOCODE_PATH = "/api/kakao/local/geocode";
 const GENERATE_PATH = "/api/itineraries/generate";
 
+type GeneratedBody = {
+  ok: true;
+  data: {
+    request: {
+      start: { label: string | null };
+    };
+    itineraries: Array<{
+      id: string;
+      title: string;
+      stops: Array<{
+        stableIdentity: string;
+        title: string;
+      }>;
+    }>;
+  };
+};
+
 async function openPetPlanner(page: Page, testInfo: TestInfo) {
   await page.setExtraHTTPHeaders({
     "x-forwarded-for": `planner-flow-${testInfo.project.name}-${testInfo.workerIndex}-${testInfo.title.replace(/\W+/gu, "-")}`,
@@ -68,54 +85,16 @@ async function expectNoHorizontalOverflow(page: Page) {
     .toBeLessThanOrEqual(1);
 }
 
-test("keeps catalog planning active without saving a fixed demo itinerary", async ({
+test("hands the exact selected generated strategy to the itinerary", async ({
   page,
 }, testInfo) => {
   await openPetPlanner(page, testInfo);
   await expectPlannerStep(page, "반려동물 정보");
 
   await page.getByRole("textbox", { name: "반려동물 이름" }).fill("코이");
-  const mediumSize = page.getByRole("radio", { name: /^중형/u });
-  await mediumSize.locator("xpath=ancestor::label[1]").click();
-  await expect(mediumSize).toBeChecked();
-  await page
-    .getByRole("checkbox", { name: /^이동장/u })
-    .uncheck({ force: true });
-  await page
-    .getByRole("checkbox", { name: /^입마개/u })
-    .check({ force: true });
   await continueToTrip(page);
 
   await chooseDepartureWithKeyboard(page);
-  await page.getByLabel("세부 지역").selectOption("500");
-  await page.getByLabel("여행 날짜").fill("2026-08-21");
-  await page.getByLabel("시작 시간").fill("09:30");
-  const overnightTrip = page.getByRole("radio", { name: /^1박 여행/u });
-  await expect(overnightTrip).toBeDisabled();
-  await expect(page.getByText("준비 중 · 현재는 당일 일정만 생성")).toBeVisible();
-  await page
-    .getByRole("radio", { name: /^전체 일정 시간/u })
-    .check({ force: true });
-  await page.getByRole("combobox", { name: "전체 일정 시간" }).selectOption("240");
-  await page.getByRole("radio", { name: /^실내 필수/u }).check({ force: true });
-  const attraction = page.getByRole("checkbox", { name: /^관광지/u });
-  await attraction.locator("xpath=ancestor::label[1]").click();
-  await expect(attraction).not.toBeChecked();
-  const walk = page.getByRole("checkbox", { name: /^산책/u });
-  await walk.locator("xpath=ancestor::label[1]").click();
-  await expect(walk).toBeChecked();
-
-  const shopping = page.getByRole("checkbox", {
-    name: /^관광형 쇼핑 후보도 포함해요/u,
-  });
-  await expect(shopping).not.toBeChecked();
-  await expect(
-    page.getByText(
-      "켜도 임의의 소매점은 포함하지 않습니다. 관광에 적합한 시장·지역 특산품·공예·문화·체험형 후보만 검토해요.",
-      { exact: true },
-    ),
-  ).toBeVisible();
-  await shopping.check({ force: true });
 
   const generationRequests: Array<Record<string, unknown>> = [];
   page.on("request", (request) => {
@@ -140,6 +119,174 @@ test("keeps catalog planning active without saving a fixed demo itinerary", asyn
 
   const generationResponse = await generationResponsePromise;
   expect(generationResponse.status()).toBe(200);
+  const generationBody = (await generationResponse.json()) as GeneratedBody;
+  expect(generationBody.ok).toBe(true);
+  await expect(page).toHaveURL(/\/results\?tab=recommendations$/u);
+  await expect.poll(() => generationRequests.length).toBe(1);
+  expect(generationRequests[0]).toMatchObject({
+    scope: { type: "busan" },
+    start: {
+      label: "부산광역시 연제구 중앙대로 1001",
+      coordinates: { latitude: 35.1796, longitude: 129.0756 },
+    },
+    travelDate: "2026-08-15",
+    startTime: "10:00",
+    planning: { desiredStopCount: 3 },
+    petSize: "SMALL",
+    petEquipment: {
+      hasCarrier: true,
+      hasLeash: true,
+      hasMuzzle: false,
+    },
+    indoorAccessPreference: "any",
+    selectedCategories: ["attraction", "food"],
+    includeShopping: false,
+    generationSeed: "initial",
+    recentRouteSignatures: [],
+  });
+
+  await expect(page.getByRole("tab", { name: "추천 코스" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(
+    page.getByRole("heading", { name: "이 조건으로 계산한 추천이에요" }),
+  ).toBeVisible();
+  await expect(page.getByText(/코이 · 강아지 · 소형/u)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "데모 경로로 일정 만들기" }),
+  ).toHaveCount(0);
+
+  expect(generationBody.data.itineraries.length).toBeGreaterThan(1);
+  const selectedStrategyIndex = 1;
+  const selectedItinerary = generationBody.data.itineraries[selectedStrategyIndex]!;
+  const originLabel = generationBody.data.request.start.label;
+  expect(originLabel).toBe("부산광역시 연제구 중앙대로 1001");
+
+  const strategyTabs = page
+    .getByRole("tablist", { name: "추천 경로 전략" })
+    .getByRole("tab");
+  await expect(strategyTabs).toHaveCount(generationBody.data.itineraries.length);
+  await strategyTabs.nth(selectedStrategyIndex).click();
+  await expect(strategyTabs.nth(selectedStrategyIndex)).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(
+    page.getByRole("heading", { name: selectedItinerary.title, exact: true }),
+  ).toBeVisible();
+
+  await page
+    .getByRole("button", { name: /이 경로로 상세 일정 보기/u })
+    .click();
+  await expect(page).toHaveURL(/\/itinerary$/u);
+  await expect(
+    page.getByRole("heading", {
+      name: `코이와 함께하는 ${selectedItinerary.title}`,
+      exact: true,
+    }),
+  ).toBeVisible();
+
+  const itineraryStops = page
+    .getByRole("list", {
+      name: `${selectedItinerary.title} 상세 방문 순서`,
+    })
+    .locator(":scope > li");
+  await expect(itineraryStops).toHaveCount(selectedItinerary.stops.length);
+  for (const [index, stop] of selectedItinerary.stops.entries()) {
+    await expect(itineraryStops.nth(index)).toContainText(stop.title);
+  }
+  await expect(
+    itineraryStops.first().getByText(
+      `${originLabel} → ${selectedItinerary.stops[0]!.title}`,
+      { exact: true },
+    ),
+  ).toBeVisible();
+
+  await page.goBack();
+  await expect(page).toHaveURL(/\/results\?tab=recommendations$/u);
+  const restoredStrategyTabs = page
+    .getByRole("tablist", { name: "추천 경로 전략" })
+    .getByRole("tab");
+  await expect(restoredStrategyTabs.nth(selectedStrategyIndex)).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(
+    page.getByRole("heading", { name: selectedItinerary.title, exact: true }),
+  ).toBeVisible();
+  await expect.poll(() => generationRequests.length).toBe(1);
+
+  await page
+    .getByRole("link", { name: "여행 조건 수정", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/planner\/trip$/u);
+  await page.getByLabel("시작 시간").fill("10:15");
+  await page.goBack();
+  await expect(page).toHaveURL(/\/results\?tab=recommendations$/u);
+  await expect(
+    page.getByRole("heading", { name: "확정된 여행 조건이 없습니다." }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("tablist", { name: "추천 경로 전략" }),
+  ).toHaveCount(0);
+  await expect.poll(() => generationRequests.length).toBe(1);
+});
+
+test("preserves advanced planner inputs and prevents duplicate generation", async ({
+  page,
+}, testInfo) => {
+  await openPetPlanner(page, testInfo);
+  await page.getByRole("textbox", { name: "반려동물 이름" }).fill("코이");
+  const mediumSize = page.getByRole("radio", { name: /^중형/u });
+  await mediumSize.locator("xpath=ancestor::label[1]").click();
+  await page.getByRole("checkbox", { name: /^이동장/u }).uncheck({ force: true });
+  await page.getByRole("checkbox", { name: /^입마개/u }).check({ force: true });
+  await continueToTrip(page);
+
+  await chooseDepartureWithKeyboard(page);
+  await page.getByLabel("세부 지역").selectOption("500");
+  await page.getByLabel("여행 날짜").fill("2026-08-21");
+  await page.getByLabel("시작 시간").fill("09:30");
+  await expect(page.getByRole("radio", { name: /^1박 여행/u })).toBeDisabled();
+  await page
+    .getByRole("radio", { name: /^전체 일정 시간/u })
+    .check({ force: true });
+  await page
+    .getByRole("combobox", { name: "전체 일정 시간" })
+    .selectOption("240");
+  await page.getByRole("radio", { name: /^실내 필수/u }).check({ force: true });
+  const attraction = page.getByRole("checkbox", { name: /^관광지/u });
+  await attraction.locator("xpath=ancestor::label[1]").click();
+  const walk = page.getByRole("checkbox", { name: /^산책/u });
+  await walk.locator("xpath=ancestor::label[1]").click();
+  await page
+    .getByRole("checkbox", { name: /^관광형 쇼핑 후보도 포함해요/u })
+    .check({ force: true });
+
+  const generationRequests: Array<Record<string, unknown>> = [];
+  page.on("request", (request) => {
+    if (
+      new URL(request.url()).pathname === GENERATE_PATH &&
+      request.method() === "POST"
+    ) {
+      generationRequests.push(request.postDataJSON());
+    }
+  });
+  const generationResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === GENERATE_PATH &&
+      response.request().method() === "POST",
+  );
+  await page
+    .getByRole("button", { name: "추천 경로 만들기" })
+    .evaluate((node) => {
+      const button = node as HTMLButtonElement;
+      button.click();
+      button.click();
+    });
+
+  expect((await generationResponsePromise).status()).toBe(200);
   await expect(page).toHaveURL(/\/results\?tab=recommendations$/u);
   await expect.poll(() => generationRequests.length).toBe(1);
   expect(generationRequests[0]).toMatchObject({
@@ -163,21 +310,10 @@ test("keeps catalog planning active without saving a fixed demo itinerary", asyn
     generationSeed: "initial",
     recentRouteSignatures: [],
   });
-
-  await expect(page.getByRole("tab", { name: "추천 코스" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-  await expect(page.getByRole("heading", { name: "추천 코스 조건" })).toBeVisible();
-  await expect(page.getByText(/코이 · 중형 반려동물 · 이동장 없음/u)).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "데모 경로로 일정 만들기" }),
-  ).toHaveCount(0);
-
-  await page.goto("/itinerary");
-  await expect(
-    page.getByRole("heading", { name: "추천 코스에서 일정을 만들어 주세요" }),
+    page.getByRole("heading", { name: "이 조건으로 계산한 추천이에요" }),
   ).toBeVisible();
+  await expect(page.getByText(/코이 · 강아지 · 중형/u)).toBeVisible();
 });
 
 test("validates a trimmed name and preserves exact pet choices across both steps", async ({

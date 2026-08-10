@@ -155,6 +155,7 @@ interface RouteCandidate {
   petAccess: GeneratedPetAccess;
   suitability: TravelSuitabilityAssessment;
   placeScore: ExplainablePlaceScore;
+  imageUrl?: string;
   phone?: string;
   placeUrl?: string;
   verifiedReplacementIdentity?: string;
@@ -429,12 +430,33 @@ function detailMatchesCatalog(
   );
 }
 
+function approvedTourImageUrl(detail: TourPlaceDetail): string | undefined {
+  for (const candidate of [
+    detail.summary.imageUrl,
+    detail.summary.thumbnailUrl,
+  ]) {
+    if (!candidate) continue;
+    try {
+      const url = new URL(candidate);
+      if (
+        (url.protocol === "http:" || url.protocol === "https:") &&
+        url.hostname.toLowerCase() === "tong.visitkorea.or.kr"
+      ) {
+        return candidate;
+      }
+    } catch {
+      // Ignore malformed provider image URLs.
+    }
+  }
+  return undefined;
+}
+
 function toGeneratedPetAccess(
   assessment: TourPetAccessSemanticAssessment & {
     verdict: "allowed" | "conditional";
   },
   sizeCompatibility: PetSizeCompatibilityResult,
-): GeneratedPetAccess {
+): GeneratedPetAccess & { verdict: "allowed" | "conditional" } {
   return {
     verdict: assessment.verdict,
     evaluationState: assessment.evaluationState,
@@ -442,13 +464,21 @@ function toGeneratedPetAccess(
     restrictedScopes: assessment.restrictedScopes,
     conditions: assessment.conditions,
     sizeCompatibility,
+    summary: assessment.summary,
+    confidence: assessment.confidence,
+    reasonCodes: assessment.reasonCodes,
+    evidence: assessment.evidence,
+    conflicts: assessment.conflicts,
+    verificationItems: assessment.verificationItems,
+    sources: assessment.sources,
+    warnings: assessment.warnings,
   };
 }
 
 function scoreTourCandidate(
   summary: SuitableTourSummary,
   detail: TourPlaceDetail,
-  petAccess: GeneratedPetAccess,
+  petAccess: GeneratedPetAccess & { verdict: "allowed" | "conditional" },
   suitability: TravelSuitabilityAssessment,
   request: NormalizedItineraryRequest,
   hasExactKakaoLink: boolean,
@@ -859,6 +889,7 @@ function createItinerary(
       placeScore: candidate.placeScore,
       recommendationReasons: candidate.placeScore.reasons,
       callAheadRequired: candidate.source === "KAKAO",
+      ...(candidate.imageUrl ? { imageUrl: candidate.imageUrl } : {}),
       ...(candidate.phone ? { phone: candidate.phone } : {}),
       ...(candidate.placeUrl ? { placeUrl: candidate.placeUrl } : {}),
       ...(candidate.verifiedReplacementIdentity
@@ -1365,6 +1396,7 @@ export async function generateItineraries(
       },
       sizeCompatibility,
     );
+    const imageUrl = approvedTourImageUrl(result.detail);
     eligible.push({
       stableIdentity: `tour:${summary.contentId}`,
       source: "TOUR_API",
@@ -1386,6 +1418,7 @@ export async function generateItineraries(
         request,
         false,
       ),
+      ...(imageUrl ? { imageUrl } : {}),
       ...(summary.phone ? { phone: summary.phone } : {}),
     });
   }
@@ -1431,7 +1464,9 @@ export async function generateItineraries(
           candidate.placeScore = scoreTourCandidate(
             summary,
             candidate.detail,
-            candidate.petAccess,
+            candidate.petAccess as GeneratedPetAccess & {
+              verdict: "allowed" | "conditional";
+            },
             candidate.suitability,
             request,
             true,

@@ -55,6 +55,8 @@ function makeSummary(
     longitude?: number | null;
     providerContentTypeId?: string | null;
     title?: string | null;
+    imageUrl?: string | null;
+    thumbnailUrl?: string | null;
   } = {},
 ): TourPlaceSummary {
   return {
@@ -77,8 +79,8 @@ function makeSummary(
         ? 35.1 + Number(contentId.replace(/\D/g, "").slice(-2) || "0") / 1_000
         : options.latitude,
     phone: null,
-    thumbnailUrl: null,
-    imageUrl: null,
+    thumbnailUrl: options.thumbnailUrl ?? null,
+    imageUrl: options.imageUrl ?? null,
     copyrightType: null,
     createdTime: null,
     modifiedTime: "20260805000000",
@@ -545,6 +547,89 @@ describe("bounded request-driven itinerary generation", () => {
     expect(result.itineraries[0]?.stops[1].petAccess.conditions.length).toBeGreaterThan(0);
     expect(result.exclusionCounts.not_allowed).toBe(1);
     expect(result.exclusionCounts.unknown).toBe(1);
+  });
+
+  it("projects normalized Tourism pet evidence fields for presentation", async () => {
+    const place = makeSummary("projected", "12", {
+      imageUrl: "https://tong.visitkorea.or.kr/cms/resource/projected.jpg",
+    });
+    const result = await generateItineraries(
+      makeRequest({ planning: { desiredStopCount: 1 } }),
+      {
+        tourService: new MockTourService([place]),
+        directions: mockDirections,
+      },
+    );
+    const stop = result.itineraries[0]?.stops[0];
+
+    expect(stop?.imageUrl).toBe(
+      "https://tong.visitkorea.or.kr/cms/resource/projected.jpg",
+    );
+    expect(stop?.petAccess).toMatchObject({
+      verdict: "allowed",
+      summary: expect.any(String),
+      confidence: expect.stringMatching(/^(?:high|medium|low)$/u),
+      reasonCodes: expect.arrayContaining(["explicit_allowance"]),
+      evidence: [
+        expect.objectContaining({
+          operation: "detailPetTour2",
+          originalText: "반려동물 동반 가능",
+        }),
+      ],
+      conflicts: expect.any(Array),
+      verificationItems: expect.any(Array),
+      sources: expect.arrayContaining([
+        expect.objectContaining({ operation: "detailPetTour2" }),
+      ]),
+      warnings: expect.any(Array),
+    });
+  });
+
+  it.each([
+    {
+      name: "accepts an https official image",
+      imageUrl: "https://tong.visitkorea.or.kr/cms/resource/official.jpg",
+      thumbnailUrl: null,
+      expected: "https://tong.visitkorea.or.kr/cms/resource/official.jpg",
+    },
+    {
+      name: "accepts an http official thumbnail fallback",
+      imageUrl: "https://example.com/untrusted.jpg",
+      thumbnailUrl: "http://tong.visitkorea.or.kr/cms/resource/thumb.jpg",
+      expected: "http://tong.visitkorea.or.kr/cms/resource/thumb.jpg",
+    },
+    {
+      name: "rejects another host",
+      imageUrl: "https://example.com/untrusted.jpg",
+      thumbnailUrl: null,
+      expected: undefined,
+    },
+    {
+      name: "rejects a lookalike subdomain",
+      imageUrl: "https://tong.visitkorea.or.kr.example.com/untrusted.jpg",
+      thumbnailUrl: null,
+      expected: undefined,
+    },
+    {
+      name: "rejects a non-http protocol",
+      imageUrl: "ftp://tong.visitkorea.or.kr/untrusted.jpg",
+      thumbnailUrl: null,
+      expected: undefined,
+    },
+  ])("$name", async ({ imageUrl, thumbnailUrl, expected }) => {
+    const place = makeSummary("image-policy", "12", {
+      imageUrl,
+      thumbnailUrl,
+    });
+    const result = await generateItineraries(
+      makeRequest({ planning: { desiredStopCount: 1 } }),
+      {
+        tourService: new MockTourService([place]),
+        directions: mockDirections,
+      },
+    );
+
+    expect(result.itineraries[0]?.stops[0]?.imageUrl).toBe(expected);
   });
 
   it("excludes unsupported and not-applicable detail structures", async () => {
@@ -1344,6 +1429,7 @@ describe("Phase 2 recommendation regressions", () => {
     expect(kakaoStops[0]?.petAccess.verdict).toBe("unknown");
     expect((kakaoStops[0] as unknown as { callAheadRequired?: boolean })
       ?.callAheadRequired).toBe(true);
+    expect(kakaoStops[0]).not.toHaveProperty("imageUrl");
   });
 
   it("never uses a Kakao-only candidate as a mandatory meal stop", async () => {

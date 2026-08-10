@@ -187,6 +187,14 @@ export function isValidMapCoordinates(
   );
 }
 
+export function getRenderableRouteCoordinates(
+  routeCoordinates: Coordinates[],
+): Coordinates[] {
+  return routeCoordinates.length > 1 && routeCoordinates.every(isValidMapCoordinates)
+    ? routeCoordinates
+    : [];
+}
+
 const TRANSPARENT_MARKER_SVG =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E";
 
@@ -335,7 +343,9 @@ export function createKakaoMapController(
 
   const resetSelectionVisuals = () => {
     if (selectedId) {
-      locationPositions.get(selectedId)?.button.classList.remove("is-selected");
+      const selectedButton = locationPositions.get(selectedId)?.button;
+      selectedButton?.classList.remove("is-selected");
+      selectedButton?.setAttribute("aria-pressed", "false");
     }
     infoOverlay?.setMap(null);
     selectionOverlay?.setMap(null);
@@ -411,6 +421,10 @@ export function createKakaoMapController(
 
     fitBounds() {
       if (visiblePoints.length === 0) return;
+      if (visiblePoints.length === 1) {
+        map.panTo(visiblePoints[0]);
+        return;
+      }
       const bounds = new maps.LatLngBounds();
       visiblePoints.forEach((point) => bounds.extend(point));
       map.setBounds(bounds, 48);
@@ -488,6 +502,7 @@ export function createKakaoMapController(
       if (!selected) return;
       selectedId = id;
       selected.button.classList.add("is-selected");
+      selected.button.setAttribute("aria-pressed", "true");
 
       const selection = document.createElement("div");
       selection.className = "kakao-map-selection";
@@ -565,9 +580,10 @@ export function createKakaoMapController(
               ? String(location.order)
               : location.markerLabel ?? nativeMarkerVisual(kind).label;
           marker.append(markerLabel);
+          marker.setAttribute("aria-pressed", "false");
           marker.setAttribute(
             "aria-label",
-            `${location.name} · ${location.sourceLabel ?? "장소"} 지도 마커`,
+            `${kind === "itinerary" && location.order ? `${location.order}번 ` : ""}${location.name} · ${location.sourceLabel ?? "장소"} 지도 마커`,
           );
           const clickHandler = (event: Event) => {
             event.stopPropagation();
@@ -618,8 +634,7 @@ export function createKakaoMapController(
         clusterer.addMarkers(catalogMarkers);
       }
 
-      const routePath = routeCoordinates
-        .filter(isValidMapCoordinates)
+      const routePath = getRenderableRouteCoordinates(routeCoordinates)
         .map(({ latitude, longitude }) => new maps.LatLng(latitude, longitude));
       if (routePath.length > 1) {
         visiblePoints.push(...routePath);

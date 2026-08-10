@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { ChevronLeft, ChevronRight, Filter, RefreshCw, Route, Rows3 } from "lucide-react";
 import { RecommendationPlanner } from "@/components/itinerary/recommendation-planner";
 import { MapPanel, type MapLayerControl } from "@/components/map/map-panel";
@@ -41,7 +48,6 @@ import type {
 import type { PlaceSourceLayerId } from "@/types/place-source";
 import type { PetProfile, TravelPreferences } from "@/types/pet";
 import type { TourPlaceList, TourPlaceSummary } from "@/types/place";
-import type { GeneratedItinerary } from "@/types/route-generation";
 
 const COMPLETE_CATALOG_PAGE_SIZE = 1_000;
 
@@ -67,6 +73,7 @@ const DEFAULT_PREFERENCES: TravelPreferences = {
 
 type ExplorerTab = "catalog" | "recommendations";
 type ListState = "loading" | "ready" | "empty" | "unavailable";
+const EXPLORER_TABS = ["catalog", "recommendations"] as const;
 
 export function ResultsExplorer({
   initialTab = "catalog",
@@ -86,6 +93,10 @@ export function ResultsExplorer({
     ? plannerPreferences
     : DEFAULT_PREFERENCES;
   const [activeTab, setActiveTab] = useState<ExplorerTab>(initialTab);
+  const explorerTabRefs = useRef<Record<ExplorerTab, HTMLButtonElement | null>>({
+    catalog: null,
+    recommendations: null,
+  });
   const [catalogPlaces, setCatalogPlaces] = useState<TourPlaceSummary[]>([]);
   const [providerTotalCount, setProviderTotalCount] = useState(0);
   const [listState, setListState] = useState<ListState>("loading");
@@ -105,12 +116,41 @@ export function ResultsExplorer({
   const [sourceLayerVisibility, setSourceLayerVisibility] =
     useState<SourceLayerVisibility>(createDefaultSourceLayerVisibility);
   const [shoppingMapVisible, setShoppingMapVisible] = useState(false);
-  const [selectedItinerary, setSelectedItinerary] =
-    useState<GeneratedItinerary | null>(null);
   const [currentMapSearch, setCurrentMapSearch] =
     useState<KakaoCurrentMapSearch | null>(null);
 
+  const chooseExplorerTab = useCallback(
+    (tab: ExplorerTab, moveFocus = false) => {
+      setActiveTab(tab);
+      setSelectedLocationId(null);
+      if (moveFocus) {
+        window.requestAnimationFrame(() => explorerTabRefs.current[tab]?.focus());
+      }
+    },
+    [],
+  );
+
+  const handleExplorerTabKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    index: number,
+  ) => {
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      nextIndex = (index + 1) % EXPLORER_TABS.length;
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      nextIndex = (index - 1 + EXPLORER_TABS.length) % EXPLORER_TABS.length;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = EXPLORER_TABS.length - 1;
+    }
+    if (nextIndex === null) return;
+    event.preventDefault();
+    chooseExplorerTab(EXPLORER_TABS[nextIndex], true);
+  };
+
   useEffect(() => {
+    if (activeTab !== "catalog") return;
     const controller = new AbortController();
     const load = async () => {
       setListState("loading");
@@ -156,12 +196,7 @@ export function ResultsExplorer({
     };
     void load();
     return () => controller.abort();
-  }, [category, districtCode, retryCount]);
-
-  const invalidateSelectedRoute = useCallback(() => {
-    setSelectedItinerary(null);
-    setSelectedLocationId(null);
-  }, []);
+  }, [activeTab, category, districtCode, retryCount]);
 
   const changeDistrict = useCallback(
     (nextDistrict: BusanDistrictCode | "all") => {
@@ -169,9 +204,9 @@ export function ResultsExplorer({
       setCurrentMapSearch(null);
       setPage(1);
       setKakaoCandidates([]);
-      invalidateSelectedRoute();
+      setSelectedLocationId(null);
     },
-    [invalidateSelectedRoute],
+    [],
   );
 
   const sizeLabel = { SMALL: "소형", MEDIUM: "중형", LARGE: "대형" }[
@@ -261,20 +296,6 @@ export function ResultsExplorer({
     sourceLayerVisibility.tourism_official,
   ]);
 
-  const routeLocations = useMemo(
-    () =>
-      (selectedItinerary?.stops ?? []).map((stop) => ({
-        id: stop.contentId,
-        name: stop.title,
-        address: stop.address ?? "주소 정보 없음",
-        coordinates: stop.coordinates,
-        order: stop.order,
-        markerKind: "itinerary" as const,
-        sourceLabel: "추천 일정 정류장",
-      })),
-    [selectedItinerary],
-  );
-
   const districtName =
     districtCode === "all"
       ? "부산 전체"
@@ -286,14 +307,7 @@ export function ResultsExplorer({
           regionCode: BUSAN_REGION.code,
           districtCode,
         });
-  const mapLocations =
-    activeTab === "recommendations" ? routeLocations : catalogLocations;
-  const routeCoordinates =
-    activeTab === "recommendations" ? selectedItinerary?.geometry ?? [] : [];
-  const mapViewportKey =
-    activeTab === "recommendations"
-      ? `recommendation:${selectedItinerary?.id ?? "empty"}`
-      : `catalog:${districtCode}:${category}`;
+  const mapViewportKey = `catalog:${districtCode}:${category}`;
 
   const layerControls = useMemo<MapLayerControl[]>(() => {
     const counts: Record<PlaceSourceLayerId, number> = {
@@ -353,7 +367,25 @@ export function ResultsExplorer({
 
   return (
     <div className="space-y-6">
-      <div className="surface-card flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+      {activeTab === "catalog" ? (
+        <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+          <div>
+            <p className="eyebrow">Busan pet-friendly places</p>
+            <h1 className="balance mt-2 text-3xl font-black tracking-[-0.045em] sm:text-4xl">
+              부산의 실제 장소를
+              <br />
+              근거와 함께 살펴보세요.
+            </h1>
+          </div>
+          <p className="max-w-md text-sm leading-7 text-[#66766e]">
+            한국관광공사 장소와 반려동물 동반 원문을 확인하고, 카카오 지도에서
+            위치를 함께 살펴볼 수 있습니다.
+          </p>
+        </header>
+      ) : null}
+
+      {activeTab === "catalog" ? (
+        <div className="surface-card flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-[#edf8f2] px-3 py-1.5 text-xs font-extrabold text-[#236148]">
@@ -373,7 +405,8 @@ export function ResultsExplorer({
         <p className="max-w-sm text-xs font-bold leading-5 text-[#64746c]">
           장소 목록과 추천 코스는 같은 부산 범위를 사용합니다. 추천은 지원되는 동반 근거가 있는 실제 장소만 결정론적으로 조합합니다.
         </p>
-      </div>
+        </div>
+      ) : null}
 
       <div
         className="inline-flex w-full rounded-2xl border border-[#d7e0da] bg-white p-1 sm:w-auto"
@@ -381,15 +414,17 @@ export function ResultsExplorer({
         aria-label="장소 및 추천 보기"
       >
         <button
+          ref={(node) => {
+            explorerTabRefs.current.catalog = node;
+          }}
           id="catalog-tab"
           type="button"
           role="tab"
           aria-selected={activeTab === "catalog"}
           aria-controls="catalog-panel"
-          onClick={() => {
-            setActiveTab("catalog");
-            setSelectedLocationId(null);
-          }}
+          tabIndex={activeTab === "catalog" ? 0 : -1}
+          onClick={() => chooseExplorerTab("catalog")}
+          onKeyDown={(event) => handleExplorerTabKeyDown(event, 0)}
           className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-5 text-sm font-extrabold sm:flex-none ${
             activeTab === "catalog"
               ? "bg-[#236148] text-white"
@@ -399,15 +434,17 @@ export function ResultsExplorer({
           <Rows3 size={16} aria-hidden="true" /> 전체 장소
         </button>
         <button
+          ref={(node) => {
+            explorerTabRefs.current.recommendations = node;
+          }}
           id="recommendations-tab"
           type="button"
           role="tab"
           aria-selected={activeTab === "recommendations"}
           aria-controls="recommendations-panel"
-          onClick={() => {
-            setActiveTab("recommendations");
-            setSelectedLocationId(null);
-          }}
+          tabIndex={activeTab === "recommendations" ? 0 : -1}
+          onClick={() => chooseExplorerTab("recommendations")}
+          onKeyDown={(event) => handleExplorerTabKeyDown(event, 1)}
           className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-5 text-sm font-extrabold sm:flex-none ${
             activeTab === "recommendations"
               ? "bg-[#236148] text-white"
@@ -418,45 +455,37 @@ export function ResultsExplorer({
         </button>
       </div>
 
-      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.02fr)_minmax(390px,.98fr)]">
-        <div className="min-w-0 lg:sticky lg:top-24 lg:self-start">
+      <div
+        className={
+          activeTab === "catalog"
+            ? "grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.02fr)_minmax(390px,.98fr)]"
+            : "min-w-0"
+        }
+      >
+        {activeTab === "catalog" ? (
+          <div className="min-w-0 lg:sticky lg:top-24 lg:self-start">
           <MapPanel
-            locations={mapLocations}
-            routeCoordinates={routeCoordinates}
+            locations={catalogLocations}
+            routeCoordinates={[]}
             viewportKey={mapViewportKey}
-            layerControls={activeTab === "catalog" ? layerControls : []}
+            layerControls={layerControls}
             onLayerToggle={toggleMapLayer}
             selectedLocationId={selectedLocationId}
             onLocationSelect={selectMapLocation}
-            onCurrentMapSearch={
-              activeTab === "catalog"
-                ? (viewport) => {
-                    setCurrentMapSearch(viewport);
-                    setKakaoCandidates([]);
-                  }
-                : undefined
-            }
-            title={
-              activeTab === "recommendations"
-                ? `${selectedItinerary?.title ?? districtName} 추천 경로 지도`
-                : `${districtName} 관광 장소 지도`
-            }
-            locationLabel={
-              activeTab === "recommendations" && selectedItinerary
-                ? `${selectedItinerary.title} · ${selectedItinerary.stops.length}곳`
-                : mapRegionLabel
-            }
+            onCurrentMapSearch={(viewport) => {
+              setCurrentMapSearch(viewport);
+              setKakaoCandidates([]);
+            }}
+            title={`${districtName} 관광 장소 지도`}
+            locationLabel={mapRegionLabel}
           />
           <p className="mt-3 px-1 text-xs font-semibold leading-5 text-[#6c7b73]">
-            {activeTab === "recommendations"
-              ? selectedItinerary
-                ? "선택한 실제 경로의 정류장과 카카오 폴리라인만 표시합니다. 번호는 방문 순서입니다."
-                : "조건을 제출하면 선택한 실제 경로만 이 지도에 표시됩니다."
-              : category === "shopping"
-                ? `쇼핑 ${mapPlaces.length}곳은 클러스터로 표시하고, 현재 12개 카드에 해당하는 마커만 개별 DOM 상호작용 요소로 렌더링합니다.`
-                : `현재 필터의 좌표 확인 장소 ${mapPlaces.length}곳을 모두 표시합니다. 목록 페이지를 바꿔도 지도 범위는 유지됩니다.`}
+            {category === "shopping"
+              ? `쇼핑 ${mapPlaces.length}곳은 클러스터로 표시하고, 현재 12개 카드에 해당하는 마커만 개별 DOM 상호작용 요소로 렌더링합니다.`
+              : `현재 필터의 좌표 확인 장소 ${mapPlaces.length}곳을 모두 표시합니다. 목록 페이지를 바꿔도 지도 범위는 유지됩니다.`}
           </p>
-        </div>
+          </div>
+        ) : null}
 
         <section
           id="catalog-panel"
@@ -661,18 +690,8 @@ export function ResultsExplorer({
           className="min-w-0"
         >
           <RecommendationPlanner
-            districtCode={districtCode}
-            onDistrictChange={changeDistrict}
-            profile={profile}
-            preferences={preferences}
             autoGenerate={generationRequested}
             onAutoGenerateStart={consumeGenerationRequest}
-            selectedLocationId={selectedLocationId}
-            onLocationSelect={selectMapLocation}
-            onItinerarySelect={(itinerary) => {
-              setSelectedItinerary(itinerary);
-              if (!itinerary) setSelectedLocationId(null);
-            }}
           />
         </div>
       </div>

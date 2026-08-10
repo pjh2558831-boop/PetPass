@@ -2,9 +2,11 @@ import type { Coordinates, TourContentTypeId, TourPlaceCategory } from "@/types/
 import type { PetSize } from "@/types/pet";
 import type { PetSizeCompatibilityResult } from "@/types/pet-size-compatibility";
 import type {
+  TourPetAccessAssessment,
   TourPetAccessCondition,
   TourPetAccessEvaluationState,
   TourPetAccessScope,
+  TourPetAccessVerdict,
 } from "@/types/tour-pet-access";
 
 export const ITINERARY_PROFILES = [
@@ -190,12 +192,20 @@ export interface NormalizedItineraryRequest {
 }
 
 export interface GeneratedPetAccess {
-  verdict: "allowed" | "conditional" | "unknown";
+  verdict: TourPetAccessVerdict;
   evaluationState: TourPetAccessEvaluationState;
   permittedScopes: TourPetAccessScope[];
   restrictedScopes: TourPetAccessScope[];
   conditions: TourPetAccessCondition[];
   sizeCompatibility: PetSizeCompatibilityResult;
+  summary?: TourPetAccessAssessment["summary"];
+  confidence?: TourPetAccessAssessment["confidence"];
+  reasonCodes?: TourPetAccessAssessment["reasonCodes"];
+  evidence?: TourPetAccessAssessment["evidence"];
+  conflicts?: TourPetAccessAssessment["conflicts"];
+  verificationItems?: TourPetAccessAssessment["verificationItems"];
+  sources?: TourPetAccessAssessment["sources"];
+  warnings?: TourPetAccessAssessment["warnings"];
 }
 
 export interface ItineraryCandidateFunnel {
@@ -254,6 +264,7 @@ export interface GeneratedItineraryStop {
   placeScore: ExplainablePlaceScore;
   recommendationReasons: string[];
   callAheadRequired: boolean;
+  imageUrl?: string;
   phone?: string;
   placeUrl?: string;
   verifiedReplacementIdentity?: string;

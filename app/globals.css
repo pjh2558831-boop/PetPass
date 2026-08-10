@@ -184,8 +184,8 @@ select {
 
 .kakao-map-marker {
   display: grid;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   cursor: pointer;
   place-items: center;
   border: 4px solid white;
@@ -195,6 +195,7 @@ select {
   font-size: 13px;
   font-weight: 900;
   box-shadow: 0 8px 20px rgba(35, 97, 72, 0.28);
+  touch-action: manipulation;
   transform: rotate(-45deg);
 }
 
@@ -309,8 +310,8 @@ select {
 }
 
 .kakao-map-selection {
-  width: 52px;
-  height: 52px;
+  width: 58px;
+  height: 58px;
   border: 4px solid rgba(241, 178, 112, 0.88);
   border-radius: 999px;
   box-shadow: 0 0 0 7px rgba(255, 253, 248, 0.72);

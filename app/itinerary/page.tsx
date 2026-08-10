@@ -3,12 +3,12 @@ import { PlannerProgress } from "@/components/layout/planner-progress";
 import { ItineraryEditor } from "@/components/itinerary/itinerary-editor";
 
 export const metadata: Metadata = {
-  title: "일정 편집",
+  title: "상세 일정",
 };
 
 export default function ItineraryPage() {
   return (
-    <div className="page-shell py-8 sm:py-12">
+    <div className="page-shell py-8 sm:py-12 lg:py-14">
       <PlannerProgress current={4} />
       <div className="mt-9">
         <ItineraryEditor />

@@ -90,8 +90,11 @@ test("opens the mobile navigation and follows its real destination", async ({
 
   await expect(page).toHaveURL(/\/itinerary$/u);
   await expect(
-    page.getByRole("heading", { name: "추천 코스에서 일정을 만들어 주세요" }),
+    page.getByRole("heading", { name: "선택된 추천 경로가 없습니다." }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "여행 만들기 시작" }),
+  ).toHaveAttribute("href", "/planner/pet");
 });
 
 test("avoids horizontal overflow at the required viewports", async ({ page }) => {

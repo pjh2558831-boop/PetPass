@@ -303,7 +303,7 @@ test("localhost renders Kakao maps and search without a fixed demo itinerary", a
 
   await page.goto(`http://localhost:3000/itinerary?verify=${Date.now()}`);
   await expect(
-    page.getByRole("heading", { name: "추천 코스에서 일정을 만들어 주세요" }),
+    page.getByRole("heading", { name: "선택된 추천 경로가 없습니다." }),
   ).toBeVisible();
 
   expect(browserErrors).toEqual([]);
