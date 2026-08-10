@@ -1,17 +1,33 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Script from "next/script";
-import { LocateFixed, MapPinned } from "lucide-react";
+import { LocateFixed, MapPinned, ScanSearch } from "lucide-react";
 import {
   createKakaoMapController,
-  getKakaoMapJavaScriptKey,
-  getKakaoMapsSdkUrl,
   isValidMapCoordinates,
   type KakaoMapController,
   type KakaoMapLocation,
 } from "@/lib/kakao/maps";
+import {
+  getKakaoMapJavaScriptKey,
+  getKakaoMapsPublicError,
+  isClustererOnlySdkFailure,
+  isKakaoBaseMapsReady,
+  loadKakaoMapsSdk,
+} from "@/lib/kakao/sdk-loader";
 import type { Coordinates } from "@/types/place";
+import type { KakaoCurrentMapSearch } from "@/types/kakao";
+import { deriveRegionLabel } from "@/lib/regions/label";
+
+export interface MapLayerControl {
+  id: string;
+  label: string;
+  markerKind: KakaoMapLocation["markerKind"];
+  count: number;
+  visible: boolean;
+  disabled?: boolean;
+  description?: string;
+}
 
 const DEFAULT_LOCATIONS: KakaoMapLocation[] = [
   {
@@ -39,12 +55,16 @@ const DEFAULT_LOCATIONS: KakaoMapLocation[] = [
 
 export function MapPanel({
   compact = false,
-  title = "부산 해운대 데모 경로",
-  locationLabel = "부산 · 해운대구",
+  title = "부산 데모 지도",
+  locationLabel,
   locations = DEFAULT_LOCATIONS,
   routeCoordinates = [],
   selectedLocationId = null,
   onLocationSelect,
+  onCurrentMapSearch,
+  viewportKey = "default",
+  layerControls = [],
+  onLayerToggle,
 }: {
   compact?: boolean;
   title?: string;
@@ -53,33 +73,46 @@ export function MapPanel({
   routeCoordinates?: Coordinates[];
   selectedLocationId?: string | null;
   onLocationSelect?: (id: string | null) => void;
+  onCurrentMapSearch?: (viewport: KakaoCurrentMapSearch) => void;
+  viewportKey?: string;
+  layerControls?: MapLayerControl[];
+  onLayerToggle?: (id: string, visible: boolean) => void;
 }) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<KakaoMapController | null>(null);
-  const sdkLoadRequestedRef = useRef(false);
   const initializationRequestedRef = useRef(false);
+  const viewportKeyRef = useRef(viewportKey);
   const latestDataRef = useRef({
     locations,
     routeCoordinates,
     selectedLocationId,
   });
   const onLocationSelectRef = useRef(onLocationSelect);
+  const onCurrentMapSearchRef = useRef(onCurrentMapSearch);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
     "loading",
   );
   const [loadError, setLoadError] = useState("");
   const [mapVersion, setMapVersion] = useState(0);
+  const resolvedLocationLabel =
+    locationLabel ?? deriveRegionLabel({ roadAddress: locations[0]?.address });
 
   useEffect(() => {
     latestDataRef.current = { locations, routeCoordinates, selectedLocationId };
     onLocationSelectRef.current = onLocationSelect;
-  }, [locations, onLocationSelect, routeCoordinates, selectedLocationId]);
+    onCurrentMapSearchRef.current = onCurrentMapSearch;
+  }, [
+    locations,
+    onCurrentMapSearch,
+    onLocationSelect,
+    routeCoordinates,
+    selectedLocationId,
+  ]);
 
   const initializeMap = useCallback(() => {
     const container = mapContainerRef.current;
-    const maps = window.kakao?.maps;
-    if (!container || !maps?.Map) return false;
-    if (initializationRequestedRef.current) return true;
+    if (!container || !isKakaoBaseMapsReady()) return;
+    if (initializationRequestedRef.current) return;
     initializationRequestedRef.current = true;
 
     try {
@@ -90,6 +123,7 @@ export function MapPanel({
         routeCoordinates: latestData.routeCoordinates,
         onLocationSelect: (id) => onLocationSelectRef.current?.(id),
       });
+      viewportKeyRef.current = viewportKey;
       controllerRef.current.selectLocation(latestData.selectedLocationId);
       setLoadState("ready");
       setLoadError("");
@@ -103,46 +137,45 @@ export function MapPanel({
           : "카카오 지도를 초기화하지 못했습니다.",
       );
     }
-    return true;
-  }, []);
+  }, [viewportKey]);
 
   useEffect(() => {
     let cancelled = false;
-    let attempts = 0;
-    let timer: number | undefined;
-    const checkSdk = () => {
-      if (cancelled) return;
-      const maps = window.kakao?.maps;
-      if (!sdkLoadRequestedRef.current && typeof maps?.load === "function") {
-        sdkLoadRequestedRef.current = true;
-        maps.load(() => {
+    loadKakaoMapsSdk()
+      .then(() => {
+        if (!cancelled) initializeMap();
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        if (isClustererOnlySdkFailure(error) && isKakaoBaseMapsReady()) {
+          if (process.env.NODE_ENV === "development") {
+            console.warn(
+              "[PetPass Kakao Maps] MarkerClusterer is unavailable; using ordinary markers.",
+            );
+          }
           initializeMap();
-        });
-      }
-      if (initializeMap()) return;
-      attempts += 1;
-      if (attempts >= 200) {
+          return;
+        }
         setLoadState("error");
-        setLoadError(
-          "카카오 지도 SDK를 불러오지 못했습니다. JavaScript 키와 허용 도메인을 확인해 주세요.",
-        );
-        return;
-      }
-      timer = window.setTimeout(checkSdk, 50);
-    };
-    checkSdk();
+        setLoadError(getKakaoMapsPublicError(error));
+      });
     return () => {
       cancelled = true;
-      if (timer !== undefined) window.clearTimeout(timer);
     };
   }, [initializeMap]);
 
   useEffect(() => {
     const controller = controllerRef.current;
     if (!controller) return;
-    controller.updateData(locations, routeCoordinates);
-    controller.selectLocation(selectedLocationId);
-  }, [locations, routeCoordinates, selectedLocationId]);
+    const fitBounds = viewportKeyRef.current !== viewportKey;
+    controller.updateData(locations, routeCoordinates, { fitBounds });
+    controller.selectLocation(latestDataRef.current.selectedLocationId);
+    viewportKeyRef.current = viewportKey;
+  }, [locations, routeCoordinates, viewportKey]);
+
+  useEffect(() => {
+    controllerRef.current?.selectLocation(selectedLocationId);
+  }, [selectedLocationId]);
 
   useEffect(() => {
     const container = mapContainerRef.current;
@@ -163,9 +196,8 @@ export function MapPanel({
     [],
   );
 
-  let mapKey = "";
   try {
-    mapKey = getKakaoMapJavaScriptKey();
+    getKakaoMapJavaScriptKey();
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "카카오 지도 설정을 확인해 주세요.";
@@ -177,6 +209,10 @@ export function MapPanel({
             compact ? "!min-h-[300px]" : ""
           }`}
         >
+          <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3 py-2 text-xs font-bold text-[#314b3f] shadow-sm">
+            <MapPinned size={15} aria-hidden="true" />
+            {resolvedLocationLabel}
+          </div>
           <p className="relative z-10 max-w-md rounded-2xl bg-white/90 p-4 text-sm font-bold text-[#8d3838] shadow-sm">
             카카오 지도 설정 오류: {message}
           </p>
@@ -225,7 +261,7 @@ export function MapPanel({
         <div className="map-watermark">Kakao Maps · 실제 장소 및 경로</div>
         <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3 py-2 text-xs font-bold text-[#314b3f] shadow-sm">
           <MapPinned size={15} aria-hidden="true" />
-          {locationLabel}
+          {resolvedLocationLabel}
         </div>
         <button
           type="button"
@@ -237,24 +273,54 @@ export function MapPanel({
         >
           <LocateFixed size={18} aria-hidden="true" />
         </button>
+        {onCurrentMapSearch ? (
+          <button
+            type="button"
+            onClick={() => {
+              const viewport = controllerRef.current?.getSearchViewport();
+              if (viewport) onCurrentMapSearchRef.current?.(viewport);
+            }}
+            disabled={loadState !== "ready"}
+            className="absolute bottom-4 right-4 z-10 inline-flex min-h-10 items-center gap-2 rounded-full border border-white/80 bg-white/95 px-3 text-xs font-extrabold text-[#236148] shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="현재 지도에서 검색"
+          >
+            <ScanSearch size={16} aria-hidden="true" />
+            현재 지도에서 검색
+          </button>
+        ) : null}
       </div>
-      <Script
-        id="kakao-maps-sdk"
-        src={getKakaoMapsSdkUrl(mapKey)}
-        strategy="afterInteractive"
-        onLoad={() => {
-          initializeMap();
-        }}
-        onReady={() => {
-          initializeMap();
-        }}
-        onError={() => {
-          setLoadState("error");
-          setLoadError(
-            "카카오 지도 SDK를 불러오지 못했습니다. JavaScript 키와 허용 도메인을 확인해 주세요.",
-          );
-        }}
-      />
+      {layerControls.length > 0 ? (
+        <fieldset className="mt-3 rounded-2xl border border-[#d8e2dc] bg-white p-3">
+          <legend className="px-1 text-xs font-black text-[#344a40]">지도 출처 레이어</legend>
+          <div className="mt-1 flex flex-wrap gap-2">
+            {layerControls.map((layer) => (
+              <button
+                key={layer.id}
+                type="button"
+                aria-pressed={layer.visible}
+                disabled={layer.disabled}
+                title={layer.description}
+                onClick={() => onLayerToggle?.(layer.id, !layer.visible)}
+                className={`inline-flex min-h-9 items-center gap-2 rounded-full border px-3 text-xs font-extrabold transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                  layer.visible
+                    ? "border-[#8caf9d] bg-[#edf8f2] text-[#285c45]"
+                    : "border-[#d7e0da] bg-white text-[#68776f]"
+                }`}
+              >
+                <span
+                  className={`map-legend-marker map-legend-marker--${layer.markerKind ?? "catalog"}`}
+                  aria-hidden="true"
+                />
+                <span>{layer.label}</span>
+                <span className="font-semibold text-[#748078]">{layer.count}</span>
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] leading-5 text-[#748078]">
+            모양과 글자로 출처를 구분합니다. 레이어를 바꿔도 현재 지도 위치는 유지됩니다.
+          </p>
+        </fieldset>
+      ) : null}
     </section>
   );
 }

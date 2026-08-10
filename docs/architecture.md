@@ -90,6 +90,31 @@ unmigratable values are cleared safely.
 Stored values are the latest pet profile, travel preferences, and draft
 itinerary. They are not authoritative copies of Tourism API place details.
 
+Information-report drafts are validated against `lib/place-reports/schema.ts`
+and can be copied for an approved review channel, but they are not stored or
+presented as submitted. The repository has no authenticated Supabase boundary;
+adding a remote report table, public insert policy, or administrator mutation
+would require the operational approval described below.
+
+## Source and trust layers
+
+`types/place-source.ts` keeps provider records, provider IDs, link assessments,
+conflicts, and deterministic trust results separate from pet-access and
+licensing contracts. `lib/places/source-linking.ts` classifies non-destructive
+links as exact, probable, possible, or unmatched. Probable/possible links and
+all conflicts require review; Tourism evidence and licensing state are never
+overwritten by Kakao metadata.
+
+Map source definitions live in `lib/places/source-layers.ts`. Tourism is visible
+by default, business/administrator confirmations become visible by default when
+records exist, and user-report/Kakao candidate layers are opt-in. Marker shape,
+text, accessible label, badge, and legend all carry the distinction.
+
+`lib/trust` owns the versioned information-trust rule. It produces a bounded
+score, level, components, and flags, but it cannot create or change a pet-access
+verdict, licensing result, or recommendation eligibility. Kakao-only candidates
+remain low trust and cannot enter automatic itinerary generation.
+
 ## Extension points
 
 A future Supabase boundary may store authenticated user-owned profiles, itinerary

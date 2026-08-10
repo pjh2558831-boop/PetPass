@@ -169,22 +169,48 @@ select {
   transform: rotate(-45deg);
 }
 
-.kakao-map-marker--catalog span,
-.kakao-map-marker--search span {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.94);
-}
-
 .kakao-map-marker--itinerary {
   background: #b85f40;
   box-shadow: 0 8px 20px rgba(144, 65, 38, 0.28);
 }
 
-.kakao-map-marker--search {
+.kakao-map-marker--tourism-official,
+.kakao-map-marker--catalog {
+  background: #236148;
+}
+
+.kakao-map-marker--business-confirmed {
+  border-radius: 10px;
+  background: #267d73;
+  transform: none;
+}
+
+.kakao-map-marker--administrator-confirmed {
+  border-radius: 999px;
+  background: #7356a8;
+  transform: none;
+}
+
+.kakao-map-marker--user-reported {
+  border-style: dashed;
+  border-radius: 999px;
+  background: #a8692d;
+  transform: none;
+}
+
+.kakao-map-marker--search,
+.kakao-map-marker--kakao-candidate {
+  border-color: #356e85;
+  border-radius: 999px;
   background: #356e85;
   box-shadow: 0 8px 20px rgba(39, 83, 101, 0.28);
+  color: white;
+  transform: none;
+}
+
+.kakao-map-marker--shopping {
+  background: #6d588c;
+  box-shadow: 0 8px 20px rgba(74, 55, 104, 0.28);
 }
 
 .kakao-map-marker.is-selected {
@@ -200,6 +226,57 @@ select {
 .kakao-map-marker span {
   display: block;
   transform: rotate(45deg);
+}
+
+.kakao-map-marker--business-confirmed span,
+.kakao-map-marker--administrator-confirmed span,
+.kakao-map-marker--user-reported span,
+.kakao-map-marker--search span,
+.kakao-map-marker--kakao-candidate span {
+  transform: none;
+}
+
+.map-legend-marker {
+  display: inline-grid;
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  border: 2px solid white;
+  border-radius: 50% 50% 50% 10%;
+  background: #236148;
+  box-shadow: 0 0 0 1px #9eb4a8;
+  transform: rotate(-45deg);
+}
+
+.map-legend-marker--business-confirmed {
+  border-radius: 4px;
+  background: #267d73;
+  transform: none;
+}
+
+.map-legend-marker--administrator-confirmed {
+  border-radius: 999px;
+  background: #7356a8;
+  transform: none;
+}
+
+.map-legend-marker--user-reported {
+  border-style: dashed;
+  border-radius: 999px;
+  background: #a8692d;
+  transform: none;
+}
+
+.map-legend-marker--kakao-candidate,
+.map-legend-marker--search {
+  border-color: #356e85;
+  border-radius: 999px;
+  background: white;
+  transform: none;
+}
+
+.map-legend-marker--shopping {
+  background: #6d588c;
 }
 
 .kakao-map-selection {

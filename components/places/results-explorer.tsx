@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Filter, RefreshCw, Route, Rows3 } from "lucide-react";
 import { RecommendationPlanner } from "@/components/itinerary/recommendation-planner";
-import { MapPanel } from "@/components/map/map-panel";
+import { MapPanel, type MapLayerControl } from "@/components/map/map-panel";
 import { KakaoPlaceSearch } from "@/components/places/kakao-place-search";
 import { PlaceCard } from "@/components/places/place-card";
 import {
   CATALOG_PAGE_SIZE,
   deduplicateCatalogPlaces,
   getCatalogPageRange,
+  getInteractiveMapPlaceIds,
   getMapPlaces,
   getPaginatedPlaces,
 } from "@/components/places/catalog-collections";
@@ -24,9 +25,21 @@ import {
   type TourCatalogFilter,
 } from "@/lib/tour-api/catalog";
 import type { KakaoMapLocation } from "@/lib/kakao/maps";
+import {
+  PLACE_SOURCE_LAYERS,
+  createDefaultSourceLayerVisibility,
+  type SourceLayerVisibility,
+} from "@/lib/places/source-layers";
+import { createTourismSourceRecord } from "@/lib/places/source-records";
+import { BUSAN_REGION_CONFIG } from "@/lib/regions/config";
+import { deriveRegionLabel } from "@/lib/regions/label";
 import { loadPetProfile, loadTravelPreferences } from "@/lib/storage/profile-storage";
 import type { ApiResult } from "@/types/api";
-import type { KakaoPlaceSearchResult } from "@/types/kakao";
+import type {
+  KakaoCurrentMapSearch,
+  KakaoDiscoveryCandidate,
+} from "@/types/kakao";
+import type { PlaceSourceLayerId } from "@/types/place-source";
 import type { PetProfile, TravelPreferences } from "@/types/pet";
 import type { TourPlaceList, TourPlaceSummary } from "@/types/place";
 import type { GeneratedItinerary } from "@/types/route-generation";
@@ -66,6 +79,7 @@ export function ResultsExplorer({
   const [preferences, setPreferences] =
     useState<TravelPreferences>(DEFAULT_PREFERENCES);
   const [catalogPlaces, setCatalogPlaces] = useState<TourPlaceSummary[]>([]);
+  const [providerTotalCount, setProviderTotalCount] = useState(0);
   const [listState, setListState] = useState<ListState>("loading");
   const [listError, setListError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
@@ -74,10 +88,15 @@ export function ResultsExplorer({
   const [category, setCategory] = useState<TourCatalogFilter>("all");
   const [page, setPage] = useState(1);
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
-  const [selectedSearchResult, setSelectedSearchResult] =
-    useState<KakaoPlaceSearchResult | null>(null);
+  const [kakaoCandidates, setKakaoCandidates] =
+    useState<KakaoDiscoveryCandidate[]>([]);
+  const [sourceLayerVisibility, setSourceLayerVisibility] =
+    useState<SourceLayerVisibility>(createDefaultSourceLayerVisibility);
+  const [shoppingMapVisible, setShoppingMapVisible] = useState(false);
   const [selectedItinerary, setSelectedItinerary] =
     useState<GeneratedItinerary | null>(null);
+  const [currentMapSearch, setCurrentMapSearch] =
+    useState<KakaoCurrentMapSearch | null>(null);
 
   useEffect(() => {
     const savedProfile = loadPetProfile();
@@ -124,15 +143,14 @@ export function ResultsExplorer({
                 : "관광지 목록을 불러오지 못했습니다.",
           );
         }
-        if (body.data.places.length !== body.data.totalCount) {
-          throw new Error("관광지 전체 목록을 완전하게 불러오지 못했습니다.");
-        }
         setCatalogPlaces(body.data.places);
+        setProviderTotalCount(body.data.totalCount);
         setListState(body.data.totalCount > 0 ? "ready" : "empty");
         setListError("");
       } catch (loadError) {
         if (controller.signal.aborted) return;
         setCatalogPlaces([]);
+        setProviderTotalCount(0);
         setListState("unavailable");
         setListError(
           loadError instanceof Error
@@ -153,8 +171,9 @@ export function ResultsExplorer({
   const changeDistrict = useCallback(
     (nextDistrict: BusanDistrictCode | "all") => {
       setDistrictCode(nextDistrict);
+      setCurrentMapSearch(null);
       setPage(1);
-      setSelectedSearchResult(null);
+      setKakaoCandidates([]);
       invalidateSelectedRoute();
     },
     [invalidateSelectedRoute],
@@ -169,6 +188,7 @@ export function ResultsExplorer({
     [catalogPlaces],
   );
   const totalCount = filteredPlaces.length;
+  const resultSetTruncated = catalogPlaces.length < providerTotalCount;
   const totalPages = Math.max(1, Math.ceil(totalCount / CATALOG_PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const paginatedPlaces = useMemo(
@@ -182,6 +202,10 @@ export function ResultsExplorer({
       new Map(
         filteredPlaces.map((place, index) => [place.contentId, index] as const),
       ),
+    [filteredPlaces],
+  );
+  const officialSourceRecords = useMemo(
+    () => filteredPlaces.map((place) => createTourismSourceRecord(place)),
     [filteredPlaces],
   );
 
@@ -203,24 +227,49 @@ export function ResultsExplorer({
   );
 
   const catalogLocations = useMemo(() => {
-    const locations: KakaoMapLocation[] = mapPlaces.map((place) => ({
-      id: place.contentId,
-      name: place.title ?? "이름 미확인",
-      address: [place.address, place.detailAddress].filter(Boolean).join(" "),
-      coordinates: { latitude: place.latitude!, longitude: place.longitude! },
-      markerKind: "catalog",
-    }));
-    if (selectedSearchResult) {
-      locations.push({
-        id: `kakao-local:${selectedSearchResult.id}`,
-        name: selectedSearchResult.name,
-        address: selectedSearchResult.roadAddress ?? selectedSearchResult.address,
-        coordinates: selectedSearchResult.coordinates,
-        markerKind: "search",
-      });
+    const interactiveIds = getInteractiveMapPlaceIds(mapPlaces, paginatedPlaces);
+    const showOfficial =
+      sourceLayerVisibility.tourism_official &&
+      (category !== "shopping" || shoppingMapVisible);
+    const locations: KakaoMapLocation[] = showOfficial
+      ? mapPlaces.map((place) => ({
+          id: place.contentId,
+          name: place.title ?? "이름 미확인",
+          address: [place.address, place.detailAddress].filter(Boolean).join(" "),
+          coordinates: { latitude: place.latitude!, longitude: place.longitude! },
+          markerKind:
+            category === "shopping" ? ("shopping" as const) : ("tourism-official" as const),
+          markerLabel: category === "shopping" ? "쇼" : "공",
+          sourceLabel: "관광공사 공식 데이터",
+          interactive: interactiveIds.has(place.contentId),
+          clusterable: true,
+        }))
+      : [];
+    if (sourceLayerVisibility.kakao_discovery) {
+      locations.push(
+        ...kakaoCandidates.map((candidate) => ({
+          id: `kakao-local:${candidate.id}`,
+          name: candidate.name,
+          address: candidate.roadAddress ?? candidate.address,
+          coordinates: candidate.coordinates,
+          markerKind: "kakao-candidate" as const,
+          markerLabel: "?",
+          sourceLabel: "카카오 검색 후보 · 동반 여부 확인 필요",
+          interactive: true,
+          clusterable: true,
+        })),
+      );
     }
     return locations;
-  }, [mapPlaces, selectedSearchResult]);
+  }, [
+    category,
+    kakaoCandidates,
+    mapPlaces,
+    paginatedPlaces,
+    shoppingMapVisible,
+    sourceLayerVisibility.kakao_discovery,
+    sourceLayerVisibility.tourism_official,
+  ]);
 
   const routeLocations = useMemo(
     () =>
@@ -231,6 +280,7 @@ export function ResultsExplorer({
         coordinates: stop.coordinates,
         order: stop.order,
         markerKind: "itinerary" as const,
+        sourceLabel: "추천 일정 정류장",
       })),
     [selectedItinerary],
   );
@@ -239,10 +289,64 @@ export function ResultsExplorer({
     districtCode === "all"
       ? "부산 전체"
       : getBusanDistrictName(districtCode) ?? "부산 전체";
+  const mapRegionLabel =
+    districtCode === "all"
+      ? "부산 전체"
+      : deriveRegionLabel({
+          regionCode: BUSAN_REGION.code,
+          districtCode,
+        });
   const mapLocations =
     activeTab === "recommendations" ? routeLocations : catalogLocations;
   const routeCoordinates =
     activeTab === "recommendations" ? selectedItinerary?.geometry ?? [] : [];
+  const mapViewportKey =
+    activeTab === "recommendations"
+      ? `recommendation:${selectedItinerary?.id ?? "empty"}`
+      : `catalog:${districtCode}:${category}`;
+
+  const layerControls = useMemo<MapLayerControl[]>(() => {
+    const counts: Record<PlaceSourceLayerId, number> = {
+      tourism_official: mapPlaces.length,
+      business_confirmed: 0,
+      administrator_confirmed: 0,
+      user_reported: 0,
+      kakao_discovery: kakaoCandidates.length,
+    };
+    const controls: MapLayerControl[] = PLACE_SOURCE_LAYERS.map((layer) => ({
+      id: layer.id,
+      label: layer.label,
+      markerKind: layer.markerKind,
+      count: counts[layer.id],
+      visible: counts[layer.id] > 0 && sourceLayerVisibility[layer.id],
+      disabled: counts[layer.id] === 0,
+      description: layer.description,
+    }));
+    if (category === "shopping") {
+      controls.push({
+        id: "shopping",
+        label: "쇼핑(선택형)",
+        markerKind: "shopping",
+        count: mapPlaces.length,
+        visible: shoppingMapVisible,
+        disabled: mapPlaces.length === 0,
+        description: "명시적으로 쇼핑을 선택했을 때만 켜지는 지도 레이어",
+      });
+    }
+    return controls;
+  }, [category, kakaoCandidates.length, mapPlaces.length, shoppingMapVisible, sourceLayerVisibility]);
+
+  const toggleMapLayer = useCallback((id: string, visible: boolean) => {
+    if (id === "shopping") {
+      setShoppingMapVisible(visible);
+      return;
+    }
+    if (!PLACE_SOURCE_LAYERS.some((layer) => layer.id === id)) return;
+    setSourceLayerVisibility((current) => ({
+      ...current,
+      [id as PlaceSourceLayerId]: visible,
+    }));
+  }, []);
 
   useEffect(() => {
     if (
@@ -329,8 +433,14 @@ export function ResultsExplorer({
           <MapPanel
             locations={mapLocations}
             routeCoordinates={routeCoordinates}
+            viewportKey={mapViewportKey}
+            layerControls={activeTab === "catalog" ? layerControls : []}
+            onLayerToggle={toggleMapLayer}
             selectedLocationId={selectedLocationId}
             onLocationSelect={selectMapLocation}
+            onCurrentMapSearch={
+              activeTab === "catalog" ? setCurrentMapSearch : undefined
+            }
             title={
               activeTab === "recommendations"
                 ? `${selectedItinerary?.title ?? districtName} 추천 경로 지도`
@@ -339,7 +449,7 @@ export function ResultsExplorer({
             locationLabel={
               activeTab === "recommendations" && selectedItinerary
                 ? `${selectedItinerary.title} · ${selectedItinerary.stops.length}곳`
-                : districtName
+                : mapRegionLabel
             }
           />
           <p className="mt-3 px-1 text-xs font-semibold leading-5 text-[#6c7b73]">
@@ -347,7 +457,9 @@ export function ResultsExplorer({
               ? selectedItinerary
                 ? "선택한 실제 경로의 정류장과 카카오 폴리라인만 표시합니다. 번호는 방문 순서입니다."
                 : "조건을 제출하면 선택한 실제 경로만 이 지도에 표시됩니다."
-              : `현재 필터의 좌표 확인 장소 ${mapPlaces.length}곳을 모두 표시합니다. 목록 페이지를 바꿔도 지도 범위는 유지됩니다.`}
+              : category === "shopping"
+                ? `쇼핑 ${mapPlaces.length}곳은 클러스터로 표시하고, 현재 12개 카드에 해당하는 마커만 개별 DOM 상호작용 요소로 렌더링합니다.`
+                : `현재 필터의 좌표 확인 장소 ${mapPlaces.length}곳을 모두 표시합니다. 목록 페이지를 바꿔도 지도 범위는 유지됩니다.`}
           </p>
         </div>
 
@@ -359,10 +471,20 @@ export function ResultsExplorer({
           className="min-w-0"
         >
           <KakaoPlaceSearch
+            regionId={BUSAN_REGION_CONFIG.id}
+            districtCode={districtCode === "all" ? undefined : districtCode}
+            currentMapSearch={currentMapSearch}
             selectedId={selectedLocationId}
+            officialSources={officialSourceRecords}
+            showCandidatesOnMap={sourceLayerVisibility.kakao_discovery}
+            onCandidateLayerChange={(visible) =>
+              toggleMapLayer("kakao_discovery", visible)
+            }
+            onCandidatesChange={setKakaoCandidates}
+            onConfiguredAreaSearch={() => setCurrentMapSearch(null)}
             onSelect={(result) => {
               const id = `kakao-local:${result.id}`;
-              setSelectedSearchResult(result);
+              toggleMapLayer("kakao_discovery", true);
               setSelectedLocationId(id);
             }}
           />
@@ -371,7 +493,7 @@ export function ResultsExplorer({
             <div className="min-w-0">
               <p className="eyebrow">{districtName} 실시간 관광 데이터</p>
               <h2 className="mt-1 text-2xl font-black tracking-[-0.04em]">
-                장소 {totalCount}곳
+                장소 {providerTotalCount}곳
               </h2>
               <div
                 className="mt-3 flex max-w-full flex-wrap gap-2 text-[11px] font-extrabold text-[#52665b]"
@@ -379,13 +501,18 @@ export function ResultsExplorer({
                 aria-label="관광 장소 표시 개수"
               >
                 <span className="rounded-full border border-[#cfd9d3] bg-white px-3 py-1.5">
-                  전체 {totalCount}곳
+                  제공자 전체 {providerTotalCount}곳
                 </span>
+                {resultSetTruncated ? (
+                  <span className="rounded-full bg-[#fff8f1] px-3 py-1.5 text-[#76542f]">
+                    불러온 결과 {totalCount}곳 · 일부만 표시
+                  </span>
+                ) : null}
                 <span className="rounded-full border border-[#cfd9d3] bg-white px-3 py-1.5">
                   현재 목록 {pageRange.start}–{pageRange.end}곳
                 </span>
                 <span className="rounded-full bg-[#edf8f2] px-3 py-1.5 text-[#236148]">
-                  지도 {mapPlaces.length}곳 표시
+                  지도 {catalogLocations.length}곳 표시
                 </span>
               </div>
             </div>
@@ -425,8 +552,8 @@ export function ResultsExplorer({
                 aria-pressed={category === option.value}
                 onClick={() => {
                   setCategory(option.value);
+                  setShoppingMapVisible(option.value === "shopping");
                   setPage(1);
-                  setSelectedSearchResult(null);
                   setSelectedLocationId(null);
                 }}
                 className={`min-h-10 shrink-0 rounded-full border px-4 text-xs font-extrabold ${
@@ -439,6 +566,20 @@ export function ResultsExplorer({
               </button>
             ))}
           </div>
+
+          {category === "shopping" ? (
+            <div className="mb-4 rounded-2xl border border-[#ddd2e8] bg-[#f7f2fb] p-4 text-sm text-[#5e4d74]" role="status">
+              <p className="font-extrabold">쇼핑은 선택형 카테고리입니다.</p>
+              <p className="mt-1 text-xs font-semibold leading-5">
+                기본 전체 목록·기본 지도·자동 추천에는 포함되지 않습니다. 현재 선택으로만 {providerTotalCount}곳을 12개 카드씩 불러오며, 지도는 클러스터를 사용합니다.
+              </p>
+              {resultSetTruncated ? (
+                <p className="mt-2 text-xs font-extrabold text-[#76542f]">
+                  제공자 총계 중 {totalCount}곳만 반환되어 결과가 잘렸습니다.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           {listState === "loading" ? (
             <div className="surface-card p-8 text-center" role="status">

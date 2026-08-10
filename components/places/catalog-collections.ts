@@ -1,6 +1,7 @@
 import type { TourPlaceSummary } from "@/types/place";
 
 export const CATALOG_PAGE_SIZE = 12;
+export const MAX_INTERACTIVE_MAP_MARKERS = 120;
 
 export function deduplicateCatalogPlaces(
   places: TourPlaceSummary[],
@@ -31,6 +32,16 @@ export function getMapPlaces(
   places: TourPlaceSummary[],
 ): TourPlaceSummary[] {
   return deduplicateCatalogPlaces(places).filter(hasValidCatalogCoordinates);
+}
+
+export function getInteractiveMapPlaceIds(
+  mapPlaces: TourPlaceSummary[],
+  currentPagePlaces: TourPlaceSummary[],
+  maximum = MAX_INTERACTIVE_MAP_MARKERS,
+): Set<string> {
+  const interactivePlaces =
+    mapPlaces.length > maximum ? currentPagePlaces : mapPlaces;
+  return new Set(interactivePlaces.map(({ contentId }) => contentId));
 }
 
 export function getPaginatedPlaces(

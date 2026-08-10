@@ -16,7 +16,10 @@ import { MapPanel } from "@/components/map/map-panel";
 import { PlaceImage } from "@/components/places/place-image";
 import { LicenseInformationPanel } from "@/components/places/license-information-panel";
 import { PetAccessAssessmentPanel } from "@/components/places/pet-access-assessment-panel";
+import { SourceTrustPanel } from "@/components/places/source-trust-panel";
+import { InformationReportDraftPanel } from "@/components/places/information-report-draft-panel";
 import { TOUR_CATEGORY_LABELS } from "@/lib/shared/format";
+import { deriveRegionLabel } from "@/lib/regions/label";
 import type { ApiResult } from "@/types/api";
 import type { TourPlaceDetailResponse } from "@/types/place";
 
@@ -117,6 +120,12 @@ export function LivePlaceDetail({
   const unavailableSections = Object.values(detail.sections).filter(
     (section) => section.status !== "available",
   );
+  const regionLabel = deriveRegionLabel({
+    regionCode: detail.summary.legalRegionCode,
+    districtCode: detail.summary.legalDistrictCode,
+    roadAddress: detail.summary.address,
+    lotNumberAddress: detail.summary.detailAddress,
+  });
 
   return (
     <div className="page-shell py-8 sm:py-12">
@@ -191,8 +200,13 @@ export function LivePlaceDetail({
         </div>
 
         <div className="space-y-5">
+          <SourceTrustPanel sourceRecords={detail.sourceRecords} trust={detail.trust} />
           <PetAccessAssessmentPanel assessment={detail.petAccessAssessment} />
           <LicenseInformationPanel licensing={detail.licensing} />
+          <InformationReportDraftPanel
+            placeName={title}
+            providerIds={detail.sourceRecords.flatMap(({ providerIds }) => providerIds)}
+          />
         </div>
       </div>
 
@@ -201,13 +215,15 @@ export function LivePlaceDetail({
           <MapPanel
             compact
             title={`${title} 위치`}
+            locationLabel={regionLabel}
             locations={[
               {
                 id: detail.summary.contentId,
                 name: title,
                 address,
                 coordinates,
-                order: 1,
+                markerKind: "tourism-official",
+                sourceLabel: "관광공사 공식 데이터",
               },
             ]}
           />

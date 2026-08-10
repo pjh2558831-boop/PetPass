@@ -48,7 +48,7 @@ export function PlaceCard({
               {TOUR_CATEGORY_LABELS[place.category]}
             </span>
             <span className="rounded-full bg-[#edf8f2] px-2.5 py-1 text-[11px] font-extrabold text-[#236148]">
-              한국관광공사 실시간 정보
+              관광공사 공식 데이터
             </span>
           </div>
           <h3 className="mt-3 text-lg font-black tracking-[-0.03em]">{title}</h3>

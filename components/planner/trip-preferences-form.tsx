@@ -9,6 +9,7 @@ import {
   BUSAN_REGION,
   isBusanDistrictCode,
 } from "@/lib/tour-api/catalog";
+import { getEnabledRegionConfigs } from "@/lib/regions/config";
 import {
   loadTravelPreferences,
   saveTravelPreferences,
@@ -30,6 +31,8 @@ const categories = [
   { value: "CAFE" as const, label: "카페", icon: Coffee },
   { value: "ACCOMMODATION" as const, label: "숙소", icon: BedDouble },
 ];
+
+const ENABLED_REGIONS = getEnabledRegionConfigs();
 
 export function TripPreferencesForm() {
   const router = useRouter();
@@ -97,20 +100,26 @@ export function TripPreferencesForm() {
             id="region"
             value={preferences.regionCode}
             onChange={(event) => {
+              const region = ENABLED_REGIONS.find(
+                ({ tourismAreaCode }) =>
+                  tourismAreaCode === event.target.value,
+              );
+              if (!region) return;
               setPreferences((current) => ({
                 ...current,
-                regionCode: event.target.value,
-                regionName: BUSAN_REGION.name,
+                regionCode: region.tourismAreaCode,
+                regionName: region.displayName,
                 districtCode: undefined,
                 districtName: undefined,
               }));
             }}
             className="min-h-12 w-full rounded-2xl border border-[#cfd9d3] bg-white px-4 font-semibold"
           >
-            <option value={BUSAN_REGION.code}>부산</option>
-            <option value="39" disabled>
-              제주 · 다음 단계에서 지원
-            </option>
+            {ENABLED_REGIONS.map((region) => (
+              <option key={region.id} value={region.tourismAreaCode}>
+                {region.displayName}
+              </option>
+            ))}
           </select>
         </div>
         <div>

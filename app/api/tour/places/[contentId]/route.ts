@@ -15,6 +15,8 @@ import {
   getDefaultTourService,
   type TourPlaceService,
 } from "@/lib/tour-api/service";
+import { createTourismSourceRecord } from "@/lib/places/source-records";
+import { computePlaceTrust } from "@/lib/trust/calculator";
 import { TOUR_CONTENT_TYPE_IDS } from "@/types/place";
 import {
   createUnavailableLicenseResult,
@@ -72,9 +74,10 @@ export function createTourPlaceDetailHandler(
         contentIdResult.data,
         contentTypeIdResult.data,
       );
+      const computedAt = now().toISOString();
       const petAccessAssessment = attachTourPetAccessEvaluationTime(
         evaluateTourPetAccess(createTrustedTourPetAccessInput(tourismDetail)),
-        now().toISOString(),
+        computedAt,
       );
       let licensing;
       try {
@@ -89,10 +92,30 @@ export function createTourPlaceDetailHandler(
             : "food",
         );
       }
+      const sourceRecords = [
+        createTourismSourceRecord(
+          tourismDetail.summary,
+          petAccessAssessment.evidence.length > 0
+            ? `반려동물 원문 근거 ${petAccessAssessment.evidence.length}건`
+            : "반려동물 원문 근거 미확인",
+        ),
+      ];
+      const trust = computePlaceTrust({
+        computedAt,
+        hasAnySource: true,
+        tourism: {
+          hasPetSpecificEvidence: petAccessAssessment.evidence.length > 0,
+          retrievedAt: tourismDetail.source.retrievedAt,
+        },
+        sourceConflictCount: petAccessAssessment.conflicts.length,
+        licensingOperatingState: licensing.operatingState,
+      });
       const data = {
         ...tourismDetail,
         petAccessAssessment,
         licensing,
+        sourceRecords,
+        trust,
         sections: {
           ...tourismDetail.sections,
           licensing: licensing.section,

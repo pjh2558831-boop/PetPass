@@ -39,9 +39,22 @@ address documents with address text, longitude, and latitude.
 
 ## `GET /api/kakao/local/search`
 
-Query: `query`, with optional bounded `page` and `size`. The server adds the
-Haeundae search center and radius. Results are normalized to application place
-objects and cached briefly at the CDN boundary.
+Query: `query`, with optional bounded `page`, `size`, enabled `regionId`,
+`districtCode`, and explicit current-map parameters. The server uses the
+region-aware bounded search plan and keeps REST credentials server-only.
+
+Every result is returned as a `discovery_candidate` with
+`verification_required`, a preserved Kakao provider ID/source record, and a
+versioned low-baseline trust result. The response never adds `allowed`,
+`conditional`, or `not_allowed`. It also reports the active area and whether
+the bounded Kakao result was truncated.
+
+## `GET /api/tour/places/[contentId]`
+
+The validated Tourism detail includes the unchanged deterministic pet-access
+assessment, separate licensing enrichment, provider source records, and a
+versioned information-trust result. Trust components are diagnostic evidence
+weights, not probabilities and not inputs to the pet-access verdict.
 
 ## `GET /api/kakao/local/geocode`
 
