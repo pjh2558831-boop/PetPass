@@ -1,0 +1,10 @@
+.git/
+.env
+.env.local
+.env.*.local
+.env*
+!.env.example
+coverage/
+playwright-report/
+test-results/
+verification-evidence/
