@@ -22,11 +22,12 @@ const keywordResponseSchema = z.object({
       id: z.string(),
       place_name: z.string(),
       category_name: z.string(),
+      category_group_code: z.string().optional().default(""),
       phone: z.string(),
       address_name: z.string(),
       road_address_name: z.string(),
       place_url: z.string(),
-      distance: z.string(),
+      distance: z.string().optional().default(""),
       x: z.string(),
       y: z.string(),
     }),
@@ -51,9 +52,18 @@ const addressResponseSchema = z.object({
   ),
 });
 
-interface KakaoLocalRequestOptions {
+export interface KakaoLocalRequestOptions {
   apiKey?: string;
   fetchImpl?: typeof fetch;
+}
+
+export interface KakaoKeywordSearchInput {
+  query: string;
+  page: number;
+  size: number;
+  categoryGroupCode?: string;
+  rectangle?: { west: number; south: number; east: number; north: number };
+  center?: { longitude: number; latitude: number; radiusMeters: number };
 }
 
 function optionalText(value: string): string | undefined {
@@ -106,30 +116,34 @@ async function requestKakaoLocal(
 }
 
 export async function searchKakaoPlaces(
-  input: {
-    query: string;
-    page: number;
-    size: number;
-    center?: { longitude: number; latitude: number; radiusMeters: number };
-  },
+  input: KakaoKeywordSearchInput,
   options: KakaoLocalRequestOptions = {},
 ): Promise<KakaoPlaceSearchResult[]> {
   return (await searchKakaoPlacePage(input, options)).results;
 }
 
 export async function searchKakaoPlacePage(
-  input: {
-    query: string;
-    page: number;
-    size: number;
-    center?: { longitude: number; latitude: number; radiusMeters: number };
-  },
+  input: KakaoKeywordSearchInput,
   options: KakaoLocalRequestOptions = {},
 ): Promise<KakaoPlaceSearchPage> {
   const url = new URL("https://dapi.kakao.com/v2/local/search/keyword.json");
   url.searchParams.set("query", input.query);
   url.searchParams.set("page", String(input.page));
   url.searchParams.set("size", String(input.size));
+  if (input.categoryGroupCode) {
+    url.searchParams.set("category_group_code", input.categoryGroupCode);
+  }
+  if (input.rectangle) {
+    url.searchParams.set(
+      "rect",
+      [
+        input.rectangle.west,
+        input.rectangle.south,
+        input.rectangle.east,
+        input.rectangle.north,
+      ].join(","),
+    );
+  }
   if (input.center) {
     url.searchParams.set("x", String(input.center.longitude));
     url.searchParams.set("y", String(input.center.latitude));
@@ -151,6 +165,7 @@ export async function searchKakaoPlacePage(
       address: document.address_name,
       roadAddress: optionalText(document.road_address_name),
       categoryName: optionalText(document.category_name),
+      categoryGroupCode: optionalText(document.category_group_code),
       phone: optionalText(document.phone),
       placeUrl: optionalText(document.place_url),
       distanceMeters: optionalText(document.distance)

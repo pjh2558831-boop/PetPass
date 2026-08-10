@@ -140,3 +140,22 @@ export function normalizeItineraryRequest(
     includeShopping: input.includeShopping,
   };
 }
+
+export function getItineraryGenerationRequestKey(
+  request: NormalizedItineraryRequest,
+): string {
+  return JSON.stringify({
+    version: "1",
+    scope: request.scope,
+    start: request.start,
+    travelDate: request.travelDate,
+    startTime: request.startTime,
+    planningMode: request.planningMode,
+    desiredDurationMinutes: request.desiredDurationMinutes,
+    desiredStopCount: request.desiredStopCount,
+    petSize: request.petSize,
+    indoorAccessPreference: request.indoorAccessPreference,
+    selectedCategories: [...request.selectedCategories].sort(),
+    includeShopping: request.includeShopping,
+  });
+}

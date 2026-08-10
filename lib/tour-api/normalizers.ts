@@ -199,6 +199,8 @@ export function normalizeTourPlaceSummaries(
 
 export interface NormalizedTourIntroDetails {
   operatingInformation: string | null;
+  checkInTime: string | null;
+  checkOutTime: string | null;
   restDayInformation: string | null;
   parkingInformation: string | null;
   reservationInformation: string | null;
@@ -227,10 +229,10 @@ export function normalizeTourIntroDetails(
       "usetimeleports",
       "opentime",
       "opentimefood",
-      "checkintime",
-      "checkouttime",
       "playtime",
     ]),
+    checkInTime: firstText(item, ["checkintime"]),
+    checkOutTime: firstText(item, ["checkouttime"]),
     restDayInformation: firstText(item, [
       "restdate",
       "restdateculture",

@@ -426,7 +426,23 @@ export function createKakaoMapController(
         latitude: center.getLat(),
         longitude: center.getLng(),
       };
-      if (!isValidMapCoordinates(centerCoordinates)) return null;
+      const northEastCoordinates = {
+        latitude: northEast.getLat(),
+        longitude: northEast.getLng(),
+      };
+      const southWestCoordinates = {
+        latitude: southWest.getLat(),
+        longitude: southWest.getLng(),
+      };
+      if (
+        !isValidMapCoordinates(centerCoordinates) ||
+        !isValidMapCoordinates(northEastCoordinates) ||
+        !isValidMapCoordinates(southWestCoordinates) ||
+        southWestCoordinates.longitude >= northEastCoordinates.longitude ||
+        southWestCoordinates.latitude >= northEastCoordinates.latitude
+      ) {
+        return null;
+      }
       const radiusMeters = Math.min(
         KAKAO_CURRENT_MAP_MAX_RADIUS_METERS,
         Math.max(
@@ -445,7 +461,16 @@ export function createKakaoMapController(
           ),
         ),
       );
-      return { center: centerCoordinates, radiusMeters };
+      return {
+        center: centerCoordinates,
+        radiusMeters,
+        rectangle: {
+          west: southWestCoordinates.longitude,
+          south: southWestCoordinates.latitude,
+          east: northEastCoordinates.longitude,
+          north: northEastCoordinates.latitude,
+        },
+      };
     },
 
     relayout() {

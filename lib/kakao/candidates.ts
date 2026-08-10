@@ -1,23 +1,29 @@
-import { createKakaoSourceRecord } from "@/lib/places/source-records";
-import { computePlaceTrust } from "@/lib/trust/calculator";
 import type {
+  KakaoDiscoveryCategory,
   KakaoDiscoveryCandidate,
+  KakaoDiscoveryExactExistingPlaceLink,
   KakaoPlaceSearchResult,
 } from "@/types/kakao";
 
 export function createKakaoDiscoveryCandidate(
   result: KakaoPlaceSearchResult,
-  retrievedAt: string,
+  category: KakaoDiscoveryCategory,
+  exactExistingPlaceLink?: KakaoDiscoveryExactExistingPlaceLink,
 ): KakaoDiscoveryCandidate {
   return {
-    ...result,
+    id: result.id,
+    name: result.name,
+    category,
+    kakaoCategoryText: result.categoryName ?? "",
+    address: result.roadAddress ?? result.address,
+    coordinates: result.coordinates,
+    ...(result.phone ? { phone: result.phone } : {}),
+    ...(result.placeUrl ? { placeUrl: result.placeUrl } : {}),
+    source: "KAKAO",
     candidateStatus: "discovery_candidate",
     verificationStatus: "verification_required",
-    sourceRecord: createKakaoSourceRecord(result, retrievedAt),
-    trust: computePlaceTrust({
-      computedAt: retrievedAt,
-      hasAnySource: true,
-      kakaoDiscoveryOnly: true,
-    }),
+    petAccessVerdict: "unknown",
+    recommendationEligible: false,
+    ...(exactExistingPlaceLink ? { exactExistingPlaceLink } : {}),
   };
 }

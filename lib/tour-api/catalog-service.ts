@@ -23,9 +23,14 @@ export interface TourCatalogQuery {
   pageSize: number;
 }
 
+export type TourCatalogCollectionQuery = Omit<
+  TourCatalogQuery,
+  "page" | "pageSize"
+>;
+
 async function collectContentType(
   service: TourPlaceService,
-  query: TourCatalogQuery,
+  query: TourCatalogCollectionQuery,
   contentTypeId: TourContentTypeId,
 ): Promise<TourPlaceList[]> {
   const providerQuery = {
@@ -78,6 +83,21 @@ export async function listTourCatalog(
   service: TourPlaceService,
   query: TourCatalogQuery,
 ): Promise<TourPlaceList> {
+  const collection = await collectTourCatalog(service, query);
+  const offset = (query.page - 1) * query.pageSize;
+
+  return {
+    ...collection,
+    places: collection.places.slice(offset, offset + query.pageSize),
+    page: query.page,
+    pageSize: query.pageSize,
+  };
+}
+
+export async function collectTourCatalog(
+  service: TourPlaceService,
+  query: TourCatalogCollectionQuery,
+): Promise<TourPlaceList> {
   const contentTypeIds = query.contentTypeId
     ? [query.contentTypeId]
     : [...TOUR_DEFAULT_CATALOG_CONTENT_TYPE_IDS];
@@ -90,7 +110,6 @@ export async function listTourCatalog(
   const allPlaces = deduplicateAndSort(
     lists.flatMap(({ places }) => places),
   );
-  const offset = (query.page - 1) * query.pageSize;
   const retrievedAt = lists.reduce(
     (latest, list) =>
       list.source.retrievedAt > latest ? list.source.retrievedAt : latest,
@@ -98,9 +117,9 @@ export async function listTourCatalog(
   );
 
   return {
-    places: allPlaces.slice(offset, offset + query.pageSize),
-    page: query.page,
-    pageSize: query.pageSize,
+    places: allPlaces,
+    page: 1,
+    pageSize: allPlaces.length,
     totalCount: allPlaces.length,
     source: {
       provider: "Korea Tourism Organization",

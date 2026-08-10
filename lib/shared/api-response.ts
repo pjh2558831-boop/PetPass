@@ -27,7 +27,10 @@ export function apiFailure(
   return Response.json(result, { status, headers });
 }
 
-export function providerErrorResponse(error: unknown): Response {
+export function providerErrorResponse(
+  error: unknown,
+  headers?: HeadersInit,
+): Response {
   if (error instanceof ConfigurationRequiredError) {
     return apiFailure(
       {
@@ -36,6 +39,7 @@ export function providerErrorResponse(error: unknown): Response {
         retryable: false,
       },
       503,
+      headers,
     );
   }
 
@@ -47,6 +51,7 @@ export function providerErrorResponse(error: unknown): Response {
         retryable: true,
       },
       502,
+      headers,
     );
   }
 
@@ -57,5 +62,6 @@ export function providerErrorResponse(error: unknown): Response {
       retryable: true,
     },
     502,
+    headers,
   );
 }

@@ -169,17 +169,3 @@ export function getDefaultTourApiClient(): TourApiClient {
   defaultClient ??= new TourApiClient();
   return defaultClient;
 }
-
-export async function requestTourOperation(
-  operation: string,
-  params: Record<string, string>,
-): Promise<ParsedTourResponse> {
-  if (!IMPLEMENTED_OPERATIONS.has(operation as TourOperationName)) {
-    throw new TourProviderError(
-      "INVALID_OPERATION",
-      "지원하지 않는 한국관광공사 API 작업입니다.",
-      { operation },
-    );
-  }
-  return getDefaultTourApiClient().request(operation as TourOperationName, params);
-}
