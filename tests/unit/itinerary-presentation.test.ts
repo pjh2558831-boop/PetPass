@@ -383,7 +383,7 @@ describe("itinerary presentation", () => {
         ...kakaoStop,
         placeUrl: "http://place.map.kakao.com/2",
       }),
-    ).toBeNull();
+    ).toBe("https://place.map.kakao.com/2");
     for (const unsafeUrl of [
       "javascript:alert(1)",
       "data:text/html,unsafe",
