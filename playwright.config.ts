@@ -17,6 +17,8 @@ export default defineConfig({
     env: {
       ...process.env,
       PETPASS_E2E_UPSTREAM_MOCK: "1",
+      NEXT_PUBLIC_KAKAO_MAP_JS_KEY: "e2e-test-key",
+      KAKAO_REST_API_KEY: "e2e-test-key",
       TOUR_API_SERVICE_KEY: "e2e-test-key",
       TOUR_API_BASE_URL:
         "https://apis.data.go.kr/B551011/KorPetTourService2",

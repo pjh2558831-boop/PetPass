@@ -504,7 +504,10 @@ describe("bounded request-driven itinerary generation", () => {
   });
 
   it("allows qualified shopping only when explicitly enabled", async () => {
-    const places = [makeSummary("s1", "38"), makeSummary("s2", "38")];
+    const places = [
+      makeSummary("s1", "38", { title: "부산 전통시장" }),
+      makeSummary("s2", "38", { title: "지역 특산물 체험시장" }),
+    ];
     const result = await generateItineraries(
       makeRequest({
         selectedCategories: ["shopping"],
@@ -719,12 +722,12 @@ describe("bounded request-driven itinerary generation", () => {
 
   it("ranks the complete matching catalog before applying the 80 and 12 limits", async () => {
     const farPlaces = Array.from({ length: 99 }, (_, index) =>
-      makeSummary(`far-${String(index).padStart(3, "0")}`, "38", {
-        latitude: 36 + index / 10_000,
-        longitude: 130 + index / 10_000,
+      makeSummary(`far-${String(index).padStart(3, "0")}`, "12", {
+        latitude: 35.3 + index / 100_000,
+        longitude: 129.2 + index / 100_000,
       }),
     );
-    const nearest = makeSummary("zz-nearest", "38", {
+    const nearest = makeSummary("zz-nearest", "12", {
       latitude: 35.1001,
       longitude: 129.0001,
     });
@@ -732,8 +735,7 @@ describe("bounded request-driven itinerary generation", () => {
     const result = await generateItineraries(
       makeRequest({
         planning: { desiredStopCount: 1 },
-        selectedCategories: ["shopping"],
-        includeShopping: true,
+        selectedCategories: ["attraction"],
       }),
       { tourService: service, directions: mockDirections },
     );
@@ -939,9 +941,9 @@ describe("bounded request-driven itinerary generation", () => {
       { tourService: new MockTourService(createSupply()), directions: mockDirections },
     );
     expect(result.itineraries.map(({ profile }) => profile)).toEqual([
-      "minimum_travel",
-      "balanced_tour_food",
-      "walk_leisure",
+      "preference_balanced",
+      "minimum_movement",
+      "discovery",
     ]);
     const sets = result.itineraries.map(({ stops }) =>
       new Set(stops.map(({ contentId }) => contentId)),
@@ -1032,5 +1034,381 @@ describe("itinerary generation Route Handler", () => {
     expect(service.listQueries.length).toBeGreaterThan(0);
     expect(service.detailIds).toEqual(["api1", "api2"]);
     expect(directionsCalls).toBe(1);
+  });
+});
+
+describe("Phase 2 recommendation regressions", () => {
+  it.each([
+    ["bedding shop", "부산 침구 할인매장", "38"],
+    ["furniture shop", "센텀 가구 아울렛", "38"],
+    ["wedding goods", "웨딩 혼수 전문점", "38"],
+    ["optical shop", "해운대 안경원", "38"],
+    ["beauty service", "광안리 미용실", "38"],
+    ["department tenant", "백화점 7층 생활잡화", "38"],
+    ["generic retail", "부산 종합 소매점", "38"],
+    ["pet supplies", "반려동물 용품 전문점", "38"],
+    ["pharmacy", "부산 시민약국", "12"],
+    ["clinic", "해운대 동물병원", "12"],
+    ["bank", "부산 지역은행", "12"],
+    ["repair", "광안 자동차 수리센터", "12"],
+    ["logistics", "부산 물류 배송센터", "12"],
+    ["office", "센텀 기업 사무실", "12"],
+    ["academy", "해운대 입시학원", "12"],
+    ["industrial", "부산 산업 공장", "12"],
+  ] as const)("hard-excludes a non-travel %s", async (_label, title, type) => {
+    const place = makeSummary(`blocked-${type}`, type, { title });
+    const result = await generateItineraries(
+      makeRequest({
+        planning: { desiredStopCount: 1 },
+        selectedCategories: [TYPE_CATEGORY[type]],
+        includeShopping: type === "38",
+      }),
+      {
+        tourService: new MockTourService([place]),
+        directions: mockDirections,
+      },
+    );
+
+    expect(result.itineraries).toEqual([]);
+  });
+
+  it("allows only positively identified travel shopping after opt-in", async () => {
+    const generic = makeSummary("shop-near", "38", {
+      title: "센텀 생활잡화 매장",
+      latitude: 35.101,
+      longitude: 129.001,
+    });
+    const market = makeSummary("market-far", "38", {
+      title: "부산 전통시장 문화체험",
+      latitude: 35.15,
+      longitude: 129.05,
+    });
+    const result = await generateItineraries(
+      makeRequest({
+        planning: { desiredStopCount: 1 },
+        selectedCategories: ["shopping"],
+        includeShopping: true,
+      }),
+      {
+        tourService: new MockTourService([generic, market]),
+        directions: mockDirections,
+      },
+    );
+
+    expect(result.itineraries[0]?.stops[0]?.contentId).toBe("market-far");
+  });
+
+  it("uses a role-aware detailed shortlist instead of the nearest twelve only", async () => {
+    const attractions = Array.from({ length: 12 }, (_, index) =>
+      makeSummary(`near-${index + 1}`, "12", {
+        latitude: 35.101 + index / 10_000,
+        longitude: 129.001 + index / 10_000,
+      }),
+    );
+    const leisure = makeSummary("far-leisure", "28", {
+      title: "부산 해안 산책로",
+      latitude: 35.18,
+      longitude: 129.08,
+    });
+    const food = makeSummary("far-food", "39", {
+      title: "부산 향토 음식점",
+      latitude: 35.19,
+      longitude: 129.09,
+    });
+    const service = new MockTourService([...attractions, leisure, food]);
+
+    await generateItineraries(
+      makeRequest({
+        planning: { desiredStopCount: 3 },
+        selectedCategories: ["attraction", "leisure", "food"],
+      }),
+      { tourService: service, directions: mockDirections },
+    );
+
+    expect(service.detailIds).toContain("far-leisure");
+    expect(service.detailIds).toContain("far-food");
+  });
+
+  it.each([
+    ["hasCarrier", "반려동물 동반 가능, 이동장 사용 필수"],
+    ["hasLeash", "반려동물 동반 가능, 목줄 착용 필수"],
+    ["hasMuzzle", "반려동물 동반 가능, 입마개 착용 필수"],
+  ] as const)("excludes a known %s equipment mismatch", async (field, policyText) => {
+    const place = makeSummary(`equipment-${field}`);
+    const details = new Map([
+      [place.contentId, makeDetail(place, "conditional", { petPolicyText: policyText })],
+    ]);
+    const request = Object.assign(
+      makeRequest({ planning: { desiredStopCount: 1 } }),
+      {
+        petEquipment: {
+          hasCarrier: true,
+          hasLeash: true,
+          hasMuzzle: true,
+          [field]: false,
+        },
+      },
+    );
+    const result = await generateItineraries(request, {
+      tourService: new MockTourService([place], details),
+      directions: mockDirections,
+    });
+
+    expect(result.itineraries).toEqual([]);
+  });
+
+  it("does not schedule accommodation before a supported check-in time", async () => {
+    const stay = makeSummary("stay-check-in", "32", {
+      title: "부산 반려동물 숙소",
+      latitude: 35.101,
+      longitude: 129.001,
+    });
+    const detail = {
+      ...makeDetail(stay),
+      checkInTime: "15:00",
+      checkOutTime: "11:00",
+    };
+    const result = await generateItineraries(
+      makeRequest({
+        planning: { desiredStopCount: 1 },
+        startTime: "10:00",
+        selectedCategories: ["accommodation"],
+      }),
+      {
+        tourService: new MockTourService(
+          [stay],
+          new Map([[stay.contentId, detail]]),
+        ),
+        directions: mockDirections,
+      },
+    );
+
+    expect(result.itineraries[0]?.stops[0]?.plannedArrival).toBe("15:00");
+  });
+
+  it("canonicalizes category order for the same generation seed", async () => {
+    const places = createSupply();
+    const service = () => new MockTourService(places);
+    const leftRequest = Object.assign(
+      makeRequest({
+        planning: { desiredStopCount: 3 },
+        selectedCategories: ["attraction", "leisure", "food"],
+      }),
+      { generationSeed: "same-seed" },
+    );
+    const rightRequest = Object.assign(
+      makeRequest({
+        planning: { desiredStopCount: 3 },
+        selectedCategories: ["food", "attraction", "leisure"],
+      }),
+      { generationSeed: "same-seed" },
+    );
+    const [left, right] = await Promise.all([
+      generateItineraries(leftRequest, {
+        tourService: service(),
+        directions: mockDirections,
+      }),
+      generateItineraries(rightRequest, {
+        tourService: service(),
+        directions: mockDirections,
+      }),
+    ]);
+    const signatures = (value: typeof left) =>
+      value.itineraries.map(({ stops }) =>
+        stops.map(({ contentId }) => contentId).join(">"),
+      );
+
+    expect(signatures(left)).toEqual(signatures(right));
+  });
+
+  it("uses a new seed and recent signatures to produce a true reroll", async () => {
+    const places = createSupply();
+    const first = await generateItineraries(
+      Object.assign(
+        makeRequest({
+          planning: { desiredStopCount: 3 },
+          selectedCategories: ["attraction", "leisure", "food"],
+        }),
+        { generationSeed: "seed-one" },
+      ),
+      { tourService: new MockTourService(places), directions: mockDirections },
+    );
+    const recentRouteSignatures = first.itineraries.map(({ stops }) =>
+      stops.map(({ contentId }) => contentId).join(">"),
+    );
+    const rerolled = await generateItineraries(
+      Object.assign(
+        makeRequest({
+          planning: { desiredStopCount: 3 },
+          selectedCategories: ["attraction", "leisure", "food"],
+        }),
+        { generationSeed: "seed-two", recentRouteSignatures },
+      ),
+      { tourService: new MockTourService(places), directions: mockDirections },
+    );
+    const rerolledSignatures = rerolled.itineraries.map(({ stops }) =>
+      stops.map(({ contentId }) => contentId).join(">"),
+    );
+
+    expect(rerolledSignatures.every((signature) =>
+      !recentRouteSignatures.includes(signature),
+    )).toBe(true);
+  });
+
+  it("returns deterministic place and route score components", async () => {
+    const places = createSupply();
+    const result = await generateItineraries(
+      makeRequest({
+        planning: { desiredStopCount: 3 },
+        selectedCategories: ["attraction", "leisure", "food"],
+      }),
+      { tourService: new MockTourService(places), directions: mockDirections },
+    );
+    const itinerary = result.itineraries[0] as unknown as {
+      routeScore?: { total: number; components: Record<string, number> };
+      signature?: string;
+      stops: Array<{ placeScore?: { total: number; components: Record<string, number> } }>;
+    };
+
+    expect(itinerary.signature).toMatch(/^tour:/u);
+    expect(itinerary.routeScore?.total).toBeGreaterThan(0);
+    expect(itinerary.routeScore?.components).toMatchObject({
+      travelTimePenalty: expect.any(Number),
+      backtrackingPenalty: expect.any(Number),
+      repeatedCategoryPenalty: expect.any(Number),
+    });
+    expect(itinerary.stops.every(({ placeScore }) =>
+      typeof placeScore?.total === "number",
+    )).toBe(true);
+  });
+
+  it("allows at most one unknown Kakao-only stop in the discovery strategy", async () => {
+    const places = createSupply();
+    const dependencies = {
+      tourService: new MockTourService(places),
+      directions: mockDirections,
+      discoverPlaces: async () => ({
+        candidates: [
+          {
+            id: "kakao-explore-1",
+            name: "부산 반려동물 해안공원",
+            category: "leisure" as const,
+            kakaoCategoryText: "여행 > 공원",
+            address: "부산광역시 수영구",
+            coordinates: { latitude: 35.155, longitude: 129.12 },
+            phone: "051-000-0000",
+            placeUrl: "https://place.map.kakao.com/1",
+            source: "KAKAO" as const,
+            candidateStatus: "discovery_candidate" as const,
+            verificationStatus: "verification_required" as const,
+            petAccessVerdict: "unknown" as const,
+            recommendationEligible: false as const,
+          },
+        ],
+        searchArea: {
+          mode: "viewport" as const,
+          rectangle: { west: 129.1, south: 35.1, east: 129.2, north: 35.2 },
+          center: { latitude: 35.15, longitude: 129.12 },
+        },
+        district: null,
+        category: "leisure" as const,
+        metadata: {
+          externalCallCount: 1,
+          upstreamDocumentCount: 1,
+          duplicateCount: 0,
+          outOfRegionRemovalCount: 0,
+          excludedCategoryCount: 0,
+          exactExistingPlaceLinkCount: 0,
+          verificationRequiredCandidateCount: 1,
+          saturated: false,
+          partial: false,
+          stoppingReasons: [],
+        },
+      }),
+    };
+    const result = await generateItineraries(
+      makeRequest({
+        planning: { desiredStopCount: 3 },
+        selectedCategories: ["attraction", "leisure", "food"],
+      }),
+      dependencies,
+    );
+    const discovery = result.itineraries.find(({ profile }) =>
+      profile === ("discovery" as typeof profile),
+    );
+    const kakaoStops = (discovery?.stops ?? []).filter((stop) =>
+      (stop as unknown as { source?: string }).source === "KAKAO",
+    );
+
+    expect(kakaoStops).toHaveLength(1);
+    expect(kakaoStops[0]?.petAccess.verdict).toBe("unknown");
+    expect((kakaoStops[0] as unknown as { callAheadRequired?: boolean })
+      ?.callAheadRequired).toBe(true);
+  });
+
+  it("never uses a Kakao-only candidate as a mandatory meal stop", async () => {
+    const result = await generateItineraries(
+      makeRequest({
+        planning: { desiredStopCount: 3 },
+        selectedCategories: ["attraction", "leisure", "food"],
+      }),
+      {
+        tourService: new MockTourService(createSupply()),
+        directions: mockDirections,
+        discoverPlaces: async () => ({
+          candidates: [
+            {
+              id: "kakao-meal-1",
+              name: "부산 반려동물 여행 카페",
+              category: "food" as const,
+              kakaoCategoryText: "음식점 > 카페",
+              address: "부산광역시 수영구",
+              coordinates: { latitude: 35.155, longitude: 129.12 },
+              source: "KAKAO" as const,
+              candidateStatus: "discovery_candidate" as const,
+              verificationStatus: "verification_required" as const,
+              petAccessVerdict: "unknown" as const,
+              recommendationEligible: false as const,
+            },
+          ],
+          searchArea: {
+            mode: "viewport" as const,
+            rectangle: { west: 129.1, south: 35.1, east: 129.2, north: 35.2 },
+            center: { latitude: 35.15, longitude: 129.12 },
+          },
+          district: null,
+          category: "food" as const,
+          metadata: {
+            externalCallCount: 1,
+            upstreamDocumentCount: 1,
+            duplicateCount: 0,
+            outOfRegionRemovalCount: 0,
+            excludedCategoryCount: 0,
+            exactExistingPlaceLinkCount: 0,
+            verificationRequiredCandidateCount: 1,
+            saturated: false,
+            partial: false,
+            stoppingReasons: [],
+          },
+        }),
+      },
+    );
+
+    expect(
+      result.itineraries.flatMap(({ stops }) => stops).some(
+        ({ source, category }) => source === "KAKAO" && category === "food",
+      ),
+    ).toBe(false);
+  });
+
+  it("never describes provider order as popularity", async () => {
+    const places = createSupply();
+    const result = await generateItineraries(makeRequest(), {
+      tourService: new MockTourService(places),
+      directions: mockDirections,
+    });
+    expect(JSON.stringify(result)).not.toMatch(
+      /"(?:popularity|rating|reviewCount)"|인기순/u,
+    );
   });
 });

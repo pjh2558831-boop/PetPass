@@ -8,14 +8,127 @@ import type {
 } from "@/types/tour-pet-access";
 
 export const ITINERARY_PROFILES = [
-  "minimum_travel",
-  "balanced_tour_food",
-  "walk_leisure",
+  "preference_balanced",
+  "minimum_movement",
+  "discovery",
 ] as const;
 
 export type ItineraryProfile = (typeof ITINERARY_PROFILES)[number];
 
 export type IndoorAccessPreference = "any" | "preferred" | "required";
+
+export type RecommendationTier =
+  | "verified"
+  | "conditional"
+  | "exploratory"
+  | "excluded";
+
+export type TravelRole =
+  | "beach"
+  | "park"
+  | "walking_trail"
+  | "viewpoint"
+  | "cultural_venue"
+  | "experience"
+  | "photo_spot"
+  | "cafe"
+  | "meal"
+  | "rest_stop"
+  | "indoor_activity"
+  | "outdoor_activity"
+  | "accommodation"
+  | "tourism_market"
+  | "general_attraction";
+
+export type TravelSuitabilityExclusionReason =
+  | "medical_business"
+  | "household_or_wedding_retail"
+  | "optical_or_beauty_service"
+  | "finance_or_daily_service"
+  | "generic_retail"
+  | "pet_supply_only"
+  | "non_visitor_facility"
+  | "shopping_disabled"
+  | "shopping_missing_travel_role"
+  | "invalid_coordinates"
+  | "outside_selected_region"
+  | "closed_or_unusable"
+  | "unsupported_record";
+
+export interface TravelSuitabilityEvidence {
+  source:
+    | "tour_content_type"
+    | "tour_classification"
+    | "tour_name"
+    | "region"
+    | "kakao_category"
+    | "pet_evidence";
+  code: string;
+  value: string;
+}
+
+export interface TravelSuitabilityAssessment {
+  travelSuitable: boolean;
+  travelRole: TravelRole | null;
+  normalizedCategory: Exclude<
+    TourPlaceCategory,
+    "transportation" | "unknown"
+  > | null;
+  recommendationTier: RecommendationTier;
+  exclusionReason: TravelSuitabilityExclusionReason | null;
+  eligibilityReason: string | null;
+  evidence: TravelSuitabilityEvidence[];
+  source: {
+    provider: "Korea Tourism Organization" | "Kakao Local";
+    identity: string;
+  };
+  petVerificationState:
+    | "verified"
+    | "conditional"
+    | "verification_required"
+    | "not_allowed"
+    | "unknown";
+  scoringEligible: boolean;
+}
+
+export interface PetEquipmentAvailability {
+  hasCarrier: boolean | null;
+  hasLeash: boolean | null;
+  hasMuzzle: boolean | null;
+}
+
+export interface PlaceScoreComponents {
+  petCompatibility: number;
+  preferenceMatch: number;
+  travelAttractiveness: number;
+  scheduleFit: number;
+  informationCompleteness: number;
+  kakaoRelevance: number;
+}
+
+export interface ExplainablePlaceScore {
+  total: number;
+  components: PlaceScoreComponents;
+  reasons: string[];
+  evidenceCodes: string[];
+}
+
+export interface RouteScoreComponents {
+  placeScoreTotal: number;
+  preferenceCoverage: number;
+  travelRoleDiversity: number;
+  scheduleFit: number;
+  travelTimePenalty: number;
+  backtrackingPenalty: number;
+  repeatedCategoryPenalty: number;
+  unverifiedPlaceRisk: number;
+}
+
+export interface ExplainableRouteScore {
+  total: number;
+  qualityRatio: number;
+  components: RouteScoreComponents;
+}
 
 export type ItineraryGenerationState =
   | "ready"
@@ -28,6 +141,7 @@ export type ItineraryExclusionReason =
   | "unsupported_record"
   | "malformed_record"
   | "malformed_coordinates"
+  | "travel_unsuitable"
   | "candidate_limit"
   | "detail_unavailable"
   | "detail_mismatch"
@@ -36,11 +150,14 @@ export type ItineraryExclusionReason =
   | "not_applicable"
   | "pet_size_incompatible"
   | "pet_size_verification_required"
+  | "equipment_incompatible"
   | "indoor_requirement"
   | "closed_at_visit"
+  | "check_in_unavailable"
   | "duration_exceeded"
   | "directions_unavailable"
-  | "diversity_duplicate";
+  | "diversity_duplicate"
+  | "recent_signature";
 
 export type ItineraryExclusionCounts = Record<ItineraryExclusionReason, number>;
 
@@ -64,13 +181,16 @@ export interface NormalizedItineraryRequest {
   desiredDurationMinutes: number | null;
   desiredStopCount: number;
   petSize: PetSize | null;
+  petEquipment: PetEquipmentAvailability;
   indoorAccessPreference: IndoorAccessPreference;
   selectedCategories: TourPlaceCategory[];
   includeShopping: boolean;
+  generationSeed: string;
+  recentRouteSignatures: string[];
 }
 
 export interface GeneratedPetAccess {
-  verdict: "allowed" | "conditional";
+  verdict: "allowed" | "conditional" | "unknown";
   evaluationState: TourPetAccessEvaluationState;
   permittedScopes: TourPetAccessScope[];
   restrictedScopes: TourPetAccessScope[];
@@ -81,6 +201,8 @@ export interface GeneratedPetAccess {
 export interface ItineraryCandidateFunnel {
   matchingCatalogCandidates: number;
   afterBasicFilters: number;
+  travelSuitableCandidates: number;
+  travelSuitabilityExcluded: number;
   preliminaryRankedCandidates: number;
   detailedAssessmentCandidates: number;
   detailOutcomes: {
@@ -100,13 +222,17 @@ export interface ItineraryCandidateFunnel {
     verificationRequired: number;
     notSpecified: number;
   };
+  equipmentMismatchExcluded: number;
   indoorRequirementExcluded: number;
   itineraryEligibleCandidates: number;
+  generatedCombinations: number;
   returnedRoutes: number;
 }
 
 export interface GeneratedItineraryStop {
   order: number;
+  stableIdentity: string;
+  source: "TOUR_API" | "KAKAO";
   contentId: string;
   title: string;
   address: string | null;
@@ -124,10 +250,18 @@ export interface GeneratedItineraryStop {
     status: "open" | "unknown";
     warning: "운영시간 확인 필요" | null;
   };
+  travelSuitability: TravelSuitabilityAssessment;
+  placeScore: ExplainablePlaceScore;
+  recommendationReasons: string[];
+  callAheadRequired: boolean;
+  phone?: string;
+  placeUrl?: string;
+  verifiedReplacementIdentity?: string;
 }
 
 export interface GeneratedItinerary {
   id: string;
+  signature: string;
   profile: ItineraryProfile;
   title: string;
   explanation: string;
@@ -136,6 +270,7 @@ export interface GeneratedItinerary {
   totalDurationSeconds: number;
   estimatedElapsedDurationMinutes: number;
   geometry: Coordinates[];
+  routeScore: ExplainableRouteScore;
 }
 
 export interface ItineraryGenerationLimits {
@@ -145,6 +280,7 @@ export interface ItineraryGenerationLimits {
   detailConcurrency: number;
   catalogConcurrency: number;
   maxCatalogPagesPerContentType: number;
+  maxCourseCombinations: number;
 }
 
 export interface ItineraryGenerationResponse {
@@ -155,9 +291,13 @@ export interface ItineraryGenerationResponse {
   eligibleCandidates: number;
   candidateFunnel: ItineraryCandidateFunnel;
   exclusionCounts: ItineraryExclusionCounts;
+  travelSuitabilityExclusions: Partial<
+    Record<TravelSuitabilityExclusionReason, number>
+  >;
   providerCalls: {
     detail: number;
     directions: number;
+    discovery: number;
   };
   limits: ItineraryGenerationLimits;
   itineraries: GeneratedItinerary[];

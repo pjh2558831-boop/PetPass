@@ -175,6 +175,10 @@ async function expectResponsiveMap(
 test("localhost renders Kakao maps and search without a fixed demo itinerary", async ({
   page,
 }, testInfo) => {
+  test.skip(
+    !process.env.NEXT_PUBLIC_KAKAO_MAP_JS_KEY,
+    "A registered Kakao JavaScript key is required for the opt-in live SDK check.",
+  );
   test.setTimeout(120_000);
   await page.setExtraHTTPHeaders({
     "x-forwarded-for": `petpass-map-e2e-${testInfo.project.name}-${testInfo.workerIndex}`,

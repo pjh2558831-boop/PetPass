@@ -9,6 +9,7 @@ import {
   LocateFixed,
   MapPin,
   PawPrint,
+  RefreshCw,
   Route,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -47,6 +48,7 @@ const RECOMMENDATION_CATEGORIES = TOUR_CATALOG_FILTERS.filter(
 const VERDICT_LABELS = {
   allowed: "반려동물 동반 가능",
   conditional: "조건부 동반 가능",
+  unknown: "동반 여부 확인 필요",
 } as const;
 
 const SIZE_COMPATIBILITY_LABELS = {
@@ -109,7 +111,7 @@ function CandidateFunnel({
   const stages = [
     ["전체 일치 카탈로그", funnel.matchingCatalogCandidates],
     ["기본 필터 통과", funnel.afterBasicFilters],
-    ["거리순 예비 후보", `${funnel.preliminaryRankedCandidates}/${limits.maxCatalogCandidates}`],
+    ["역할별 예비 후보", `${funnel.preliminaryRankedCandidates}/${limits.maxCatalogCandidates}`],
     ["상세 근거 확인", `${funnel.detailedAssessmentCandidates}/${limits.maxDetailCalls}`],
     ["허용·조건부 판정", baseEligible],
     ["크기 부적합·확인 필요", sizeReview],
@@ -134,7 +136,7 @@ function CandidateFunnel({
         크기 근거: 일치 {funnel.petSizeCompatibility.compatible} · 명시 없음 {funnel.petSizeCompatibility.notSpecified} · 부적합 {funnel.petSizeCompatibility.incompatible} · 확인 필요 {funnel.petSizeCompatibility.verificationRequired}
       </p>
       <p className="mt-1 text-[11px] leading-5 text-[#64746c]">
-        전체 일치 카탈로그를 거리순으로 정렬한 뒤 최대 {limits.maxCatalogCandidates}곳을 예비 후보로 두고, 가까운 최대 {limits.maxDetailCalls}곳만 상세 근거를 확인합니다.
+        여행 적합성과 역할·카테고리·거리·정보 완성도를 함께 검토해 최대 {limits.maxCatalogCandidates}곳을 예비 후보로 두고, 역할이 겹치지 않도록 최대 {limits.maxDetailCalls}곳의 상세 근거를 확인합니다.
       </p>
     </section>
   );
@@ -174,8 +176,11 @@ function stateCopy(state: ItineraryGenerationResponse["state"]): {
 }
 
 function stopVerdictClass(stop: GeneratedItineraryStop): string {
-  return stop.petAccess.verdict === "allowed"
-    ? "bg-[#edf8f2] text-[#236148]"
+  if (stop.petAccess.verdict === "allowed") {
+    return "bg-[#edf8f2] text-[#236148]";
+  }
+  return stop.petAccess.verdict === "unknown"
+    ? "bg-[#f1f2f4] text-[#5f6670]"
     : "bg-[#fff2df] text-[#7a542f]";
 }
 
@@ -226,12 +231,27 @@ function ItineraryStopCard({
               </span>
             ) : null}
           </div>
-          <Link
-            href={`/places/${stop.contentId}?contentTypeId=${stop.contentTypeId}`}
-            className="mt-2 block text-base font-black tracking-[-0.025em] hover:text-[#236148]"
-          >
-            {stop.title}
-          </Link>
+          {stop.source === "TOUR_API" ? (
+            <Link
+              href={`/places/${stop.contentId}?contentTypeId=${stop.contentTypeId}`}
+              className="mt-2 block text-base font-black tracking-[-0.025em] hover:text-[#236148]"
+            >
+              {stop.title}
+            </Link>
+          ) : stop.placeUrl ? (
+            <a
+              href={stop.placeUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 block text-base font-black tracking-[-0.025em] hover:text-[#236148]"
+            >
+              {stop.title}
+            </a>
+          ) : (
+            <p className="mt-2 text-base font-black tracking-[-0.025em]">
+              {stop.title}
+            </p>
+          )}
           <p className="mt-2 flex items-start gap-1.5 text-xs leading-5 text-[#66766e]">
             <MapPin size={13} className="mt-0.5 shrink-0" aria-hidden="true" />
             {stop.address || "주소 정보 없음"}
@@ -243,6 +263,12 @@ function ItineraryStopCard({
           {stop.order > 1 ? (
             <p className="mt-1 text-xs font-semibold text-[#66766e]">
               이전 장소에서 {formatRouteDistance(stop.distanceFromPreviousMeters)} · {formatRouteDuration(stop.durationFromPreviousSeconds)}
+            </p>
+          ) : null}
+          {stop.callAheadRequired ? (
+            <p className="mt-2 rounded-xl bg-[#fff8ec] px-3 py-2 text-xs font-bold leading-5 text-[#76542f]">
+              자동 추천 대상이 아닌 탐색 후보입니다. 방문 전에 반려동물 동반 가능 여부를 전화로 확인해 주세요.
+              {stop.phone ? ` 연락처: ${stop.phone}` : ""}
             </p>
           ) : null}
           {stop.petAccess.conditions.length > 0 ||
@@ -341,6 +367,7 @@ export function RecommendationPlanner({
   const [locationMessage, setLocationMessage] = useState("");
   const submittingRef = useRef(false);
   const requestControllerRef = useRef<AbortController | null>(null);
+  const recentRouteSignaturesRef = useRef<string[]>([]);
 
   useEffect(() => {
     // Hydrated, schema-validated planner values become the practical defaults.
@@ -390,6 +417,7 @@ export function RecommendationPlanner({
     setGeneration(null);
     setSelectedItineraryId(null);
     setRequestError("");
+    recentRouteSignaturesRef.current = [];
     onItinerarySelect(null);
   };
 
@@ -470,7 +498,7 @@ export function RecommendationPlanner({
     return null;
   };
 
-  const submit = async () => {
+  const submit = async (reroll = false) => {
     if (submittingRef.current) return;
     const error = validate();
     if (error) {
@@ -487,6 +515,13 @@ export function RecommendationPlanner({
     onItinerarySelect(null);
     const controller = new AbortController();
     requestControllerRef.current = controller;
+    const recentRouteSignatures = reroll
+      ? [...recentRouteSignaturesRef.current]
+      : [];
+    if (!reroll) recentRouteSignaturesRef.current = [];
+    const generationSeed = reroll
+      ? globalThis.crypto.randomUUID()
+      : "initial";
 
     try {
       const categories = includeShopping
@@ -516,9 +551,16 @@ export function RecommendationPlanner({
               ? { desiredDurationMinutes: durationMinutes }
               : { desiredStopCount: stopCount },
           petSize,
+          petEquipment: {
+            hasCarrier: profile.hasCarrier,
+            hasLeash: profile.hasLeash,
+            hasMuzzle: profile.hasMuzzle,
+          },
           indoorAccessPreference: indoorPreference,
           selectedCategories: categories,
           includeShopping,
+          generationSeed,
+          recentRouteSignatures,
         }),
       });
       const body = (await response.json()) as ApiResult<unknown>;
@@ -533,6 +575,12 @@ export function RecommendationPlanner({
         throw new Error("추천 코스 응답 형식을 확인할 수 없습니다.");
       }
       setGeneration(body.data);
+      recentRouteSignaturesRef.current = [
+        ...new Set([
+          ...recentRouteSignaturesRef.current,
+          ...body.data.itineraries.map(({ signature }) => signature),
+        ]),
+      ].slice(-12);
       const first = body.data.itineraries[0];
       if (first) selectItinerary(first);
     } catch (errorValue) {
@@ -576,7 +624,7 @@ export function RecommendationPlanner({
         className="surface-card space-y-6 p-4 sm:p-6"
         onSubmit={(event) => {
           event.preventDefault();
-          void submit();
+          void submit(false);
         }}
         noValidate
       >
@@ -857,14 +905,27 @@ export function RecommendationPlanner({
           <p className="text-xs font-bold text-[#66766e]">
             {districtName} · 최대 3개 실제 경로
           </p>
-          <Button type="submit" disabled={submitting} aria-describedby={submitting ? "route-progress" : undefined}>
-            {submitting ? (
-              <LoaderCircle className="animate-spin" size={16} aria-hidden="true" />
-            ) : (
-              <Route size={16} aria-hidden="true" />
-            )}
-            {submitting ? "후보와 이동 경로 계산 중" : "추천 코스 만들기"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {generation?.itineraries.length ? (
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={submitting}
+                onClick={() => void submit(true)}
+              >
+                <RefreshCw size={16} aria-hidden="true" />
+                다른 코스 다시 추천
+              </Button>
+            ) : null}
+            <Button type="submit" disabled={submitting} aria-describedby={submitting ? "route-progress" : undefined}>
+              {submitting ? (
+                <LoaderCircle className="animate-spin" size={16} aria-hidden="true" />
+              ) : (
+                <Route size={16} aria-hidden="true" />
+              )}
+              {submitting ? "후보와 이동 경로 계산 중" : "추천 코스 만들기"}
+            </Button>
+          </div>
         </div>
         {submitting ? (
           <p id="route-progress" className="text-right text-xs font-bold text-[#53665c]" role="status">

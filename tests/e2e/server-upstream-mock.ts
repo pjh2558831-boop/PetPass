@@ -141,7 +141,7 @@ const catalogScenarios: CatalogScenario[] = [
   },
   {
     contentId: "1501",
-    title: "부산 여행 편집숍",
+    title: "부산 전통시장 문화체험",
     address: "부산광역시 부산진구 서면로 1",
     contentTypeId: "38",
     districtCode: "230",

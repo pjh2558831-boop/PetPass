@@ -73,8 +73,15 @@ test("submits selected parameters once and only opts into shopping explicitly", 
     scope: { type: "district", districtCode: "500" },
     planning: { desiredDurationMinutes: 240 },
     petSize: "MEDIUM",
+    petEquipment: {
+      hasCarrier: true,
+      hasLeash: true,
+      hasMuzzle: false,
+    },
     indoorAccessPreference: "preferred",
     includeShopping: true,
+    generationSeed: "initial",
+    recentRouteSignatures: [],
   });
   expect(requests[0].selectedCategories).toContain("shopping");
 });
@@ -94,9 +101,9 @@ test("renders real profiles, actual stops, distance and duration", async ({
   );
   await expect(page.getByRole("region", { name: "추천 후보 단계" })).toBeVisible();
   await expect(page.getByText("전체 일치 카탈로그", { exact: true })).toBeVisible();
-  await expect(page.getByText("거리순 예비 후보", { exact: true })).toBeVisible();
+  await expect(page.getByText("역할별 예비 후보", { exact: true })).toBeVisible();
   await expect(page.getByText("상세 근거 확인", { exact: true })).toBeVisible();
-  await expect(page.getByText(/전체 일치 카탈로그를 거리순으로 정렬한 뒤/u)).toBeVisible();
+  await expect(page.getByText(/여행 적합성과 역할·카테고리·거리·정보 완성도를 함께 검토해/u)).toBeVisible();
   await expect(page.getByText("이동 최소 코스", { exact: true })).toBeVisible();
   await expect(page.getByText("총 거리", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("차량 이동", { exact: true }).first()).toBeVisible();
@@ -105,6 +112,44 @@ test("renders real profiles, actual stops, distance and duration", async ({
   await expect(page.getByRole("link", { name: firstStop.title }).first()).toBeVisible();
   await expect(page.getByText("실제 경로 2곳", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("행정 인허가 정보는 이 판정에 섞지 않으며", { exact: false })).toBeVisible();
+});
+
+test("rerolls with a new in-memory seed and excludes recent route signatures", async ({
+  page,
+}, testInfo) => {
+  await openRecommendations(page, testInfo);
+  await page.getByRole("combobox", { name: "방문 장소 수" }).selectOption("2");
+  const firstBody = await submitRecommendation(page);
+  const firstSignatures = firstBody.data.itineraries.map(
+    (itinerary: { signature: string }) => itinerary.signature,
+  );
+  expect(firstSignatures.length).toBeGreaterThan(0);
+
+  const rerollRequestPromise = page.waitForRequest(
+    (request) =>
+      request.url().includes("/api/itineraries/generate") &&
+      request.method() === "POST",
+  );
+  const rerollResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/itineraries/generate") &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "다른 코스 다시 추천" }).click();
+  const rerollRequest = await rerollRequestPromise;
+  expect((await rerollResponsePromise).status()).toBe(200);
+  const rerollPayload = rerollRequest.postDataJSON() as {
+    generationSeed: string;
+    recentRouteSignatures: string[];
+  };
+
+  expect(rerollPayload.generationSeed).not.toBe("initial");
+  expect(rerollPayload.recentRouteSignatures).toEqual(firstSignatures);
+  expect(
+    await page.evaluate(() =>
+      Object.keys(localStorage).some((key) => /signature|kakao.*candidate/iu.test(key)),
+    ),
+  ).toBe(false);
 });
 
 test("keeps conditional requirements and unknown hours visible without fake routes", async ({
@@ -122,7 +167,7 @@ test("keeps conditional requirements and unknown hours visible without fake rout
   await page.getByText("동반 조건과 이용 범위 확인").press("Enter");
   await expect(page.getByText(/이동장.*필수/u).first()).toBeVisible();
   await expect(
-    page.getByText(/실제 경로가 1개여서 빈 슬롯을 만들지 않았습니다/u),
+    page.getByText(/실제 경로가 1개여서.*빈 슬롯을 만들지 않았습니다/u),
   ).toBeVisible();
   await expect(page.getByText(/demo-/u)).toHaveCount(0);
 });

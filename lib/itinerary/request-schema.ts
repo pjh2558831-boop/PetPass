@@ -28,6 +28,16 @@ const sameDayTimeSchema = z
   .string()
   .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
 
+const petEquipmentSchema = z
+  .object({
+    hasCarrier: z.boolean().optional(),
+    hasLeash: z.boolean().optional(),
+    hasMuzzle: z.boolean().optional(),
+  })
+  .strict();
+
+const routeSignatureSchema = z.string().trim().min(1).max(600);
+
 const scopeSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("busan") }).strict(),
   z
@@ -66,6 +76,7 @@ export const itineraryGenerationRequestSchema = z
     startTime: sameDayTimeSchema,
     planning: planningSchema,
     petSize: petSizeSchema.optional(),
+    petEquipment: petEquipmentSchema.optional(),
     indoorAccessPreference: z
       .enum(["any", "preferred", "required"])
       .default("any"),
@@ -77,6 +88,14 @@ export const itineraryGenerationRequestSchema = z
         message: "selectedCategories must not contain duplicates",
       }),
     includeShopping: z.boolean().default(false),
+    generationSeed: z.string().trim().min(1).max(96).default("default"),
+    recentRouteSignatures: z
+      .array(routeSignatureSchema)
+      .max(12)
+      .refine((values) => new Set(values).size === values.length, {
+        message: "recentRouteSignatures must not contain duplicates",
+      })
+      .default([]),
   })
   .strict()
   .superRefine((request, context) => {
@@ -135,9 +154,16 @@ export function normalizeItineraryRequest(
     desiredDurationMinutes: duration,
     desiredStopCount,
     petSize: input.petSize ?? null,
+    petEquipment: {
+      hasCarrier: input.petEquipment?.hasCarrier ?? null,
+      hasLeash: input.petEquipment?.hasLeash ?? null,
+      hasMuzzle: input.petEquipment?.hasMuzzle ?? null,
+    },
     indoorAccessPreference: input.indoorAccessPreference,
     selectedCategories: input.selectedCategories,
     includeShopping: input.includeShopping,
+    generationSeed: input.generationSeed,
+    recentRouteSignatures: input.recentRouteSignatures,
   };
 }
 
@@ -145,7 +171,7 @@ export function getItineraryGenerationRequestKey(
   request: NormalizedItineraryRequest,
 ): string {
   return JSON.stringify({
-    version: "1",
+    version: "2",
     scope: request.scope,
     start: request.start,
     travelDate: request.travelDate,
@@ -154,8 +180,11 @@ export function getItineraryGenerationRequestKey(
     desiredDurationMinutes: request.desiredDurationMinutes,
     desiredStopCount: request.desiredStopCount,
     petSize: request.petSize,
+    petEquipment: request.petEquipment,
     indoorAccessPreference: request.indoorAccessPreference,
     selectedCategories: [...request.selectedCategories].sort(),
     includeShopping: request.includeShopping,
+    generationSeed: request.generationSeed,
+    recentRouteSignatures: [...request.recentRouteSignatures].sort(),
   });
 }
