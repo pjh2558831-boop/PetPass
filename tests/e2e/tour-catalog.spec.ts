@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page }, testInfo) => {
+  await page.setExtraHTTPHeaders({
+    "x-forwarded-for": `petpass-e2e-${testInfo.project.name}-${testInfo.workerIndex}`,
+  });
   // Catalog tests exercise the real Tourism Route Handler and its upstream mock.
   // Isolate unrelated directions calls so parallel tests do not consume its rate limit.
   await page.route("**/api/kakao/directions", async (route) => {
@@ -56,7 +59,7 @@ test("updates the visible Kakao area with the selected district", async ({
 }) => {
   const localSearchRequests: string[] = [];
   page.on("request", (request) => {
-    if (request.url().includes("/api/kakao/local/search")) {
+    if (request.url().includes("/api/places/discovery")) {
       localSearchRequests.push(request.url());
     }
   });
@@ -71,22 +74,25 @@ test("updates the visible Kakao area with the selected district", async ({
   ).toBeVisible();
   expect(localSearchRequests).toEqual([]);
 
+  await page.getByRole("button", { name: "음식점", exact: true }).click();
   const searchResponsePromise = page.waitForResponse((response) =>
-    response.url().includes("/api/kakao/local/search"),
+    response.url().includes("/api/places/discovery"),
   );
-  await page.getByRole("searchbox", { name: "카카오 장소 검색" }).fill("수영 카페");
+  await page.getByRole("button", { name: "추가 후보 찾기", exact: true }).click();
   const searchResponse = await searchResponsePromise;
   expect(searchResponse.status()).toBe(200);
   const searchUrl = new URL(searchResponse.url());
   expect(searchUrl.searchParams.get("districtCode")).toBe("500");
-  expect(searchUrl.searchParams.get("mode")).toBe("configured");
+  expect(searchUrl.searchParams.get("category")).toBe("food");
+  expect(searchUrl.searchParams.has("query")).toBe(false);
+  expect(searchUrl.searchParams.has("page")).toBe(false);
   const searchBody = (await searchResponse.json()) as {
     ok: boolean;
-    data?: { results?: unknown[]; area?: { mode?: string } };
+    data?: { candidates?: unknown[]; searchArea?: { mode?: string } };
   };
   expect(searchBody.ok).toBe(true);
-  expect(searchBody.data?.results?.length).toBeGreaterThan(0);
-  expect(searchBody.data?.area?.mode).toBe("district");
+  expect(searchBody.data?.candidates?.length).toBeGreaterThan(0);
+  expect(searchBody.data?.searchArea?.mode).toBe("district");
 });
 
 test("labels a non-Haeundae live detail from its address", async ({ page }) => {
@@ -197,7 +203,9 @@ test("paginates the completed provider catalog instead of hiding later pages", a
   await expect(page.locator('[id^="place-card-"]')).toHaveCount(12);
   const map = page.locator(".kakao-map-canvas");
   await expect(map).toHaveAttribute("data-location-count", "13");
-  await expect(map).toHaveAttribute("data-map-version", /\d+/u);
+  // Wait for the async Kakao controller initialization, rather than capturing
+  // the server-rendered version 0 and racing its first client-side update.
+  await expect(map).toHaveAttribute("data-map-version", /^[1-9]\d*$/u);
   const mapVersion = await map.getAttribute("data-map-version");
   expect(catalogRequests).toHaveLength(1);
   expect(catalogRequests[0]).toContain("page=1");

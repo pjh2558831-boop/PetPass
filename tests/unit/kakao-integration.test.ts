@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { GET as searchRoute } from "@/app/api/kakao/local/search/route";
+import { GET as discoveryRoute } from "@/app/api/places/discovery/route";
 import {
   geocodeAddress,
   searchKakaoPlaces,
@@ -36,9 +36,11 @@ describe("Kakao integration boundaries", () => {
     expect(() => getKakaoRestApiKey()).toThrow("KAKAO_REST_API_KEY");
   });
 
-  it("rejects an invalid keyword query before calling Kakao", async () => {
-    const response = await searchRoute(
-      new Request("http://localhost/api/kakao/local/search?query=x"),
+  it("rejects arbitrary Kakao keyword input before calling Kakao", async () => {
+    const response = await discoveryRoute(
+      new Request(
+        "http://localhost/api/places/discovery?category=food&districtCode=500&query=카페",
+      ),
     );
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toMatchObject({
@@ -295,6 +297,12 @@ describe("Kakao integration boundaries", () => {
     expect(controller.getSearchViewport()).toEqual({
       center: BUSAN_REGION_CONFIG.defaultMapCenter,
       radiusMeters: KAKAO_CURRENT_MAP_MAX_RADIUS_METERS,
+      rectangle: {
+        west: 128.9,
+        south: 35.05,
+        east: 129.3,
+        north: 35.3,
+      },
     });
 
     const markerButton = overlays.find(({ content }) =>

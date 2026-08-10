@@ -1,5 +1,6 @@
 import type { Coordinates, TourContentTypeId, TourPlaceCategory } from "@/types/place";
 import type { PetSize } from "@/types/pet";
+import type { PetSizeCompatibilityResult } from "@/types/pet-size-compatibility";
 import type {
   TourPetAccessCondition,
   TourPetAccessEvaluationState,
@@ -33,6 +34,8 @@ export type ItineraryExclusionReason =
   | "not_allowed"
   | "unknown"
   | "not_applicable"
+  | "pet_size_incompatible"
+  | "pet_size_verification_required"
   | "indoor_requirement"
   | "closed_at_visit"
   | "duration_exceeded"
@@ -72,6 +75,34 @@ export interface GeneratedPetAccess {
   permittedScopes: TourPetAccessScope[];
   restrictedScopes: TourPetAccessScope[];
   conditions: TourPetAccessCondition[];
+  sizeCompatibility: PetSizeCompatibilityResult;
+}
+
+export interface ItineraryCandidateFunnel {
+  matchingCatalogCandidates: number;
+  afterBasicFilters: number;
+  preliminaryRankedCandidates: number;
+  detailedAssessmentCandidates: number;
+  detailOutcomes: {
+    unavailable: number;
+    mismatch: number;
+  };
+  basePetAccess: {
+    allowed: number;
+    conditional: number;
+    notAllowed: number;
+    unknown: number;
+    notApplicable: number;
+  };
+  petSizeCompatibility: {
+    compatible: number;
+    incompatible: number;
+    verificationRequired: number;
+    notSpecified: number;
+  };
+  indoorRequirementExcluded: number;
+  itineraryEligibleCandidates: number;
+  returnedRoutes: number;
 }
 
 export interface GeneratedItineraryStop {
@@ -122,6 +153,7 @@ export interface ItineraryGenerationResponse {
   providerCandidatesConsidered: number;
   shortlistedCandidates: number;
   eligibleCandidates: number;
+  candidateFunnel: ItineraryCandidateFunnel;
   exclusionCounts: ItineraryExclusionCounts;
   providerCalls: {
     detail: number;

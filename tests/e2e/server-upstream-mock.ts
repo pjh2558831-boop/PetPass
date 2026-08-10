@@ -6,6 +6,7 @@ type Scenario = {
   introPetPolicy?: Record<string, string>;
   petResponse?: "empty" | "unavailable";
   unknownHours?: boolean;
+  imageUrl?: string;
 };
 
 type CatalogScenario = {
@@ -309,6 +310,13 @@ const scenarios: Record<string, Scenario> = {
     address: "부산광역시 수영구 광안해변로 13",
     contentTypeId: "75",
   },
+  "3014": {
+    title: "이미지 오류 관광지",
+    address: "부산광역시 수영구 광안해변로 14",
+    contentTypeId: "38",
+    imageUrl: "https://tong.visitkorea.or.kr/broken-petpass-image.jpg",
+    petPolicy: { acmpyTypeCd: "전구역 동반가능" },
+  },
 };
 
 function envelope(
@@ -395,6 +403,7 @@ function tourismResponse(url: URL): Response {
         mapx: "129.16",
         mapy: "35.16",
         overview: "한국관광공사 숙박 상세 소개입니다.",
+        firstimage: scenario.imageUrl,
         modifiedtime: "20260805000000",
       },
     ]);
@@ -406,7 +415,7 @@ function tourismResponse(url: URL): Response {
         contenttypeid: scenario.contentTypeId,
         checkintime: "15:00",
         checkouttime: "11:00",
-        ...(scenario.unknownHours
+        ...(scenario.unknownHours || scenario.contentTypeId === "32"
           ? {}
           : {
               usetime: "09:00-20:00",
@@ -480,8 +489,27 @@ function directionsResponse(url: URL): Response {
 
 function kakaoLocalResponse(url: URL): Response {
   const query = url.searchParams.get("query") ?? "카페";
-  const x = url.searchParams.get("x") ?? "129.0756";
-  const y = url.searchParams.get("y") ?? "35.1796";
+  const [west, south, east, north] = (
+    url.searchParams.get("rect") ?? "129.05,35.1,129.15,35.2"
+  )
+    .split(",")
+    .map(Number);
+  const x = String((west + east) / 2);
+  const y = String((south + north) / 2);
+  const categoryGroupCode =
+    url.searchParams.get("category_group_code") ?? "";
+  const categoryName =
+    categoryGroupCode === "CE7"
+      ? "음식점 > 카페"
+      : categoryGroupCode === "FD6"
+        ? "음식점 > 한식"
+        : categoryGroupCode === "AT4"
+          ? "여행 > 관광,명소"
+          : categoryGroupCode === "CT1"
+            ? "문화,예술 > 문화시설"
+            : categoryGroupCode === "AD5"
+              ? "여행 > 숙박"
+              : "여행 > 관광,명소 > 공원";
   const centerId = `${x}-${y}`.replace(/[^0-9]/gu, "");
   return Response.json({
     meta: { total_count: 2, pageable_count: 2, is_end: true },
@@ -489,7 +517,8 @@ function kakaoLocalResponse(url: URL): Response {
       {
         id: "shared-kakao-place",
         place_name: `${query} 공통 결과`,
-        category_name: "음식점 > 카페",
+        category_name: categoryName,
+        category_group_code: categoryGroupCode,
         phone: "051-000-0000",
         address_name: "부산광역시 수영구 광안동 1",
         road_address_name: "부산광역시 수영구 광안해변로 1",
@@ -501,10 +530,11 @@ function kakaoLocalResponse(url: URL): Response {
       {
         id: `center-${centerId}`,
         place_name: `${query} 지역 결과`,
-        category_name: "음식점 > 카페",
+        category_name: categoryName,
+        category_group_code: categoryGroupCode,
         phone: "",
-        address_name: "부산광역시 중구 중앙동 1",
-        road_address_name: "부산광역시 중구 중앙대로 1",
+        address_name: "부산광역시 수영구 광안동 2",
+        road_address_name: "부산광역시 수영구 광안해변로 2",
         place_url: `https://place.map.kakao.com/center-${centerId}`,
         distance: "250",
         x,
@@ -655,6 +685,12 @@ export function installE2EUpstreamMock(): void {
     }
     if (url.hostname === "apis-navi.kakaomobility.com") {
       return Promise.resolve(directionsResponse(url));
+    }
+    if (
+      url.hostname === "tong.visitkorea.or.kr" &&
+      url.pathname === "/broken-petpass-image.jpg"
+    ) {
+      return Promise.resolve(new Response("missing", { status: 404 }));
     }
     if (
       url.hostname === "dapi.kakao.com" &&

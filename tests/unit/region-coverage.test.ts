@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { GET as searchRoute } from "@/app/api/kakao/local/search/route";
 import {
   KAKAO_CURRENT_MAP_MAX_RADIUS_METERS,
   KAKAO_MAX_REQUESTS_PER_SEARCH,
@@ -102,6 +101,12 @@ describe("region configuration and bounded Kakao search", () => {
     const currentMap = {
       center: { latitude: 35.145, longitude: 129.11 },
       radiusMeters: 50_000,
+      rectangle: {
+        west: 129.05,
+        south: 35.08,
+        east: 129.17,
+        north: 35.21,
+      },
     };
     const passivePlan = createKakaoSearchPlan({
       regionId: "busan",
@@ -135,104 +140,4 @@ describe("region configuration and bounded Kakao search", () => {
     ).toEqual(["첫 결과", "둘째", "셋째"]);
   });
 
-  it("rejects request sizes and current-map radii above the hard caps", async () => {
-    const sizeResponse = await searchRoute(
-      new Request(
-        "http://localhost/api/kakao/local/search?query=카페&size=11",
-      ),
-    );
-    const radiusResponse = await searchRoute(
-      new Request(
-        "http://localhost/api/kakao/local/search?query=카페&mode=current-map&longitude=129.1&latitude=35.15&radiusMeters=10001",
-      ),
-    );
-    expect(sizeResponse.status).toBe(400);
-    expect(radiusResponse.status).toBe(400);
-  });
-
-  it("runs one district request at the selected center", async () => {
-    process.env.KAKAO_REST_API_KEY = "test-key";
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      void input;
-      return Response.json({
-        meta: { total_count: 1, pageable_count: 1, is_end: true },
-        documents: [kakaoDocument("suyeong", "수영 카페")],
-      });
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    const response = await searchRoute(
-      new Request(
-        "http://localhost/api/kakao/local/search?query=카페&regionId=busan&districtCode=500",
-      ),
-    );
-    const body = await response.json();
-    const requestUrl = new URL(String(fetchMock.mock.calls[0][0]));
-
-    expect(response.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(requestUrl.searchParams.get("x")).toBe("129.1131");
-    expect(requestUrl.searchParams.get("y")).toBe("35.1456");
-    expect(requestUrl.searchParams.get("radius")).toBe("8000");
-    expect(body.data.area.label).toBe("부산 · 수영구 중심");
-    expect(body.data.results[0]).toMatchObject({
-      candidateStatus: "discovery_candidate",
-      verificationStatus: "verification_required",
-      trust: { level: "low", ruleVersion: "petpass-trust-v1" },
-    });
-    expect(body.data.results[0]).not.toHaveProperty("petAccessVerdict");
-  });
-
-  it("bounds Busan-wide requests, deduplicates, and reports truncation", async () => {
-    process.env.KAKAO_REST_API_KEY = "test-key";
-    let call = 0;
-    const fetchMock = vi.fn(async () => {
-      call += 1;
-      return Response.json({
-        meta: { total_count: 2, pageable_count: 2, is_end: call !== 2 },
-        documents: [
-          kakaoDocument("shared", "공통 카페"),
-          kakaoDocument(String(call), `지역 카페 ${call}`),
-        ],
-      });
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    const response = await searchRoute(
-      new Request(
-        "http://localhost/api/kakao/local/search?query=카페&regionId=busan",
-      ),
-    );
-    const body = await response.json();
-
-    expect(fetchMock).toHaveBeenCalledTimes(KAKAO_MAX_REQUESTS_PER_SEARCH);
-    expect(body.data.results).toHaveLength(4);
-    expect(
-      body.data.results.every(
-        (result: Record<string, unknown>) =>
-          result.candidateStatus === "discovery_candidate" &&
-          !("petAccessVerdict" in result),
-      ),
-    ).toBe(true);
-    expect(body.data.truncated).toBe(true);
-    expect(body.data.area).toMatchObject({
-      mode: "region",
-      requestCount: KAKAO_MAX_REQUESTS_PER_SEARCH,
-    });
-  });
 });
-
-function kakaoDocument(id: string, name: string) {
-  return {
-    id,
-    place_name: name,
-    category_name: "음식점 > 카페",
-    phone: "",
-    address_name: "부산광역시 수영구 광안동 1",
-    road_address_name: "부산광역시 수영구 광안해변로 1",
-    place_url: `https://place.map.kakao.com/${id}`,
-    distance: "100",
-    x: "129.1131",
-    y: "35.1456",
-  };
-}

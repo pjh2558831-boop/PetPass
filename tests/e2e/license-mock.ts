@@ -206,6 +206,8 @@ export function liveDetail(
     overview: "한국관광공사 상세 소개입니다.",
     homepageUrl: null,
     operatingInformation: null,
+    checkInTime: null,
+    checkOutTime: null,
     restDayInformation: null,
     parkingInformation: null,
     reservationInformation: null,

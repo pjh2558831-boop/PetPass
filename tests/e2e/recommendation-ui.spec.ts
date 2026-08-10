@@ -89,6 +89,14 @@ test("renders real profiles, actual stops, distance and duration", async ({
   expect(body.ok).toBe(true);
   expect(body.data.itineraries.length).toBeGreaterThan(0);
   expect(body.data.itineraries.length).toBeLessThanOrEqual(3);
+  expect(body.data.candidateFunnel.returnedRoutes).toBe(
+    body.data.itineraries.length,
+  );
+  await expect(page.getByRole("region", { name: "추천 후보 단계" })).toBeVisible();
+  await expect(page.getByText("전체 일치 카탈로그", { exact: true })).toBeVisible();
+  await expect(page.getByText("거리순 예비 후보", { exact: true })).toBeVisible();
+  await expect(page.getByText("상세 근거 확인", { exact: true })).toBeVisible();
+  await expect(page.getByText(/전체 일치 카탈로그를 거리순으로 정렬한 뒤/u)).toBeVisible();
   await expect(page.getByText("이동 최소 코스", { exact: true })).toBeVisible();
   await expect(page.getByText("총 거리", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("차량 이동", { exact: true }).first()).toBeVisible();

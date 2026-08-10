@@ -13,6 +13,7 @@ import {
   extractSafeHomepageUrl,
   normalizeIntroPetPolicyEvidence,
   normalizePetPolicyEvidence,
+  normalizeTourIntroDetails,
   normalizeTourCategory,
   normalizeTourPlaceSummary,
 } from "@/lib/tour-api/normalizers";
@@ -286,6 +287,19 @@ describe("Korea Tourism Organization provider", () => {
       .toBeNull();
   });
 
+  it("keeps accommodation check-in and check-out separate from opening hours", () => {
+    const intro = normalizeTourIntroDetails({
+      contenttypeid: "32",
+      checkintime: "15:00",
+      checkouttime: "11:00",
+    });
+    expect(intro).toMatchObject({
+      operatingInformation: null,
+      checkInTime: "15:00",
+      checkOutTime: "11:00",
+    });
+  });
+
   it("returns structured 400 responses for obsolete content types and invalid ids", async () => {
     const service = {
       listPlaces: vi.fn(),
@@ -309,6 +323,82 @@ describe("Korea Tourism Organization provider", () => {
     );
     expect(detailResponse.status).toBe(400);
     expect(service.getPlaceDetail).not.toHaveBeenCalled();
+  });
+
+  it("accepts only typed catalog query fields and returns normalized place fields", async () => {
+    const summary = normalizeTourPlaceSummary(
+      {
+        contentid: "3801",
+        contenttypeid: "38",
+        title: "부산 쇼핑 장소",
+        addr1: "부산광역시 수영구 광안로 1",
+        mapx: "129.1",
+        mapy: "35.1",
+        upstreamOnly: "must-not-be-forwarded",
+      },
+      {
+        operation: "areaBasedList2",
+        retrievedAt: "2026-08-05T00:00:00.000Z",
+      },
+    )!;
+    const service = {
+      listPlaces: vi.fn(async (query) => ({
+        places: [summary],
+        page: query.page,
+        pageSize: query.pageSize,
+        totalCount: 1,
+        source: summary.source,
+      })),
+      getPlaceDetail: vi.fn(),
+    } as unknown as TourPlaceService;
+    const response = await createTourPlacesHandler(service)(
+      new Request(
+        "http://localhost/api/tour/places?contentTypeId=38&page=1&pageSize=12&operation=detailPetTour2&serviceKey=browser-key&arbitrary=value",
+      ),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(service.listPlaces).toHaveBeenCalledWith({
+      regionCode: "26",
+      districtCode: undefined,
+      contentTypeId: "38",
+      page: 1,
+      pageSize: 50,
+    });
+    expect(body.data.places[0]).toMatchObject({
+      contentId: "3801",
+      contentTypeId: "38",
+      category: "shopping",
+    });
+    expect(JSON.stringify(body)).not.toContain("upstreamOnly");
+    expect(JSON.stringify(body)).not.toContain("browser-key");
+    expect(JSON.stringify(body)).not.toContain("arbitrary");
+  });
+
+  it("returns a sanitized typed provider error from the catalog route", async () => {
+    const service = {
+      listPlaces: vi.fn(async () => {
+        throw new TourProviderError(
+          "UPSTREAM",
+          "failed serviceKey=super-secret https://apis.data.go.kr/path?serviceKey=super-secret",
+          { retryable: true, operation: "areaBasedList2" },
+        );
+      }),
+      getPlaceDetail: vi.fn(),
+    } as unknown as TourPlaceService;
+    const response = await createTourPlacesHandler(service)(
+      new Request("http://localhost/api/tour/places?contentTypeId=38"),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(502);
+    expect(body).toMatchObject({
+      ok: false,
+      error: { code: "UPSTREAM_ERROR", retryable: true },
+    });
+    expect(JSON.stringify(body)).not.toContain("super-secret");
+    expect(JSON.stringify(body)).not.toContain("?serviceKey=");
   });
 
   it("returns partial detail data when an optional operation fails", async () => {

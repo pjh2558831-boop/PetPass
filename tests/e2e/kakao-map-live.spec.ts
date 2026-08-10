@@ -174,13 +174,16 @@ async function expectResponsiveMap(
 
 test("localhost renders Kakao maps and search without a fixed demo itinerary", async ({
   page,
-}) => {
+}, testInfo) => {
   test.setTimeout(120_000);
+  await page.setExtraHTTPHeaders({
+    "x-forwarded-for": `petpass-map-e2e-${testInfo.project.name}-${testInfo.workerIndex}`,
+  });
   const browserErrors = collectSanitizedBrowserErrors(page);
   const kakaoNetwork = collectKakaoNetwork(page);
   const localSearchRequests: string[] = [];
   page.on("request", (request) => {
-    if (request.url().includes("/api/kakao/local/search")) {
+    if (request.url().includes("/api/places/discovery")) {
       localSearchRequests.push(request.url());
     }
   });
@@ -245,27 +248,29 @@ test("localhost renders Kakao maps and search without a fixed demo itinerary", a
   await expect(page.locator(".kakao-map-info")).toContainText("해운대 해수욕장");
   await expect(page.locator("#place-card-1001")).toHaveClass(/ring-2/u);
 
+  await page.getByLabel("부산 세부 지역").selectOption("500");
+  await page.getByRole("button", { name: "음식점", exact: true }).click();
   const searchResponsePromise = page.waitForResponse((response) =>
-    response.url().includes("/api/kakao/local/search"),
+    response.url().includes("/api/places/discovery"),
   );
-  await page.getByRole("searchbox", { name: "카카오 장소 검색" }).fill("해운대 카페");
+  await page.getByRole("button", { name: "추가 후보 찾기", exact: true }).click();
   const searchResponse = await searchResponsePromise;
   expect(searchResponse.status()).toBe(200);
   const searchBody = (await searchResponse.json()) as {
     ok: boolean;
-    data?: { results?: unknown[] };
+    data?: { candidates?: unknown[] };
   };
   expect(searchBody.ok).toBe(true);
-  expect(searchBody.data?.results?.length).toBeGreaterThan(0);
+  expect(searchBody.data?.candidates?.length).toBeGreaterThan(0);
 
-  const searchRegion = page.getByRole("region", { name: "주변 장소 직접 찾기" });
+  const searchRegion = page.getByRole("region", { name: "추가 장소 후보 찾기" });
   const resultButtons = searchRegion.locator("li button");
   const resultCount = await resultButtons.count();
   expect(resultCount).toBeGreaterThan(0);
   await expect(
     searchRegion.getByRole("button", { name: "주변 후보 함께 보기" }),
   ).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator(".kakao-map-marker")).toHaveCount(13);
+  const catalogMarkerCount = await page.locator(".kakao-map-marker").count();
   const selectedResult = resultButtons.nth(0);
   await selectedResult.click();
   await expect(selectedResult).toHaveAttribute("aria-pressed", "true");
@@ -273,18 +278,25 @@ test("localhost renders Kakao maps and search without a fixed demo itinerary", a
     searchRegion.getByRole("button", { name: "주변 후보 함께 보기" }),
   ).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".kakao-map-info")).toBeVisible();
-  await expect(page.locator(".kakao-map-marker")).toHaveCount(13 + resultCount);
+  await expect(page.locator(".kakao-map-marker")).toHaveCount(
+    catalogMarkerCount + resultCount,
+  );
   await expect(searchRegion.getByText("카카오 검색 후보").first()).toBeVisible();
   await expect(searchRegion.getByText("동반 여부 확인 필요").first()).toBeVisible();
 
   const configuredSearchCount = localSearchRequests.length;
   await page.waitForTimeout(500);
   expect(localSearchRequests).toHaveLength(configuredSearchCount);
+  await page
+    .getByRole("button", { name: "표시된 장소에 지도 위치 맞추기" })
+    .click();
+  await page.waitForTimeout(300);
   const currentMapResponsePromise = page.waitForResponse((response) =>
-    response.url().includes("/api/kakao/local/search") &&
-    response.url().includes("mode=current-map"),
+    response.url().includes("/api/places/discovery") &&
+    response.url().includes("west="),
   );
   await page.getByRole("button", { name: "현재 지도에서 검색" }).click();
+  await page.getByRole("button", { name: "추가 후보 찾기", exact: true }).click();
   expect((await currentMapResponsePromise).status()).toBe(200);
   await expect(page.getByText(/활성 검색 범위: 현재 지도 중심/)).toBeVisible();
   expect(localSearchRequests).toHaveLength(configuredSearchCount + 1);
@@ -363,12 +375,14 @@ test("production renders the authenticated Kakao map responsively", async ({
   await expect(page.getByText(/차량 약 \d/)).toBeVisible();
 
   const searchResponsePromise = page.waitForResponse((apiResponse) =>
-    apiResponse.url().includes("/api/kakao/local/search"),
+    apiResponse.url().includes("/api/places/discovery"),
   );
-  await page.getByRole("searchbox", { name: "카카오 장소 검색" }).fill("해운대 카페");
+  await page.getByLabel("부산 세부 지역").selectOption("350");
+  await page.getByRole("button", { name: "음식점", exact: true }).click();
+  await page.getByRole("button", { name: "추가 후보 찾기", exact: true }).click();
   const searchResponse = await searchResponsePromise;
   expect(searchResponse.status()).toBe(200);
-  const searchRegion = page.getByRole("region", { name: "주변 장소 직접 찾기" });
+  const searchRegion = page.getByRole("region", { name: "추가 장소 후보 찾기" });
   const resultButtons = searchRegion.locator("li button");
   const resultCount = await resultButtons.count();
   expect(resultCount).toBeGreaterThan(0);
@@ -376,7 +390,7 @@ test("production renders the authenticated Kakao map responsively", async ({
   await selectedResult.click();
   await expect(selectedResult).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".kakao-map-info")).toBeVisible();
-  await expect(page.locator(".kakao-map-marker")).toHaveCount(6);
+  expect(await page.locator(".kakao-map-marker").count()).toBeGreaterThan(0);
 
   const screenshotDirectory = process.env.KAKAO_E2E_SCREENSHOT_DIR;
   if (testInfo.project.name === "chromium") {

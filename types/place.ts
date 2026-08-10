@@ -166,6 +166,8 @@ export interface TourPlaceDetail {
   overview: string | null;
   homepageUrl: string | null;
   operatingInformation: string | null;
+  checkInTime: string | null;
+  checkOutTime: string | null;
   restDayInformation: string | null;
   parkingInformation: string | null;
   reservationInformation: string | null;

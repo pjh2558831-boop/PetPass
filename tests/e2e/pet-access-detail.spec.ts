@@ -175,3 +175,13 @@ test("keeps the assessment readable without horizontal overflow", async ({ page 
   );
   expect(overflow).toBeLessThanOrEqual(1);
 });
+
+test("replaces a failed provider image with an accessible fallback", async ({
+  page,
+}) => {
+  await page.goto("/places/3014?contentTypeId=38");
+  await expect(
+    page.getByRole("img", { name: "이미지 오류 관광지 이미지 불러오기 실패" }),
+  ).toBeVisible();
+  await expect(page.getByText("이미지를 불러올 수 없어요")).toBeVisible();
+});

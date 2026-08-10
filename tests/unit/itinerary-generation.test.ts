@@ -7,6 +7,7 @@ import {
 } from "@/lib/itinerary/generation-service";
 import { assessOperatingHours } from "@/lib/itinerary/operating-hours";
 import {
+  getItineraryGenerationRequestKey,
   itineraryGenerationRequestSchema,
   normalizeItineraryRequest,
 } from "@/lib/itinerary/request-schema";
@@ -117,6 +118,7 @@ function makeDetail(
     operatingInformation?: string | null;
     restDayInformation?: string | null;
     providerContentTypeId?: string | null;
+    petPolicyText?: string | null;
   } = {},
 ): TourPlaceDetail {
   const providerContentTypeId =
@@ -135,7 +137,9 @@ function makeDetail(
         ? TYPE_CATEGORY[providerContentTypeId as TourContentTypeId]
         : "unknown",
   };
-  const fields = policyFields(policy);
+  const fields = options.petPolicyText === undefined
+    ? policyFields(policy)
+    : { ...EMPTY_POLICY_FIELDS, etcAcmpyInfo: options.petPolicyText };
   return {
     summary: detailSummary,
     overview: null,
@@ -144,6 +148,8 @@ function makeDetail(
       options.operatingInformation === undefined
         ? "09:00-20:00"
         : options.operatingInformation,
+    checkInTime: null,
+    checkOutTime: null,
     restDayInformation: options.restDayInformation ?? null,
     parkingInformation: null,
     reservationInformation: null,
@@ -338,6 +344,14 @@ describe("itinerary request validation", () => {
       desiredStopCount: 1,
     });
   });
+
+  it("includes pet size in the stable generation request identity", () => {
+    const small = makeRequest({ petSize: "SMALL" });
+    const large = makeRequest({ petSize: "LARGE" });
+    expect(getItineraryGenerationRequestKey(small)).not.toBe(
+      getItineraryGenerationRequestKey(large),
+    );
+  });
 });
 
 describe("documented operating-time behavior", () => {
@@ -486,6 +500,7 @@ describe("bounded request-driven itinerary generation", () => {
     );
     expect(result.itineraries.flatMap(({ stops }) => stops).every(({ category }) => category !== "shopping")).toBe(true);
     expect(result.exclusionCounts.shopping_disabled).toBe(1);
+    expect(result.candidateFunnel.matchingCatalogCandidates).toBe(2);
   });
 
   it("allows qualified shopping only when explicitly enabled", async () => {
@@ -584,6 +599,38 @@ describe("bounded request-driven itinerary generation", () => {
     expect(result.exclusionCounts.unknown).toBe(2);
     expect(result.exclusionCounts.not_allowed).toBe(0);
     expect(result.itineraries).toEqual([]);
+    expect(result.candidateFunnel).toMatchObject({
+      basePetAccess: { unknown: 2 },
+      itineraryEligibleCandidates: 0,
+      returnedRoutes: 0,
+    });
+  });
+
+  it("does not treat accommodation checkout as generic closing time", async () => {
+    const places = [
+      makeSummary("stay-1", "32"),
+      makeSummary("stay-2", "32"),
+    ];
+    const details = new Map(
+      places.map((place) => {
+        const detail = makeDetail(place, "allowed", {
+          operatingInformation: null,
+        });
+        return [
+          place.contentId,
+          { ...detail, checkInTime: "15:00", checkOutTime: "11:00" },
+        ] as const;
+      }),
+    );
+    const result = await generateItineraries(
+      makeRequest({
+        startTime: "18:00",
+        selectedCategories: ["accommodation"],
+      }),
+      { tourService: new MockTourService(places, details), directions: mockDirections },
+    );
+    expect(result.itineraries[0]?.stops).toHaveLength(2);
+    expect(result.exclusionCounts.closed_at_visit).toBe(0);
   });
 
   it("attaches the exact warning when normalized hours are unknown", async () => {
@@ -654,7 +701,8 @@ describe("bounded request-driven itinerary generation", () => {
       tourService: service,
       directions: mockDirections,
     });
-    expect(result.providerCandidatesConsidered).toBe(
+    expect(result.providerCandidatesConsidered).toBe(100);
+    expect(result.candidateFunnel.preliminaryRankedCandidates).toBe(
       ITINERARY_GENERATION_LIMITS.maxCatalogCandidates,
     );
     expect(result.shortlistedCandidates).toBe(
@@ -667,6 +715,175 @@ describe("bounded request-driven itinerary generation", () => {
       ITINERARY_GENERATION_LIMITS.detailConcurrency,
     );
     expect(result.exclusionCounts.candidate_limit).toBeGreaterThan(0);
+  });
+
+  it("ranks the complete matching catalog before applying the 80 and 12 limits", async () => {
+    const farPlaces = Array.from({ length: 99 }, (_, index) =>
+      makeSummary(`far-${String(index).padStart(3, "0")}`, "38", {
+        latitude: 36 + index / 10_000,
+        longitude: 130 + index / 10_000,
+      }),
+    );
+    const nearest = makeSummary("zz-nearest", "38", {
+      latitude: 35.1001,
+      longitude: 129.0001,
+    });
+    const service = new MockTourService([...farPlaces, nearest]);
+    const result = await generateItineraries(
+      makeRequest({
+        planning: { desiredStopCount: 1 },
+        selectedCategories: ["shopping"],
+        includeShopping: true,
+      }),
+      { tourService: service, directions: mockDirections },
+    );
+
+    expect(service.listQueries.map(({ page }) => page)).toEqual([1, 2]);
+    expect(result.candidateFunnel).toMatchObject({
+      matchingCatalogCandidates: 100,
+      afterBasicFilters: 100,
+      preliminaryRankedCandidates: 80,
+      detailedAssessmentCandidates: 12,
+    });
+    expect(service.detailIds[0]).toBe("zz-nearest");
+    expect(result.itineraries[0]?.stops[0].contentId).toBe("zz-nearest");
+  });
+
+  it("uses provider ID as the deterministic equal-distance tie-breaker", async () => {
+    const shared = { latitude: 35.101, longitude: 129.001 };
+    const places = [
+      makeSummary("b-place", "12", shared),
+      makeSummary("a-place", "12", shared),
+    ];
+    const service = new MockTourService(places);
+    const result = await generateItineraries(
+      makeRequest({ planning: { desiredStopCount: 1 } }),
+      { tourService: service, directions: mockDirections },
+    );
+    expect(service.detailIds.slice(0, 2)).toEqual(["a-place", "b-place"]);
+    expect(result.itineraries[0]?.stops[0].contentId).toBe("a-place");
+  });
+
+  it("keeps pet-size compatibility separate and reconciles every funnel stage", async () => {
+    const places = [
+      makeSummary("small-only", "12", { latitude: 35.101 }),
+      makeSummary("weight-limit", "12", { latitude: 35.102 }),
+      makeSummary("unrestricted", "12", { latitude: 35.103 }),
+      makeSummary("not-specified", "12", { latitude: 35.104 }),
+      makeSummary("denied", "12", { latitude: 35.105 }),
+      makeSummary("unknown", "12", { latitude: 35.106 }),
+    ];
+    const details = new Map([
+      [
+        "small-only",
+        makeDetail(places[0], "conditional", {
+          petPolicyText: "반려동물 동반 가능, 소형견만 가능",
+        }),
+      ],
+      [
+        "weight-limit",
+        makeDetail(places[1], "conditional", {
+          petPolicyText: "반려동물 동반 가능, 10kg 이하",
+        }),
+      ],
+      [
+        "unrestricted",
+        makeDetail(places[2], "allowed", {
+          petPolicyText: "소형견 중형견 대형견 모두 동반 가능",
+        }),
+      ],
+      ["not-specified", makeDetail(places[3], "allowed")],
+      ["denied", makeDetail(places[4], "denied")],
+      ["unknown", makeDetail(places[5], "unknown")],
+    ]);
+    const result = await generateItineraries(
+      makeRequest({ petSize: "LARGE", planning: { desiredStopCount: 1 } }),
+      { tourService: new MockTourService(places, details), directions: mockDirections },
+    );
+    const funnel = result.candidateFunnel;
+    const baseTotal =
+      funnel.basePetAccess.allowed +
+      funnel.basePetAccess.conditional +
+      funnel.basePetAccess.notAllowed +
+      funnel.basePetAccess.unknown +
+      funnel.basePetAccess.notApplicable;
+    const compatibilityTotal =
+      funnel.petSizeCompatibility.compatible +
+      funnel.petSizeCompatibility.incompatible +
+      funnel.petSizeCompatibility.verificationRequired +
+      funnel.petSizeCompatibility.notSpecified;
+
+    expect(funnel.detailedAssessmentCandidates).toBe(
+      funnel.detailOutcomes.unavailable + funnel.detailOutcomes.mismatch + baseTotal,
+    );
+    expect(compatibilityTotal).toBe(
+      funnel.basePetAccess.allowed + funnel.basePetAccess.conditional,
+    );
+    expect(funnel).toMatchObject({
+      petSizeCompatibility: {
+        compatible: 1,
+        incompatible: 1,
+        verificationRequired: 1,
+        notSpecified: 1,
+      },
+      itineraryEligibleCandidates: 2,
+    });
+    expect(result.exclusionCounts).toMatchObject({
+      pet_size_incompatible: 1,
+      pet_size_verification_required: 1,
+      not_allowed: 1,
+      unknown: 1,
+    });
+    expect(result.itineraries[0]?.stops[0].petAccess.sizeCompatibility.state)
+      .toMatch(/compatible|not_specified/u);
+    expect(funnel.returnedRoutes).toBe(result.itineraries.length);
+  });
+
+  it("changes recommendations only when explicit size evidence supports it", async () => {
+    const restricted = makeSummary("nearest-small-only", "12", {
+      latitude: 35.1001,
+      longitude: 129.0001,
+    });
+    const unrestricted = makeSummary("far-unrestricted", "12", {
+      latitude: 35.11,
+      longitude: 129.01,
+    });
+    const details = new Map([
+      [
+        restricted.contentId,
+        makeDetail(restricted, "conditional", {
+          petPolicyText: "반려동물 동반 가능, 소형견만 가능",
+        }),
+      ],
+      [unrestricted.contentId, makeDetail(unrestricted, "allowed")],
+    ]);
+    const service = () => new MockTourService([restricted, unrestricted], details);
+    const small = await generateItineraries(
+      makeRequest({ petSize: "SMALL", planning: { desiredStopCount: 1 } }),
+      { tourService: service(), directions: mockDirections },
+    );
+    const large = await generateItineraries(
+      makeRequest({ petSize: "LARGE", planning: { desiredStopCount: 1 } }),
+      { tourService: service(), directions: mockDirections },
+    );
+    expect(small.itineraries[0]?.stops[0].contentId).toBe("nearest-small-only");
+    expect(large.itineraries[0]?.stops[0].contentId).toBe("far-unrestricted");
+
+    const noSizeEvidence = [
+      makeSummary("plain-1", "12", { latitude: 35.101 }),
+      makeSummary("plain-2", "12", { latitude: 35.102 }),
+    ];
+    const plainSmall = await generateItineraries(
+      makeRequest({ petSize: "SMALL", planning: { desiredStopCount: 1 } }),
+      { tourService: new MockTourService(noSizeEvidence), directions: mockDirections },
+    );
+    const plainLarge = await generateItineraries(
+      makeRequest({ petSize: "LARGE", planning: { desiredStopCount: 1 } }),
+      { tourService: new MockTourService(noSizeEvidence), directions: mockDirections },
+    );
+    expect(plainSmall.itineraries[0]?.stops[0].contentId).toBe(
+      plainLarge.itineraries[0]?.stops[0].contentId,
+    );
   });
 
   it("bounds directions attempts without evaluating permutations", async () => {

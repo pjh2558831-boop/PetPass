@@ -148,6 +148,8 @@ function detail(
     overview: null,
     homepageUrl: null,
     operatingInformation: null,
+    checkInTime: null,
+    checkOutTime: null,
     restDayInformation: null,
     parkingInformation: null,
     reservationInformation: null,

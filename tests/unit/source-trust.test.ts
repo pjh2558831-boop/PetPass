@@ -138,16 +138,16 @@ describe("versioned information trust", () => {
         address: "부산 수영구",
         coordinates: { latitude: 35.145, longitude: 129.113 },
       },
-      NOW,
+      "food",
     );
 
     expect(candidate).toMatchObject({
       candidateStatus: "discovery_candidate",
       verificationStatus: "verification_required",
-      trust: { level: "low", ruleVersion: "petpass-trust-v1" },
+      petAccessVerdict: "unknown",
+      recommendationEligible: false,
     });
-    expect(candidate.trust.score).toBeLessThanOrEqual(25);
-    expect(candidate).not.toHaveProperty("petAccessVerdict");
+    expect(candidate.source).toBe("KAKAO");
     expect(candidate).not.toHaveProperty("petAccessAssessment");
   });
 

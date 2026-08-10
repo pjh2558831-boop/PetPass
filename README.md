@@ -43,7 +43,10 @@ registration.
 
 - The browser loads Kakao Maps with `NEXT_PUBLIC_KAKAO_MAP_JS_KEY` and renders
   numbered place markers, a selected-place overlay, and Mobility route geometry.
-- `GET /api/kakao/local/search` performs a bounded Kakao Local keyword search.
+- `GET /api/places/discovery` finds temporary, verification-required Kakao
+  candidates for a supported catalog category in one Busan district or the
+  current bounded map viewport. Search keywords and provider controls are
+  server-owned; candidates are never recommendation-eligible.
 - `GET /api/kakao/local/geocode` resolves an address through Kakao Local.
 - `POST /api/kakao/directions` accepts an origin, destination, and at most five
   waypoints. It returns normalized distance, duration, fares, sections, and route
