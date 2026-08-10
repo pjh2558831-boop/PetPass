@@ -5,6 +5,7 @@ import { getKakaoRestApiKey } from "@/lib/kakao/server-config";
 import { ProviderResponseError } from "@/lib/shared/errors";
 import type {
   KakaoGeocodeResult,
+  KakaoPlaceSearchPage,
   KakaoPlaceSearchResult,
 } from "@/types/kakao";
 
@@ -113,6 +114,18 @@ export async function searchKakaoPlaces(
   },
   options: KakaoLocalRequestOptions = {},
 ): Promise<KakaoPlaceSearchResult[]> {
+  return (await searchKakaoPlacePage(input, options)).results;
+}
+
+export async function searchKakaoPlacePage(
+  input: {
+    query: string;
+    page: number;
+    size: number;
+    center?: { longitude: number; latitude: number; radiusMeters: number };
+  },
+  options: KakaoLocalRequestOptions = {},
+): Promise<KakaoPlaceSearchPage> {
   const url = new URL("https://dapi.kakao.com/v2/local/search/keyword.json");
   url.searchParams.set("query", input.query);
   url.searchParams.set("page", String(input.page));
@@ -131,22 +144,27 @@ export async function searchKakaoPlaces(
     throw new ProviderResponseError("카카오 장소 검색 응답 형식이 올바르지 않습니다.");
   }
 
-  return parsed.data.documents.map((document) => ({
-    id: document.id,
-    name: document.place_name,
-    address: document.address_name,
-    roadAddress: optionalText(document.road_address_name),
-    categoryName: optionalText(document.category_name),
-    phone: optionalText(document.phone),
-    placeUrl: optionalText(document.place_url),
-    distanceMeters: optionalText(document.distance)
-      ? finiteNumber(document.distance, "거리")
-      : undefined,
-    coordinates: {
-      longitude: finiteNumber(document.x, "경도"),
-      latitude: finiteNumber(document.y, "위도"),
-    },
-  }));
+  return {
+    results: parsed.data.documents.map((document) => ({
+      id: document.id,
+      name: document.place_name,
+      address: document.address_name,
+      roadAddress: optionalText(document.road_address_name),
+      categoryName: optionalText(document.category_name),
+      phone: optionalText(document.phone),
+      placeUrl: optionalText(document.place_url),
+      distanceMeters: optionalText(document.distance)
+        ? finiteNumber(document.distance, "거리")
+        : undefined,
+      coordinates: {
+        longitude: finiteNumber(document.x, "경도"),
+        latitude: finiteNumber(document.y, "위도"),
+      },
+    })),
+    totalCount: parsed.data.meta.total_count,
+    pageableCount: parsed.data.meta.pageable_count,
+    isEnd: parsed.data.meta.is_end,
+  };
 }
 
 export async function geocodeAddress(

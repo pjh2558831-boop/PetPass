@@ -2,33 +2,22 @@ import type {
   TourContentTypeId,
   TourPlaceCategory,
 } from "@/types/place";
+import {
+  BUSAN_REGION_CONFIG,
+  getRegionDistrict,
+  type BusanDistrictCode,
+} from "@/lib/regions/config";
 
 export const BUSAN_REGION = {
-  code: "26",
-  name: "부산",
+  code: BUSAN_REGION_CONFIG.tourismAreaCode,
+  name: BUSAN_REGION_CONFIG.displayName,
 } as const;
 
 // Verified against KorPetTourService2 `ldongCode2` on 2026-08-05.
-export const BUSAN_DISTRICTS = [
-  { code: "110", name: "중구" },
-  { code: "140", name: "서구" },
-  { code: "170", name: "동구" },
-  { code: "200", name: "영도구" },
-  { code: "230", name: "부산진구" },
-  { code: "260", name: "동래구" },
-  { code: "290", name: "남구" },
-  { code: "320", name: "북구" },
-  { code: "350", name: "해운대구" },
-  { code: "380", name: "사하구" },
-  { code: "410", name: "금정구" },
-  { code: "440", name: "강서구" },
-  { code: "470", name: "연제구" },
-  { code: "500", name: "수영구" },
-  { code: "530", name: "사상구" },
-  { code: "710", name: "기장군" },
-] as const;
-
-export type BusanDistrictCode = (typeof BUSAN_DISTRICTS)[number]["code"];
+export const BUSAN_DISTRICTS = BUSAN_REGION_CONFIG.districts.map(
+  ({ code, name }) => ({ code, name }),
+);
+export type { BusanDistrictCode } from "@/lib/regions/config";
 
 const BUSAN_DISTRICT_CODES = new Set<string>(
   BUSAN_DISTRICTS.map(({ code }) => code),
@@ -43,7 +32,7 @@ export function isBusanDistrictCode(
 export function getBusanDistrictName(
   code: BusanDistrictCode | null | undefined,
 ): string | null {
-  return BUSAN_DISTRICTS.find((district) => district.code === code)?.name ?? null;
+  return getRegionDistrict(BUSAN_REGION_CONFIG, code)?.name ?? null;
 }
 
 // Provider compatibility is defined separately by TOUR_CONTENT_TYPE_IDS.
@@ -88,7 +77,7 @@ export const TOUR_CATALOG_FILTERS = [
   { value: "leisure", label: "레저", contentTypeId: "28" },
   { value: "accommodation", label: "숙박", contentTypeId: "32" },
   { value: "food", label: "음식점", contentTypeId: "39" },
-  { value: "shopping", label: "쇼핑(선택)", contentTypeId: "38" },
+  { value: "shopping", label: "쇼핑", contentTypeId: "38" },
 ] as const satisfies readonly {
   value: TourCatalogFilter;
   label: string;

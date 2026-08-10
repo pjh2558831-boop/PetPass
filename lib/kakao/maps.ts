@@ -1,4 +1,7 @@
 import { ConfigurationRequiredError } from "@/lib/shared/errors";
+import { BUSAN_REGION_CONFIG } from "@/lib/regions/config";
+import { KAKAO_CURRENT_MAP_MAX_RADIUS_METERS } from "@/lib/kakao/search-area";
+import type { KakaoCurrentMapSearch } from "@/types/kakao";
 import type { Coordinates } from "@/types/place";
 
 interface KakaoLatLng {
@@ -8,9 +11,13 @@ interface KakaoLatLng {
 
 interface KakaoLatLngBounds {
   extend(point: KakaoLatLng): void;
+  getNorthEast(): KakaoLatLng;
+  getSouthWest(): KakaoLatLng;
 }
 
 interface KakaoMapInstance {
+  getBounds(): KakaoLatLngBounds;
+  getCenter(): KakaoLatLng;
   panTo(point: KakaoLatLng): void;
   relayout(): void;
   setBounds(bounds: KakaoLatLngBounds, padding?: number): void;
@@ -115,7 +122,16 @@ declare global {
   }
 }
 
-export type KakaoMapMarkerKind = "catalog" | "itinerary" | "search";
+export type KakaoMapMarkerKind =
+  | "catalog"
+  | "itinerary"
+  | "search"
+  | "tourism-official"
+  | "business-confirmed"
+  | "administrator-confirmed"
+  | "user-reported"
+  | "kakao-candidate"
+  | "shopping";
 
 export interface KakaoMapLocation {
   id: string;
@@ -124,40 +140,37 @@ export interface KakaoMapLocation {
   coordinates?: Coordinates | null;
   order?: number;
   markerKind?: KakaoMapMarkerKind;
+  markerLabel?: string;
+  sourceLabel?: string;
+  interactive?: boolean;
+  clusterable?: boolean;
 }
 
 export interface KakaoMapController {
   destroy(): void;
   fitBounds(): void;
+  getSearchViewport(): KakaoCurrentMapSearch | null;
   relayout(): void;
   selectLocation(id: string | null, notify?: boolean): void;
   updateData(
     locations: KakaoMapLocation[],
     routeCoordinates: Coordinates[],
+    options?: { fitBounds?: boolean },
   ): void;
 }
 
-export function getKakaoMapJavaScriptKey(): string {
-  const key = process.env.NEXT_PUBLIC_KAKAO_MAP_JS_KEY?.trim();
-  if (!key) {
-    throw new ConfigurationRequiredError(
-      "NEXT_PUBLIC_KAKAO_MAP_JS_KEY가 설정되지 않았습니다.",
-    );
-  }
-  return key;
-}
-
-export function getKakaoMapsSdkUrl(key: string): string {
-  const params = new URLSearchParams({
-    appkey: key,
-    autoload: "false",
-    libraries: "services,clusterer",
-  });
-  return `https://dapi.kakao.com/v2/maps/sdk.js?${params.toString()}`;
-}
-
-export function isKakaoMapsReady(): boolean {
-  return typeof window !== "undefined" && Boolean(window.kakao?.maps?.Map);
+function distanceMeters(from: Coordinates, to: Coordinates): number {
+  const radians = (degrees: number) => (degrees * Math.PI) / 180;
+  const latitudeDelta = radians(to.latitude - from.latitude);
+  const longitudeDelta = radians(to.longitude - from.longitude);
+  const fromLatitude = radians(from.latitude);
+  const toLatitude = radians(to.latitude);
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(fromLatitude) *
+      Math.cos(toLatitude) *
+      Math.sin(longitudeDelta / 2) ** 2;
+  return 6_371_000 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
 }
 
 export function isValidMapCoordinates(
@@ -188,51 +201,94 @@ export function createKakaoMapController(
   const maps = window.kakao?.maps;
   if (
     !maps?.Map ||
+    !maps.LatLng ||
+    !maps.LatLngBounds ||
+    !maps.CustomOverlay ||
     !maps.Marker ||
-    !maps.MarkerClusterer ||
     !maps.MarkerImage ||
     !maps.Point ||
+    !maps.Polyline ||
     !maps.Size
   ) {
     throw new ConfigurationRequiredError(
-      "카카오 지도 SDK와 clusterer 라이브러리를 불러오지 못했습니다.",
+      "카카오 지도 SDK를 불러오지 못했습니다.",
     );
   }
 
-  const defaultCenter = new maps.LatLng(35.1596, 129.174);
+  const defaultCenter = new maps.LatLng(
+    BUSAN_REGION_CONFIG.defaultMapCenter.latitude,
+    BUSAN_REGION_CONFIG.defaultMapCenter.longitude,
+  );
   const map = new maps.Map(container, { center: defaultCenter, level: 6 });
   const transparentMarkerImage = new maps.MarkerImage(
     TRANSPARENT_MARKER_SVG,
     new maps.Size(1, 1),
     { offset: new maps.Point(0, 0) },
   );
-  const clusterer = new maps.MarkerClusterer({
-    map,
-    averageCenter: true,
-    clickable: true,
-    disableClickZoom: false,
-    gridSize: 54,
-    minClusterSize: 2,
-    minLevel: 5,
-    styles: [
-      {
-        width: "46px",
-        height: "46px",
-        boxSizing: "border-box",
-        border: "4px solid rgba(255,255,255,.96)",
-        borderRadius: "50%",
-        background: "#236148",
-        boxShadow: "0 8px 22px rgba(35,97,72,.28)",
-        color: "#fff",
-        cursor: "pointer",
-        fontSize: "13px",
-        fontWeight: "900",
-        lineHeight: "38px",
-        textAlign: "center",
-      },
-    ],
-  });
+  const nativeMarkerImages = new Map<KakaoMapMarkerKind, KakaoMarkerImage>();
+  const nativeMarkerVisual = (kind: KakaoMapMarkerKind) => {
+    const visuals: Record<KakaoMapMarkerKind, { color: string; label: string; shape: "diamond" | "circle" | "square" }> = {
+      catalog: { color: "#236148", label: "공", shape: "diamond" },
+      "tourism-official": { color: "#236148", label: "공", shape: "diamond" },
+      "business-confirmed": { color: "#267d73", label: "업", shape: "square" },
+      "administrator-confirmed": { color: "#7356a8", label: "관", shape: "circle" },
+      "user-reported": { color: "#a8692d", label: "제", shape: "circle" },
+      search: { color: "#356e85", label: "?", shape: "circle" },
+      "kakao-candidate": { color: "#356e85", label: "?", shape: "circle" },
+      shopping: { color: "#6d588c", label: "쇼", shape: "diamond" },
+      itinerary: { color: "#b85f40", label: "", shape: "diamond" },
+    };
+    return visuals[kind];
+  };
+  const getNativeMarkerImage = (kind: KakaoMapMarkerKind) => {
+    const existing = nativeMarkerImages.get(kind);
+    if (existing) return existing;
+    const visual = nativeMarkerVisual(kind);
+    const shape =
+      visual.shape === "diamond"
+        ? '<path d="M15 1 29 15 15 35 1 15Z"/>'
+        : visual.shape === "square"
+          ? '<rect x="2" y="2" width="26" height="30" rx="6"/>'
+          : '<circle cx="15" cy="16" r="14"/>';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="36" viewBox="0 0 30 36"><g fill="${visual.color}" stroke="white" stroke-width="2">${shape}</g><text x="15" y="20" text-anchor="middle" fill="white" font-size="11" font-weight="900" font-family="sans-serif">${visual.label}</text></svg>`;
+    const image = new maps.MarkerImage(
+      `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+      new maps.Size(30, 36),
+      { offset: new maps.Point(15, 34) },
+    );
+    nativeMarkerImages.set(kind, image);
+    return image;
+  };
+  const clusterer = maps.MarkerClusterer
+    ? new maps.MarkerClusterer({
+        map,
+        averageCenter: true,
+        clickable: true,
+        disableClickZoom: false,
+        gridSize: 54,
+        minClusterSize: 2,
+        minLevel: 5,
+        styles: [
+          {
+            width: "46px",
+            height: "46px",
+            boxSizing: "border-box",
+            border: "4px solid rgba(255,255,255,.96)",
+            borderRadius: "50%",
+            background: "#236148",
+            boxShadow: "0 8px 22px rgba(35,97,72,.28)",
+            color: "#fff",
+            cursor: "pointer",
+            fontSize: "13px",
+            fontWeight: "900",
+            lineHeight: "38px",
+            textAlign: "center",
+          },
+        ],
+      })
+    : null;
   const markerOverlays: KakaoCustomOverlay[] = [];
+  const standaloneMarkers: KakaoMarker[] = [];
   const markerCleanups: Array<() => void> = [];
   const catalogButtonByMarker = new Map<KakaoMarker, HTMLButtonElement>();
   const locationPositions = new Map<
@@ -251,9 +307,31 @@ export function createKakaoMapController(
   let selectedId: string | null = null;
   let destroyed = false;
 
-  container.dataset.clustererReady = "true";
+  container.dataset.kakaoMapInitialized = "true";
+  container.dataset.clustererReady = clusterer ? "true" : "false";
   container.dataset.clusterCount = "0";
   container.dataset.catalogMarkerCount = "0";
+  container.dataset.interactiveMarkerCount = "0";
+
+  const setCatalogMarkerClustered = (
+    button: HTMLButtonElement,
+    clustered: boolean,
+  ) => {
+    button.classList.toggle("is-clustered", clustered);
+    if (clustered) {
+      button.setAttribute("aria-hidden", "true");
+      button.tabIndex = -1;
+    } else {
+      button.removeAttribute("aria-hidden");
+      button.tabIndex = 0;
+    }
+
+    const overlayRoot = button.parentElement;
+    if (overlayRoot) {
+      overlayRoot.style.pointerEvents = clustered ? "none" : "";
+      overlayRoot.style.visibility = clustered ? "hidden" : "";
+    }
+  };
 
   const resetSelectionVisuals = () => {
     if (selectedId) {
@@ -275,9 +353,7 @@ export function createKakaoMapController(
   const syncClusteredCatalogOverlays = (clustersValue: unknown) => {
     if (destroyed) return;
     for (const button of catalogButtonByMarker.values()) {
-      button.classList.remove("is-clustered");
-      button.removeAttribute("aria-hidden");
-      button.tabIndex = 0;
+      setCatalogMarkerClustered(button, false);
     }
     const clusters = Array.isArray(clustersValue)
       ? (clustersValue as KakaoCluster[])
@@ -289,39 +365,48 @@ export function createKakaoMapController(
       for (const marker of cluster.getMarkers()) {
         const button = catalogButtonByMarker.get(marker);
         if (!button) continue;
-        button.classList.add("is-clustered");
-        button.setAttribute("aria-hidden", "true");
-        button.tabIndex = -1;
+        setCatalogMarkerClustered(button, true);
       }
     }
     container.dataset.clusterCount = String(visibleClusterCount);
   };
-  maps.event.addListener(clusterer, "clustered", syncClusteredCatalogOverlays);
+  if (clusterer) {
+    maps.event.addListener(clusterer, "clustered", syncClusteredCatalogOverlays);
+  }
 
   const clearLayers = () => {
     resetSelectionVisuals();
     catalogButtonByMarker.clear();
-    clusterer.clear();
+    clusterer?.clear();
     catalogMarkers = [];
     markerCleanups.splice(0).forEach((cleanup) => cleanup());
     markerOverlays.splice(0).forEach((overlay) => overlay.setMap(null));
+    standaloneMarkers.splice(0).forEach((marker) => marker.setMap(null));
     routeLine?.setMap(null);
     routeLine = null;
     locationPositions.clear();
     visiblePoints = [];
     container.dataset.clusterCount = "0";
     container.dataset.catalogMarkerCount = "0";
+    container.dataset.interactiveMarkerCount = "0";
   };
 
   const controller: KakaoMapController = {
     destroy() {
       if (destroyed) return;
-      maps.event.removeListener(clusterer, "clustered", syncClusteredCatalogOverlays);
+      if (clusterer) {
+        maps.event.removeListener(
+          clusterer,
+          "clustered",
+          syncClusteredCatalogOverlays,
+        );
+      }
       clearLayers();
       maps.event.removeListener(map, "click", mapClickHandler);
       destroyed = true;
       container.replaceChildren();
       delete container.dataset.clustererReady;
+      delete container.dataset.kakaoMapInitialized;
     },
 
     fitBounds() {
@@ -331,9 +416,40 @@ export function createKakaoMapController(
       map.setBounds(bounds, 48);
     },
 
+    getSearchViewport() {
+      const center = map.getCenter?.();
+      const bounds = map.getBounds?.();
+      const northEast = bounds?.getNorthEast?.();
+      const southWest = bounds?.getSouthWest?.();
+      if (!center || !northEast || !southWest) return null;
+      const centerCoordinates = {
+        latitude: center.getLat(),
+        longitude: center.getLng(),
+      };
+      if (!isValidMapCoordinates(centerCoordinates)) return null;
+      const radiusMeters = Math.min(
+        KAKAO_CURRENT_MAP_MAX_RADIUS_METERS,
+        Math.max(
+          500,
+          Math.ceil(
+            Math.max(
+              distanceMeters(centerCoordinates, {
+                latitude: northEast.getLat(),
+                longitude: northEast.getLng(),
+              }),
+              distanceMeters(centerCoordinates, {
+                latitude: southWest.getLat(),
+                longitude: southWest.getLng(),
+              }),
+            ),
+          ),
+        ),
+      );
+      return { center: centerCoordinates, radiusMeters };
+    },
+
     relayout() {
       map.relayout();
-      controller.fitBounds();
     },
 
     selectLocation(id, notify = false) {
@@ -367,6 +483,11 @@ export function createKakaoMapController(
       const address = document.createElement("span");
       address.textContent = selected.location.address;
       content.append(name, address);
+      if (selected.location.sourceLabel) {
+        const source = document.createElement("small");
+        source.textContent = selected.location.sourceLabel;
+        content.append(source);
+      }
 
       infoOverlay = new maps.CustomOverlay({
         map,
@@ -380,10 +501,12 @@ export function createKakaoMapController(
       if (notify) options.onLocationSelect?.(id);
     },
 
-    updateData(locations, routeCoordinates) {
+    updateData(locations, routeCoordinates, updateOptions = {}) {
       const previousSelection = selectedId;
       clearLayers();
       const seenLocationIds = new Set<string>();
+      let catalogMarkerCount = 0;
+      let interactiveMarkerCount = 0;
 
       for (const location of locations) {
         if (
@@ -401,51 +524,74 @@ export function createKakaoMapController(
 
         const kind =
           location.markerKind ?? (location.order ? "itinerary" : "catalog");
-        const marker = document.createElement("button");
-        marker.type = "button";
-        marker.className = `kakao-map-marker kakao-map-marker--${kind}`;
-        marker.dataset.locationId = location.id;
-        const markerLabel = document.createElement("span");
-        markerLabel.textContent =
-          kind === "itinerary" && location.order ? String(location.order) : "";
-        marker.append(markerLabel);
-        marker.setAttribute("aria-label", `${location.name} 지도 마커`);
-        const clickHandler = (event: Event) => {
-          event.stopPropagation();
-          controller.selectLocation(location.id, true);
-        };
-        marker.addEventListener("click", clickHandler);
-        markerCleanups.push(() => marker.removeEventListener("click", clickHandler));
+        const interactive = location.interactive !== false;
+        const clusterable =
+          location.clusterable ?? kind !== "itinerary";
+        let markerButton: HTMLButtonElement | null = null;
+        if (interactive) {
+          interactiveMarkerCount += 1;
+          const marker = document.createElement("button");
+          marker.type = "button";
+          marker.className = `kakao-map-marker kakao-map-marker--${kind}`;
+          marker.dataset.locationId = location.id;
+          const markerLabel = document.createElement("span");
+          markerLabel.textContent =
+            kind === "itinerary" && location.order
+              ? String(location.order)
+              : location.markerLabel ?? nativeMarkerVisual(kind).label;
+          marker.append(markerLabel);
+          marker.setAttribute(
+            "aria-label",
+            `${location.name} · ${location.sourceLabel ?? "장소"} 지도 마커`,
+          );
+          const clickHandler = (event: Event) => {
+            event.stopPropagation();
+            controller.selectLocation(location.id, true);
+          };
+          marker.addEventListener("click", clickHandler);
+          markerCleanups.push(() => marker.removeEventListener("click", clickHandler));
 
-        const overlay = new maps.CustomOverlay({
-          map,
-          position,
-          content: marker,
-          xAnchor: 0.5,
-          yAnchor: 1,
-          zIndex: kind === "itinerary" ? 6 : 4,
-        });
-        markerOverlays.push(overlay);
-        locationPositions.set(location.id, {
-          button: marker,
-          location,
-          position,
-        });
-
-        if (kind === "catalog") {
-          const proxyMarker = new maps.Marker({
-            clickable: false,
-            image: transparentMarkerImage,
+          const overlay = new maps.CustomOverlay({
+            map,
+            position,
+            content: marker,
+            xAnchor: 0.5,
+            yAnchor: 1,
+            zIndex: kind === "itinerary" ? 6 : 4,
+          });
+          markerOverlays.push(overlay);
+          locationPositions.set(location.id, {
+            button: marker,
+            location,
             position,
           });
+          markerButton = marker;
+        }
+
+        if (clusterable) {
+          catalogMarkerCount += 1;
+        }
+        if (clusterable) {
+          const proxyMarker = new maps.Marker({
+            clickable: false,
+            ...(interactive
+              ? { image: transparentMarkerImage }
+              : { image: getNativeMarkerImage(kind), title: location.name }),
+            position,
+            ...(!clusterer && !interactive ? { map } : {}),
+          });
           proxyMarker.setZIndex(0);
-          catalogMarkers.push(proxyMarker);
-          catalogButtonByMarker.set(proxyMarker, marker);
+          if (clusterer) catalogMarkers.push(proxyMarker);
+          else if (!interactive) standaloneMarkers.push(proxyMarker);
+          if (markerButton) catalogButtonByMarker.set(proxyMarker, markerButton);
         }
       }
 
-      container.dataset.catalogMarkerCount = String(catalogMarkers.length);
-      if (catalogMarkers.length > 0) clusterer.addMarkers(catalogMarkers);
+      container.dataset.catalogMarkerCount = String(catalogMarkerCount);
+      container.dataset.interactiveMarkerCount = String(interactiveMarkerCount);
+      if (clusterer && catalogMarkers.length > 0) {
+        clusterer.addMarkers(catalogMarkers);
+      }
 
       const routePath = routeCoordinates
         .filter(isValidMapCoordinates)
@@ -462,7 +608,7 @@ export function createKakaoMapController(
         });
       }
 
-      controller.fitBounds();
+      if (updateOptions.fitBounds !== false) controller.fitBounds();
       if (previousSelection && locationPositions.has(previousSelection)) {
         controller.selectLocation(previousSelection);
       }
