@@ -86,6 +86,38 @@ describe("Kakao integration boundaries", () => {
     ]);
   });
 
+  it("omits an unsafe provider link without removing the place result", async () => {
+    const rejectedUrl = "https://place.map.kakao.com.evil.example/123";
+    const fetchImpl = vi.fn(async () =>
+      Response.json({
+        meta: { total_count: 1, pageable_count: 1, is_end: true },
+        documents: [
+          {
+            id: "123",
+            place_name: "Unsafe URL place",
+            category_name: "Food > Cafe",
+            phone: "",
+            address_name: "Busan",
+            road_address_name: "Busan road",
+            place_url: rejectedUrl,
+            distance: "100",
+            x: "129.1603",
+            y: "35.1590",
+          },
+        ],
+      }),
+    ) as unknown as typeof fetch;
+
+    const result = await searchKakaoPlaces(
+      { query: "cafe", page: 1, size: 5 },
+      { apiKey: "test-key", fetchImpl },
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).not.toHaveProperty("placeUrl");
+    expect(JSON.stringify(result)).not.toContain(rejectedUrl);
+  });
+
   it("normalizes a successful address search response", async () => {
     const fetchImpl = vi.fn(async () =>
       Response.json({

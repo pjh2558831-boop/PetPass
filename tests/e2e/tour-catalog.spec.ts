@@ -95,6 +95,79 @@ test("updates the visible Kakao area with the selected district", async ({
   expect(searchBody.data?.searchArea?.mode).toBe("district");
 });
 
+test("keeps a Kakao candidate while omitting a rejected external link", async ({
+  page,
+}) => {
+  const rejectedUrl = "javascript:alert(document.domain)";
+  await page.route("**/api/places/discovery?**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        requestId: "unsafe-kakao-url-test",
+        data: {
+          candidates: [
+            {
+              id: "unsafe-link-candidate",
+              name: "링크가 제거된 카카오 후보",
+              category: "food",
+              kakaoCategoryText: "음식점 > 카페",
+              address: "부산광역시 수영구 광안로 1",
+              coordinates: { latitude: 35.1456, longitude: 129.1131 },
+              placeUrl: rejectedUrl,
+              source: "KAKAO",
+              candidateStatus: "discovery_candidate",
+              verificationStatus: "verification_required",
+              petAccessVerdict: "unknown",
+              recommendationEligible: false,
+            },
+          ],
+          searchArea: {
+            mode: "district",
+            rectangle: {
+              west: 129.05,
+              south: 35.1,
+              east: 129.17,
+              north: 35.2,
+            },
+            center: null,
+          },
+          district: { code: "500", name: "수영구" },
+          category: "food",
+          metadata: {
+            externalCallCount: 1,
+            upstreamDocumentCount: 1,
+            duplicateCount: 0,
+            outOfRegionRemovalCount: 0,
+            excludedCategoryCount: 0,
+            exactExistingPlaceLinkCount: 0,
+            verificationRequiredCandidateCount: 1,
+            saturated: false,
+            partial: false,
+            stoppingReasons: [],
+          },
+        },
+      }),
+    });
+  });
+
+  await page.goto("/results");
+  await page.getByLabel("부산 세부 지역").selectOption("500");
+  await page.getByRole("button", { name: "음식점", exact: true }).click();
+  await page
+    .getByRole("button", { name: "추가 후보 찾기", exact: true })
+    .click();
+
+  await expect(
+    page.getByText("링크가 제거된 카카오 후보", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "카카오 장소 열기" }),
+  ).toHaveCount(0);
+  expect(await page.content()).not.toContain(rejectedUrl);
+});
+
 test("labels a non-Haeundae live detail from its address", async ({ page }) => {
   await page.goto("/places/1106?contentTypeId=12");
   await expect(page.getByRole("heading", { name: "광안 해변길" })).toBeVisible();

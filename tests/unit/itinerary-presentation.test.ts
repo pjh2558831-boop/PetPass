@@ -383,13 +383,16 @@ describe("itinerary presentation", () => {
         ...kakaoStop,
         placeUrl: "http://place.map.kakao.com/2",
       }),
-    ).toBe("https://place.map.kakao.com/2");
+    ).toBeNull();
     for (const unsafeUrl of [
       "javascript:alert(1)",
+      "data:text/html,unsafe",
       "//place.map.kakao.com/2",
       "https://place.map.kakao.com.evil.example/2",
       "https://user@place.map.kakao.com/2",
       "https://place.map.kakao.com:444/2",
+      "https://place.map.kakao.com/2/extra",
+      "https://place.map.kakao.com/2?redirect=https://evil.example",
     ]) {
       expect(
         getStopDetailHref({ ...kakaoStop, placeUrl: unsafeUrl }),

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
+import { parseKakaoPlaceUrl } from "@/lib/kakao/place-url";
 import { getKakaoRestApiKey } from "@/lib/kakao/server-config";
 import { ProviderResponseError } from "@/lib/shared/errors";
 import type {
@@ -69,6 +70,11 @@ export interface KakaoKeywordSearchInput {
 function optionalText(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed || undefined;
+}
+
+function optionalKakaoPlaceUrl(value: string): { placeUrl?: string } {
+  const placeUrl = parseKakaoPlaceUrl(value);
+  return placeUrl ? { placeUrl } : {};
 }
 
 function finiteNumber(value: string, field: string): number {
@@ -167,7 +173,7 @@ export async function searchKakaoPlacePage(
       categoryName: optionalText(document.category_name),
       categoryGroupCode: optionalText(document.category_group_code),
       phone: optionalText(document.phone),
-      placeUrl: optionalText(document.place_url),
+      ...optionalKakaoPlaceUrl(document.place_url),
       distanceMeters: optionalText(document.distance)
         ? finiteNumber(document.distance, "거리")
         : undefined,

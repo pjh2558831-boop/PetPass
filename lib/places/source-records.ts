@@ -1,3 +1,4 @@
+import { parseKakaoPlaceUrl } from "@/lib/kakao/place-url";
 import type { KakaoDiscoveryCandidate, KakaoPlaceSearchResult } from "@/types/kakao";
 import type { TourPlaceSummary } from "@/types/place";
 import type { PlaceSourceRecord } from "@/types/place-source";
@@ -33,6 +34,7 @@ export function createKakaoSourceRecord(
   place: KakaoPlaceSearchResult,
   retrievedAt: string,
 ): PlaceSourceRecord {
+  const sourceUrl = parseKakaoPlaceUrl(place.placeUrl);
   return {
     recordId: `kakao:${place.id}`,
     layer: "kakao_discovery",
@@ -46,7 +48,7 @@ export function createKakaoSourceRecord(
     retrievedAt,
     verifiedAt: null,
     evidenceSummary: "카카오 키워드 검색 결과이며 반려동물 동반 근거가 아닙니다.",
-    sourceUrl: place.placeUrl ?? null,
+    sourceUrl,
     conflicts: [],
   };
 }

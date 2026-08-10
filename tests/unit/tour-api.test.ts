@@ -4,6 +4,10 @@ import {
   TourApiClient,
   type TourApiClientOptions,
 } from "@/lib/tour-api/client";
+import {
+  getTourApiConfig,
+  validateTourApiBaseUrl,
+} from "@/lib/tour-api/config";
 import { TourRequestCache } from "@/lib/tour-api/cache";
 import {
   redactTourCredentials,
@@ -57,6 +61,66 @@ function parsed(items: TourItem[]): ParsedTourResponse {
 }
 
 describe("Korea Tourism Organization provider", () => {
+  it.each([
+    "https://apis.data.go.kr/B551011/KorPetTourService2",
+    "https://apis.data.go.kr/B551011/KorPetTourService2/",
+    "https://apis.data.go.kr:443/B551011/KorPetTourService2",
+  ])("accepts and canonicalizes an exact official base URL: %s", (baseUrl) => {
+    expect(validateTourApiBaseUrl(baseUrl)).toBe(
+      "https://apis.data.go.kr/B551011/KorPetTourService2",
+    );
+    expect(
+      getTourApiConfig({
+        TOUR_API_SERVICE_KEY: "test-key",
+        TOUR_API_BASE_URL: baseUrl,
+      } as unknown as NodeJS.ProcessEnv).baseUrl,
+    ).toBe("https://apis.data.go.kr/B551011/KorPetTourService2");
+  });
+
+  it.each([
+    "http://apis.data.go.kr/B551011/KorPetTourService2",
+    "https://user@apis.data.go.kr/B551011/KorPetTourService2",
+    "https://user:password@apis.data.go.kr/B551011/KorPetTourService2",
+    "https://apis.data.go.kr:444/B551011/KorPetTourService2",
+    "https://apis.data.go.kr.evil.example/B551011/KorPetTourService2",
+    "https://apis-data-go-kr.example/B551011/KorPetTourService2",
+    "https://apis.data.go.kr@evil.example/B551011/KorPetTourService2",
+    "https://evil.example/apis.data.go.kr/B551011/KorPetTourService2",
+    "https://apis.data.go.kr/proxy/B551011/KorPetTourService2",
+    "https://apis.data.go.kr/B551011/KorPetTourService2/extra",
+    "https://apis.data.go.kr/B551011/ignored/../KorPetTourService2",
+    "https://apis.data.go.kr/B551011/KorPetTourService2?redirect=evil",
+    "https://apis.data.go.kr/B551011/KorPetTourService2#unsafe",
+    "https://apis.data.go.kr%40evil.example/B551011/KorPetTourService2",
+    " https://apis.data.go.kr/B551011/KorPetTourService2",
+    "https://apis.data.go.kr/B551011/KorPetTourService2\n",
+  ])("rejects an unapproved TOUR base URL without echoing it: %s", (baseUrl) => {
+    try {
+      validateTourApiBaseUrl(baseUrl);
+      throw new Error("expected URL validation to fail");
+    } catch (error) {
+      expect(error).toMatchObject({ code: "CONFIGURATION" });
+      expect(String(error)).not.toContain(baseUrl);
+    }
+  });
+
+  it("validates an injected base URL before constructing or fetching a request", async () => {
+    const fetchImpl = vi.fn();
+    const client = new TourApiClient({
+      config: {
+        ...config,
+        baseUrl:
+          "https://apis.data.go.kr.evil.example/B551011/KorPetTourService2",
+      },
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    await expect(
+      client.request("areaBasedList2", { lDongRegnCd: "26" }),
+    ).rejects.toMatchObject({ code: "CONFIGURATION" });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it("encodes a raw or already encoded service key exactly once", () => {
     const encoded = buildTourRequestUrl(config, "areaBasedList2", {
       lDongRegnCd: "26",

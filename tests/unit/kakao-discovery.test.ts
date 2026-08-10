@@ -589,6 +589,17 @@ describe("normalization, filtering, and exact-only source linking", () => {
     expect(serialized).not.toContain("KAKAO_REST_API_KEY");
   });
 
+  it("drops an injected unsafe place URL without dropping the candidate", async () => {
+    const rejectedUrl = "https://place.map.kakao.com@evil.example/unsafe";
+    const result = await discoverWithResults([
+      place("unsafe-url", { placeUrl: rejectedUrl }),
+    ]);
+
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]).not.toHaveProperty("placeUrl");
+    expect(JSON.stringify(result)).not.toContain(rejectedUrl);
+  });
+
   it("keeps the configured Busan boundary immutable in a response", async () => {
     const before = { ...BUSAN_DISCOVERY_BOUNDS };
     await discoverWithResults([place()]);

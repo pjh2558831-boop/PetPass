@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseKakaoPlaceUrl } from "@/lib/kakao/place-url";
 import { PET_SIZE_COMPATIBILITY_STATES } from "@/types/pet-size-compatibility";
 import { TOUR_CONTENT_TYPE_IDS } from "@/types/place";
 import {
@@ -25,6 +26,10 @@ const tourImageUrlSchema = z.string().url().refine((value) => {
     url.password === ""
   );
 }, "Unsupported itinerary image URL");
+const kakaoPlaceUrlSchema = z
+  .string()
+  .optional()
+  .transform((value) => parseKakaoPlaceUrl(value) ?? undefined);
 
 const coordinatesSchema = z.object({
   latitude: finiteNumberSchema.min(-90).max(90),
@@ -340,7 +345,7 @@ const generatedItineraryStopSchema = z.object({
   callAheadRequired: z.boolean(),
   imageUrl: tourImageUrlSchema.optional(),
   phone: z.string().optional(),
-  placeUrl: z.string().url().optional(),
+  placeUrl: kakaoPlaceUrlSchema,
   verifiedReplacementIdentity: z.string().optional(),
 });
 

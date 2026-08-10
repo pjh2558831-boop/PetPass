@@ -1,3 +1,4 @@
+import { parseKakaoPlaceUrl } from "@/lib/kakao/place-url";
 import type {
   KakaoDiscoveryCategory,
   KakaoDiscoveryCandidate,
@@ -10,6 +11,7 @@ export function createKakaoDiscoveryCandidate(
   category: KakaoDiscoveryCategory,
   exactExistingPlaceLink?: KakaoDiscoveryExactExistingPlaceLink,
 ): KakaoDiscoveryCandidate {
+  const placeUrl = parseKakaoPlaceUrl(result.placeUrl);
   return {
     id: result.id,
     name: result.name,
@@ -18,7 +20,7 @@ export function createKakaoDiscoveryCandidate(
     address: result.roadAddress ?? result.address,
     coordinates: result.coordinates,
     ...(result.phone ? { phone: result.phone } : {}),
-    ...(result.placeUrl ? { placeUrl: result.placeUrl } : {}),
+    ...(placeUrl ? { placeUrl } : {}),
     source: "KAKAO",
     candidateStatus: "discovery_candidate",
     verificationStatus: "verification_required",

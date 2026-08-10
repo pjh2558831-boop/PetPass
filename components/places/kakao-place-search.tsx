@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ExternalLink, Eye, EyeOff, LoaderCircle, MapPin, Search, Undo2 } from "lucide-react";
+import { parseKakaoPlaceUrl } from "@/lib/kakao/place-url";
 import { createKakaoSearchPlan } from "@/lib/kakao/search-area";
 import { TOUR_CATALOG_FILTERS, type TourCatalogFilter } from "@/lib/tour-api/catalog";
 import type { ApiResult } from "@/types/api";
@@ -34,6 +35,15 @@ function isDiscoveryCategory(
   category: TourCatalogFilter,
 ): category is KakaoDiscoveryCategory {
   return KAKAO_DISCOVERY_CATEGORIES.includes(category as KakaoDiscoveryCategory);
+}
+
+function sanitizeCandidatePlaceUrl(
+  candidate: KakaoDiscoveryCandidate,
+): KakaoDiscoveryCandidate {
+  const placeUrl = parseKakaoPlaceUrl(candidate.placeUrl);
+  const safeCandidate = { ...candidate };
+  delete safeCandidate.placeUrl;
+  return placeUrl ? { ...safeCandidate, placeUrl } : safeCandidate;
 }
 
 export function KakaoPlaceSearch({
@@ -118,14 +128,18 @@ export function KakaoPlaceSearch({
           body.ok ? "추가 장소 후보 검색에 실패했습니다." : body.error.message,
         );
       }
-      onCandidatesChange?.(body.data.candidates);
+      const safeData = {
+        ...body.data,
+        candidates: body.data.candidates.map(sanitizeCandidatePlaceUrl),
+      };
+      onCandidatesChange?.(safeData.candidates);
       setSearchState({
         scopeKey,
         loading: false,
         searched: true,
         error: "",
-        results: body.data.candidates,
-        response: body.data,
+        results: safeData.candidates,
+        response: safeData,
       });
     } catch (error) {
       onCandidatesChange?.([]);
@@ -241,6 +255,7 @@ export function KakaoPlaceSearch({
           {activeState.results.map((result) => {
             const mapId = `kakao-local:${result.id}`;
             const selected = selectedId === mapId;
+            const placeUrl = parseKakaoPlaceUrl(result.placeUrl);
             return (
               <li key={result.id}>
                 <article
@@ -284,9 +299,9 @@ export function KakaoPlaceSearch({
                     >
                       <MapPin size={14} aria-hidden="true" /> 지도
                     </button>
-                    {result.placeUrl ? (
+                    {placeUrl ? (
                       <a
-                        href={result.placeUrl}
+                        href={placeUrl}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex min-h-9 items-center gap-1 text-xs font-extrabold text-[#285b70]"

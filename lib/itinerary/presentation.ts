@@ -1,3 +1,4 @@
+import { parseKakaoPlaceUrl } from "@/lib/kakao/place-url";
 import {
   ITINERARY_PROFILES,
   type GeneratedItinerary,
@@ -208,30 +209,10 @@ export function getStopConfirmationRequirements(
   };
 }
 
-function getSafeKakaoPlaceHref(value: string | undefined): string | null {
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    if (
-      (url.protocol !== "http:" && url.protocol !== "https:") ||
-      url.hostname.toLowerCase() !== "place.map.kakao.com" ||
-      url.port !== "" ||
-      url.username !== "" ||
-      url.password !== ""
-    ) {
-      return null;
-    }
-    url.protocol = "https:";
-    return url.href;
-  } catch {
-    return null;
-  }
-}
-
 export function getStopDetailHref(
   stop: GeneratedItineraryStop,
 ): string | null {
-  if (stop.source !== "TOUR_API") return getSafeKakaoPlaceHref(stop.placeUrl);
+  if (stop.source !== "TOUR_API") return parseKakaoPlaceUrl(stop.placeUrl);
   return `/places/${encodeURIComponent(stop.contentId)}?contentTypeId=${encodeURIComponent(
     stop.contentTypeId,
   )}`;

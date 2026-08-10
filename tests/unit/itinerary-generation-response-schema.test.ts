@@ -313,6 +313,18 @@ describe("itinerary generation response boundary", () => {
     ).toBe(false);
   });
 
+  it("omits an unsafe Kakao link without removing the itinerary stop", () => {
+    const rejectedUrl = "https://place.map.kakao.com.evil.example/1";
+    const response = makeResponse();
+    response.itineraries[0]!.stops[0]!.placeUrl = rejectedUrl;
+
+    const parsed = parseItineraryGenerationResponse(response);
+
+    expect(parsed.itineraries[0]?.stops).toHaveLength(1);
+    expect(parsed.itineraries[0]?.stops[0]?.placeUrl).toBeUndefined();
+    expect(JSON.stringify(parsed)).not.toContain(rejectedUrl);
+  });
+
   it.each([
     [
       "missing request equipment",

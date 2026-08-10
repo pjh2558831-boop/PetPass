@@ -1,6 +1,10 @@
 import "server-only";
 
-import { getTourApiConfig, type TourApiConfig } from "@/lib/tour-api/config";
+import {
+  getTourApiConfig,
+  validateTourApiBaseUrl,
+  type TourApiConfig,
+} from "@/lib/tour-api/config";
 import { TourProviderError } from "@/lib/tour-api/errors";
 import { parseTourResponse } from "@/lib/tour-api/parser";
 import type { ParsedTourResponse } from "@/lib/tour-api/schemas";
@@ -35,6 +39,7 @@ export function buildTourRequestUrl(
   operation: TourOperationName,
   params: Record<string, string>,
 ): URL {
+  const baseUrl = validateTourApiBaseUrl(config.baseUrl);
   if (!IMPLEMENTED_OPERATIONS.has(operation)) {
     throw new TourProviderError(
       "INVALID_OPERATION",
@@ -68,7 +73,7 @@ export function buildTourRequestUrl(
 
   const encodedServiceKey = encodeServiceKeyExactlyOnce(config.serviceKey);
   return new URL(
-    `${config.baseUrl}/${operation}?serviceKey=${encodedServiceKey}&${query.toString()}`,
+    `${baseUrl}/${operation}?serviceKey=${encodedServiceKey}&${query.toString()}`,
   );
 }
 
