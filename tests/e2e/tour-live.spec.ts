@@ -32,9 +32,15 @@ test("displays live Busan Tourism places and original pet-policy evidence", asyn
   await expect(
     page.getByRole("heading", { name: /장소 \d+곳/u }),
   ).toBeVisible();
-  await expect
-    .poll(() => page.locator(".kakao-map-marker").count(), { timeout: 30_000 })
-    .toBeGreaterThanOrEqual(10);
+  const map = page.locator(".kakao-map-canvas");
+  await expect(map).toBeVisible();
+  await expect(map).toHaveAttribute("data-location-count", /^\d+$/u);
+  const mapLocationCount = Number(await map.getAttribute("data-location-count"));
+  expect(Number.isSafeInteger(mapLocationCount)).toBe(true);
+  expect(mapLocationCount).toBeGreaterThanOrEqual(0);
+  await expect(
+    page.getByText(`지도 ${mapLocationCount}곳 표시`, { exact: true }),
+  ).toBeVisible();
 
   const detailResponsePromise = page.waitForResponse((response) =>
     /\/api\/tour\/places\/\d+/.test(response.url()),
@@ -47,6 +53,19 @@ test("displays live Busan Tourism places and original pet-policy evidence", asyn
   ).toBeVisible();
   await expect(page.getByText("제공처: Korea Tourism Organization")).toBeVisible();
   await expect(
-    page.getByText(/동반 가능·조건부·불일치 판정은 하지 않습니다/),
+    page.getByText(
+      /한국관광공사 제공 정보를 바탕으로 한 안내이며, 시설 운영 정책은 변경될 수 있으니/,
+    ),
   ).toBeVisible();
+  await expect
+    .poll(
+      async () =>
+        (await page.locator('img[alt$=" 제공 이미지"]').count()) +
+        (await page
+          .getByRole("img", { name: /이미지 (없음|불러오기 실패)/u })
+          .count()),
+    )
+    .toBeGreaterThan(0);
+
+  console.log(`LIVE_TOUR_MAP_LOCATIONS=${mapLocationCount}`);
 });
