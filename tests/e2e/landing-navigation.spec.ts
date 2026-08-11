@@ -30,7 +30,7 @@ test("renders the landing page and reaches the existing planner entry", async ({
 
   await expect(page).toHaveURL(/\/planner\/pet$/u);
   await expect(
-    page.getByRole("heading", { name: "함께 여행할 반려동물을 알려주세요" }),
+    page.getByRole("heading", { name: "여행 정보 입력" }),
   ).toBeVisible();
 });
 
@@ -93,7 +93,7 @@ test("opens the mobile navigation and follows its real destination", async ({
     page.getByRole("heading", { name: "선택된 추천 경로가 없습니다." }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "여행 만들기 시작" }),
+    page.getByRole("link", { name: "여행 정보 입력하기" }),
   ).toHaveAttribute("href", "/planner/pet");
 });
 

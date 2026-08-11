@@ -20,22 +20,22 @@ import type {
 
 export const DEFAULT_PLANNER_PROFILE: PetProfile = {
   id: "latest-pet",
-  name: "보리",
+  name: "",
   species: "DOG",
   size: "SMALL",
-  hasCarrier: true,
-  hasLeash: true,
+  hasCarrier: false,
+  hasLeash: false,
   hasMuzzle: false,
-  acceptsOutdoorOnly: true,
+  acceptsOutdoorOnly: false,
 };
 
 export const DEFAULT_PLANNER_PREFERENCES: TravelPreferences = {
   regionCode: BUSAN_REGION.code,
   regionName: BUSAN_REGION.name,
-  tripDate: "2026-08-15",
+  tripDate: "",
   tripType: "DAY_TRIP",
-  startTime: "10:00",
-  preferredCategories: ["ATTRACTION", "RESTAURANT", "CAFE"],
+  startTime: "",
+  preferredCategories: [],
   planningMode: "stop_count",
   desiredStopCount: 3,
   desiredDurationMinutes: 360,
@@ -69,6 +69,10 @@ export interface PlannerStateValue {
   selectedItinerary: GeneratedItinerary | null;
   confirmProfile: () => void;
   confirmPreferencesAndRequestGeneration: () => void;
+  confirmPlannerAndRequestGeneration: (
+    profile: PetProfile,
+    preferences: TravelPreferences,
+  ) => void;
   consumeGenerationRequest: () => void;
   beginGeneration: (operation: PlannerGenerationOperation) => number;
   resolveGeneration: (
@@ -252,6 +256,24 @@ export function PlannerStateProvider({ children }: { children: ReactNode }) {
     invalidateGeneration();
   }, [invalidateGeneration]);
 
+  const confirmPlannerAndRequestGeneration = useCallback(
+    (nextProfile: PetProfile, nextPreferences: TravelPreferences) => {
+      const activeRequestId = ++generationRequestSequence.current;
+      setProfileState(nextProfile);
+      setPreferencesState({
+        ...nextPreferences,
+        indoorAccessPreference: nextProfile.acceptsOutdoorOnly
+          ? (nextPreferences.indoorAccessPreference ?? "any")
+          : "required",
+      });
+      setProfileConfirmed(true);
+      setPreferencesConfirmed(true);
+      setGenerationRequested(true);
+      setGenerationState(() => createIdleGenerationState(activeRequestId));
+    },
+    [],
+  );
+
   const consumeGenerationRequest = useCallback(() => {
     setGenerationRequested(false);
   }, []);
@@ -274,6 +296,7 @@ export function PlannerStateProvider({ children }: { children: ReactNode }) {
       selectedItinerary,
       confirmProfile,
       confirmPreferencesAndRequestGeneration,
+      confirmPlannerAndRequestGeneration,
       consumeGenerationRequest,
       beginGeneration,
       resolveGeneration,
@@ -284,6 +307,7 @@ export function PlannerStateProvider({ children }: { children: ReactNode }) {
     [
       beginGeneration,
       confirmPreferencesAndRequestGeneration,
+      confirmPlannerAndRequestGeneration,
       confirmProfile,
       consumeGenerationRequest,
       generationRequested,

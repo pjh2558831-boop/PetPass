@@ -1,4 +1,8 @@
 import { expect, test } from "@playwright/test";
+import {
+  chooseConfirmedDeparture,
+  continueToTrip,
+} from "@/tests/e2e/planner-test-helpers";
 
 test.beforeEach(async ({ page }, testInfo) => {
   await page.setExtraHTTPHeaders({
@@ -330,8 +334,7 @@ test("keeps an official planner district code in memory and uses it on results",
   page,
 }) => {
   await page.goto("/planner/pet");
-  await page.getByRole("button", { name: "여행 조건 정하기" }).click();
-  await expect(page).toHaveURL(/\/planner\/trip$/u);
+  await continueToTrip(page);
   const plannerRegion = page.getByRole("combobox", {
     name: "여행 지역",
     exact: true,
@@ -346,22 +349,14 @@ test("keeps an official planner district code in memory and uses it on results",
   await expect(plannerDistrict.locator("option")).toHaveCount(17);
   await plannerDistrict.selectOption("230");
 
-  const departureResponse = page.waitForResponse((response) =>
-    response.url().includes("/api/kakao/local/geocode"),
-  );
-  await page.getByRole("combobox", { name: "출발지 주소" }).fill("부산광역시청");
-  expect((await departureResponse).status()).toBe(200);
-  const departureResults = page.getByRole("listbox", {
-    name: "출발지 주소 검색 결과",
-  });
-  await departureResults.getByRole("option").first().click();
+  await chooseConfirmedDeparture(page);
 
   const generationResponse = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === "/api/itineraries/generate" &&
       response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "추천 경로 만들기" }).click();
+  await page.getByRole("button", { name: "여행 추천 받기" }).click();
   expect((await generationResponse).status()).toBe(200);
   await expect(page).toHaveURL(/\/results\?tab=recommendations$/u);
   await expect(page.getByText(/→ 부산진구/u).first()).toBeVisible();

@@ -70,7 +70,7 @@ test("shows a deliberate empty state for direct recommendation entry", async ({
     page.getByRole("heading", { name: "확정된 여행 조건이 없습니다." }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "반려동물 정보부터 시작" }),
+    page.getByRole("link", { name: "여행 정보 입력하기" }),
   ).toHaveAttribute("href", "/planner/pet");
   await expect(page.getByRole("heading", { name: /코스/u })).toHaveCount(0);
   expect(generationRequests).toEqual([]);
@@ -338,7 +338,7 @@ test("recovers from an initial generation failure without losing confirmed input
   await openPetPlanner(page, testInfo, "phase3c-error");
   await continueToTrip(page);
   await chooseConfirmedDeparture(page);
-  await page.getByRole("button", { name: "추천 경로 만들기" }).click();
+  await page.getByRole("button", { name: "여행 추천 받기" }).click();
   await expect(page).toHaveURL(/\/results\?tab=recommendations$/u);
   const error = page.getByRole("alert").filter({
     hasText: "경로 제공자 연결이 일시적으로 불안정합니다.",

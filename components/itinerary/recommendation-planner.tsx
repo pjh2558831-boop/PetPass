@@ -155,7 +155,7 @@ function generationStateCopy(state: ItineraryGenerationResponse["state"]): {
   };
 }
 
-function ResultsEmptyState({ hasProfile }: { hasProfile: boolean }) {
+function ResultsEmptyState() {
   return (
     <section className="surface-panel mx-auto max-w-3xl p-7 text-center sm:p-10" aria-labelledby="results-empty-heading">
       <span className="mx-auto grid size-12 place-items-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]">
@@ -169,10 +169,10 @@ function ResultsEmptyState({ hasProfile }: { hasProfile: boolean }) {
         새로고침하거나 이 주소로 바로 들어오면 이전 결과를 복원하지 않습니다. 반려동물과 출발지를 다시 확인해 실제 경로를 만들어 주세요.
       </p>
       <Link
-        href={hasProfile ? "/planner/trip" : "/planner/pet"}
+        href="/planner/pet"
         className="mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--brand)] px-5 text-sm font-extrabold text-white shadow-[var(--shadow-button)] hover:bg-[var(--brand-deep)]"
       >
-        {hasProfile ? "여행 조건 정하기" : "반려동물 정보부터 시작"}
+        여행 정보 입력하기
         <ArrowRight size={17} aria-hidden="true" />
       </Link>
     </section>
@@ -482,7 +482,7 @@ export function RecommendationPlanner({
   );
 
   if (!profileConfirmed || !preferencesConfirmed) {
-    return <ResultsEmptyState hasProfile={profileConfirmed} />;
+    return <ResultsEmptyState />;
   }
 
   const loading = generationState.phase === "loading";
@@ -620,7 +620,7 @@ export function RecommendationPlanner({
               <h2 id="no-routes-heading" className="mt-3 text-xl font-black">표시할 수 있는 실제 경로가 없습니다.</h2>
               <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-[var(--muted)]">조건을 넓혀 다시 생성하거나, 여행 조건 단계에서 지역·카테고리·일정 길이를 수정해 주세요.</p>
               <div className="mt-5 flex flex-wrap justify-center gap-2">
-                <Link href="/planner/trip" className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[#c9d7ce] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">여행 조건 수정</Link>
+                <Link href="/planner/pet" className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[#c9d7ce] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">여행 정보 수정</Link>
                 <Button type="button" onClick={() => void runGeneration("reroll")}><RefreshCw size={16} aria-hidden="true" /> 같은 조건으로 다시 시도</Button>
               </div>
             </section>

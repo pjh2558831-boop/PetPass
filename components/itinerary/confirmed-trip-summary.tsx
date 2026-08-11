@@ -77,11 +77,11 @@ export function ConfirmedTripSummary({
         </div>
         {showEditAction ? (
           <Link
-            href="/planner/trip"
+            href="/planner/pet"
             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[#c9d7ce] bg-white px-4 text-sm font-extrabold text-[#23483a] transition-colors hover:border-[#82aa95] hover:bg-[var(--brand-soft)]"
           >
             <PencilLine size={16} aria-hidden="true" />
-            여행 조건 수정
+            여행 정보 수정
           </Link>
         ) : null}
       </div>

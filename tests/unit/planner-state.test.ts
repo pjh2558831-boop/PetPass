@@ -69,6 +69,57 @@ afterEach(() => {
 });
 
 describe("PlannerStateProvider generation state", () => {
+  it("starts neutral and confirms the combined planner form atomically", () => {
+    expect(getPlannerState().profile).toMatchObject({
+      name: "",
+      hasCarrier: false,
+      hasLeash: false,
+      hasMuzzle: false,
+      acceptsOutdoorOnly: false,
+    });
+    expect(getPlannerState().preferences).toMatchObject({
+      tripDate: "",
+      startTime: "",
+      preferredCategories: [],
+    });
+
+    const nextProfile = {
+      ...getPlannerState().profile,
+      name: "초코",
+      species: "CAT" as const,
+      size: "MEDIUM" as const,
+    };
+    const nextPreferences = {
+      ...getPlannerState().preferences,
+      tripDate: "2026-08-20",
+      startTime: "09:30",
+      preferredCategories: ["ATTRACTION" as const],
+      departure: {
+        label: "부산역",
+        coordinates: { latitude: 35.1151, longitude: 129.0414 },
+      },
+    };
+
+    act(() => {
+      getPlannerState().confirmPlannerAndRequestGeneration(
+        nextProfile,
+        nextPreferences,
+      );
+    });
+
+    expect(getPlannerState()).toMatchObject({
+      profile: nextProfile,
+      profileConfirmed: true,
+      preferencesConfirmed: true,
+      generationRequested: true,
+    });
+    expect(getPlannerState().preferences).toMatchObject({
+      ...nextPreferences,
+      indoorAccessPreference: "required",
+    });
+    expect(getPlannerState().generationState.phase).toBe("idle");
+  });
+
   it("retains the old route during rerolls and caps unique server signatures", () => {
     let requestId = 0;
     act(() => {

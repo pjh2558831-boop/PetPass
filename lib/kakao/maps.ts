@@ -38,6 +38,7 @@ interface KakaoMarkerImage {
 interface KakaoMarker {
   setImage(image: KakaoMarkerImage): void;
   setMap(map: KakaoMapInstance | null): void;
+  setPosition(position: KakaoLatLng): void;
   setZIndex(zIndex: number): void;
 }
 
@@ -187,12 +188,96 @@ export function isValidMapCoordinates(
   );
 }
 
+export interface KakaoCoordinatePickerController {
+  destroy(): void;
+  relayout(): void;
+  setSelection(coordinates: Coordinates | null, center?: boolean): void;
+}
+
 export function getRenderableRouteCoordinates(
   routeCoordinates: Coordinates[],
 ): Coordinates[] {
   return routeCoordinates.length > 1 && routeCoordinates.every(isValidMapCoordinates)
     ? routeCoordinates
     : [];
+}
+
+export function createKakaoCoordinatePicker(
+  container: HTMLElement,
+  options: {
+    initialCoordinates?: Coordinates | null;
+    onSelect: (coordinates: Coordinates) => void;
+  },
+): KakaoCoordinatePickerController {
+  const maps = window.kakao?.maps;
+  if (!maps?.Map || !maps.LatLng || !maps.Marker || !maps.event) {
+    throw new ConfigurationRequiredError(
+      "카카오 지도 SDK가 준비되지 않아 출발지를 선택할 수 없습니다.",
+    );
+  }
+
+  const initialCoordinates = isValidMapCoordinates(options.initialCoordinates)
+    ? options.initialCoordinates
+    : BUSAN_REGION_CONFIG.defaultMapCenter;
+  const map = new maps.Map(container, {
+    center: new maps.LatLng(
+      initialCoordinates.latitude,
+      initialCoordinates.longitude,
+    ),
+    level: 5,
+  });
+  let marker: KakaoMarker | null = null;
+
+  const setSelection = (
+    coordinates: Coordinates | null,
+    center = false,
+  ) => {
+    if (!isValidMapCoordinates(coordinates)) {
+      marker?.setMap(null);
+      marker = null;
+      return;
+    }
+    const position = new maps.LatLng(
+      coordinates.latitude,
+      coordinates.longitude,
+    );
+    if (marker) {
+      marker.setPosition(position);
+      marker.setMap(map);
+    } else {
+      marker = new maps.Marker({ map, position, title: "선택한 출발지" });
+    }
+    if (center) map.panTo(position);
+  };
+
+  const handleMapClick = (event: unknown) => {
+    const latLng = (event as { latLng?: KakaoLatLng } | null)?.latLng;
+    if (!latLng) return;
+    const coordinates = {
+      latitude: latLng.getLat(),
+      longitude: latLng.getLng(),
+    };
+    if (!isValidMapCoordinates(coordinates)) return;
+    setSelection(coordinates);
+    options.onSelect(coordinates);
+  };
+
+  maps.event.addListener(map, "click", handleMapClick);
+  container.dataset.kakaoCoordinatePickerReady = "true";
+  setSelection(options.initialCoordinates ?? null);
+
+  return {
+    destroy() {
+      maps.event.removeListener(map, "click", handleMapClick);
+      marker?.setMap(null);
+      marker = null;
+      delete container.dataset.kakaoCoordinatePickerReady;
+    },
+    relayout() {
+      map.relayout();
+    },
+    setSelection,
+  };
 }
 
 const TRANSPARENT_MARKER_SVG =

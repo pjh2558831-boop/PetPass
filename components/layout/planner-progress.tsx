@@ -1,6 +1,6 @@
 import { Check } from "lucide-react";
 
-const steps = ["반려동물 정보", "여행 조건", "추천 경로", "상세 일정"];
+const steps = ["정보 입력", "추천 확인", "상세 일정"];
 
 export function PlannerProgress({ current }: { current: number }) {
   const safeCurrent = Math.min(steps.length, Math.max(1, current));
@@ -39,7 +39,7 @@ export function PlannerProgress({ current }: { current: number }) {
         </ol>
       </div>
 
-      <ol className="hidden grid-cols-4 gap-3 sm:grid" aria-label="전체 단계">
+      <ol className="hidden grid-cols-3 gap-3 sm:grid" aria-label="전체 단계">
         {steps.map((step, index) => {
           const number = index + 1;
           const complete = number < safeCurrent;

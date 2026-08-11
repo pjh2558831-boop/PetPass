@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { parseKakaoPlaceUrl } from "@/lib/kakao/place-url";
 import type { ItineraryGenerationResponse } from "@/types/route-generation";
 
-const GEOCODE_PATH = "/api/kakao/local/geocode";
+const DEPARTURE_PATH = "/api/kakao/local/departure";
 const GENERATE_PATH = "/api/itineraries/generate";
 
 type GenerationEnvelope = {
@@ -142,18 +142,23 @@ test("completes one bounded real-provider journey across all three strategies", 
   await page.locator('a[href="/planner/pet"]').first().click();
   await expect(page).toHaveURL(/\/planner\/pet$/u);
   await page.getByRole("textbox", { name: "반려동물 이름" }).fill("보리");
+  await page.getByRole("radio", { name: "강아지", exact: true }).check({ force: true });
+  await page.getByRole("radio", { name: /^소형/u }).check({ force: true });
   await page.getByRole("checkbox", { name: "입마개" }).check();
-  await page.getByRole("button", { name: "여행 조건 정하기" }).click();
-  await expect(page).toHaveURL(/\/planner\/trip$/u);
+  await page.getByLabel("여행 날짜").fill("2026-08-15");
+  await page.getByLabel("시작 시간").fill("10:00");
+  await page.getByRole("checkbox", { name: "관광지", exact: true }).check({ force: true });
+  await page.getByRole("checkbox", { name: "음식점", exact: true }).check({ force: true });
+  await page.getByRole("checkbox", { name: "카페", exact: true }).check({ force: true });
 
   const departureQuery = "부산광역시 연제구 중앙대로 1001";
   const geocodeResponsePromise = page.waitForResponse(
     (response) =>
-      new URL(response.url()).pathname === GEOCODE_PATH &&
+      new URL(response.url()).pathname === DEPARTURE_PATH &&
       response.request().method() === "GET",
     { timeout: 30_000 },
   );
-  const departureInput = page.getByRole("combobox", { name: "출발지 주소" });
+  const departureInput = page.getByRole("combobox", { name: "출발지" });
   await departureInput.fill(departureQuery);
   const geocodeResponse = await geocodeResponsePromise;
   expect(geocodeResponse.status()).toBe(200);
@@ -171,7 +176,7 @@ test("completes one bounded real-provider journey across all three strategies", 
     originCoordinates.longitude,
   );
   const departureOptions = page
-    .getByRole("listbox", { name: "출발지 주소 검색 결과" })
+    .getByRole("listbox", { name: "출발지 검색 결과" })
     .getByRole("option");
   await expect(departureOptions.first()).toBeVisible();
   await departureOptions.first().click();
@@ -182,7 +187,7 @@ test("completes one bounded real-provider journey across all three strategies", 
       response.request().method() === "POST",
     { timeout: 240_000 },
   );
-  await page.getByRole("button", { name: "추천 경로 만들기" }).click();
+  await page.getByRole("button", { name: "여행 추천 받기" }).click();
   const generationResponse = await generationResponsePromise;
   expect(generationResponse.status()).toBe(200);
   const envelope = (await generationResponse.json()) as GenerationEnvelope;
