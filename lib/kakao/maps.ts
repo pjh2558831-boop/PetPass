@@ -416,6 +416,7 @@ export function createKakaoMapController(
     if (viewport) options.onViewportIdle?.(viewport);
   };
   maps.event.addListener(map, "idle", viewportIdleHandler);
+  viewportIdleHandler();
 
   const syncClusteredCatalogOverlays = (clustersValue: unknown) => {
     if (destroyed) return;

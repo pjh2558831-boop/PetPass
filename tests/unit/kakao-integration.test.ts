@@ -316,6 +316,7 @@ describe("Kakao integration boundaries", () => {
     };
 
     const onLocationSelect = vi.fn();
+    const onViewportIdle = vi.fn();
     const container = document.createElement("div");
     const controller = createKakaoMapController(container, {
       locations: [
@@ -350,6 +351,7 @@ describe("Kakao integration boundaries", () => {
         { latitude: 35.16, longitude: 129.16 },
       ],
       onLocationSelect,
+      onViewportIdle,
     });
 
     expect(clusterers).toHaveLength(1);
@@ -373,6 +375,8 @@ describe("Kakao integration boundaries", () => {
         north: 35.3,
       },
     });
+    expect(onViewportIdle).toHaveBeenCalledTimes(1);
+    expect(onViewportIdle).toHaveBeenCalledWith(controller.getSearchViewport());
 
     const markerButton = overlays.find(({ content }) =>
       content.matches('[data-location-id="one"]'),
