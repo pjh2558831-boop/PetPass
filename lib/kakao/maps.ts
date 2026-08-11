@@ -204,6 +204,7 @@ export function createKakaoMapController(
     locations: KakaoMapLocation[];
     routeCoordinates?: Coordinates[];
     onLocationSelect?: (id: string | null) => void;
+    onViewportIdle?: (viewport: KakaoCurrentMapSearch) => void;
   },
 ): KakaoMapController {
   const maps = window.kakao?.maps;
@@ -227,7 +228,7 @@ export function createKakaoMapController(
     BUSAN_REGION_CONFIG.defaultMapCenter.latitude,
     BUSAN_REGION_CONFIG.defaultMapCenter.longitude,
   );
-  const map = new maps.Map(container, { center: defaultCenter, level: 6 });
+  const map = new maps.Map(container, { center: defaultCenter, level: 8 });
   const transparentMarkerImage = new maps.MarkerImage(
     TRANSPARENT_MARKER_SVG,
     new maps.Size(1, 1),
@@ -235,14 +236,14 @@ export function createKakaoMapController(
   );
   const nativeMarkerImages = new Map<KakaoMapMarkerKind, KakaoMarkerImage>();
   const nativeMarkerVisual = (kind: KakaoMapMarkerKind) => {
-    const visuals: Record<KakaoMapMarkerKind, { color: string; label: string; shape: "diamond" | "circle" | "square" }> = {
-      catalog: { color: "#236148", label: "공", shape: "diamond" },
-      "tourism-official": { color: "#236148", label: "공", shape: "diamond" },
+    const visuals: Record<KakaoMapMarkerKind, { color: string; label: string; textColor?: string; shape: "diamond" | "circle" | "square" }> = {
+      catalog: { color: "#2f6fed", label: "공", shape: "diamond" },
+      "tourism-official": { color: "#2f6fed", label: "공", shape: "diamond" },
       "business-confirmed": { color: "#267d73", label: "업", shape: "square" },
       "administrator-confirmed": { color: "#7356a8", label: "관", shape: "circle" },
       "user-reported": { color: "#a8692d", label: "제", shape: "circle" },
-      search: { color: "#356e85", label: "?", shape: "circle" },
-      "kakao-candidate": { color: "#356e85", label: "?", shape: "circle" },
+      search: { color: "#f2b705", label: "?", textColor: "#3b2d00", shape: "circle" },
+      "kakao-candidate": { color: "#f2b705", label: "?", textColor: "#3b2d00", shape: "circle" },
       shopping: { color: "#6d588c", label: "쇼", shape: "diamond" },
       itinerary: { color: "#b85f40", label: "", shape: "diamond" },
     };
@@ -258,7 +259,7 @@ export function createKakaoMapController(
         : visual.shape === "square"
           ? '<rect x="2" y="2" width="26" height="30" rx="6"/>'
           : '<circle cx="15" cy="16" r="14"/>';
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="36" viewBox="0 0 30 36"><g fill="${visual.color}" stroke="white" stroke-width="2">${shape}</g><text x="15" y="20" text-anchor="middle" fill="white" font-size="11" font-weight="900" font-family="sans-serif">${visual.label}</text></svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="36" viewBox="0 0 30 36"><g fill="${visual.color}" stroke="white" stroke-width="2">${shape}</g><text x="15" y="20" text-anchor="middle" fill="${visual.textColor ?? "white"}" font-size="11" font-weight="900" font-family="sans-serif">${visual.label}</text></svg>`;
     const image = new maps.MarkerImage(
       `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
       new maps.Size(30, 36),
@@ -283,7 +284,7 @@ export function createKakaoMapController(
             boxSizing: "border-box",
             border: "4px solid rgba(255,255,255,.96)",
             borderRadius: "50%",
-            background: "#236148",
+            background: "#2f6fed",
             boxShadow: "0 8px 22px rgba(35,97,72,.28)",
             color: "#fff",
             cursor: "pointer",
@@ -360,6 +361,62 @@ export function createKakaoMapController(
   };
   maps.event.addListener(map, "click", mapClickHandler);
 
+  const readSearchViewport = (): KakaoCurrentMapSearch | null => {
+    const center = map.getCenter?.();
+    const bounds = map.getBounds?.();
+    const northEast = bounds?.getNorthEast?.();
+    const southWest = bounds?.getSouthWest?.();
+    if (!center || !northEast || !southWest) return null;
+    const centerCoordinates = {
+      latitude: center.getLat(),
+      longitude: center.getLng(),
+    };
+    const northEastCoordinates = {
+      latitude: northEast.getLat(),
+      longitude: northEast.getLng(),
+    };
+    const southWestCoordinates = {
+      latitude: southWest.getLat(),
+      longitude: southWest.getLng(),
+    };
+    if (
+      !isValidMapCoordinates(centerCoordinates) ||
+      !isValidMapCoordinates(northEastCoordinates) ||
+      !isValidMapCoordinates(southWestCoordinates) ||
+      southWestCoordinates.longitude >= northEastCoordinates.longitude ||
+      southWestCoordinates.latitude >= northEastCoordinates.latitude
+    ) {
+      return null;
+    }
+    const radiusMeters = Math.min(
+      KAKAO_CURRENT_MAP_MAX_RADIUS_METERS,
+      Math.max(
+        500,
+        Math.ceil(
+          Math.max(
+            distanceMeters(centerCoordinates, northEastCoordinates),
+            distanceMeters(centerCoordinates, southWestCoordinates),
+          ),
+        ),
+      ),
+    );
+    return {
+      center: centerCoordinates,
+      radiusMeters,
+      rectangle: {
+        west: southWestCoordinates.longitude,
+        south: southWestCoordinates.latitude,
+        east: northEastCoordinates.longitude,
+        north: northEastCoordinates.latitude,
+      },
+    };
+  };
+  const viewportIdleHandler = () => {
+    const viewport = readSearchViewport();
+    if (viewport) options.onViewportIdle?.(viewport);
+  };
+  maps.event.addListener(map, "idle", viewportIdleHandler);
+
   const syncClusteredCatalogOverlays = (clustersValue: unknown) => {
     if (destroyed) return;
     for (const button of catalogButtonByMarker.values()) {
@@ -413,6 +470,7 @@ export function createKakaoMapController(
       }
       clearLayers();
       maps.event.removeListener(map, "click", mapClickHandler);
+      maps.event.removeListener(map, "idle", viewportIdleHandler);
       destroyed = true;
       container.replaceChildren();
       delete container.dataset.clustererReady;
@@ -431,60 +489,7 @@ export function createKakaoMapController(
     },
 
     getSearchViewport() {
-      const center = map.getCenter?.();
-      const bounds = map.getBounds?.();
-      const northEast = bounds?.getNorthEast?.();
-      const southWest = bounds?.getSouthWest?.();
-      if (!center || !northEast || !southWest) return null;
-      const centerCoordinates = {
-        latitude: center.getLat(),
-        longitude: center.getLng(),
-      };
-      const northEastCoordinates = {
-        latitude: northEast.getLat(),
-        longitude: northEast.getLng(),
-      };
-      const southWestCoordinates = {
-        latitude: southWest.getLat(),
-        longitude: southWest.getLng(),
-      };
-      if (
-        !isValidMapCoordinates(centerCoordinates) ||
-        !isValidMapCoordinates(northEastCoordinates) ||
-        !isValidMapCoordinates(southWestCoordinates) ||
-        southWestCoordinates.longitude >= northEastCoordinates.longitude ||
-        southWestCoordinates.latitude >= northEastCoordinates.latitude
-      ) {
-        return null;
-      }
-      const radiusMeters = Math.min(
-        KAKAO_CURRENT_MAP_MAX_RADIUS_METERS,
-        Math.max(
-          500,
-          Math.ceil(
-            Math.max(
-              distanceMeters(centerCoordinates, {
-                latitude: northEast.getLat(),
-                longitude: northEast.getLng(),
-              }),
-              distanceMeters(centerCoordinates, {
-                latitude: southWest.getLat(),
-                longitude: southWest.getLng(),
-              }),
-            ),
-          ),
-        ),
-      );
-      return {
-        center: centerCoordinates,
-        radiusMeters,
-        rectangle: {
-          west: southWestCoordinates.longitude,
-          south: southWestCoordinates.latitude,
-          east: northEastCoordinates.longitude,
-          north: northEastCoordinates.latitude,
-        },
-      };
+      return readSearchViewport();
     },
 
     relayout() {

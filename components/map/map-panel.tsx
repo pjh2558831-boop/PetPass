@@ -39,6 +39,7 @@ export function MapPanel({
   selectedLocationId = null,
   onLocationSelect,
   onCurrentMapSearch,
+  onViewportIdle,
   viewportKey = "default",
   layerControls = [],
   onLayerToggle,
@@ -52,6 +53,7 @@ export function MapPanel({
   selectedLocationId?: string | null;
   onLocationSelect?: (id: string | null) => void;
   onCurrentMapSearch?: (viewport: KakaoCurrentMapSearch) => void;
+  onViewportIdle?: (viewport: KakaoCurrentMapSearch) => void;
   viewportKey?: string;
   layerControls?: MapLayerControl[];
   onLayerToggle?: (id: string, visible: boolean) => void;
@@ -68,6 +70,7 @@ export function MapPanel({
   });
   const onLocationSelectRef = useRef(onLocationSelect);
   const onCurrentMapSearchRef = useRef(onCurrentMapSearch);
+  const onViewportIdleRef = useRef(onViewportIdle);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
     "loading",
   );
@@ -80,9 +83,11 @@ export function MapPanel({
     latestDataRef.current = { locations, routeCoordinates, selectedLocationId };
     onLocationSelectRef.current = onLocationSelect;
     onCurrentMapSearchRef.current = onCurrentMapSearch;
+    onViewportIdleRef.current = onViewportIdle;
   }, [
     locations,
     onCurrentMapSearch,
+    onViewportIdle,
     onLocationSelect,
     routeCoordinates,
     selectedLocationId,
@@ -101,6 +106,7 @@ export function MapPanel({
         locations: latestData.locations,
         routeCoordinates: latestData.routeCoordinates,
         onLocationSelect: (id) => onLocationSelectRef.current?.(id),
+        onViewportIdle: (viewport) => onViewportIdleRef.current?.(viewport),
       });
       viewportKeyRef.current = viewportKey;
       controllerRef.current.selectLocation(latestData.selectedLocationId);

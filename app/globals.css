@@ -206,7 +206,8 @@ select {
 
 .kakao-map-marker--tourism-official,
 .kakao-map-marker--catalog {
-  background: #236148;
+  background: #2f6fed;
+  box-shadow: 0 8px 20px rgba(47, 111, 237, 0.28);
 }
 
 .kakao-map-marker--business-confirmed {
@@ -230,11 +231,11 @@ select {
 
 .kakao-map-marker--search,
 .kakao-map-marker--kakao-candidate {
-  border-color: #356e85;
+  border-color: white;
   border-radius: 999px;
-  background: #356e85;
-  box-shadow: 0 8px 20px rgba(39, 83, 101, 0.28);
-  color: white;
+  background: #f2b705;
+  box-shadow: 0 8px 20px rgba(190, 139, 0, 0.3);
+  color: #3b2d00;
   transform: none;
 }
 
@@ -273,7 +274,7 @@ select {
   flex: 0 0 auto;
   border: 2px solid white;
   border-radius: 50% 50% 50% 10%;
-  background: #236148;
+  background: #2f6fed;
   box-shadow: 0 0 0 1px #9eb4a8;
   transform: rotate(-45deg);
 }
@@ -299,9 +300,10 @@ select {
 
 .map-legend-marker--kakao-candidate,
 .map-legend-marker--search {
-  border-color: #356e85;
+  border-color: white;
   border-radius: 999px;
-  background: white;
+  background: #f2b705;
+  box-shadow: 0 0 0 1px #b88b00;
   transform: none;
 }
 

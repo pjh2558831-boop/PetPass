@@ -23,6 +23,9 @@ development server:
 ```dotenv
 NEXT_PUBLIC_KAKAO_MAP_JS_KEY=
 KAKAO_REST_API_KEY=
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SECRET_KEY=
 ```
 
 `NEXT_PUBLIC_KAKAO_MAP_JS_KEY` is intentionally exposed to the browser for the
@@ -60,17 +63,47 @@ multi-region production traffic, replace these with a shared durable limiter.
 
 ## Vercel environment variables
 
-Add both `NEXT_PUBLIC_KAKAO_MAP_JS_KEY` and `KAKAO_REST_API_KEY` in the Vercel
-project's Settings → Environment Variables for Production, Preview, and
-Development. Redeploy after changing them. Keep the REST key server-only and mark
-it sensitive in Production and Preview. The linked Vercel project is `pet-pass`,
-whose production URL is `https://pet-pass-two.vercel.app`.
+Add `NEXT_PUBLIC_KAKAO_MAP_JS_KEY`, `KAKAO_REST_API_KEY`,
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and
+`SUPABASE_SECRET_KEY` in the Vercel project's Settings → Environment Variables
+for Production, Preview, and Development. Redeploy after changing them. Keep the
+Kakao REST key and Supabase secret key server-only and mark them sensitive in
+Production and Preview. The linked Vercel project is `pet-pass`, whose production
+URL is `https://pet-pass-two.vercel.app`.
 
 If the map shows a configuration error, verify that the JavaScript key exists in
 the current environment and that the current origin is registered in Kakao
 Developers, then restart or redeploy. If Local or Mobility calls return a
 configuration error, verify only the server-side `KAKAO_REST_API_KEY`; never move
 that key into browser code to work around the error.
+
+## Stored Busan map places
+
+PetPass keeps map discovery data in Supabase instead of asking Kakao Local from
+the browser whenever the map moves.
+
+- `public.map_places` stores normalized Tour API and Kakao places with a PostGIS
+  point, provider identity, category, evidence status, source URL, and timestamps.
+- `public.get_map_places_in_bounds` returns only active places inside the visible
+  Busan map bounds. Anonymous clients have read-only access through this function
+  and the table RLS policy.
+- `public.map_ingest_runs` records sanitized collection counts and failures. It is
+  intentionally unavailable to browser clients.
+- The map requests `/api/map/places` after the viewport becomes idle and draws
+  official records in blue and Kakao candidates in yellow.
+
+Apply the SQL in `supabase/migrations`, then collect and upsert the current Busan
+Kakao results from a trusted server environment:
+
+```bash
+npm run ingest:kakao-busan
+```
+
+The ingestion command requires `KAKAO_REST_API_KEY`,
+`NEXT_PUBLIC_SUPABASE_URL`, and `SUPABASE_SECRET_KEY`. Never expose the Supabase
+secret key to the browser or commit it to the repository. Re-running the command
+is safe: places are updated by the unique provider/place identifier and duplicate
+Kakao results are removed before the upsert.
 
 ## Verify
 

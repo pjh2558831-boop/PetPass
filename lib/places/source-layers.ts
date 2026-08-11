@@ -33,7 +33,7 @@ export const PLACE_SOURCE_LAYERS = [
     id: "kakao_discovery",
     label: "카카오 검색 후보",
     markerKind: "kakao-candidate",
-    defaultVisible: false,
+    defaultVisible: true,
     description: "반려동물 동반 여부를 별도로 확인해야 하는 검색 후보",
   },
 ] as const satisfies readonly {
