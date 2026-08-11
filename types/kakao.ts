@@ -119,6 +119,14 @@ export interface KakaoGeocodeResult {
   coordinates: Coordinates;
 }
 
+export interface KakaoDepartureSearchResult {
+  id: string;
+  kind: "place" | "address";
+  label: string;
+  address: string;
+  coordinates: Coordinates;
+}
+
 export interface KakaoDirectionsPoint {
   name: string;
   x: number;

@@ -5,6 +5,7 @@ import {
   searchKakaoPlaces,
 } from "@/lib/kakao/local";
 import {
+  createKakaoCoordinatePicker,
   createKakaoMapController,
   getRenderableRouteCoordinates,
 } from "@/lib/kakao/maps";
@@ -174,6 +175,81 @@ describe("Kakao integration boundaries", () => {
     const url = new URL(getKakaoMapsSdkUrl("test-key"));
     expect(url.searchParams.get("libraries")).toBe("services,clusterer");
     expect(url.searchParams.getAll("libraries")).toHaveLength(1);
+  });
+
+  it("selects and recenters an exact departure coordinate from the map", () => {
+    type Listener = (...args: unknown[]) => void;
+    const listeners = new WeakMap<object, Map<string, Set<Listener>>>();
+    const addListener = vi.fn(
+      (target: object, eventName: string, handler: Listener) => {
+        const targetListeners = listeners.get(target) ?? new Map();
+        const eventListeners = targetListeners.get(eventName) ?? new Set();
+        eventListeners.add(handler);
+        targetListeners.set(eventName, eventListeners);
+        listeners.set(target, targetListeners);
+      },
+    );
+    const removeListener = vi.fn(
+      (target: object, eventName: string, handler: Listener) => {
+        listeners.get(target)?.get(eventName)?.delete(handler);
+      },
+    );
+    const emit = (target: object, eventName: string, ...args: unknown[]) => {
+      listeners.get(target)?.get(eventName)?.forEach((handler) => handler(...args));
+    };
+
+    class FakeLatLng {
+      constructor(
+        private readonly latitude: number,
+        private readonly longitude: number,
+      ) {}
+      getLat() { return this.latitude; }
+      getLng() { return this.longitude; }
+    }
+    const maps: FakeMap[] = [];
+    class FakeMap {
+      constructor() { maps.push(this); }
+      getBounds = vi.fn();
+      getCenter = vi.fn();
+      panTo = vi.fn();
+      relayout = vi.fn();
+      setBounds = vi.fn();
+    }
+    const markers: FakeMarker[] = [];
+    class FakeMarker {
+      setImage = vi.fn();
+      setMap = vi.fn();
+      setPosition = vi.fn();
+      setZIndex = vi.fn();
+      constructor() { markers.push(this); }
+    }
+    window.kakao = {
+      maps: {
+        event: { addListener, removeListener },
+        LatLng: FakeLatLng,
+        Map: FakeMap,
+        Marker: FakeMarker,
+      } as unknown as NonNullable<Window["kakao"]>["maps"],
+    };
+
+    const onSelect = vi.fn();
+    const container = document.createElement("div");
+    const controller = createKakaoCoordinatePicker(container, { onSelect });
+    expect(container.dataset.kakaoCoordinatePickerReady).toBe("true");
+
+    emit(maps[0], "click", { latLng: new FakeLatLng(35.1151, 129.0414) });
+    expect(onSelect).toHaveBeenCalledWith({
+      latitude: 35.1151,
+      longitude: 129.0414,
+    });
+    expect(markers).toHaveLength(1);
+
+    controller.setSelection({ latitude: 35.1577, longitude: 129.0592 }, true);
+    expect(markers[0].setPosition).toHaveBeenCalled();
+    expect(maps[0].panTo).toHaveBeenCalled();
+    controller.destroy();
+    expect(removeListener).toHaveBeenCalledWith(maps[0], "click", expect.any(Function));
+    expect(markers[0].setMap).toHaveBeenCalledWith(null);
   });
 
   it("renders route geometry only when every point is valid", () => {

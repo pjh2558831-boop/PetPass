@@ -1,7 +1,7 @@
 import { expect, type Page, type TestInfo } from "@playwright/test";
 
 export const GENERATE_PATH = "/api/itineraries/generate";
-export const GEOCODE_PATH = "/api/kakao/local/geocode";
+export const DEPARTURE_PATH = "/api/kakao/local/departure";
 
 export async function openPetPlanner(
   page: Page,
@@ -14,14 +14,29 @@ export async function openPetPlanner(
   await page.goto("/planner/pet");
   await expect(
     page.getByRole("heading", {
-      name: "함께 여행할 반려동물을 알려주세요",
+      name: "여행 정보 입력",
     }),
   ).toBeVisible();
 }
 
 export async function continueToTrip(page: Page) {
-  await page.getByRole("button", { name: "여행 조건 정하기" }).click();
-  await expect(page).toHaveURL(/\/planner\/trip$/u);
+  const name = page.getByRole("textbox", { name: "반려동물 이름" });
+  if ((await name.inputValue()).trim() === "") await name.fill("보리");
+  const checkedSpecies = page.locator('input[name="species"]:checked');
+  if ((await checkedSpecies.count()) === 0) {
+    await page.getByRole("radio", { name: "강아지", exact: true }).check({ force: true });
+  }
+  const checkedSize = page.locator('input[name="size"]:checked');
+  if ((await checkedSize.count()) === 0) {
+    await page.getByRole("radio", { name: /^소형/u }).check({ force: true });
+  }
+  await page.getByRole("checkbox", { name: "이동장", exact: true }).check({ force: true });
+  await page.getByRole("checkbox", { name: "목줄", exact: true }).check({ force: true });
+  await page.getByLabel("여행 날짜").fill("2026-08-15");
+  await page.getByLabel("시작 시간").fill("10:00");
+  await page.getByRole("checkbox", { name: "관광지", exact: true }).check({ force: true });
+  await page.getByRole("checkbox", { name: "음식점", exact: true }).check({ force: true });
+  await expect(page).toHaveURL(/\/planner\/pet$/u);
 }
 
 export async function chooseConfirmedDeparture(
@@ -31,12 +46,12 @@ export async function chooseConfirmedDeparture(
   const responsePromise = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return (
-      url.pathname === GEOCODE_PATH &&
-      url.searchParams.get("address") === query &&
+      url.pathname === DEPARTURE_PATH &&
+      url.searchParams.get("query") === query &&
       response.request().method() === "GET"
     );
   });
-  const input = page.getByRole("combobox", { name: "출발지 주소" });
+  const input = page.getByRole("combobox", { name: "출발지" });
   await input.fill(query);
   expect((await responsePromise).status()).toBe(200);
   await page
@@ -72,7 +87,7 @@ export async function generateConfirmedRecommendations(
       new URL(response.url()).pathname === GENERATE_PATH &&
       response.request().method() === "POST",
   );
-  const button = page.getByRole("button", { name: "추천 경로 만들기" });
+  const button = page.getByRole("button", { name: "여행 추천 받기" });
   if (options.doubleSubmit) {
     await button.evaluate((node) => {
       const submit = node as HTMLButtonElement;

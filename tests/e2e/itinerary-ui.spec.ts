@@ -362,7 +362,7 @@ test("opens the exact selected strategy as a truthful, source-backed itinerary",
     page.getByRole("heading", { name: "선택된 추천 경로가 없습니다." }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "여행 만들기 시작" }),
+    page.getByRole("link", { name: "여행 정보 입력하기" }),
   ).toHaveAttribute("href", "/planner/pet");
   await expect(
     page.getByRole("heading", {
@@ -390,7 +390,7 @@ test("shows a deliberate empty state on direct itinerary entry", async ({
   ).toBeVisible();
   await expect(page.getByText(/새로고침하거나 주소로 바로 들어온 경우/u)).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "여행 만들기 시작" }),
+    page.getByRole("link", { name: "여행 정보 입력하기" }),
   ).toHaveAttribute("href", "/planner/pet");
   await expect(
     page.getByRole("heading", {

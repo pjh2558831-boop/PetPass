@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, LoaderCircle, MapPin, Search, X } from "lucide-react";
-import type { KakaoGeocodeResult } from "@/types/kakao";
+import type { KakaoDepartureSearchResult } from "@/types/kakao";
 import type { ResolvedDeparture } from "@/types/pet";
 
 type SearchStatus = "idle" | "loading" | "ready" | "empty" | "error";
 
-function parseGeocodeResults(value: unknown): KakaoGeocodeResult[] | null {
+function parseDepartureResults(value: unknown): KakaoDepartureSearchResult[] | null {
   if (!Array.isArray(value)) return null;
-  const results: KakaoGeocodeResult[] = [];
+  const results: KakaoDepartureSearchResult[] = [];
   for (const item of value) {
     if (!item || typeof item !== "object") return null;
     const candidate = item as Record<string, unknown>;
@@ -17,9 +17,13 @@ function parseGeocodeResults(value: unknown): KakaoGeocodeResult[] | null {
     const latitude = coordinates?.latitude;
     const longitude = coordinates?.longitude;
     if (
+      typeof candidate.id !== "string" ||
+      (candidate.kind !== "place" && candidate.kind !== "address") ||
+      typeof candidate.label !== "string" ||
+      candidate.label.length === 0 ||
+      candidate.label.length > 150 ||
       typeof candidate.address !== "string" ||
-      typeof candidate.addressType !== "string" ||
-      (candidate.roadAddress !== undefined && typeof candidate.roadAddress !== "string") ||
+      candidate.address.length > 200 ||
       typeof latitude !== "number" ||
       !Number.isFinite(latitude) ||
       latitude < -90 ||
@@ -32,18 +36,19 @@ function parseGeocodeResults(value: unknown): KakaoGeocodeResult[] | null {
       return null;
     }
     results.push({
+      id: candidate.id,
+      kind: candidate.kind,
+      label: candidate.label,
       address: candidate.address,
-      addressType: candidate.addressType,
-      roadAddress: candidate.roadAddress as string | undefined,
       coordinates: { latitude, longitude },
     });
   }
   return results;
 }
 
-function selectedDeparture(result: KakaoGeocodeResult): ResolvedDeparture {
+function selectedDeparture(result: KakaoDepartureSearchResult): ResolvedDeparture {
   return {
-    label: result.roadAddress?.trim() || result.address.trim(),
+    label: result.label.trim(),
     coordinates: result.coordinates,
   };
 }
@@ -62,7 +67,7 @@ export function DepartureSearch({
   const inputRef = useRef<HTMLInputElement>(null);
   const requestSequenceRef = useRef(0);
   const [query, setQuery] = useState(value?.label ?? "");
-  const [results, setResults] = useState<KakaoGeocodeResult[]>([]);
+  const [results, setResults] = useState<KakaoDepartureSearchResult[]>([]);
   const [status, setStatus] = useState<SearchStatus>("idle");
   const [message, setMessage] = useState("");
   const [open, setOpen] = useState(false);
@@ -77,8 +82,8 @@ export function DepartureSearch({
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       try {
-        const params = new URLSearchParams({ address: trimmedQuery, size: "5" });
-        const response = await fetch(`/api/kakao/local/geocode?${params}`, {
+        const params = new URLSearchParams({ query: trimmedQuery, size: "5" });
+        const response = await fetch(`/api/kakao/local/departure?${params}`, {
           headers: { Accept: "application/json" },
           cache: "no-store",
           signal: controller.signal,
@@ -88,7 +93,7 @@ export function DepartureSearch({
           return;
         }
         if (!body || typeof body !== "object") {
-          throw new Error("주소 검색 응답 형식을 확인할 수 없습니다.");
+          throw new Error("출발지 검색 응답 형식을 확인할 수 없습니다.");
         }
         const apiResult = body as Record<string, unknown>;
         if (!response.ok || apiResult.ok !== true) {
@@ -96,19 +101,19 @@ export function DepartureSearch({
           throw new Error(
             typeof error?.message === "string"
               ? error.message
-              : "주소를 검색하지 못했습니다.",
+              : "출발지를 검색하지 못했습니다.",
           );
         }
-        const parsedResults = parseGeocodeResults(apiResult.data);
+        const parsedResults = parseDepartureResults(apiResult.data);
         if (!parsedResults) {
-          throw new Error("주소 검색 응답 형식을 확인할 수 없습니다.");
+          throw new Error("출발지 검색 응답 형식을 확인할 수 없습니다.");
         }
         setResults(parsedResults);
         setStatus(parsedResults.length > 0 ? "ready" : "empty");
         setMessage(
           parsedResults.length > 0
-            ? `${parsedResults.length}개의 주소를 찾았습니다.`
-            : "일치하는 주소가 없습니다. 도로명이나 지번을 더 정확히 입력해 주세요.",
+            ? `${parsedResults.length}개의 장소와 주소를 찾았습니다.`
+            : "일치하는 장소나 주소가 없습니다. 장소명 또는 주소를 다시 확인해 주세요.",
         );
         setActiveIndex(-1);
         setOpen(true);
@@ -121,7 +126,7 @@ export function DepartureSearch({
         setMessage(
           error instanceof Error
             ? error.message
-            : "주소를 검색하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+            : "출발지를 검색하지 못했습니다. 잠시 후 다시 시도해 주세요.",
         );
         setActiveIndex(-1);
         setOpen(true);
@@ -134,7 +139,7 @@ export function DepartureSearch({
     };
   }, [query, value?.label]);
 
-  const chooseResult = (result: KakaoGeocodeResult) => {
+  const chooseResult = (result: KakaoDepartureSearchResult) => {
     const departure = selectedDeparture(result);
     setQuery(departure.label);
     setResults([]);
@@ -176,7 +181,7 @@ export function DepartureSearch({
   return (
     <div>
       <label htmlFor="departure-search" className="mb-2 block text-sm font-extrabold">
-        출발지 주소
+        출발지
       </label>
       <div className="relative">
         <Search
@@ -191,7 +196,7 @@ export function DepartureSearch({
           type="search"
           value={query}
           autoComplete="off"
-          placeholder="도로명 또는 지번 주소를 검색하세요"
+          placeholder="부산역, 서면역, 광안리처럼 장소명 또는 주소로 검색"
           aria-autocomplete="list"
           aria-expanded={open}
           aria-controls={listboxId}
@@ -240,21 +245,21 @@ export function DepartureSearch({
         ) : null}
       </div>
       <p id="departure-search-help" className="mt-2 text-xs leading-5 text-[var(--muted)]">
-        검색 결과를 선택해야 실제 좌표가 경로의 첫 이동 구간에 반영됩니다.
+        장소명과 주소를 모두 검색할 수 있어요. 결과를 선택하면 실제 좌표가 경로에 반영됩니다.
       </p>
 
       {open ? (
         <div
           id={listboxId}
           role={status === "ready" ? "listbox" : "status"}
-          aria-label={status === "ready" ? "출발지 주소 검색 결과" : undefined}
+          aria-label={status === "ready" ? "출발지 검색 결과" : undefined}
           aria-live={status === "ready" ? undefined : "polite"}
           className="mt-3 overflow-hidden rounded-[var(--radius-card)] border border-[var(--line)] bg-white shadow-[var(--shadow-card)]"
         >
           {status === "loading" ? (
             <p className="flex min-h-16 items-center gap-2 px-4 text-sm font-bold text-[var(--muted)]">
               <LoaderCircle className="animate-spin" size={17} aria-hidden="true" />
-              주소를 검색하고 있어요.
+              장소와 주소를 검색하고 있어요.
             </p>
           ) : null}
           {status === "empty" || status === "error" ? (
@@ -264,10 +269,9 @@ export function DepartureSearch({
           ) : null}
           {status === "ready"
             ? results.map((result, index) => {
-                const label = result.roadAddress?.trim() || result.address;
                 return (
                   <button
-                    key={`${result.address}-${result.coordinates.latitude}-${result.coordinates.longitude}`}
+                    key={result.id}
                     id={`departure-option-${index}`}
                     type="button"
                     role="option"
@@ -282,12 +286,10 @@ export function DepartureSearch({
                   >
                     <MapPin className="mt-0.5 shrink-0 text-[var(--brand)]" size={18} aria-hidden="true" />
                     <span className="min-w-0">
-                      <span className="block text-sm font-extrabold">{label}</span>
-                      {label !== result.address ? (
-                        <span className="mt-1 block text-xs text-[var(--muted)]">
-                          지번 {result.address}
-                        </span>
-                      ) : null}
+                      <span className="block text-sm font-extrabold">{result.label}</span>
+                      <span className="mt-1 block text-xs text-[var(--muted)]">
+                        {result.kind === "place" ? "장소" : "주소"} · {result.address}
+                      </span>
                     </span>
                   </button>
                 );

@@ -14,7 +14,7 @@ export default async function ResultsPage({
   const { tab } = await searchParams;
   return (
     <div className="page-shell py-8 sm:py-12 lg:py-14">
-      <PlannerProgress current={3} />
+      <PlannerProgress current={2} />
       <div className="mt-8 sm:mt-10">
         <ResultsExplorer initialTab={tab === "recommendations" ? "recommendations" : "catalog"} />
       </div>

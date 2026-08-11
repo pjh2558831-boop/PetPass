@@ -28,7 +28,7 @@ import {
 } from "@/lib/kakao/directions-client";
 import type { KakaoMapLocation } from "@/lib/kakao/maps";
 
-function ItineraryEmptyState({ hasProfile }: { hasProfile: boolean }) {
+function ItineraryEmptyState() {
   return (
     <section
       className="surface-panel mx-auto max-w-3xl p-7 text-center sm:p-10"
@@ -48,11 +48,11 @@ function ItineraryEmptyState({ hasProfile }: { hasProfile: boolean }) {
         상세 일정은 이 브라우저 탭에서 선택한 경로만 보여드립니다. 새로고침하거나 주소로 바로 들어온 경우 여행 조건부터 다시 확인해 주세요.
       </p>
       <Link
-        href={hasProfile ? "/planner/trip" : "/planner/pet"}
+        href="/planner/pet"
         className="mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--brand)] px-5 text-sm font-extrabold text-white shadow-[var(--shadow-button)] hover:bg-[var(--brand-deep)]"
       >
         <ArrowLeft size={17} aria-hidden="true" />
-        {hasProfile ? "여행 조건 정하기" : "여행 만들기 시작"}
+        여행 정보 입력하기
       </Link>
     </section>
   );
@@ -127,7 +127,7 @@ export function ItineraryEditor() {
     !selectedItinerary ||
     !presentation
   ) {
-    return <ItineraryEmptyState hasProfile={profileConfirmed} />;
+    return <ItineraryEmptyState />;
   }
 
   const routeDate = generation.request.travelDate;
@@ -248,10 +248,10 @@ export function ItineraryEditor() {
               <ArrowLeft size={17} aria-hidden="true" /> 경로 비교로 돌아가기
             </Button>
             <Link
-              href="/planner/trip"
+              href="/planner/pet"
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[#c9d7ce] bg-white px-5 text-sm font-extrabold text-[#23483a] hover:bg-[var(--brand-soft)]"
             >
-              <PencilLine size={17} aria-hidden="true" /> 여행 조건 수정
+              <PencilLine size={17} aria-hidden="true" /> 여행 정보 수정
             </Link>
           </div>
         </aside>
