@@ -76,9 +76,13 @@ export async function generateConfirmedRecommendations(
   await continueToTrip(page);
   await chooseConfirmedDeparture(page);
   if (options.stopCount) {
-    await page
-      .getByRole("combobox", { name: "방문 장소 수" })
-      .selectOption(options.stopCount);
+    const paceName =
+      Number(options.stopCount) <= 2
+        ? "여유롭게"
+        : Number(options.stopCount) >= 5
+          ? "알차게"
+          : "적당히";
+    await page.getByRole("radio", { name: paceName }).check({ force: true });
   }
   await options.beforeGenerate?.(page);
 

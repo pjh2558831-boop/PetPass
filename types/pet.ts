@@ -13,6 +13,7 @@ export interface PetProfile {
 }
 
 export type TripType = "DAY_TRIP" | "OVERNIGHT";
+export type TripPace = "relaxed" | "balanced" | "packed";
 export type PlannerPlanningMode = "stop_count" | "duration";
 export type PlannerIndoorAccessPreference = "any" | "preferred" | "required";
 export type PlaceCategory =
@@ -37,6 +38,7 @@ export interface TravelPreferences {
   districtName?: string;
   tripDate: string;
   tripType: TripType;
+  tripPace: TripPace;
   startTime: string;
   preferredCategories: PlaceCategory[];
   departure?: ResolvedDeparture;

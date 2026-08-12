@@ -25,6 +25,24 @@ test.afterEach(async ({ page }) => {
   ).toHaveCount(0);
 });
 
+test("uses one trip-pace choice instead of technical length controls", async ({
+  page,
+}) => {
+  await page.goto("/planner/pet");
+  const relaxed = page.getByRole("radio", { name: /여유롭게/u });
+  const balanced = page.getByRole("radio", { name: /적당히/u });
+  const packed = page.getByRole("radio", { name: /알차게/u });
+
+  await expect(relaxed).toBeVisible();
+  await expect(balanced).toBeChecked();
+  await expect(packed).toBeVisible();
+  await packed.check({ force: true });
+  await expect(packed).toBeChecked();
+  await expect(balanced).not.toBeChecked();
+  await expect(page.getByText("방문 장소 수", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("전체 일정 시간", { exact: true })).toHaveCount(0);
+});
+
 function installFakeCoordinatePicker(page: Page) {
   return page.addInitScript(() => {
     type Listener = (...args: unknown[]) => void;

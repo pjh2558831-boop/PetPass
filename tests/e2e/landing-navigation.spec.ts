@@ -9,23 +9,17 @@ test("renders the landing page and reaches the existing planner entry", async ({
   await expect(
     main.getByRole("heading", {
       level: 1,
-      name: /함께 들어갈 수 있는 곳부터, 이동하기 좋은 순서까지/u,
+      name: /이번 여행,[\s\S]*함께 들어갈 수 있는 곳/u,
     }),
-  ).toBeVisible();
-  await expect(
-    main.getByRole("heading", { name: "입력한 조건이 일정이 되기까지" }),
-  ).toBeVisible();
-  await expect(main.getByText("취향 균형 코스", { exact: true })).toBeVisible();
-  await expect(main.getByText("이동 최소 코스", { exact: true })).toBeVisible();
-  await expect(main.getByText("새로운 발견 코스", { exact: true })).toBeVisible();
-  await expect(
-    main.getByText("공공 반려동물 동반 정보에서 시작합니다.", { exact: true }),
   ).toBeVisible();
 
   const primaryCta = main
     .getByRole("link", { name: "여행 계획 시작하기" })
     .first();
   await expect(primaryCta).toHaveAttribute("href", "/planner/pet");
+  await expect(
+    main.getByRole("link", { name: "방문 가능 장소 보기" }),
+  ).toHaveAttribute("href", "/results");
   await primaryCta.click();
 
   await expect(page).toHaveURL(/\/planner\/pet$/u);

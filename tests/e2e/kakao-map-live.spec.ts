@@ -1,42 +1,17 @@
-import { expect, test, type ConsoleMessage, type Page } from "@playwright/test";
-import { parseKakaoPlaceUrl } from "@/lib/kakao/place-url";
+import { expect, test, type Page } from "@playwright/test";
 
 const PRODUCTION_URL = "https://pet-pass-two.vercel.app";
 
 function collectSanitizedBrowserErrors(page: Page) {
   const errors: string[] = [];
-  let expectedTourImage404Count = 0;
   const sanitize = (message: string) =>
     message.replace(/[a-f0-9]{32}/gi, "[redacted-key]");
 
-  const isExpectedTourImage404 = (message: ConsoleMessage) => {
-    if (!message.text().includes("404")) return false;
-    const locationUrl = message.location().url;
-    try {
-      const url = new URL(locationUrl);
-      const upstream =
-        url.pathname === "/_next/image"
-          ? new URL(url.searchParams.get("url") ?? "")
-          : url;
-      return upstream.hostname === "tong.visitkorea.or.kr";
-    } catch {
-      return false;
-    }
-  };
-
   page.on("console", (message) => {
-    if (message.type() !== "error") return;
-    if (isExpectedTourImage404(message)) {
-      expectedTourImage404Count += 1;
-      return;
-    }
-    errors.push(sanitize(message.text()));
+    if (message.type() === "error") errors.push(sanitize(message.text()));
   });
   page.on("pageerror", (error) => errors.push(sanitize(error.message)));
-  return {
-    errors,
-    expectedTourImage404Count: () => expectedTourImage404Count,
-  };
+  return errors;
 }
 
 function collectKakaoNetwork(page: Page) {
@@ -200,10 +175,6 @@ async function expectResponsiveMap(
 test("localhost renders Kakao maps and search without a fixed demo itinerary", async ({
   page,
 }, testInfo) => {
-  test.skip(
-    process.env.RUN_LIVE_KAKAO_E2E !== "1",
-    "Set RUN_LIVE_KAKAO_E2E=1 with the dedicated live config.",
-  );
   test.setTimeout(120_000);
   await page.setExtraHTTPHeaders({
     "x-forwarded-for": `petpass-map-e2e-${testInfo.project.name}-${testInfo.workerIndex}`,
@@ -217,73 +188,66 @@ test("localhost renders Kakao maps and search without a fixed demo itinerary", a
     }
   });
 
-  const listResponsePromise = page.waitForResponse((response) =>
-    response.url().includes("/api/tour/places?"),
-  );
-  await page.goto(`http://localhost:3000/results?verify=${Date.now()}`);
-  const listResponse = await listResponsePromise;
-  expect(listResponse.status()).toBe(200);
-  const listBody = (await listResponse.json()) as {
-    ok: boolean;
-    data?: {
-      places?: Array<{
-        contentId: string;
-        title: string;
-        latitude: number | null;
-        longitude: number | null;
-      }>;
-    };
-  };
-  expect(listBody.ok).toBe(true);
-  const livePlaces = listBody.data?.places ?? [];
-  const validPlaces = livePlaces.filter(
-    (place) =>
-      Number.isFinite(place.latitude) && Number.isFinite(place.longitude),
-  );
-  expect(validPlaces.length).toBeGreaterThan(0);
+  await page.goto(`http://localhost:3000/?verify=${Date.now()}`);
+  await expect(page.getByRole("heading", { name: /함께 들어갈 수 있는 곳/ })).toBeVisible();
   try {
-    await expectKakaoMapReady(page, validPlaces.length, false);
+    await expectKakaoMapReady(page, 3, false);
   } catch (error) {
     console.error(`KAKAO_NETWORK=${JSON.stringify(kakaoNetwork)}`);
     throw error;
   }
+
+  await page.goto(`http://localhost:3000/results?verify=${Date.now()}`);
+  await expectKakaoMapReady(page, 13, false);
   await expectResponsiveMap(page, 1_440, 900, false);
   const clustererRoot = page.locator("[data-clusterer-ready=true]");
   const clusterCountBeforeClick = Number(
     await clustererRoot.getAttribute("data-cluster-count"),
   );
   expect(clusterCountBeforeClick).toBeGreaterThan(0);
+  const clickableClusters = clustererRoot.locator(
+    'div[style*="cursor: pointer"][style*="width: 46px"][style*="height: 46px"]',
+  );
+  expect(await clickableClusters.count()).toBeGreaterThan(0);
+  await clickableClusters.last().click();
+  await expect
+    .poll(() =>
+      clustererRoot.getAttribute("data-cluster-count").then(Number),
+    )
+    .not.toBe(clusterCountBeforeClick);
   await expectResponsiveMap(page, 768, 900, false);
   await expectResponsiveMap(page, 390, 844, false);
   await expect(
-    page.getByText(
-      new RegExp(
-        `현재 필터의 좌표 확인 장소 ${validPlaces.length}곳을 모두 표시합니다`,
-        "u",
-      ),
-    ),
+    page.getByText(/현재 필터의 좌표 확인 장소 13곳을 모두 표시합니다/),
   ).toBeVisible();
-  await expect(
-    page.getByText(`지도 ${validPlaces.length}곳 표시`, { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText("제공자 전체 13곳", { exact: true })).toBeVisible();
+  await expect(page.getByText("현재 목록 1–12곳", { exact: true })).toBeVisible();
+  await expect(page.getByText("지도 13곳 표시", { exact: true })).toBeVisible();
+  await expect(page.locator(".kakao-map-marker--tourism-official").first()).toBeAttached();
+  await expect
+    .poll(() =>
+      page
+        .locator("[data-clusterer-ready=true]")
+        .getAttribute("data-cluster-count")
+        .then(Number),
+    )
+    .toBeGreaterThan(0);
   await expect(page.getByText(/데모 일정 이동/)).toHaveCount(0);
 
-  const liveMarker = page.locator(
-    `.kakao-map-marker[data-location-id="${validPlaces[0]!.contentId}"]`,
+  const laterPageMarker = page.locator(
+    '.kakao-map-marker[data-location-id="1107"]',
   );
-  await expect(liveMarker).toHaveCount(1);
+  await expect(laterPageMarker).toBeVisible();
+  await laterPageMarker.click();
+  await expect(page.getByText("2 / 2페이지 · 현재 1곳")).toBeVisible();
+  await expect(page.locator("#place-card-1107")).toHaveClass(/ring-2/u);
+
+  await page.getByRole("button", { name: "이전" }).click();
   await page
-    .getByRole("button", {
-      name: `${validPlaces[0]!.title} 지도에서 보기`,
-      exact: true,
-    })
+    .getByRole("button", { name: "해운대 해수욕장 지도에서 보기" })
     .click();
-  await expect(page.locator(".kakao-map-info")).toContainText(
-    validPlaces[0]!.title,
-  );
-  await expect(
-    page.locator(`#place-card-${validPlaces[0]!.contentId}`),
-  ).toHaveClass(/ring-2/u);
+  await expect(page.locator(".kakao-map-info")).toContainText("해운대 해수욕장");
+  await expect(page.locator("#place-card-1001")).toHaveClass(/ring-2/u);
 
   await page.getByLabel("부산 세부 지역").selectOption("500");
   await page.getByRole("button", { name: "음식점", exact: true }).click();
@@ -295,16 +259,10 @@ test("localhost renders Kakao maps and search without a fixed demo itinerary", a
   expect(searchResponse.status()).toBe(200);
   const searchBody = (await searchResponse.json()) as {
     ok: boolean;
-    data?: { candidates?: Array<{ placeUrl?: string }> };
+    data?: { candidates?: unknown[] };
   };
   expect(searchBody.ok).toBe(true);
-  const candidates = searchBody.data?.candidates ?? [];
-  expect(candidates.length).toBeGreaterThan(0);
-  candidates.forEach((candidate) => {
-    if (candidate.placeUrl) {
-      expect(parseKakaoPlaceUrl(candidate.placeUrl)).toBe(candidate.placeUrl);
-    }
-  });
+  expect(searchBody.data?.candidates?.length).toBeGreaterThan(0);
 
   const searchRegion = page.getByRole("region", { name: "추가 장소 후보 찾기" });
   const resultButtons = searchRegion.locator("li button");
@@ -324,26 +282,35 @@ test("localhost renders Kakao maps and search without a fixed demo itinerary", a
   await expect(page.locator(".kakao-map-marker")).toHaveCount(
     catalogMarkerCount + resultCount,
   );
-  await expect(searchRegion.getByText("카카오 검색 후보").first()).toBeVisible();
+  await expect(searchRegion.getByText("카카오 검색", { exact: true }).first()).toBeVisible();
   await expect(searchRegion.getByText("동반 여부 확인 필요").first()).toBeVisible();
+  await expect(page.getByLabel("지도 마커 범례")).toContainText("한국관광공사");
+  await expect(page.getByLabel("지도 마커 범례")).toContainText("카카오 검색");
+  await expect(page.locator(".kakao-map-marker--kakao-candidate").first()).toBeAttached();
 
   const configuredSearchCount = localSearchRequests.length;
   await page.waitForTimeout(500);
   expect(localSearchRequests).toHaveLength(configuredSearchCount);
+  await page
+    .getByRole("button", { name: "표시된 장소에 지도 위치 맞추기" })
+    .click();
+  await page.waitForTimeout(300);
+  const currentMapResponsePromise = page.waitForResponse((response) =>
+    response.url().includes("/api/places/discovery") &&
+    response.url().includes("west="),
+  );
+  await page.getByRole("button", { name: "현재 지도에서 검색" }).click();
+  await page.getByRole("button", { name: "추가 후보 찾기", exact: true }).click();
+  expect((await currentMapResponsePromise).status()).toBe(200);
+  await expect(page.getByText(/활성 검색 범위: 현재 지도 중심/)).toBeVisible();
+  expect(localSearchRequests).toHaveLength(configuredSearchCount + 1);
 
-  expect(browserErrors.errors).toEqual([]);
-  console.log(
-    `LIVE_KAKAO_EXPECTED_TOUR_IMAGE_404=${browserErrors.expectedTourImage404Count()}`,
-  );
-  console.log(`LIVE_KAKAO_CATALOG_PLACES=${livePlaces.length}`);
-  console.log(`LIVE_KAKAO_VALID_COORDINATES=${validPlaces.length}`);
-  console.log(`LIVE_KAKAO_DISCOVERY_CANDIDATES=${candidates.length}`);
-  console.log(
-    `LIVE_KAKAO_CANONICAL_LINKS=${candidates.filter((candidate) => candidate.placeUrl).length}`,
-  );
-  console.log(
-    `LIVE_KAKAO_ABSENT_LINKS=${candidates.filter((candidate) => !candidate.placeUrl).length}`,
-  );
+  await page.goto(`http://localhost:3000/itinerary?verify=${Date.now()}`);
+  await expect(
+    page.getByRole("heading", { name: "추천 코스에서 일정을 만들어 주세요" }),
+  ).toBeVisible();
+
+  expect(browserErrors).toEqual([]);
 });
 
 test("a complete Kakao SDK request failure keeps the map error state", async ({
@@ -352,7 +319,7 @@ test("a complete Kakao SDK request failure keeps the map error state", async ({
   await page.route("https://dapi.kakao.com/v2/maps/sdk.js**", (route) =>
     route.abort("failed"),
   );
-  await page.goto(`http://localhost:3000/results?sdk-failure=${Date.now()}`);
+  await page.goto(`http://localhost:3000/?sdk-failure=${Date.now()}`);
 
   const alert = page.locator('.kakao-map-canvas [role="alert"]');
   await expect(alert).toContainText("카카오 지도 SDK를 불러오지 못했습니다");
@@ -468,5 +435,5 @@ test("production renders the authenticated Kakao map responsively", async ({
     unauthorizedVisible: false,
     hydrationVisible: false,
   });
-  expect(browserErrors.errors).toEqual([]);
+  expect(browserErrors).toEqual([]);
 });

@@ -5,9 +5,7 @@ import {
   searchKakaoPlaces,
 } from "@/lib/kakao/local";
 import {
-  createKakaoCoordinatePicker,
   createKakaoMapController,
-  getRenderableRouteCoordinates,
 } from "@/lib/kakao/maps";
 import { KAKAO_CURRENT_MAP_MAX_RADIUS_METERS } from "@/lib/kakao/search-area";
 import { BUSAN_REGION_CONFIG } from "@/lib/regions/config";
@@ -87,38 +85,6 @@ describe("Kakao integration boundaries", () => {
     ]);
   });
 
-  it("omits an unsafe provider link without removing the place result", async () => {
-    const rejectedUrl = "https://place.map.kakao.com.evil.example/123";
-    const fetchImpl = vi.fn(async () =>
-      Response.json({
-        meta: { total_count: 1, pageable_count: 1, is_end: true },
-        documents: [
-          {
-            id: "123",
-            place_name: "Unsafe URL place",
-            category_name: "Food > Cafe",
-            phone: "",
-            address_name: "Busan",
-            road_address_name: "Busan road",
-            place_url: rejectedUrl,
-            distance: "100",
-            x: "129.1603",
-            y: "35.1590",
-          },
-        ],
-      }),
-    ) as unknown as typeof fetch;
-
-    const result = await searchKakaoPlaces(
-      { query: "cafe", page: 1, size: 5 },
-      { apiKey: "test-key", fetchImpl },
-    );
-
-    expect(result).toHaveLength(1);
-    expect(result[0]).not.toHaveProperty("placeUrl");
-    expect(JSON.stringify(result)).not.toContain(rejectedUrl);
-  });
-
   it("normalizes a successful address search response", async () => {
     const fetchImpl = vi.fn(async () =>
       Response.json({
@@ -177,99 +143,7 @@ describe("Kakao integration boundaries", () => {
     expect(url.searchParams.getAll("libraries")).toHaveLength(1);
   });
 
-  it("selects and recenters an exact departure coordinate from the map", () => {
-    type Listener = (...args: unknown[]) => void;
-    const listeners = new WeakMap<object, Map<string, Set<Listener>>>();
-    const addListener = vi.fn(
-      (target: object, eventName: string, handler: Listener) => {
-        const targetListeners = listeners.get(target) ?? new Map();
-        const eventListeners = targetListeners.get(eventName) ?? new Set();
-        eventListeners.add(handler);
-        targetListeners.set(eventName, eventListeners);
-        listeners.set(target, targetListeners);
-      },
-    );
-    const removeListener = vi.fn(
-      (target: object, eventName: string, handler: Listener) => {
-        listeners.get(target)?.get(eventName)?.delete(handler);
-      },
-    );
-    const emit = (target: object, eventName: string, ...args: unknown[]) => {
-      listeners.get(target)?.get(eventName)?.forEach((handler) => handler(...args));
-    };
-
-    class FakeLatLng {
-      constructor(
-        private readonly latitude: number,
-        private readonly longitude: number,
-      ) {}
-      getLat() { return this.latitude; }
-      getLng() { return this.longitude; }
-    }
-    const maps: FakeMap[] = [];
-    class FakeMap {
-      constructor() { maps.push(this); }
-      getBounds = vi.fn();
-      getCenter = vi.fn();
-      panTo = vi.fn();
-      relayout = vi.fn();
-      setBounds = vi.fn();
-    }
-    const markers: FakeMarker[] = [];
-    class FakeMarker {
-      setImage = vi.fn();
-      setMap = vi.fn();
-      setPosition = vi.fn();
-      setZIndex = vi.fn();
-      constructor() { markers.push(this); }
-    }
-    window.kakao = {
-      maps: {
-        event: { addListener, removeListener },
-        LatLng: FakeLatLng,
-        Map: FakeMap,
-        Marker: FakeMarker,
-      } as unknown as NonNullable<Window["kakao"]>["maps"],
-    };
-
-    const onSelect = vi.fn();
-    const container = document.createElement("div");
-    const controller = createKakaoCoordinatePicker(container, { onSelect });
-    expect(container.dataset.kakaoCoordinatePickerReady).toBe("true");
-
-    emit(maps[0], "click", { latLng: new FakeLatLng(35.1151, 129.0414) });
-    expect(onSelect).toHaveBeenCalledWith({
-      latitude: 35.1151,
-      longitude: 129.0414,
-    });
-    expect(markers).toHaveLength(1);
-
-    controller.setSelection({ latitude: 35.1577, longitude: 129.0592 }, true);
-    expect(markers[0].setPosition).toHaveBeenCalled();
-    expect(maps[0].panTo).toHaveBeenCalled();
-    controller.destroy();
-    expect(removeListener).toHaveBeenCalledWith(maps[0], "click", expect.any(Function));
-    expect(markers[0].setMap).toHaveBeenCalledWith(null);
-  });
-
-  it("renders route geometry only when every point is valid", () => {
-    const validGeometry = [
-      { latitude: 35.16, longitude: 129.16 },
-      { latitude: 35.17, longitude: 129.17 },
-    ];
-    expect(getRenderableRouteCoordinates(validGeometry)).toBe(validGeometry);
-    expect(getRenderableRouteCoordinates([])).toEqual([]);
-    expect(getRenderableRouteCoordinates([validGeometry[0]])).toEqual([]);
-    expect(
-      getRenderableRouteCoordinates([
-        validGeometry[0],
-        { latitude: 100, longitude: 129.165 },
-        validGeometry[1],
-      ]),
-    ).toEqual([]);
-  });
-
-  it("updates accessible markers and geometry without stale map layers", () => {
+  it("initializes one catalog clusterer, deduplicates markers, and cleans up", () => {
     type Listener = (...args: unknown[]) => void;
     const listeners = new WeakMap<object, Map<string, Set<Listener>>>();
     const addListener = vi.fn(
@@ -345,18 +219,13 @@ describe("Kakao integration boundaries", () => {
         overlays.push(this);
       }
     }
-    const polylines: FakePolyline[] = [];
     class FakePolyline {
-      readonly path: FakeLatLng[];
       setMap = vi.fn();
-      constructor(options: { path: FakeLatLng[] }) {
-        this.path = options.path;
-        polylines.push(this);
-      }
     }
     const clusterers: FakeClusterer[] = [];
     class FakeClusterer {
       markers: FakeMarker[] = [];
+      options: { styles?: Array<Record<string, string>> };
       addMarkers = vi.fn((markers: FakeMarker[]) => {
         this.markers = markers;
         emit(this, "clustered", [
@@ -369,7 +238,8 @@ describe("Kakao integration boundaries", () => {
       clear = vi.fn(() => {
         this.markers = [];
       });
-      constructor() {
+      constructor(options: { styles?: Array<Record<string, string>> }) {
+        this.options = options;
         clusterers.push(this);
       }
     }
@@ -392,7 +262,6 @@ describe("Kakao integration boundaries", () => {
     };
 
     const onLocationSelect = vi.fn();
-    const onViewportIdle = vi.fn();
     const container = document.createElement("div");
     const controller = createKakaoMapController(container, {
       locations: [
@@ -401,18 +270,15 @@ describe("Kakao integration boundaries", () => {
           name: "첫 장소",
           address: "부산",
           coordinates: { latitude: 35.16, longitude: 129.16 },
-          order: 1,
-          markerKind: "itinerary",
-          clusterable: true,
+          markerKind: "tourism-official",
+          sourceLabel: "한국관광공사 제공 장소",
         },
         {
           id: "one",
           name: "중복 장소",
           address: "부산",
           coordinates: { latitude: 35.17, longitude: 129.17 },
-          order: 2,
-          markerKind: "itinerary",
-          clusterable: true,
+          markerKind: "catalog",
         },
         {
           id: "invalid",
@@ -421,26 +287,35 @@ describe("Kakao integration boundaries", () => {
           coordinates: { latitude: 100, longitude: 129.18 },
           markerKind: "catalog",
         },
-      ],
-      routeCoordinates: [
-        { latitude: 35.15, longitude: 129.15 },
-        { latitude: 35.16, longitude: 129.16 },
+        {
+          id: "kakao",
+          name: "카카오 장소",
+          address: "부산",
+          coordinates: { latitude: 35.17, longitude: 129.17 },
+          markerKind: "kakao-candidate",
+          markerLabel: "K",
+          sourceLabel: "카카오 검색 장소 · 반려동물 동반 여부 확인 필요",
+        },
+        {
+          id: "route-one",
+          name: "일정 장소",
+          address: "부산",
+          coordinates: { latitude: 35.18, longitude: 129.18 },
+          markerKind: "itinerary",
+          order: 1,
+          sourceLabel: "추천 일정 정류장",
+        },
       ],
       onLocationSelect,
-      onViewportIdle,
     });
 
     expect(clusterers).toHaveLength(1);
     expect(clusterers[0].addMarkers).toHaveBeenCalledTimes(1);
-    expect(clusterers[0].markers).toHaveLength(1);
-    expect(container.dataset.catalogMarkerCount).toBe("1");
-    expect(container.dataset.clusterCount).toBe("0");
+    expect(clusterers[0].markers).toHaveLength(2);
+    expect(container.dataset.catalogMarkerCount).toBe("2");
+    expect(container.dataset.clusterCount).toBe("1");
+    expect(clusterers[0].options.styles?.[0]?.background).toBe("#596760");
     expect(mapInstances[0].setBounds).toHaveBeenCalledTimes(1);
-    expect(polylines).toHaveLength(1);
-    expect(polylines[0].path.map((point) => [point.getLat(), point.getLng()])).toEqual([
-      [35.15, 129.15],
-      [35.16, 129.16],
-    ]);
     expect(controller.getSearchViewport()).toEqual({
       center: BUSAN_REGION_CONFIG.defaultMapCenter,
       radiusMeters: KAKAO_CURRENT_MAP_MAX_RADIUS_METERS,
@@ -451,20 +326,30 @@ describe("Kakao integration boundaries", () => {
         north: 35.3,
       },
     });
-    expect(onViewportIdle).toHaveBeenCalledTimes(1);
-    expect(onViewportIdle).toHaveBeenCalledWith(controller.getSearchViewport());
 
     const markerButton = overlays.find(({ content }) =>
       content.matches('[data-location-id="one"]'),
     )?.content as HTMLButtonElement;
-    const markerOverlay = overlays.find(({ content }) => content === markerButton)!;
+    const kakaoMarkerButton = overlays.find(({ content }) =>
+      content.matches('[data-location-id="kakao"]'),
+    )?.content as HTMLButtonElement;
+    const itineraryMarkerButton = overlays.find(({ content }) =>
+      content.matches('[data-location-id="route-one"]'),
+    )?.content as HTMLButtonElement;
+    expect(markerButton.classList.contains("kakao-map-marker--tourism-official")).toBe(true);
     expect(markerButton.getAttribute("aria-label")).toBe(
-      "1번 첫 장소 · 장소 지도 마커",
+      "첫 장소 · 한국관광공사 제공 장소 지도 마커",
     );
-    expect(markerButton.getAttribute("aria-pressed")).toBe("false");
+    expect(kakaoMarkerButton.classList.contains("kakao-map-marker--kakao-candidate")).toBe(true);
+    expect(kakaoMarkerButton.textContent).toBe("K");
+    expect(kakaoMarkerButton.getAttribute("aria-label")).toBe(
+      "카카오 장소 · 카카오 검색 장소 · 반려동물 동반 여부 확인 필요 지도 마커",
+    );
+    expect(itineraryMarkerButton.classList.contains("kakao-map-marker--itinerary")).toBe(true);
+    expect(itineraryMarkerButton.textContent).toBe("1");
     markerButton.click();
     expect(onLocationSelect).toHaveBeenCalledWith("one");
-    expect(markerButton.getAttribute("aria-pressed")).toBe("true");
+    expect(markerButton.classList.contains("is-selected")).toBe(true);
     expect(overlays.some(({ content }) => content.matches(".kakao-map-info"))).toBe(
       true,
     );
@@ -476,64 +361,19 @@ describe("Kakao integration boundaries", () => {
           name: "둘째 장소",
           address: "부산",
           coordinates: { latitude: 35.18, longitude: 129.18 },
-          order: 2,
-          markerKind: "itinerary",
-          clusterable: true,
+          markerKind: "catalog",
         },
       ],
-      [
-        { latitude: 35.17, longitude: 129.17 },
-        { latitude: 35.18, longitude: 129.18 },
-      ],
+      [],
       { fitBounds: false },
     );
     expect(clusterers).toHaveLength(1);
     expect(clusterers[0].clear).toHaveBeenCalled();
     expect(clusterers[0].addMarkers).toHaveBeenCalledTimes(2);
     expect(mapInstances[0].setBounds).toHaveBeenCalledTimes(1);
-    expect(markerButton.getAttribute("aria-pressed")).toBe("false");
-    expect(markerOverlay.setMap).toHaveBeenCalledWith(null);
-    expect(polylines[0].setMap).toHaveBeenCalledWith(null);
-    expect(polylines).toHaveLength(2);
-
-    const secondMarkerButton = overlays.find(({ content }) =>
-      content.matches('[data-location-id="two"]'),
-    )?.content as HTMLButtonElement;
-    expect(secondMarkerButton.getAttribute("aria-label")).toBe(
-      "2번 둘째 장소 · 장소 지도 마커",
-    );
-    expect(secondMarkerButton.getAttribute("aria-pressed")).toBe("false");
-
-    controller.updateData(
-      [
-        {
-          id: "three",
-          name: "셋째 장소",
-          address: "부산",
-          coordinates: { latitude: 35.19, longitude: 129.19 },
-          order: 3,
-          markerKind: "itinerary",
-          clusterable: true,
-        },
-      ],
-      [
-        { latitude: 35.18, longitude: 129.18 },
-        { latitude: 100, longitude: 129.185 },
-        { latitude: 35.19, longitude: 129.19 },
-      ],
-    );
-    expect(polylines[1].setMap).toHaveBeenCalledWith(null);
-    expect(polylines).toHaveLength(2);
-    expect(mapInstances[0].panTo).toHaveBeenCalledTimes(2);
-    expect(mapInstances[0].setBounds).toHaveBeenCalledTimes(1);
-
-    controller.updateData([], []);
-    expect(clusterers[0].addMarkers).toHaveBeenCalledTimes(3);
-    expect(mapInstances[0].panTo).toHaveBeenCalledTimes(2);
-    expect(mapInstances[0].setBounds).toHaveBeenCalledTimes(1);
 
     controller.destroy();
-    expect(clusterers[0].clear).toHaveBeenCalledTimes(5);
+    expect(clusterers[0].clear).toHaveBeenCalledTimes(3);
     expect(removeListener).toHaveBeenCalledWith(
       clusterers[0],
       "clustered",

@@ -36,9 +36,10 @@ describe("core domain schemas", () => {
   });
 
   it("keeps legacy travel preferences valid without Phase 3B optional fields", () => {
-    expect(travelPreferencesSchema.parse(legacyTravelPreferences)).toEqual(
-      legacyTravelPreferences,
-    );
+    expect(travelPreferencesSchema.parse(legacyTravelPreferences)).toEqual({
+      ...legacyTravelPreferences,
+      tripPace: "balanced",
+    });
   });
 
   it("accepts a resolved departure with valid coordinates", () => {
