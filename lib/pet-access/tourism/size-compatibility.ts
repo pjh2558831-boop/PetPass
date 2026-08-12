@@ -169,19 +169,6 @@ export function assessPetSizeCompatibility(
     );
   }
 
-  const deniedSizes = (Object.keys(SIZE_WORD) as PetSize[]).filter((size) =>
-    explicitlyDenied(combinedText, size),
-  );
-  if (deniedSizes.length > 0) {
-    return result(
-      requestedSize,
-      "compatible",
-      "explicit_size_allowance",
-      evidenceIds,
-      sourceTexts,
-    );
-  }
-
   return result(
     requestedSize,
     "verification_required",

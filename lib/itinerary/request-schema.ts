@@ -6,7 +6,11 @@ import {
   type BusanDistrictCode,
   type TourCatalogCategory,
 } from "@/lib/tour-api/catalog";
-import { coordinatesSchema, petSizeSchema } from "@/lib/shared/domain-schemas";
+import {
+  coordinatesSchema,
+  petSizeSchema,
+  petSpeciesSchema,
+} from "@/lib/shared/domain-schemas";
 import type { NormalizedItineraryRequest } from "@/types/route-generation";
 
 export const ROUTE_TRAVEL_CATEGORIES = [
@@ -73,9 +77,13 @@ export const itineraryGenerationRequestSchema = z
       })
       .strict(),
     travelDate: z.string().date(),
+    tripType: z.enum(["DAY_TRIP", "OVERNIGHT"]).default("DAY_TRIP"),
+    tripPace: z.enum(["relaxed", "balanced", "packed"]).default("balanced"),
     startTime: sameDayTimeSchema,
     planning: planningSchema,
+    petSpecies: petSpeciesSchema,
     petSize: petSizeSchema.optional(),
+    acceptsOutdoorOnly: z.boolean(),
     petEquipment: petEquipmentSchema.optional(),
     indoorAccessPreference: z
       .enum(["any", "preferred", "required"])
@@ -149,11 +157,15 @@ export function normalizeItineraryRequest(
       label: input.start.label ?? null,
     },
     travelDate: input.travelDate,
+    tripType: input.tripType,
+    tripPace: input.tripPace,
     startTime: input.startTime,
     planningMode: duration === null ? "stop_count" : "duration",
     desiredDurationMinutes: duration,
     desiredStopCount,
+    petSpecies: input.petSpecies,
     petSize: input.petSize ?? null,
+    acceptsOutdoorOnly: input.acceptsOutdoorOnly,
     petEquipment: {
       hasCarrier: input.petEquipment?.hasCarrier ?? null,
       hasLeash: input.petEquipment?.hasLeash ?? null,
@@ -171,15 +183,19 @@ export function getItineraryGenerationRequestKey(
   request: NormalizedItineraryRequest,
 ): string {
   return JSON.stringify({
-    version: "2",
+    version: "4",
     scope: request.scope,
     start: request.start,
     travelDate: request.travelDate,
+    tripType: request.tripType,
+    tripPace: request.tripPace,
     startTime: request.startTime,
     planningMode: request.planningMode,
     desiredDurationMinutes: request.desiredDurationMinutes,
     desiredStopCount: request.desiredStopCount,
+    petSpecies: request.petSpecies,
     petSize: request.petSize,
+    acceptsOutdoorOnly: request.acceptsOutdoorOnly,
     petEquipment: request.petEquipment,
     indoorAccessPreference: request.indoorAccessPreference,
     selectedCategories: [...request.selectedCategories].sort(),

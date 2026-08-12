@@ -37,6 +37,7 @@ const coordinatesSchema = z.object({
 });
 
 const petSizeSchema = z.enum(["SMALL", "MEDIUM", "LARGE"]);
+const petSpeciesSchema = z.enum(["DOG", "CAT", "OTHER"]);
 const tourPlaceCategorySchema = z.enum([
   "leisure",
   "attraction",
@@ -303,6 +304,28 @@ const placeScoreSchema = z.object({
   evidenceCodes: z.array(z.string()),
 });
 
+const normalizedUtilityComponentSchema = finiteNumberSchema.min(0).max(1);
+const placeUtilitySchema = z.object({
+  version: z.literal("place-utility-v1"),
+  total: z.number().int().min(0).max(1000),
+  preferenceFit: normalizedUtilityComponentSchema,
+  petCompatibility: normalizedUtilityComponentSchema,
+  informationTrust: normalizedUtilityComponentSchema,
+  popularity: normalizedUtilityComponentSchema,
+  categoryPriority: normalizedUtilityComponentSchema,
+  dataQuality: normalizedUtilityComponentSchema,
+  weightedContributions: z.object({
+    preferenceFit: z.number().int().min(0).max(1000),
+    petCompatibility: z.number().int().min(0).max(1000),
+    informationTrust: z.number().int().min(0).max(1000),
+    popularity: z.number().int().min(0).max(1000),
+    categoryPriority: z.number().int().min(0).max(1000),
+    dataQuality: z.number().int().min(0).max(1000),
+  }),
+  reasonCodes: z.array(nonEmptyStringSchema),
+  warningCodes: z.array(nonEmptyStringSchema),
+});
+
 const routeScoreSchema = z.object({
   total: finiteNumberSchema,
   qualityRatio: finiteNumberSchema,
@@ -341,6 +364,7 @@ const generatedItineraryStopSchema = z.object({
   }),
   travelSuitability: travelSuitabilitySchema,
   placeScore: placeScoreSchema,
+  placeUtility: placeUtilitySchema,
   recommendationReasons: z.array(z.string()),
   callAheadRequired: z.boolean(),
   imageUrl: tourImageUrlSchema.optional(),
@@ -418,6 +442,32 @@ const candidateFunnelSchema = z.object({
   returnedRoutes: nonNegativeIntegerSchema,
 });
 
+const reasonCountRecordSchema = z.record(z.string(), nonNegativeIntegerSchema);
+const candidatePipelineDiagnosticsSchema = z.object({
+  version: z.literal("candidate-pipeline-v1"),
+  initialCatalogCount: nonNegativeIntegerSchema,
+  exposedCount: nonNegativeIntegerSchema,
+  coordinateValidCount: nonNegativeIntegerSchema,
+  categoryAcceptedCount: nonNegativeIntegerSchema,
+  // The browser validates shape, not server-owned recommendation limits.
+  // Versioned caps are enforced by candidate-pipeline-v1 on the server.
+  stageACount: nonNegativeIntegerSchema,
+  stageBCount: nonNegativeIntegerSchema,
+  detailedEvaluationCount: nonNegativeIntegerSchema,
+  detailedBatchCount: nonNegativeIntegerSchema,
+  eligibleCount: nonNegativeIntegerSchema,
+  finalEligibleCount: nonNegativeIntegerSchema,
+  cacheHits: nonNegativeIntegerSchema,
+  providerCalls: nonNegativeIntegerSchema,
+  providerFailures: nonNegativeIntegerSchema,
+  providerUnavailableCandidates: nonNegativeIntegerSchema,
+  skippedCandidates: nonNegativeIntegerSchema,
+  detailCallsByOperation: reasonCountRecordSchema,
+  excludedByReason: reasonCountRecordSchema,
+  warningsByReason: reasonCountRecordSchema,
+  categoryDistribution: reasonCountRecordSchema,
+});
+
 const normalizedRequestSchema = z.object({
   scope: z.discriminatedUnion("type", [
     z.object({
@@ -438,11 +488,15 @@ const normalizedRequestSchema = z.object({
     label: z.string().nullable(),
   }),
   travelDate: z.string().date(),
+  tripType: z.enum(["DAY_TRIP", "OVERNIGHT"]),
+  tripPace: z.enum(["relaxed", "balanced", "packed"]),
   startTime: sameDayTimeSchema,
   planningMode: z.enum(["duration", "stop_count"]),
   desiredDurationMinutes: z.number().int().min(120).max(600).nullable(),
   desiredStopCount: z.number().int().min(1).max(5),
+  petSpecies: petSpeciesSchema,
   petSize: petSizeSchema.nullable(),
+  acceptsOutdoorOnly: z.boolean(),
   petEquipment: z.object({
     hasCarrier: z.boolean().nullable(),
     hasLeash: z.boolean().nullable(),
@@ -477,6 +531,18 @@ export const itineraryGenerationResponseSchema: z.ZodType<ItineraryGenerationRes
       detail: nonNegativeIntegerSchema,
       directions: nonNegativeIntegerSchema,
       discovery: nonNegativeIntegerSchema,
+    }),
+    candidatePipeline: z.object({
+      version: z.literal("candidate-pipeline-v1"),
+      status: z.enum([
+        "ready",
+        "insufficient_eligible_places",
+        "provider_unavailable",
+      ]),
+      eligiblePoolTarget: nonNegativeIntegerSchema,
+      requiredMinimum: nonNegativeIntegerSchema.max(5),
+      reasonCounts: reasonCountRecordSchema,
+      diagnostics: candidatePipelineDiagnosticsSchema,
     }),
     limits: z.object({
       maxCatalogCandidates: nonNegativeIntegerSchema,

@@ -125,6 +125,7 @@ declare global {
 
 export type KakaoMapMarkerKind =
   | "catalog"
+  | "departure"
   | "itinerary"
   | "search"
   | "tourism-official"
@@ -323,6 +324,7 @@ export function createKakaoMapController(
   const nativeMarkerVisual = (kind: KakaoMapMarkerKind) => {
     const visuals: Record<KakaoMapMarkerKind, { color: string; label: string; textColor?: string; shape: "pin" | "diamond" | "circle" | "square" }> = {
       catalog: { color: "#236148", label: "공", shape: "pin" },
+      departure: { color: "#2467a8", label: "출", shape: "circle" },
       "tourism-official": { color: "#236148", label: "공", shape: "pin" },
       "business-confirmed": { color: "#267d73", label: "업", shape: "square" },
       "administrator-confirmed": { color: "#7356a8", label: "관", shape: "circle" },
@@ -659,7 +661,7 @@ export function createKakaoMapController(
           location.markerKind ?? (location.order ? "itinerary" : "catalog");
         const interactive = location.interactive !== false;
         const clusterable =
-          location.clusterable ?? kind !== "itinerary";
+          location.clusterable ?? !["itinerary", "departure"].includes(kind);
         let markerButton: HTMLButtonElement | null = null;
         if (interactive) {
           interactiveMarkerCount += 1;
@@ -691,7 +693,7 @@ export function createKakaoMapController(
             content: marker,
             xAnchor: 0.5,
             yAnchor: 1,
-            zIndex: kind === "itinerary" ? 6 : 4,
+            zIndex: kind === "departure" ? 7 : kind === "itinerary" ? 6 : 4,
           });
           markerOverlays.push(overlay);
           locationPositions.set(location.id, {

@@ -31,6 +31,7 @@ export function normalizeKakaoMapPlace(
     phone: candidate.phone ?? null,
     image_url: null,
     source_url: candidate.placeUrl ?? null,
+    provider_visibility: "not_applicable",
     pet_evidence_status: "search_candidate",
     pet_evidence: {
       source: "Kakao Local keyword search",

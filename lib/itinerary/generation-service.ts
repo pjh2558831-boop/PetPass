@@ -17,14 +17,28 @@ import {
   type PetSizeSourceEvidence,
 } from "@/lib/pet-access/tourism/size-compatibility";
 import { getItineraryGenerationRequestKey } from "@/lib/itinerary/request-schema";
-import { assessOperatingHours } from "@/lib/itinerary/operating-hours";
+import {
+  assessOperatingHours,
+  UNKNOWN_OPERATING_HOURS_WARNING,
+} from "@/lib/itinerary/operating-hours";
+import {
+  evaluateAutomaticRouteEligibility,
+  KTO_SERVICE2_NAME,
+} from "@/lib/itinerary/automatic-route-eligibility";
+import { supportsRequiredIndoorAccess } from "@/lib/itinerary/indoor-access";
+import {
+  getDefaultLicenseMatchingService,
+  type LicenseMatcher,
+} from "@/lib/licenses/service";
 import { haversineKm } from "@/lib/itinerary/optimizer";
 import {
-  scorePlace,
   scorePreliminaryCompleteness,
 } from "@/lib/itinerary/recommendation-scoring";
+import { getTripPaceConfig } from "@/lib/itinerary/trip-pace";
+import { runCandidatePipelineV1 } from "@/lib/recommendation/candidate-pipeline";
+import { CANDIDATE_PIPELINE_V1_CONFIG } from "@/lib/recommendation/config/candidate-pipeline-v1";
+import type { PlaceUtilityBreakdown } from "@/lib/recommendation/scoring/place-utility";
 import {
-  classifyKakaoTravelSuitability,
   classifyTourTravelSuitability,
   withTourPetVerification,
 } from "@/lib/itinerary/travel-suitability";
@@ -45,11 +59,11 @@ import {
 import {
   getDefaultTourService,
   type TourPlaceService,
+  type TourRequestObservation,
 } from "@/lib/tour-api/service";
 import {
   KAKAO_DISCOVERY_CATEGORIES,
   type KakaoDirectionsRequest,
-  type KakaoDiscoveryCandidate,
   type KakaoDiscoveryCategory,
   type KakaoDiscoveryResponse,
   type KakaoDrivingRoute,
@@ -82,10 +96,10 @@ import type { TourPetAccessSemanticAssessment } from "@/types/tour-pet-access";
 const MAX_COURSE_COMBINATIONS = 60;
 
 export const ITINERARY_GENERATION_LIMITS = {
-  maxCatalogCandidates: 80,
-  maxDetailCalls: 12,
+  maxCatalogCandidates: CANDIDATE_PIPELINE_V1_CONFIG.stageALimit,
+  maxDetailCalls: CANDIDATE_PIPELINE_V1_CONFIG.maxDetailedEvaluations,
   maxDirectionsCalls: 6,
-  detailConcurrency: 3,
+  detailConcurrency: CANDIDATE_PIPELINE_V1_CONFIG.detailConcurrency,
   catalogConcurrency: 2,
   maxCatalogPagesPerContentType: TOUR_CATALOG_MAX_PAGES_PER_CONTENT_TYPE,
   maxCourseCombinations: MAX_COURSE_COMBINATIONS,
@@ -155,6 +169,7 @@ interface RouteCandidate {
   petAccess: GeneratedPetAccess;
   suitability: TravelSuitabilityAssessment;
   placeScore: ExplainablePlaceScore;
+  placeUtility: PlaceUtilityBreakdown;
   imageUrl?: string;
   phone?: string;
   placeUrl?: string;
@@ -171,6 +186,7 @@ interface ProposedCourse {
 
 export interface ItineraryGenerationDependencies {
   tourService?: TourPlaceService;
+  licenseMatcher?: LicenseMatcher;
   directions?: (
     request: KakaoDirectionsRequest,
   ) => Promise<KakaoDrivingRoute>;
@@ -236,6 +252,51 @@ function emptyCandidateFunnel(): ItineraryCandidateFunnel {
   };
 }
 
+function emptyCandidatePipeline(
+  request: NormalizedItineraryRequest,
+  observations: readonly TourRequestObservation[] = [],
+): ItineraryGenerationResponse["candidatePipeline"] {
+  const pace = getTripPaceConfig(request.tripPace);
+  const cacheHits = observations.filter(
+    ({ cache }) => cache === "hit" || cache === "coalesced",
+  ).length;
+  const providerCalls = observations.filter(
+    ({ liveProviderCall }) => liveProviderCall,
+  ).length;
+  const providerFailures = observations.filter(
+    ({ providerOutcome }) => providerOutcome === "failed",
+  ).length;
+  return {
+    version: "candidate-pipeline-v1",
+    status: "provider_unavailable",
+    eligiblePoolTarget: Math.min(10, pace.maxStops + 3),
+    requiredMinimum: pace.minStops,
+    reasonCounts: { catalog_provider_unavailable: 1 },
+    diagnostics: {
+      version: "candidate-pipeline-v1",
+      initialCatalogCount: 0,
+      exposedCount: 0,
+      coordinateValidCount: 0,
+      categoryAcceptedCount: 0,
+      stageACount: 0,
+      stageBCount: 0,
+      detailedEvaluationCount: 0,
+      detailedBatchCount: 0,
+      eligibleCount: 0,
+      finalEligibleCount: 0,
+      cacheHits,
+      providerCalls,
+      providerFailures,
+      providerUnavailableCandidates: 0,
+      skippedCandidates: 0,
+      detailCallsByOperation: {},
+      excludedByReason: { catalog_provider_unavailable: 1 },
+      warningsByReason: {},
+      categoryDistribution: {},
+    },
+  };
+}
+
 function stableHash(value: string): number {
   let hash = 2_166_136_261;
   for (let index = 0; index < value.length; index += 1) {
@@ -278,6 +339,93 @@ function incrementTravelExclusion(
   counts[reason] = (counts[reason] ?? 0) + 1;
 }
 
+function maximumReasonCount(
+  counts: Readonly<Record<string, number>>,
+  reasons: readonly string[],
+): number {
+  return reasons.reduce(
+    (maximum, reason) => Math.max(maximum, counts[reason] ?? 0),
+    0,
+  );
+}
+
+function applyCandidatePipelineExclusions(
+  target: ItineraryExclusionCounts,
+  counts: Readonly<Record<string, number>>,
+  request: NormalizedItineraryRequest,
+): void {
+  target.not_allowed += maximumReasonCount(counts, ["pet_access_not_allowed"]);
+  target.not_applicable += maximumReasonCount(counts, [
+    "pet_access_not_applicable",
+  ]);
+  target.unknown += maximumReasonCount(counts, [
+    "provider_visibility_unknown",
+    "pet_evidence_absent",
+    "pet_evidence_empty",
+    "pet_evidence_not_consumed",
+    "pet_access_unknown",
+    "pet_type_verification_required",
+    "mandatory_condition_verification_required",
+  ]);
+  const providerUnavailable = maximumReasonCount(counts, [
+    "schedule_provider_unavailable",
+    "schedule_intro_provider_unavailable",
+    "candidate_detail_provider_unavailable",
+    "provider_visibility_unavailable",
+    "required_list_call_unavailable",
+    "required_common_detail_call_unavailable",
+    "required_intro_detail_call_unavailable",
+    "required_pet_detail_call_unavailable",
+    "pet_evidence_provider_unavailable",
+    "pet_access_provider_unavailable",
+  ]);
+  // A provider outage may also yield canonical unknown/verification reasons,
+  // but it must remain an availability failure rather than being reported as
+  // an evidence-unknown outcome.
+  target.unknown = Math.max(0, target.unknown - providerUnavailable);
+  target.pet_size_incompatible += maximumReasonCount(counts, [
+    "pet_size_incompatible",
+  ]);
+  target.pet_size_verification_required += maximumReasonCount(counts, [
+    "pet_size_verification_required",
+  ]);
+  const mandatoryConditionUnsatisfied = maximumReasonCount(counts, [
+    "mandatory_condition_unsatisfied",
+  ]);
+  if (request.indoorAccessPreference === "required") {
+    target.indoor_requirement +=
+      mandatoryConditionUnsatisfied +
+      maximumReasonCount(counts, ["indoor_access_not_confirmed"]);
+  } else {
+    target.equipment_incompatible += mandatoryConditionUnsatisfied;
+  }
+  target.equipment_incompatible += maximumReasonCount(counts, [
+    "mandatory_condition_verification_required",
+  ]);
+  target.travel_unsuitable += maximumReasonCount(counts, [
+    "matched_license_closed",
+  ]);
+  target.closed_at_visit += maximumReasonCount(counts, [
+    "confirmed_schedule_conflict",
+    "operating_time_conflict",
+  ]);
+  target.malformed_coordinates += maximumReasonCount(counts, [
+    "invalid_coordinates",
+    "outside_requested_geographic_scope",
+    "geographic_scope_verification_required",
+  ]);
+  target.detail_mismatch += maximumReasonCount(counts, [
+    "detail_identity_mismatch",
+    "source_identity_mismatch",
+    "provider_visibility_identity_mismatch",
+    "pet_evidence_identity_mismatch",
+  ]);
+  target.unsupported_record += maximumReasonCount(counts, [
+    "source_not_kto_service2",
+  ]);
+  target.detail_unavailable += providerUnavailable;
+}
+
 function isCatalogRecordForRequest(
   place: TourPlaceSummary,
   requestedCategory: TourCatalogCategory,
@@ -285,8 +433,7 @@ function isCatalogRecordForRequest(
 ): boolean {
   return (
     place.contentTypeId === requestedType &&
-    (place.providerContentTypeId === null ||
-      place.providerContentTypeId === requestedType) &&
+    place.providerContentTypeId === requestedType &&
     place.category === requestedCategory &&
     TOUR_ITINERARY_ELIGIBLE_CONTENT_TYPE_IDS.includes(requestedType) &&
     place.source.operation === "areaBasedList2"
@@ -309,46 +456,6 @@ function toSuitableSummary(place: TourPlaceSummary): SuitableTourSummary | null 
   return place as SuitableTourSummary;
 }
 
-function roleAwareSelection(
-  values: readonly ClassifiedSummary[],
-  limit: number,
-  request: NormalizedItineraryRequest,
-): ClassifiedSummary[] {
-  const groups = new Map<string, ClassifiedSummary[]>();
-  for (const value of values) {
-    const key = `${value.summary.category}:${value.suitability.travelRole ?? "unknown"}`;
-    const group = groups.get(key) ?? [];
-    group.push(value);
-    groups.set(key, group);
-  }
-  for (const group of groups.values()) {
-    group.sort(
-      (left, right) =>
-        right.preliminaryScore - left.preliminaryScore ||
-        left.distanceKm - right.distanceKm ||
-        stableHash(`${request.generationSeed}:${left.summary.contentId}`) -
-          stableHash(`${request.generationSeed}:${right.summary.contentId}`) ||
-        left.summary.contentId.localeCompare(right.summary.contentId),
-    );
-  }
-  const keys = [...groups.keys()].sort((left, right) => left.localeCompare(right));
-  const selected: ClassifiedSummary[] = [];
-  let round = 0;
-  while (selected.length < limit) {
-    let added = false;
-    for (const key of keys) {
-      const candidate = groups.get(key)?.[round];
-      if (!candidate) continue;
-      selected.push(candidate);
-      added = true;
-      if (selected.length >= limit) break;
-    }
-    if (!added) break;
-    round += 1;
-  }
-  return selected;
-}
-
 function getPetSizeSourceEvidence(
   detail: TourPlaceDetail,
 ): PetSizeSourceEvidence[] {
@@ -369,31 +476,6 @@ function getPetSizeSourceEvidence(
       ]
     : [];
   return [...primary, ...fallback];
-}
-
-function supportsRequiredIndoorAccess(
-  assessment: TourPetAccessSemanticAssessment,
-): boolean {
-  if (
-    assessment.restrictedScopes.includes("indoor") ||
-    assessment.conditions.some(
-      ({ type }) => type === "outdoor_only" || type === "indoor_restricted",
-    )
-  ) {
-    return false;
-  }
-  return assessment.permittedScopes.some((scope) =>
-    [
-      "whole_place",
-      "indoor",
-      "guest_room",
-      "selected_room",
-      "common_area",
-      "restaurant",
-      "cafe",
-      "lobby",
-    ].includes(scope),
-  );
 }
 
 const EQUIPMENT_FIELDS = {
@@ -475,35 +557,24 @@ function toGeneratedPetAccess(
   };
 }
 
-function scoreTourCandidate(
-  summary: SuitableTourSummary,
-  detail: TourPlaceDetail,
-  petAccess: GeneratedPetAccess & { verdict: "allowed" | "conditional" },
-  suitability: TravelSuitabilityAssessment,
-  request: NormalizedItineraryRequest,
-  hasExactKakaoLink: boolean,
+function legacyPlaceScoreFromUtility(
+  utility: PlaceUtilityBreakdown,
 ): ExplainablePlaceScore {
-  return scorePlace({
-    petVerdict: petAccess.verdict,
-    petConditionsConfirmed:
-      petAccess.sizeCompatibility.state === "compatible" &&
-      petAccess.conditions.every((condition) => {
-        const field = EQUIPMENT_FIELDS[
-          condition.type as keyof typeof EQUIPMENT_FIELDS
-        ];
-        return !field || request.petEquipment[field] === true;
-      }),
-    category: summary.category,
-    role: suitability.travelRole ?? "general_attraction",
-    request,
-    hasOperatingInformation: Boolean(detail.operatingInformation?.trim()),
-    hasAddress: Boolean(summary.address?.trim()),
-    hasPhone: Boolean(summary.phone?.trim()),
-    hasVerifiedTourImage: Boolean(summary.thumbnailUrl || summary.imageUrl),
-    hasDetailedInformation: Boolean(detail.overview || detail.homepageUrl),
-    kakaoRelevance: hasExactKakaoLink ? "exact_link" : "none",
-    evidenceCodes: suitability.evidence.map(({ code }) => code),
-  });
+  const components = {
+    petCompatibility: utility.weightedContributions.petCompatibility,
+    preferenceMatch: utility.weightedContributions.preferenceFit,
+    travelAttractiveness: utility.weightedContributions.categoryPriority,
+    scheduleFit: utility.weightedContributions.dataQuality,
+    informationCompleteness:
+      utility.weightedContributions.informationTrust,
+    kakaoRelevance: utility.weightedContributions.popularity,
+  };
+  return {
+    total: utility.total,
+    components,
+    reasons: [...utility.reasonCodes, ...utility.warningCodes],
+    evidenceCodes: [...utility.reasonCodes],
+  };
 }
 
 function candidateCoordinates(candidate: RouteCandidate): Coordinates {
@@ -887,6 +958,7 @@ function createItinerary(
       operatingHours: acceptedOperatingHours,
       travelSuitability: candidate.suitability,
       placeScore: candidate.placeScore,
+      placeUtility: candidate.placeUtility,
       recommendationReasons: candidate.placeScore.reasons,
       callAheadRequired: candidate.source === "KAKAO",
       ...(candidate.imageUrl ? { imageUrl: candidate.imageUrl } : {}),
@@ -1070,80 +1142,13 @@ async function loadDiscovery(
   });
 }
 
-function kakaoContentType(category: KakaoDiscoveryCategory): TourContentTypeId {
-  return {
-    attraction: "12",
-    culture: "14",
-    leisure: "28",
-    accommodation: "32",
-    food: "39",
-  }[category] as TourContentTypeId;
-}
-
-function kakaoRouteCandidate(
-  candidate: KakaoDiscoveryCandidate,
-  request: NormalizedItineraryRequest,
-): RouteCandidate | null {
-  if (candidate.exactExistingPlaceLink || candidate.category === "food") {
-    return null;
-  }
-  const suitability = classifyKakaoTravelSuitability(candidate, request);
-  if (!suitability.travelSuitable || !suitability.travelRole) return null;
-  const sizeCompatibility: PetSizeCompatibilityResult = {
-    rulesetVersion: "1",
-    requestedSize: request.petSize,
-    state: "not_specified",
-    reason: "no_explicit_size_evidence",
-    evidenceIds: [],
-    sourceTexts: [],
-  };
-  const petAccess: GeneratedPetAccess = {
-    verdict: "unknown",
-    evaluationState: "insufficient_evidence",
-    permittedScopes: [],
-    restrictedScopes: [],
-    conditions: [],
-    sizeCompatibility,
-  };
-  const placeScore = scorePlace({
-    petVerdict: "unknown",
-    petConditionsConfirmed: false,
-    category: candidate.category,
-    role: suitability.travelRole,
-    request,
-    hasOperatingInformation: false,
-    hasAddress: Boolean(candidate.address.trim()),
-    hasPhone: Boolean(candidate.phone?.trim()),
-    hasVerifiedTourImage: false,
-    hasDetailedInformation: false,
-    kakaoRelevance: "exploratory",
-    evidenceCodes: suitability.evidence.map(({ code }) => code),
-  });
-  return {
-    stableIdentity: `kakao:${candidate.id}`,
-    source: "KAKAO",
-    contentId: candidate.id,
-    title: candidate.name,
-    address: candidate.address,
-    coordinates: candidate.coordinates,
-    providerContentTypeId: "KAKAO",
-    contentTypeId: kakaoContentType(candidate.category),
-    category: candidate.category,
-    detail: null,
-    petAccess,
-    suitability,
-    placeScore,
-    ...(candidate.phone ? { phone: candidate.phone } : {}),
-    ...(candidate.placeUrl ? { placeUrl: candidate.placeUrl } : {}),
-  };
-}
-
 function unavailableResponse(
   request: NormalizedItineraryRequest,
   exclusions: ItineraryExclusionCounts,
   travelSuitabilityExclusions: Partial<
     Record<TravelSuitabilityExclusionReason, number>
   >,
+  observations: readonly TourRequestObservation[],
   notice: string,
 ): ItineraryGenerationResponse {
   return {
@@ -1156,6 +1161,7 @@ function unavailableResponse(
     exclusionCounts: exclusions,
     travelSuitabilityExclusions,
     providerCalls: { detail: 0, directions: 0, discovery: 0 },
+    candidatePipeline: emptyCandidatePipeline(request, observations),
     limits: ITINERARY_GENERATION_LIMITS,
     itineraries: [],
     notices: [notice],
@@ -1167,6 +1173,9 @@ export async function generateItineraries(
   dependencies: ItineraryGenerationDependencies = {},
 ): Promise<ItineraryGenerationResponse> {
   const service = dependencies.tourService ?? getDefaultTourService();
+  const licenseMatcher =
+    dependencies.licenseMatcher ??
+    (dependencies.tourService ? null : getDefaultLicenseMatchingService());
   const routeDirections = dependencies.directions ?? getDirections;
   const exclusions = emptyExclusions();
   const candidateFunnel = emptyCandidateFunnel();
@@ -1192,6 +1201,7 @@ export async function generateItineraries(
     contentTypeId: TourContentTypeId;
     places: TourPlaceSummary[];
   }>;
+  const catalogObservations: TourRequestObservation[] = [];
   try {
     catalogResults = await mapWithConcurrency(
       requestedCategories,
@@ -1208,7 +1218,7 @@ export async function generateItineraries(
               ? (request.scope.districtCode as BusanDistrictCode)
               : undefined,
           contentTypeId,
-        });
+        }, (event) => catalogObservations.push(event));
         return { category, contentTypeId, places: result.places };
       },
     );
@@ -1217,6 +1227,7 @@ export async function generateItineraries(
       request,
       exclusions,
       travelSuitabilityExclusions,
+      catalogObservations,
       "한국관광공사 장소 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
     );
   }
@@ -1291,39 +1302,75 @@ export async function generateItineraries(
   }
   candidateFunnel.travelSuitableCandidates = classified.length;
 
-  const boundedCatalog = roleAwareSelection(
-    classified,
-    ITINERARY_GENERATION_LIMITS.maxCatalogCandidates,
-    request,
-  );
-  candidateFunnel.preliminaryRankedCandidates = boundedCatalog.length;
-  const shortlist = roleAwareSelection(
-    boundedCatalog,
-    ITINERARY_GENERATION_LIMITS.maxDetailCalls,
-    request,
-  );
-  candidateFunnel.detailedAssessmentCandidates = shortlist.length;
-  exclusions.candidate_limit += Math.max(0, classified.length - shortlist.length);
-
-  let detailCalls = 0;
-  const detailResults = await mapWithConcurrency(
-    shortlist,
-    ITINERARY_GENERATION_LIMITS.detailConcurrency,
-    async (classifiedSummary) => {
-      detailCalls += 1;
-      try {
-        const detail = await service.getPlaceDetail(
-          classifiedSummary.summary.contentId,
-          classifiedSummary.summary.contentTypeId,
-        );
-        return { classifiedSummary, detail } as const;
-      } catch {
-        return { classifiedSummary, detail: null } as const;
-      }
+  const pace = getTripPaceConfig(request.tripPace);
+  const pipeline = await runCandidatePipelineV1({
+    context: {
+      request,
+      maxStops: pace.maxStops,
+      minStops: pace.minStops,
+      tripType: request.tripType,
+      petProfile: {
+        species: request.petSpecies,
+        size: request.petSize,
+        hasCarrier: request.petEquipment.hasCarrier,
+        hasLeash: request.petEquipment.hasLeash,
+        hasMuzzle: request.petEquipment.hasMuzzle,
+        acceptsOutdoorOnly: request.acceptsOutdoorOnly,
+      },
+      tripRequest: {
+        scope: {
+          regionCode: request.scope.regionCode,
+          districtCode:
+            request.scope.type === "district"
+              ? request.scope.districtCode
+              : null,
+          bounds: BUSAN_DISCOVERY_BOUNDS,
+        },
+        selectedCategories: request.selectedCategories,
+        includeShopping: request.includeShopping,
+        indoorAccessPreference: request.indoorAccessPreference,
+      },
     },
+    catalog: catalogResults.flatMap(({ places }) => places),
+    tourService: service,
+    licenseMatcher,
+    initialObservations: catalogObservations,
+  });
+  const detailCalls = pipeline.diagnostics.detailedEvaluationCount;
+  candidateFunnel.preliminaryRankedCandidates = pipeline.diagnostics.stageACount;
+  candidateFunnel.detailedAssessmentCandidates =
+    pipeline.diagnostics.detailedEvaluationCount;
+  candidateFunnel.detailOutcomes.unavailable =
+    pipeline.diagnostics.providerUnavailableCandidates;
+  applyCandidatePipelineExclusions(exclusions, pipeline.reasonCounts, request);
+  exclusions.candidate_limit += Math.max(
+    0,
+    classified.length - pipeline.diagnostics.stageACount,
   );
+
+  const shortlist = pipeline.candidates.map((candidate) => ({
+    summary: candidate.summary as SuitableTourSummary,
+    suitability: candidate.travelSuitability,
+    distanceKm: candidate.distanceKm,
+    preliminaryScore: candidate.retrievalScore.total,
+  }));
+  const detailResults = pipeline.candidates.map((candidate) => ({
+    classifiedSummary: {
+      summary: candidate.summary as SuitableTourSummary,
+      suitability: candidate.travelSuitability,
+      distanceKm: candidate.distanceKm,
+      preliminaryScore: candidate.retrievalScore.total,
+    },
+    detail: candidate.detail,
+    licensing: candidate.licensing,
+    pipelineCandidate: candidate,
+  }));
 
   const eligible: RouteCandidate[] = [];
+  let eligibilityProviderUnavailableCount =
+    pipeline.status === "provider_unavailable"
+      ? Math.max(1, pipeline.diagnostics.providerUnavailableCandidates)
+      : 0;
   for (const result of detailResults) {
     if (!result.detail) {
       exclusions.detail_unavailable += 1;
@@ -1334,44 +1381,167 @@ export async function generateItineraries(
     const assessment = evaluateTourPetAccess(
       createTrustedTourPetAccessInput(result.detail),
     );
-    if (assessment.evaluationState === "not_applicable") {
-      exclusions.not_applicable += 1;
-      candidateFunnel.basePetAccess.notApplicable += 1;
-      continue;
-    }
     if (!detailMatchesCatalog(result.detail, summary)) {
-      exclusions.detail_mismatch += 1;
+      const hasKnownUnsupportedDetailType =
+        result.detail.summary.providerContentTypeId !== null &&
+        result.detail.summary.contentTypeId === null;
+      if (hasKnownUnsupportedDetailType) {
+        exclusions.not_applicable += 1;
+      } else {
+        exclusions.detail_mismatch += 1;
+      }
       candidateFunnel.detailOutcomes.mismatch += 1;
       continue;
     }
-    if (assessment.verdict === "not_allowed") {
-      exclusions.not_allowed += 1;
-      candidateFunnel.basePetAccess.notAllowed += 1;
-      continue;
-    }
-    if (assessment.verdict === "unknown") {
-      exclusions.unknown += 1;
-      candidateFunnel.basePetAccess.unknown += 1;
-      continue;
-    }
-    candidateFunnel.basePetAccess[assessment.verdict] += 1;
     const sizeCompatibility = assessPetSizeCompatibility(
       assessment,
       request.petSize,
       getPetSizeSourceEvidence(result.detail),
     );
-    if (sizeCompatibility.state === "compatible") {
-      candidateFunnel.petSizeCompatibility.compatible += 1;
-    } else if (sizeCompatibility.state === "incompatible") {
-      exclusions.pet_size_incompatible += 1;
-      candidateFunnel.petSizeCompatibility.incompatible += 1;
-      continue;
-    } else if (sizeCompatibility.state === "verification_required") {
-      exclusions.pet_size_verification_required += 1;
-      candidateFunnel.petSizeCompatibility.verificationRequired += 1;
-      continue;
+    const detailForEligibility: TourPlaceDetail = {
+      ...result.detail,
+      summary: {
+        ...result.detail.summary,
+        providerVisibility:
+          result.detail.summary.providerVisibility ?? summary.providerVisibility,
+      },
+    };
+    const providerVisibility =
+      detailForEligibility.summary.providerVisibility ?? {
+        status: "unknown" as const,
+        providerField: null,
+        providerValue: null,
+        checkedAt: result.detail.source.retrievedAt,
+        reasonCodes: ["provider_visibility_field_missing"],
+      };
+    const eligibility = evaluateAutomaticRouteEligibility({
+      providerService: KTO_SERVICE2_NAME,
+      summary,
+      detail: detailForEligibility,
+      providerVisibility,
+      providerCalls: {
+        list: "succeeded",
+        detailCommon:
+          result.detail.sections.common.status === "available"
+            ? "succeeded"
+            : result.detail.sections.common.status === "unavailable"
+              ? "provider_unavailable"
+              : "invalid_response",
+        detailIntro:
+          result.detail.sections.intro.status === "available"
+            ? "succeeded"
+            : result.detail.sections.intro.status === "unavailable"
+              ? "provider_unavailable"
+              : "invalid_response",
+        detailPet:
+          result.detail.sections.petPolicy.status === "available"
+            ? "succeeded"
+            : result.detail.sections.petPolicy.status === "unavailable"
+              ? "provider_unavailable"
+              : "invalid_response",
+      },
+      assessment,
+      petProfile: {
+        species: request.petSpecies,
+        size: request.petSize,
+        hasCarrier: request.petEquipment.hasCarrier,
+        hasLeash: request.petEquipment.hasLeash,
+        hasMuzzle: request.petEquipment.hasMuzzle,
+        acceptsOutdoorOnly: request.acceptsOutdoorOnly,
+      },
+      tripRequest: {
+        scope: {
+          regionCode: request.scope.regionCode,
+          districtCode:
+            request.scope.type === "district"
+              ? request.scope.districtCode
+              : null,
+          bounds: BUSAN_DISCOVERY_BOUNDS,
+        },
+        selectedCategories: request.selectedCategories,
+        includeShopping: request.includeShopping,
+        indoorAccessPreference: request.indoorAccessPreference,
+      },
+      licensing: result.licensing,
+      // Exact arrival is known only after road routing. Unknown hours remain a
+      // warning here; createItinerary performs the hard actual-window check.
+      operatingHours: {
+        status: "unknown",
+        warning: UNKNOWN_OPERATING_HOURS_WARNING,
+      },
+    });
+
+    if (assessment.evaluationState === "not_applicable") {
+      candidateFunnel.basePetAccess.notApplicable += 1;
+    } else if (assessment.verdict === "not_allowed") {
+      candidateFunnel.basePetAccess.notAllowed += 1;
+    } else if (assessment.verdict === "unknown") {
+      candidateFunnel.basePetAccess.unknown += 1;
     } else {
-      candidateFunnel.petSizeCompatibility.notSpecified += 1;
+      candidateFunnel.basePetAccess[assessment.verdict] += 1;
+      if (sizeCompatibility.state === "compatible") {
+        candidateFunnel.petSizeCompatibility.compatible += 1;
+      } else if (sizeCompatibility.state === "incompatible") {
+        candidateFunnel.petSizeCompatibility.incompatible += 1;
+      } else if (sizeCompatibility.state === "verification_required") {
+        candidateFunnel.petSizeCompatibility.verificationRequired += 1;
+      } else {
+        candidateFunnel.petSizeCompatibility.notSpecified += 1;
+      }
+    }
+
+    if (!eligibility.eligible) {
+      if (eligibility.status === "provider_unavailable") {
+        eligibilityProviderUnavailableCount += 1;
+        exclusions.detail_unavailable += 1;
+      } else if (
+        request.indoorAccessPreference === "required" &&
+        !supportsRequiredIndoorAccess(assessment)
+      ) {
+        exclusions.indoor_requirement += 1;
+        candidateFunnel.indoorRequirementExcluded += 1;
+      } else if (eligibility.reasonCodes.includes("pet_access_not_applicable")) {
+        exclusions.not_applicable += 1;
+      } else if (eligibility.reasonCodes.includes("pet_access_not_allowed")) {
+        exclusions.not_allowed += 1;
+      } else if (
+        eligibility.reasonCodes.includes("pet_access_unknown") ||
+        eligibility.reasonCodes.includes("pet_access_verification_required") ||
+        eligibility.reasonCodes.includes("pet_type_verification_required")
+      ) {
+        exclusions.unknown += 1;
+      } else if (eligibility.reasonCodes.includes("pet_size_incompatible")) {
+        exclusions.pet_size_incompatible += 1;
+      } else if (
+        eligibility.reasonCodes.includes("pet_size_verification_required")
+      ) {
+        exclusions.pet_size_verification_required += 1;
+      } else if (
+        eligibility.reasonCodes.includes("mandatory_condition_unsatisfied") ||
+        eligibility.reasonCodes.includes(
+          "mandatory_condition_verification_required",
+        )
+      ) {
+        exclusions.equipment_incompatible += 1;
+        candidateFunnel.equipmentMismatchExcluded += 1;
+      } else if (eligibility.reasonCodes.includes("matched_license_closed")) {
+        exclusions.travel_unsuitable += 1;
+      } else if (
+        eligibility.reasonCodes.includes("invalid_coordinates") ||
+        eligibility.reasonCodes.includes("outside_requested_geographic_scope")
+      ) {
+        exclusions.malformed_coordinates += 1;
+      } else if (
+        eligibility.reasonCodes.includes("detail_identity_mismatch") ||
+        eligibility.reasonCodes.includes("source_identity_mismatch") ||
+        eligibility.reasonCodes.includes("provider_visibility_identity_mismatch") ||
+        eligibility.reasonCodes.includes("pet_evidence_identity_mismatch")
+      ) {
+        exclusions.detail_mismatch += 1;
+      } else {
+        exclusions.detail_unavailable += 1;
+      }
+      continue;
     }
     if (hasKnownEquipmentMismatch(assessment, request.petEquipment)) {
       exclusions.equipment_incompatible += 1;
@@ -1410,14 +1580,8 @@ export async function generateItineraries(
       detail: result.detail,
       petAccess,
       suitability,
-      placeScore: scoreTourCandidate(
-        summary,
-        result.detail,
-        petAccess,
-        suitability,
-        request,
-        false,
-      ),
+      placeScore: legacyPlaceScoreFromUtility(result.pipelineCandidate.utility),
+      placeUtility: result.pipelineCandidate.utility,
       ...(imageUrl ? { imageUrl } : {}),
       ...(summary.phone ? { phone: summary.phone } : {}),
     });
@@ -1457,33 +1621,11 @@ export async function generateItineraries(
             },
           ],
         };
-        const summary = shortlist.find(
-          ({ summary: value }) => value.contentId === candidate.contentId,
-        )?.summary;
-        if (summary) {
-          candidate.placeScore = scoreTourCandidate(
-            summary,
-            candidate.detail,
-            candidate.petAccess as GeneratedPetAccess & {
-              verdict: "allowed" | "conditional";
-            },
-            candidate.suitability,
-            request,
-            true,
-          );
-        }
+        // Exact Kakao identity may enrich contact/navigation metadata, but it
+        // does not change Stage 2 utility or official pet eligibility.
       }
-      const exploratory = discovery.candidates
-        .map((candidate) => kakaoRouteCandidate(candidate, request))
-        .filter((candidate): candidate is RouteCandidate => candidate !== null)
-        .sort(
-          (left, right) =>
-            right.placeScore.total - left.placeScore.total ||
-            stableHash(`${request.generationSeed}:${left.stableIdentity}`) -
-              stableHash(`${request.generationSeed}:${right.stableIdentity}`),
-        )
-        .slice(0, 3);
-      eligible.push(...exploratory);
+      // Kakao-only records remain discovery candidates. They may enrich an exact
+      // Tourism match, but they never enter an automatically generated route.
     }
   } catch {
     notices.push(
@@ -1565,7 +1707,9 @@ export async function generateItineraries(
       ? upstreamFailures > 0
         ? "partial"
         : "ready"
-      : detailCalls > 0 && exclusions.detail_unavailable === detailCalls
+      : eligibilityProviderUnavailableCount > 0
+        ? "provider_unavailable"
+        : detailCalls > 0 && exclusions.detail_unavailable === detailCalls
         ? "provider_unavailable"
         : tourEligibleCount >= request.desiredStopCount &&
             exclusions.directions_unavailable > 0
@@ -1594,6 +1738,14 @@ export async function generateItineraries(
       detail: detailCalls,
       directions: directionsCalls,
       discovery: discoveryCalls,
+    },
+    candidatePipeline: {
+      version: "candidate-pipeline-v1",
+      status: pipeline.status,
+      eligiblePoolTarget: pipeline.eligiblePoolTarget,
+      requiredMinimum: pipeline.requiredMinimum,
+      reasonCounts: pipeline.reasonCounts,
+      diagnostics: pipeline.diagnostics,
     },
     limits: ITINERARY_GENERATION_LIMITS,
     itineraries,
