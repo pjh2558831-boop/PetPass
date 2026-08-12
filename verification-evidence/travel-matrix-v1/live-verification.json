@@ -1,0 +1,78 @@
+{
+  "version": "travel-matrix-v1-live-verification",
+  "runAsOf": "2026-08-12T12:01:32.289Z",
+  "scope": "busan",
+  "stage2Selection": {
+    "candidateCount": 5,
+    "contentIds": [
+      "3112126",
+      "3350880",
+      "3426656",
+      "3438936",
+      "3443614"
+    ],
+    "categories": {
+      "attraction": 1,
+      "food": 3,
+      "leisure": 1
+    },
+    "tourProviderCalls": 82,
+    "tourMaxObservedConcurrency": 3,
+    "tourRequestCap": 120
+  },
+  "kakaoBounds": {
+    "requestCap": 84,
+    "providerCalls": 18,
+    "concurrency": 3,
+    "maxObservedConcurrency": 3,
+    "timeoutMs": 8000
+  },
+  "coldMatrix": {
+    "nodeCount": 6,
+    "expectedDirectedEdges": 30,
+    "resolvedEdges": 30,
+    "unresolvedEdges": 0,
+    "batchCalls": 6,
+    "fallbackCalls": 10,
+    "providerCalls": 16,
+    "cacheHits": 0,
+    "complete": true
+  },
+  "warmMatrix": {
+    "providerCalls": 0,
+    "persistentCacheHits": 30,
+    "unresolvedEdges": 0,
+    "complete": true
+  },
+  "asymmetricReversePairObserved": true,
+  "currentRoute": {
+    "status": "validated",
+    "sectionCount": 5,
+    "geometryPointCount": 1580,
+    "providerCalls": 1
+  },
+  "futureRoute": {
+    "status": "validated",
+    "temporalBasis": "future_departure",
+    "sectionCount": 5,
+    "geometryPointCount": 1603,
+    "providerCalls": 1
+  },
+  "providerIssues": {
+    "matrixFailures": 0,
+    "matrixTimeouts": 0,
+    "authorizationOrQuotaIssue": false
+  },
+  "gateChecks": {
+    "naturalStage2CandidatesUsed": true,
+    "asymmetricMatrixObserved": true,
+    "coldMatrixComplete": true,
+    "warmReplayCompleteWithoutProviderCalls": true,
+    "currentRouteValidated": true,
+    "futureRouteValidated": true,
+    "geometryExtracted": true,
+    "requestCapRespected": true,
+    "concurrencyRespected": true,
+    "noAuthorizationOrQuotaIssue": true
+  }
+}

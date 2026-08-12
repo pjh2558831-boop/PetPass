@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  testIgnore: "**/*-live.spec.ts",
   fullyParallel: true,
   retries: process.env.CI ? 2 : 0,
   reporter: "list",
@@ -10,7 +11,7 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    command: "npm run dev",
+    command: "node node_modules/next/dist/bin/next dev",
     url: "http://localhost:3000",
     reuseExistingServer: false,
     timeout: 120_000,
@@ -33,6 +34,7 @@ export default defineConfig({
         "https://apis.data.go.kr/1741000/tourist_accommodations/info",
       LOCALDATA_TOURIST_PENSIONS_ENDPOINT:
         "https://apis.data.go.kr/1741000/tourist_pensions",
+      ROUTE_ENGINE_V1_ENABLED: "true",
     },
   },
   projects: [

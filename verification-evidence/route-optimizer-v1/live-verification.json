@@ -1,0 +1,104 @@
+{
+  "version": "route-optimizer-v1-live-verification",
+  "runAsOf": "2026-08-12T13:08:51.727Z",
+  "scope": "busan",
+  "stage2": {
+    "candidateCount": 6,
+    "contentIds": [
+      "2672393",
+      "3112126",
+      "3350880",
+      "3426656",
+      "3438936",
+      "3443614"
+    ],
+    "categories": {
+      "attraction": 2,
+      "food": 3,
+      "leisure": 1
+    },
+    "providerCalls": 82
+  },
+  "matrix": {
+    "nodeCount": 7,
+    "resolvedEdges": 42,
+    "expectedEdges": 42,
+    "complete": true,
+    "providerCalls": 23
+  },
+  "solver": {
+    "status": "ready",
+    "stopIds": [
+      "3112126",
+      "3443614",
+      "2672393",
+      "3350880"
+    ],
+    "score": 2830,
+    "totalDrivingSeconds": 3958,
+    "totalDistanceMeters": 22547,
+    "selectedCategoryCount": 3,
+    "geometryPointCount": 558,
+    "matrixTemporalBasis": "traffic_independent",
+    "finalValidationTemporalBasis": "current_traffic",
+    "validationAttempts": 3,
+    "validationFailures": 0,
+    "exactSearchCompleted": true,
+    "beamFallbackUsed": false,
+    "deterministicReplay": true
+  },
+  "baselines": [
+    {
+      "name": "nearest_neighbor",
+      "score": 2254,
+      "stopIds": [
+        "3426656",
+        "3438936",
+        "3112126"
+      ],
+      "totalDrivingSeconds": 4033
+    },
+    {
+      "name": "highest_utility_fastest",
+      "score": 2116,
+      "stopIds": [
+        "3426656",
+        "3112126",
+        "3443614"
+      ],
+      "totalDrivingSeconds": 3514
+    },
+    {
+      "name": "category_greedy",
+      "score": 2254,
+      "stopIds": [
+        "3426656",
+        "3438936",
+        "3112126"
+      ],
+      "totalDrivingSeconds": 4033
+    }
+  ],
+  "bounds": {
+    "tourCalls": 82,
+    "tourCap": 120,
+    "kakaoCalls": 26,
+    "kakaoCap": 84,
+    "maxObservedConcurrency": 3,
+    "concurrencyCap": 3,
+    "timeoutMs": 8000
+  },
+  "gateChecks": {
+    "naturalStage2CandidatesUsed": true,
+    "providerMatrixComplete": true,
+    "finalRouteReady": true,
+    "finalValidationSucceeded": true,
+    "minimumStopsSatisfied": true,
+    "usefulCategoryCoverage": true,
+    "providerGeometryPresent": true,
+    "deterministicReplay": true,
+    "requestCapsRespected": true,
+    "concurrencyRespected": true,
+    "noAuthorizationOrQuotaIssue": true
+  }
+}

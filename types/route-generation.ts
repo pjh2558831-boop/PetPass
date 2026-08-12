@@ -1,6 +1,8 @@
 import type { Coordinates, TourContentTypeId, TourPlaceCategory } from "@/types/place";
-import type { PetSize } from "@/types/pet";
+import type { PetSize, PetSpecies, TripPace, TripType } from "@/types/pet";
 import type { PetSizeCompatibilityResult } from "@/types/pet-size-compatibility";
+import type { CandidatePipelineDiagnostics } from "@/lib/recommendation/types";
+import type { PlaceUtilityBreakdown } from "@/lib/recommendation/scoring/place-utility";
 import type {
   TourPetAccessAssessment,
   TourPetAccessCondition,
@@ -178,11 +180,15 @@ export interface NormalizedItineraryRequest {
     label: string | null;
   };
   travelDate: string;
+  tripType: TripType;
+  tripPace: TripPace;
   startTime: string;
   planningMode: "duration" | "stop_count";
   desiredDurationMinutes: number | null;
   desiredStopCount: number;
+  petSpecies: PetSpecies;
   petSize: PetSize | null;
+  acceptsOutdoorOnly: boolean;
   petEquipment: PetEquipmentAvailability;
   indoorAccessPreference: IndoorAccessPreference;
   selectedCategories: TourPlaceCategory[];
@@ -262,6 +268,7 @@ export interface GeneratedItineraryStop {
   };
   travelSuitability: TravelSuitabilityAssessment;
   placeScore: ExplainablePlaceScore;
+  placeUtility: PlaceUtilityBreakdown;
   recommendationReasons: string[];
   callAheadRequired: boolean;
   imageUrl?: string;
@@ -309,6 +316,17 @@ export interface ItineraryGenerationResponse {
     detail: number;
     directions: number;
     discovery: number;
+  };
+  candidatePipeline: {
+    version: "candidate-pipeline-v1";
+    status:
+      | "ready"
+      | "insufficient_eligible_places"
+      | "provider_unavailable";
+    eligiblePoolTarget: number;
+    requiredMinimum: number;
+    reasonCounts: Record<string, number>;
+    diagnostics: CandidatePipelineDiagnostics;
   };
   limits: ItineraryGenerationLimits;
   itineraries: GeneratedItinerary[];

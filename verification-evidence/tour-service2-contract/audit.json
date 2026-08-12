@@ -1,0 +1,4481 @@
+{
+  "artifactVersion": 1,
+  "provider": "Korea Tourism Organization KorPetTourService2",
+  "startedAt": "2026-08-12T04:32:23.742Z",
+  "completedAt": "2026-08-12T04:32:33.146Z",
+  "scope": {
+    "regionCode": "26",
+    "mainContentTypes": [
+      "12",
+      "14",
+      "15",
+      "28",
+      "32",
+      "39"
+    ],
+    "shoppingContentType": "38",
+    "shoppingIncluded": false,
+    "suppliedContentIds": [
+      "2930927",
+      "4008098",
+      "4012773",
+      "4008808",
+      "2927087",
+      "132786",
+      "126644",
+      "2807380",
+      "1887866",
+      "1918646"
+    ],
+    "samplesPerCategory": 60,
+    "maxDetailedRecords": 60,
+    "auditPetProfile": {
+      "species": "DOG",
+      "size": "SMALL",
+      "hasCarrier": true,
+      "hasLeash": true,
+      "hasMuzzle": true,
+      "acceptsOutdoorOnly": true
+    },
+    "auditVisit": {
+      "travelDate": "2026-08-12",
+      "arrival": "10:00",
+      "departure": "11:00",
+      "indoorAccessPreference": "any"
+    }
+  },
+  "safety": {
+    "liveOptInEnvironment": "RUN_LIVE_TOUR_CONTRACT_AUDIT",
+    "ciDenied": true,
+    "maxProviderCalls": 240,
+    "providerCalls": 185,
+    "providerConcurrency": 3,
+    "maxObservedProviderConcurrency": 3,
+    "detailWorkerConcurrency": 3,
+    "timeoutMs": 8000,
+    "retryCount": 0,
+    "cacheTtlMs": 900000,
+    "rawPayloadsPersisted": false,
+    "requestUrlsPersisted": false
+  },
+  "visibilitySync": {
+    "pagesFetched": 14,
+    "maxPages": 20,
+    "complete": true,
+    "recordsMapped": 657,
+    "reasonCodes": []
+  },
+  "categorySampling": [
+    {
+      "contentType": "12",
+      "pagesFetched": 1,
+      "normalizedRecords": 27,
+      "availableRecords": 27,
+      "complete": true,
+      "errorCode": null
+    },
+    {
+      "contentType": "14",
+      "pagesFetched": 1,
+      "normalizedRecords": 1,
+      "availableRecords": 1,
+      "complete": true,
+      "errorCode": null
+    },
+    {
+      "contentType": "15",
+      "pagesFetched": 1,
+      "normalizedRecords": 0,
+      "availableRecords": 0,
+      "complete": true,
+      "errorCode": null
+    },
+    {
+      "contentType": "28",
+      "pagesFetched": 1,
+      "normalizedRecords": 3,
+      "availableRecords": 3,
+      "complete": true,
+      "errorCode": null
+    },
+    {
+      "contentType": "32",
+      "pagesFetched": 1,
+      "normalizedRecords": 5,
+      "availableRecords": 5,
+      "complete": true,
+      "errorCode": null
+    },
+    {
+      "contentType": "39",
+      "pagesFetched": 1,
+      "normalizedRecords": 3,
+      "availableRecords": 3,
+      "complete": true,
+      "errorCode": null
+    }
+  ],
+  "suppliedRegionalJoins": [
+    {
+      "regionCode": "11",
+      "districtCode": "140",
+      "contentType": "38",
+      "targetCount": 1,
+      "listTargetCount": 1,
+      "visibilityTargetCount": 1,
+      "listPages": 1,
+      "syncPages": 1,
+      "listTargetsFound": 1,
+      "visibilityTargetsFound": 1,
+      "listCompleteForTargets": true,
+      "visibilityCompleteForTargets": true
+    },
+    {
+      "regionCode": "11",
+      "districtCode": "500",
+      "contentType": "38",
+      "targetCount": 1,
+      "listTargetCount": 1,
+      "visibilityTargetCount": 1,
+      "listPages": 1,
+      "syncPages": 1,
+      "listTargetsFound": 1,
+      "visibilityTargetsFound": 1,
+      "listCompleteForTargets": true,
+      "visibilityCompleteForTargets": true
+    },
+    {
+      "regionCode": "26",
+      "districtCode": "110",
+      "contentType": "38",
+      "targetCount": 1,
+      "listTargetCount": 1,
+      "visibilityTargetCount": 0,
+      "listPages": 1,
+      "syncPages": 0,
+      "listTargetsFound": 1,
+      "visibilityTargetsFound": 0,
+      "listCompleteForTargets": true,
+      "visibilityCompleteForTargets": true
+    },
+    {
+      "regionCode": "26",
+      "districtCode": "230",
+      "contentType": "38",
+      "targetCount": 1,
+      "listTargetCount": 1,
+      "visibilityTargetCount": 0,
+      "listPages": 1,
+      "syncPages": 0,
+      "listTargetsFound": 1,
+      "visibilityTargetsFound": 0,
+      "listCompleteForTargets": true,
+      "visibilityCompleteForTargets": true
+    },
+    {
+      "regionCode": "41",
+      "districtCode": "570",
+      "contentType": "38",
+      "targetCount": 1,
+      "listTargetCount": 1,
+      "visibilityTargetCount": 1,
+      "listPages": 1,
+      "syncPages": 1,
+      "listTargetsFound": 1,
+      "visibilityTargetsFound": 1,
+      "listCompleteForTargets": true,
+      "visibilityCompleteForTargets": true
+    },
+    {
+      "regionCode": "41",
+      "districtCode": "820",
+      "contentType": "38",
+      "targetCount": 1,
+      "listTargetCount": 1,
+      "visibilityTargetCount": 1,
+      "listPages": 1,
+      "syncPages": 1,
+      "listTargetsFound": 1,
+      "visibilityTargetsFound": 1,
+      "listCompleteForTargets": true,
+      "visibilityCompleteForTargets": true
+    },
+    {
+      "regionCode": "50",
+      "districtCode": "110",
+      "contentType": "12",
+      "targetCount": 1,
+      "listTargetCount": 1,
+      "visibilityTargetCount": 1,
+      "listPages": 1,
+      "syncPages": 1,
+      "listTargetsFound": 1,
+      "visibilityTargetsFound": 1,
+      "listCompleteForTargets": true,
+      "visibilityCompleteForTargets": true
+    },
+    {
+      "regionCode": "50",
+      "districtCode": "130",
+      "contentType": "12",
+      "targetCount": 1,
+      "listTargetCount": 1,
+      "visibilityTargetCount": 1,
+      "listPages": 1,
+      "syncPages": 1,
+      "listTargetsFound": 1,
+      "visibilityTargetsFound": 1,
+      "listCompleteForTargets": true,
+      "visibilityCompleteForTargets": true
+    },
+    {
+      "regionCode": "51",
+      "districtCode": "110",
+      "contentType": "39",
+      "targetCount": 1,
+      "listTargetCount": 1,
+      "visibilityTargetCount": 1,
+      "listPages": 1,
+      "syncPages": 1,
+      "listTargetsFound": 1,
+      "visibilityTargetsFound": 1,
+      "listCompleteForTargets": true,
+      "visibilityCompleteForTargets": true
+    },
+    {
+      "regionCode": "51",
+      "districtCode": "130",
+      "contentType": "12",
+      "targetCount": 1,
+      "listTargetCount": 1,
+      "visibilityTargetCount": 1,
+      "listPages": 1,
+      "syncPages": 1,
+      "listTargetsFound": 1,
+      "visibilityTargetsFound": 1,
+      "listCompleteForTargets": true,
+      "visibilityCompleteForTargets": true
+    }
+  ],
+  "providerOperations": [
+    {
+      "operation": "areaBasedList2",
+      "calls": 16,
+      "successes": 16,
+      "failures": 0,
+      "absentItems": 0,
+      "emptyItems": 1,
+      "presentItems": 15,
+      "invalidItems": 0
+    },
+    {
+      "operation": "detailCommon2",
+      "calls": 49,
+      "successes": 49,
+      "failures": 0,
+      "absentItems": 0,
+      "emptyItems": 0,
+      "presentItems": 49,
+      "invalidItems": 0
+    },
+    {
+      "operation": "detailIntro2",
+      "calls": 49,
+      "successes": 49,
+      "failures": 0,
+      "absentItems": 0,
+      "emptyItems": 1,
+      "presentItems": 48,
+      "invalidItems": 0
+    },
+    {
+      "operation": "detailPetTour2",
+      "calls": 49,
+      "successes": 49,
+      "failures": 0,
+      "absentItems": 0,
+      "emptyItems": 0,
+      "presentItems": 49,
+      "invalidItems": 0
+    },
+    {
+      "operation": "petTourSyncList2",
+      "calls": 22,
+      "successes": 22,
+      "failures": 0,
+      "absentItems": 0,
+      "emptyItems": 0,
+      "presentItems": 22,
+      "invalidItems": 0
+    }
+  ],
+  "summary": {
+    "recordsInspected": 49,
+    "exposed": 49,
+    "notExposed": 0,
+    "unknownVisibility": 0,
+    "visibilityProviderUnavailable": 0,
+    "usablePetDetail": 0,
+    "partialPetDetail": 49,
+    "emptyPetDetail": 0,
+    "absentPetDetail": 0,
+    "petDetailProviderUnavailable": 0,
+    "providerErrors": 0,
+    "routeEligible": 7
+  },
+  "records": [
+    {
+      "contentId": "126078",
+      "title": "광안리해수욕장",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr"
+      ],
+      "emptyPetDetailFields": [
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "etcAcmpyInfo",
+          "relaAcdntRiskMtr"
+        ]
+      }
+    },
+    {
+      "contentId": "126079",
+      "title": "다대포해수욕장",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr"
+      ],
+      "emptyPetDetailFields": [
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "acmpyTypeCd",
+          "etcAcmpyInfo",
+          "relaAcdntRiskMtr"
+        ]
+      }
+    },
+    {
+      "contentId": "126080",
+      "title": "송정해수욕장",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr"
+      ],
+      "emptyPetDetailFields": [
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "etcAcmpyInfo",
+          "relaAcdntRiskMtr"
+        ]
+      }
+    },
+    {
+      "contentId": "126081",
+      "title": "해운대해수욕장",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr"
+      ],
+      "emptyPetDetailFields": [
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "etcAcmpyInfo",
+          "relaAcdntRiskMtr"
+        ]
+      }
+    },
+    {
+      "contentId": "126119",
+      "title": "부산 어린이대공원",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr"
+      ],
+      "emptyPetDetailFields": [
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "etcAcmpyInfo",
+          "relaAcdntRiskMtr"
+        ]
+      }
+    },
+    {
+      "contentId": "126122",
+      "title": "부산 송도해수욕장",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo"
+      ],
+      "emptyPetDetailFields": [
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "acmpyTypeCd",
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "126644",
+      "title": "간현관광지",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "supplied_id",
+      "suppliedId": true,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo"
+      ],
+      "emptyPetDetailFields": [
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "mandatory_condition_verification_required",
+          "outside_requested_geographic_scope"
+        ],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "126658",
+      "title": "태종대",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr"
+      ],
+      "emptyPetDetailFields": [
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "etcAcmpyInfo",
+          "relaAcdntRiskMtr"
+        ]
+      }
+    },
+    {
+      "contentId": "126674",
+      "title": "해운대 달맞이길",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr"
+      ],
+      "emptyPetDetailFields": [
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "acmpyTypeCd",
+          "etcAcmpyInfo",
+          "relaAcdntRiskMtr"
+        ]
+      }
+    },
+    {
+      "contentId": "126799",
+      "title": "민락수변공원",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr"
+      ],
+      "emptyPetDetailFields": [
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "etcAcmpyInfo",
+          "relaAcdntRiskMtr"
+        ]
+      }
+    },
+    {
+      "contentId": "126848",
+      "title": "해동용궁사",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr"
+      ],
+      "emptyPetDetailFields": [
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "etcAcmpyInfo",
+          "relaAcdntRiskMtr"
+        ]
+      }
+    },
+    {
+      "contentId": "127925",
+      "title": "광안리해변 테마거리",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo"
+      ],
+      "emptyPetDetailFields": [
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "acmpyTypeCd",
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "128108",
+      "title": "스포원파크",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo"
+      ],
+      "emptyPetDetailFields": [
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "limited_scope",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "128829",
+      "title": "부산 암남공원",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr"
+      ],
+      "emptyPetDetailFields": [
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "acmpyTypeCd",
+          "etcAcmpyInfo",
+          "relaAcdntRiskMtr"
+        ]
+      }
+    },
+    {
+      "contentId": "1338947",
+      "title": "삼락생태공원",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr"
+      ],
+      "emptyPetDetailFields": [
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "acmpyTypeCd",
+          "etcAcmpyInfo",
+          "relaAcdntRiskMtr"
+        ]
+      }
+    },
+    {
+      "contentId": "1607440",
+      "title": "금강사(부산)",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo"
+      ],
+      "emptyPetDetailFields": [
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "1887866",
+      "title": "갑선이오름",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "supplied_id",
+      "suppliedId": true,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo"
+      ],
+      "emptyPetDetailFields": [
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "mandatory_condition_verification_required",
+          "outside_requested_geographic_scope"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "acmpyTypeCd",
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "1918646",
+      "title": "거슨새미오름",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "supplied_id",
+      "suppliedId": true,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo"
+      ],
+      "emptyPetDetailFields": [
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "mandatory_condition_verification_required",
+          "outside_requested_geographic_scope"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "acmpyTypeCd",
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "1997221",
+      "title": "부산 감천문화마을",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr"
+      ],
+      "emptyPetDetailFields": [
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "etcAcmpyInfo",
+          "relaAcdntRiskMtr"
+        ]
+      }
+    },
+    {
+      "contentId": "2504464",
+      "title": "부산 송도해상케이블카",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo"
+      ],
+      "emptyPetDetailFields": [
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": true,
+        "status": "eligible",
+        "reasonCodes": [],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "252561",
+      "title": "절영해안산책로",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo"
+      ],
+      "emptyPetDetailFields": [
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "acmpyTypeCd",
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "2606204",
+      "title": "장림포구",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr"
+      ],
+      "emptyPetDetailFields": [
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "acmpyTypeCd",
+          "etcAcmpyInfo",
+          "relaAcdntRiskMtr"
+        ]
+      }
+    },
+    {
+      "contentId": "2661446",
+      "title": "아미르공원",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr"
+      ],
+      "emptyPetDetailFields": [
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "acmpyTypeCd",
+          "etcAcmpyInfo",
+          "relaAcdntRiskMtr"
+        ]
+      }
+    },
+    {
+      "contentId": "2663155",
+      "title": "죽성드림세트장",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr"
+      ],
+      "emptyPetDetailFields": [
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "limited_scope",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "etcAcmpyInfo",
+          "relaAcdntRiskMtr"
+        ]
+      }
+    },
+    {
+      "contentId": "2672393",
+      "title": "해운대 블루라인파크",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr"
+      ],
+      "emptyPetDetailFields": [
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": true,
+        "status": "eligible",
+        "reasonCodes": [],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "etcAcmpyInfo",
+          "relaAcdntRiskMtr"
+        ]
+      }
+    },
+    {
+      "contentId": "2729918",
+      "title": "용소웰빙공원",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr"
+      ],
+      "emptyPetDetailFields": [
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "acmpyTypeCd",
+          "etcAcmpyInfo",
+          "relaAcdntRiskMtr"
+        ]
+      }
+    },
+    {
+      "contentId": "2862152",
+      "title": "밀락더마켓",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaPurcPrdlst"
+      ],
+      "emptyPetDetailFields": [
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required",
+          "pet_size_verification_required",
+          "pet_type_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "acmpyTypeCd",
+          "etcAcmpyInfo",
+          "relaAcdntRiskMtr"
+        ]
+      }
+    },
+    {
+      "contentId": "3426656",
+      "title": "부산북항 친수공원",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyTypeCd"
+      ],
+      "emptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "allowed",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": true,
+        "status": "eligible",
+        "reasonCodes": [],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyTypeCd"
+        ]
+      }
+    },
+    {
+      "contentId": "769761",
+      "title": "다대포 꿈의 낙조분수",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo"
+      ],
+      "emptyPetDetailFields": [
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "mandatory_condition_verification_required",
+          "operating_time_conflict"
+        ],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "987810",
+      "title": "해운대 동백섬",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo"
+      ],
+      "emptyPetDetailFields": [
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "2385666",
+      "title": "국립부산과학관",
+      "contentType": "14",
+      "category": "culture",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr"
+      ],
+      "emptyPetDetailFields": [
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "limited_scope",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "etcAcmpyInfo",
+          "relaAcdntRiskMtr"
+        ]
+      }
+    },
+    {
+      "contentId": "2381567",
+      "title": "문탠로드",
+      "contentType": "28",
+      "category": "leisure",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo"
+      ],
+      "emptyPetDetailFields": [
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "acmpyTypeCd",
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "2557807",
+      "title": "송도 구름산책로",
+      "contentType": "28",
+      "category": "leisure",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_absent",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo"
+      ],
+      "emptyPetDetailFields": [
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "acmpyTypeCd",
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "3112126",
+      "title": "드림서프라운지",
+      "contentType": "28",
+      "category": "leisure",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "emptyPetDetailFields": [
+        "etcAcmpyInfo"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": true,
+        "status": "eligible",
+        "reasonCodes": [],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "relaAcdntRiskMtr"
+        ]
+      }
+    },
+    {
+      "contentId": "2622984",
+      "title": "캔버스",
+      "contentType": "32",
+      "category": "accommodation",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyTypeCd"
+      ],
+      "emptyPetDetailFields": [
+        "acmpyPsblCpam",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyTypeCd"
+        ]
+      }
+    },
+    {
+      "contentId": "2663616",
+      "title": "캔버스 블랙",
+      "contentType": "32",
+      "category": "accommodation",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyTypeCd"
+      ],
+      "emptyPetDetailFields": [
+        "acmpyPsblCpam",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyTypeCd"
+        ]
+      }
+    },
+    {
+      "contentId": "2699563",
+      "title": "옐로우라이트하우스",
+      "contentType": "32",
+      "category": "accommodation",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyPsblCpam",
+        "acmpyTypeCd"
+      ],
+      "emptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "allowed",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": true,
+        "status": "eligible",
+        "reasonCodes": [],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyTypeCd"
+        ]
+      }
+    },
+    {
+      "contentId": "2705418",
+      "title": "해운대 영무파라드호텔",
+      "contentType": "32",
+      "category": "accommodation",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaPosesFclty"
+      ],
+      "emptyPetDetailFields": [
+        "relaFrnshPrdlst",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "verification_required",
+        "reasonCodes": [
+          "mandatory_condition_verification_required",
+          "pet_size_verification_required",
+          "pet_type_verification_required"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "2754601",
+      "title": "더펫텔프리미엄스위트",
+      "contentType": "32",
+      "category": "accommodation",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaPosesFclty"
+      ],
+      "emptyPetDetailFields": [
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "mandatory_condition_verification_required",
+          "pet_type_incompatible"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "acmpyTypeCd",
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "2807380",
+      "title": "감자밭",
+      "contentType": "39",
+      "category": "food",
+      "sampleSource": "supplied_id",
+      "suppliedId": true,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaPosesFclty"
+      ],
+      "emptyPetDetailFields": [
+        "acmpyPsblCpam",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "limited_scope",
+          "material_condition",
+          "same_scope_conflict",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "mandatory_condition_verification_required",
+          "outside_requested_geographic_scope",
+          "pet_size_verification_required"
+        ],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "3350880",
+      "title": "카페윤",
+      "contentType": "39",
+      "category": "food",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyTypeCd",
+        "etcAcmpyInfo"
+      ],
+      "emptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "limited_scope",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": true,
+        "status": "eligible",
+        "reasonCodes": [],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "3438936",
+      "title": "빅토리아 베이커리 가든",
+      "contentType": "39",
+      "category": "food",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyTypeCd",
+        "etcAcmpyInfo"
+      ],
+      "emptyPetDetailFields": [
+        "acmpyPsblCpam",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": true,
+        "status": "eligible",
+        "reasonCodes": [],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyTypeCd",
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "3443614",
+      "title": "원시학",
+      "contentType": "39",
+      "category": "food",
+      "sampleSource": "category_sample",
+      "suppliedId": false,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyTypeCd"
+      ],
+      "emptyPetDetailFields": [
+        "acmpyPsblCpam",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "allowed",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "operating_time_conflict"
+        ],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyTypeCd"
+        ]
+      }
+    },
+    {
+      "contentId": "132786",
+      "title": "가평 현리5일장",
+      "contentType": "38",
+      "category": "shopping",
+      "sampleSource": "supplied_id",
+      "suppliedId": true,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyTypeCd",
+        "etcAcmpyInfo"
+      ],
+      "emptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "category_not_selected",
+          "outside_requested_geographic_scope",
+          "shopping_not_explicitly_selected"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "2927087",
+      "title": "가이거 현대프리미엄아울렛 김포점",
+      "contentType": "38",
+      "category": "shopping",
+      "sampleSource": "supplied_id",
+      "suppliedId": true,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyTypeCd"
+      ],
+      "emptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "allowed",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "category_not_selected",
+          "operating_time_conflict",
+          "outside_requested_geographic_scope",
+          "shopping_not_explicitly_selected"
+        ],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyTypeCd"
+        ]
+      }
+    },
+    {
+      "contentId": "2930927",
+      "title": "가까운약국",
+      "contentType": "38",
+      "category": "shopping",
+      "sampleSource": "supplied_id",
+      "suppliedId": true,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyTypeCd"
+      ],
+      "emptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "allowed",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "category_not_selected",
+          "shopping_not_explicitly_selected"
+        ],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyTypeCd"
+        ]
+      }
+    },
+    {
+      "contentId": "4008098",
+      "title": "가진혼수이불",
+      "contentType": "38",
+      "category": "shopping",
+      "sampleSource": "supplied_id",
+      "suppliedId": true,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyTypeCd"
+      ],
+      "emptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "allowed",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "category_not_selected",
+          "shopping_not_explicitly_selected"
+        ],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyTypeCd"
+        ]
+      }
+    },
+    {
+      "contentId": "4008808",
+      "title": "가든뷰",
+      "contentType": "38",
+      "category": "shopping",
+      "sampleSource": "supplied_id",
+      "suppliedId": true,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyTypeCd"
+      ],
+      "emptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "allowed",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "category_not_selected",
+          "outside_requested_geographic_scope",
+          "shopping_not_explicitly_selected"
+        ],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyTypeCd"
+        ]
+      }
+    },
+    {
+      "contentId": "4012773",
+      "title": "가나안경원 명동점",
+      "contentType": "38",
+      "category": "shopping",
+      "sampleSource": "supplied_id",
+      "suppliedId": true,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyTypeCd"
+      ],
+      "emptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "allowed",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "category_not_selected",
+          "outside_requested_geographic_scope",
+          "shopping_not_explicitly_selected"
+        ],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyTypeCd"
+        ]
+      }
+    }
+  ],
+  "suppliedRecords": [
+    {
+      "contentId": "126644",
+      "title": "간현관광지",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "supplied_id",
+      "suppliedId": true,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo"
+      ],
+      "emptyPetDetailFields": [
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "mandatory_condition_verification_required",
+          "outside_requested_geographic_scope"
+        ],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "1887866",
+      "title": "갑선이오름",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "supplied_id",
+      "suppliedId": true,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo"
+      ],
+      "emptyPetDetailFields": [
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "mandatory_condition_verification_required",
+          "outside_requested_geographic_scope"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "acmpyTypeCd",
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "1918646",
+      "title": "거슨새미오름",
+      "contentType": "12",
+      "category": "attraction",
+      "sampleSource": "supplied_id",
+      "suppliedId": true,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "etcAcmpyInfo"
+      ],
+      "emptyPetDetailFields": [
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "mandatory_condition_verification_required",
+          "outside_requested_geographic_scope"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "acmpyPsblCpam",
+          "acmpyTypeCd",
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "2807380",
+      "title": "감자밭",
+      "contentType": "39",
+      "category": "food",
+      "sampleSource": "supplied_id",
+      "suppliedId": true,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyTypeCd",
+        "etcAcmpyInfo",
+        "relaPosesFclty"
+      ],
+      "emptyPetDetailFields": [
+        "acmpyPsblCpam",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "limited_scope",
+          "material_condition",
+          "same_scope_conflict",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "mandatory_condition_verification_required",
+          "outside_requested_geographic_scope",
+          "pet_size_verification_required"
+        ],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyNeedMtr",
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "132786",
+      "title": "가평 현리5일장",
+      "contentType": "38",
+      "category": "shopping",
+      "sampleSource": "supplied_id",
+      "suppliedId": true,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyTypeCd",
+        "etcAcmpyInfo"
+      ],
+      "emptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "conditional",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance",
+          "material_condition",
+          "unknown_structured_code"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "category_not_selected",
+          "outside_requested_geographic_scope",
+          "shopping_not_explicitly_selected"
+        ],
+        "warnings": [
+          "license_no_match",
+          "operating_hours_unknown"
+        ],
+        "evidenceFieldNames": [
+          "etcAcmpyInfo"
+        ]
+      }
+    },
+    {
+      "contentId": "2927087",
+      "title": "가이거 현대프리미엄아울렛 김포점",
+      "contentType": "38",
+      "category": "shopping",
+      "sampleSource": "supplied_id",
+      "suppliedId": true,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyTypeCd"
+      ],
+      "emptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "allowed",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "category_not_selected",
+          "operating_time_conflict",
+          "outside_requested_geographic_scope",
+          "shopping_not_explicitly_selected"
+        ],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyTypeCd"
+        ]
+      }
+    },
+    {
+      "contentId": "2930927",
+      "title": "가까운약국",
+      "contentType": "38",
+      "category": "shopping",
+      "sampleSource": "supplied_id",
+      "suppliedId": true,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyTypeCd"
+      ],
+      "emptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "allowed",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "category_not_selected",
+          "shopping_not_explicitly_selected"
+        ],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyTypeCd"
+        ]
+      }
+    },
+    {
+      "contentId": "4008098",
+      "title": "가진혼수이불",
+      "contentType": "38",
+      "category": "shopping",
+      "sampleSource": "supplied_id",
+      "suppliedId": true,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyTypeCd"
+      ],
+      "emptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "allowed",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "category_not_selected",
+          "shopping_not_explicitly_selected"
+        ],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyTypeCd"
+        ]
+      }
+    },
+    {
+      "contentId": "4008808",
+      "title": "가든뷰",
+      "contentType": "38",
+      "category": "shopping",
+      "sampleSource": "supplied_id",
+      "suppliedId": true,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyTypeCd"
+      ],
+      "emptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "allowed",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "category_not_selected",
+          "outside_requested_geographic_scope",
+          "shopping_not_explicitly_selected"
+        ],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyTypeCd"
+        ]
+      }
+    },
+    {
+      "contentId": "4012773",
+      "title": "가나안경원 명동점",
+      "contentType": "38",
+      "category": "shopping",
+      "sampleSource": "supplied_id",
+      "suppliedId": true,
+      "listSuccess": true,
+      "visibilityField": "showflag",
+      "visibilityRawValue": "1",
+      "visibility": "exposed",
+      "visibilityReasonCodes": [],
+      "commonDetail": "item_present",
+      "introDetail": "item_present",
+      "petDetail": "partial",
+      "petDetailItemPresent": true,
+      "nonEmptyPetDetailFields": [
+        "acmpyTypeCd"
+      ],
+      "emptyPetDetailFields": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "absentPetDetailFields": [],
+      "providerPetItemsState": "present",
+      "providerPetItemFieldNames": [
+        "acmpyNeedMtr",
+        "acmpyPsblCpam",
+        "acmpyTypeCd",
+        "contentid",
+        "etcAcmpyInfo",
+        "relaAcdntRiskMtr",
+        "relaFrnshPrdlst",
+        "relaPosesFclty",
+        "relaPurcPrdlst",
+        "relaRntlPrdlst"
+      ],
+      "providerShapeMatchesParser": true,
+      "parser": "success",
+      "phase3": {
+        "verdict": "allowed",
+        "evaluationState": "complete",
+        "reasonCodes": [
+          "explicit_allowance"
+        ]
+      },
+      "routeEligibility": {
+        "eligible": false,
+        "status": "ineligible",
+        "reasonCodes": [
+          "category_not_selected",
+          "outside_requested_geographic_scope",
+          "shopping_not_explicitly_selected"
+        ],
+        "warnings": [
+          "license_no_match"
+        ],
+        "evidenceFieldNames": [
+          "acmpyTypeCd"
+        ]
+      }
+    }
+  ],
+  "providerSupportCases": []
+}

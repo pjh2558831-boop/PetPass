@@ -1,0 +1,153 @@
+{
+  "version": "travel-matrix-v1-controlled-comparison",
+  "asOf": "2026-08-12T03:00:00.000Z",
+  "deterministic": true,
+  "allColdStrategiesBeatNaivePairwise": true,
+  "allWarmReplaysReduceProviderCalls": true,
+  "scenarios": [
+    {
+      "id": "three_candidates",
+      "nodeCount": 4,
+      "expectedDirectedEdges": 12,
+      "naivePairwiseCalls": 12,
+      "cold": {
+        "resolvedEdges": 12,
+        "batchCalls": 4,
+        "fallbackCalls": 0,
+        "providerCalls": 4,
+        "requestCacheHits": 0,
+        "persistentCacheHits": 0,
+        "unresolvedEdges": 0,
+        "complete": true,
+        "durationMs": 5
+      },
+      "warm": {
+        "providerCalls": 0,
+        "persistentCacheHits": 12,
+        "unresolvedEdges": 0,
+        "complete": true,
+        "durationMs": 1
+      }
+    },
+    {
+      "id": "five_candidates",
+      "nodeCount": 6,
+      "expectedDirectedEdges": 30,
+      "naivePairwiseCalls": 30,
+      "cold": {
+        "resolvedEdges": 30,
+        "batchCalls": 6,
+        "fallbackCalls": 0,
+        "providerCalls": 6,
+        "requestCacheHits": 0,
+        "persistentCacheHits": 0,
+        "unresolvedEdges": 0,
+        "complete": true,
+        "durationMs": 7
+      },
+      "warm": {
+        "providerCalls": 0,
+        "persistentCacheHits": 30,
+        "unresolvedEdges": 0,
+        "complete": true,
+        "durationMs": 1
+      }
+    },
+    {
+      "id": "six_candidates",
+      "nodeCount": 7,
+      "expectedDirectedEdges": 42,
+      "naivePairwiseCalls": 42,
+      "cold": {
+        "resolvedEdges": 42,
+        "batchCalls": 7,
+        "fallbackCalls": 0,
+        "providerCalls": 7,
+        "requestCacheHits": 0,
+        "persistentCacheHits": 0,
+        "unresolvedEdges": 0,
+        "complete": true,
+        "durationMs": 8
+      },
+      "warm": {
+        "providerCalls": 0,
+        "persistentCacheHits": 42,
+        "unresolvedEdges": 0,
+        "complete": true,
+        "durationMs": 1
+      }
+    },
+    {
+      "id": "fifteen_candidates",
+      "nodeCount": 16,
+      "expectedDirectedEdges": 240,
+      "naivePairwiseCalls": 240,
+      "cold": {
+        "resolvedEdges": 240,
+        "batchCalls": 16,
+        "fallbackCalls": 0,
+        "providerCalls": 16,
+        "requestCacheHits": 0,
+        "persistentCacheHits": 0,
+        "unresolvedEdges": 0,
+        "complete": true,
+        "durationMs": 17
+      },
+      "warm": {
+        "providerCalls": 0,
+        "persistentCacheHits": 240,
+        "unresolvedEdges": 0,
+        "complete": true,
+        "durationMs": 1
+      }
+    },
+    {
+      "id": "mixed_radius",
+      "nodeCount": 7,
+      "expectedDirectedEdges": 42,
+      "naivePairwiseCalls": 42,
+      "cold": {
+        "resolvedEdges": 42,
+        "batchCalls": 7,
+        "fallbackCalls": 24,
+        "providerCalls": 31,
+        "requestCacheHits": 0,
+        "persistentCacheHits": 0,
+        "unresolvedEdges": 0,
+        "complete": true,
+        "durationMs": 32
+      },
+      "warm": {
+        "providerCalls": 0,
+        "persistentCacheHits": 42,
+        "unresolvedEdges": 0,
+        "complete": true,
+        "durationMs": 1
+      }
+    },
+    {
+      "id": "partial_multi_destination",
+      "nodeCount": 6,
+      "expectedDirectedEdges": 30,
+      "naivePairwiseCalls": 30,
+      "cold": {
+        "resolvedEdges": 30,
+        "batchCalls": 6,
+        "fallbackCalls": 10,
+        "providerCalls": 16,
+        "requestCacheHits": 0,
+        "persistentCacheHits": 0,
+        "unresolvedEdges": 0,
+        "complete": true,
+        "durationMs": 17
+      },
+      "warm": {
+        "providerCalls": 0,
+        "persistentCacheHits": 30,
+        "unresolvedEdges": 0,
+        "complete": true,
+        "durationMs": 1
+      }
+    }
+  ]
+}

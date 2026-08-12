@@ -88,6 +88,7 @@ export type Database = {
           phone: string | null
           provider: string
           provider_place_id: string
+          provider_visibility: string
           road_address: string | null
           source_url: string | null
           updated_at: string
@@ -114,6 +115,7 @@ export type Database = {
           phone?: string | null
           provider: string
           provider_place_id: string
+          provider_visibility?: string
           road_address?: string | null
           source_url?: string | null
           updated_at?: string
@@ -140,6 +142,7 @@ export type Database = {
           phone?: string | null
           provider?: string
           provider_place_id?: string
+          provider_visibility?: string
           road_address?: string | null
           source_url?: string | null
           updated_at?: string
@@ -166,6 +169,7 @@ export type Database = {
           category_group: string
           content_type_id: number
           district_name: string
+          expires_at: string | null
           fetched_at: string
           id: number
           image_url: string
@@ -179,6 +183,7 @@ export type Database = {
           phone: string
           provider: string
           provider_place_id: string
+          provider_visibility: string
           road_address: string
           source_url: string
         }[]
@@ -315,4 +320,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

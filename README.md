@@ -23,6 +23,9 @@ development server:
 ```dotenv
 NEXT_PUBLIC_KAKAO_MAP_JS_KEY=
 KAKAO_REST_API_KEY=
+TOUR_API_SERVICE_KEY=
+LOCALDATA_SERVICE_KEY=
+ROUTE_ENGINE_V1_ENABLED=false
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 SUPABASE_SECRET_KEY=
@@ -33,6 +36,11 @@ Kakao Maps JavaScript SDK. `KAKAO_REST_API_KEY` is server-only and must never us
 the `NEXT_PUBLIC_` prefix. Kakao Local and Kakao Mobility requests run only through
 Next.js Route Handlers. Restart `npm run dev` whenever an environment variable is
 added or changed.
+
+`ROUTE_ENGINE_V1_ENABLED=true` enables the server-only Stage 2 → 3 → 4 route
+engine at the canonical itinerary-generation endpoint. When disabled, it returns
+`route_engine_disabled`; it never falls back to a fixture or legacy fixed route.
+The Tourism, Kakao REST, and LocalData keys are server-only.
 
 Open `http://localhost:3000` after the server starts.
 
@@ -64,12 +72,18 @@ multi-region production traffic, replace these with a shared durable limiter.
 ## Vercel environment variables
 
 Add `NEXT_PUBLIC_KAKAO_MAP_JS_KEY`, `KAKAO_REST_API_KEY`,
+`TOUR_API_SERVICE_KEY`, `LOCALDATA_SERVICE_KEY`, `ROUTE_ENGINE_V1_ENABLED`,
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and
 `SUPABASE_SECRET_KEY` in the Vercel project's Settings → Environment Variables
 for Production, Preview, and Development. Redeploy after changing them. Keep the
 Kakao REST key and Supabase secret key server-only and mark them sensitive in
 Production and Preview. The linked Vercel project is `pet-pass`, whose production
 URL is `https://pet-pass-two.vercel.app`.
+
+Before a Preview deployment, rotate the public-data service key and Kakao REST
+key if either may have appeared in diagnostic output, then update their non-empty
+values in local, Preview, and Production environments. Verification checks names
+and target environments only; values must never be printed.
 
 If the map shows a configuration error, verify that the JavaScript key exists in
 the current environment and that the current origin is registered in Kakao

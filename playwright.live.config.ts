@@ -15,6 +15,16 @@ if (!LIVE_FLAGS.some((name) => process.env[name] === "1")) {
   );
 }
 
+const liveTestMatch = [
+  ...(process.env.RUN_LIVE_TOUR_E2E === "1" ? ["**/tour-live.spec.ts"] : []),
+  ...(process.env.RUN_LIVE_KAKAO_E2E === "1"
+    ? ["**/kakao-map-live.spec.ts"]
+    : []),
+  ...(process.env.RUN_LIVE_PROVIDER_E2E === "1"
+    ? ["**/provider-live.spec.ts"]
+    : []),
+];
+
 if (!existsSync(".env.local")) {
   throw new Error("Live verification requires an ignored .env.local file.");
 }
@@ -39,6 +49,7 @@ if (missingVariables.length > 0) {
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  testMatch: liveTestMatch,
   fullyParallel: false,
   workers: 1,
   retries: 0,

@@ -1,0 +1,2491 @@
+{
+  "version": "candidate-pipeline-v1-live-verification-gate",
+  "scope": "busan",
+  "expectedSampleIds": [
+    "2504464",
+    "2672393",
+    "2699563",
+    "3112126",
+    "3350880",
+    "3426656",
+    "3438936"
+  ],
+  "naturallyRediscoveredSampleIds": [
+    "2672393",
+    "2699563",
+    "3112126",
+    "3350880",
+    "3426656",
+    "3438936"
+  ],
+  "deterministicWarmReplay": true,
+  "coldPhysicalProviderCalls": 106,
+  "warmPhysicalProviderCalls": 0,
+  "requestReduction": 1,
+  "runAsOf": "2026-08-12T11:08:33.617Z",
+  "bounds": {
+    "requestCap": 240,
+    "concurrency": 3,
+    "maxObservedConcurrency": 3,
+    "timeoutMs": 8000,
+    "retryCount": 1
+  },
+  "catalogAccounting": {
+    "physicalProviderCalls": 12,
+    "logicalProviderOperations": 12,
+    "cacheHits": 0,
+    "retries": 0,
+    "timeouts": 0,
+    "providerFailures": 0,
+    "duplicateDetailOperations": 0,
+    "callsByOperation": {
+      "areaBasedList2": {
+        "physicalCalls": 6,
+        "logicalOperations": 6,
+        "cacheHits": 0,
+        "failures": 0
+      },
+      "detailCommon2": {
+        "physicalCalls": 0,
+        "logicalOperations": 0,
+        "cacheHits": 0,
+        "failures": 0
+      },
+      "detailIntro2": {
+        "physicalCalls": 0,
+        "logicalOperations": 0,
+        "cacheHits": 0,
+        "failures": 0
+      },
+      "detailPetTour2": {
+        "physicalCalls": 0,
+        "logicalOperations": 0,
+        "cacheHits": 0,
+        "failures": 0
+      },
+      "licensing": {
+        "physicalCalls": 0,
+        "logicalOperations": 0,
+        "cacheHits": 0,
+        "failures": 0
+      },
+      "petTourSyncList2": {
+        "physicalCalls": 6,
+        "logicalOperations": 6,
+        "cacheHits": 0,
+        "failures": 0
+      }
+    }
+  },
+  "coldScenarios": [
+    {
+      "id": "relaxed_day_trip",
+      "label": "Relaxed Busan activity day trip",
+      "phase": "cold",
+      "status": "ready",
+      "durationMs": 2294,
+      "diagnostics": {
+        "initialCatalogCount": 39,
+        "exposedCount": 39,
+        "coordinateValidCount": 39,
+        "categoryAcceptedCount": 31,
+        "stageACount": 25,
+        "stageBCount": 20,
+        "detailedEvaluationCount": 20,
+        "detailedBatchCount": 4,
+        "eligibleCount": 3,
+        "finalEligibleCount": 3,
+        "categoryDistribution": {
+          "attraction": 2,
+          "leisure": 1
+        },
+        "excludedByReason": {
+          "category_not_selected": 8,
+          "mandatory_condition_verification_required": 17,
+          "pet_size_verification_required": 1,
+          "pet_type_verification_required": 1
+        },
+        "warningsByReason": {
+          "운영시간 확인 필요": 21,
+          "license_no_match": 17,
+          "operating_hours_unknown": 35
+        }
+      },
+      "accounting": {
+        "physicalProviderCalls": 70,
+        "logicalProviderOperations": 95,
+        "cacheHits": 25,
+        "retries": 0,
+        "timeouts": 0,
+        "providerFailures": 0,
+        "duplicateDetailOperations": 0,
+        "callsByOperation": {
+          "areaBasedList2": {
+            "physicalCalls": 0,
+            "logicalOperations": 0,
+            "cacheHits": 0,
+            "failures": 0
+          },
+          "detailCommon2": {
+            "physicalCalls": 25,
+            "logicalOperations": 25,
+            "cacheHits": 0,
+            "failures": 0
+          },
+          "detailIntro2": {
+            "physicalCalls": 25,
+            "logicalOperations": 25,
+            "cacheHits": 0,
+            "failures": 0
+          },
+          "detailPetTour2": {
+            "physicalCalls": 20,
+            "logicalOperations": 20,
+            "cacheHits": 0,
+            "failures": 0
+          },
+          "licensing": {
+            "physicalCalls": 0,
+            "logicalOperations": 0,
+            "cacheHits": 0,
+            "failures": 0
+          },
+          "petTourSyncList2": {
+            "physicalCalls": 0,
+            "logicalOperations": 25,
+            "cacheHits": 25,
+            "failures": 0
+          }
+        }
+      },
+      "eligibleContentIds": [
+        "2672393",
+        "3112126",
+        "3426656"
+      ],
+      "knownSamples": [
+        {
+          "contentId": "2504464",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "stage_b_not_selected"
+        },
+        {
+          "contentId": "2672393",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "3426656",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "3112126",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "2699563",
+          "presentInInitialCatalog": true,
+          "enteredStageA": false,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "category_not_selected"
+        },
+        {
+          "contentId": "3350880",
+          "presentInInitialCatalog": true,
+          "enteredStageA": false,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "category_not_selected"
+        },
+        {
+          "contentId": "3438936",
+          "presentInInitialCatalog": true,
+          "enteredStageA": false,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "category_not_selected"
+        }
+      ],
+      "finalCandidates": [
+        {
+          "contentId": "2672393",
+          "category": "attraction",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 752,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3112126",
+          "category": "leisure",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 768,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3426656",
+          "category": "attraction",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "allowed",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 779,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        }
+      ],
+      "canonicalResult": "[{\"contentId\":\"3426656\",\"category\":\"attraction\",\"eligibility\":{\"eligible\":true,\"status\":\"eligible\",\"reasonCodes\":[],\"warnings\":[\"license_no_match\",\"operating_hours_unknown\"],\"evidenceFieldNames\":[\"acmpyTypeCd\"]},\"utility\":{\"version\":\"place-"
+    },
+    {
+      "id": "balanced_day_trip",
+      "label": "Balanced Busan activity and food day trip",
+      "phase": "cold",
+      "status": "ready",
+      "durationMs": 274,
+      "diagnostics": {
+        "initialCatalogCount": 39,
+        "exposedCount": 39,
+        "coordinateValidCount": 39,
+        "categoryAcceptedCount": 34,
+        "stageACount": 25,
+        "stageBCount": 20,
+        "detailedEvaluationCount": 20,
+        "detailedBatchCount": 4,
+        "eligibleCount": 6,
+        "finalEligibleCount": 6,
+        "categoryDistribution": {
+          "attraction": 2,
+          "food": 3,
+          "leisure": 1
+        },
+        "excludedByReason": {
+          "category_not_selected": 5,
+          "mandatory_condition_verification_required": 14,
+          "pet_size_verification_required": 1,
+          "pet_type_verification_required": 1
+        },
+        "warningsByReason": {
+          "운영시간 확인 필요": 19,
+          "license_no_match": 14,
+          "operating_hours_unknown": 31
+        }
+      },
+      "accounting": {
+        "physicalProviderCalls": 9,
+        "logicalProviderOperations": 95,
+        "cacheHits": 86,
+        "retries": 0,
+        "timeouts": 0,
+        "providerFailures": 0,
+        "duplicateDetailOperations": 0,
+        "callsByOperation": {
+          "areaBasedList2": {
+            "physicalCalls": 0,
+            "logicalOperations": 0,
+            "cacheHits": 0,
+            "failures": 0
+          },
+          "detailCommon2": {
+            "physicalCalls": 3,
+            "logicalOperations": 25,
+            "cacheHits": 22,
+            "failures": 0
+          },
+          "detailIntro2": {
+            "physicalCalls": 3,
+            "logicalOperations": 25,
+            "cacheHits": 22,
+            "failures": 0
+          },
+          "detailPetTour2": {
+            "physicalCalls": 3,
+            "logicalOperations": 20,
+            "cacheHits": 17,
+            "failures": 0
+          },
+          "licensing": {
+            "physicalCalls": 0,
+            "logicalOperations": 0,
+            "cacheHits": 0,
+            "failures": 0
+          },
+          "petTourSyncList2": {
+            "physicalCalls": 0,
+            "logicalOperations": 25,
+            "cacheHits": 25,
+            "failures": 0
+          }
+        }
+      },
+      "eligibleContentIds": [
+        "2672393",
+        "3112126",
+        "3350880",
+        "3426656",
+        "3438936",
+        "3443614"
+      ],
+      "knownSamples": [
+        {
+          "contentId": "2504464",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "stage_b_not_selected"
+        },
+        {
+          "contentId": "2672393",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "3426656",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "3112126",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "2699563",
+          "presentInInitialCatalog": true,
+          "enteredStageA": false,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "category_not_selected"
+        },
+        {
+          "contentId": "3350880",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "3438936",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        }
+      ],
+      "finalCandidates": [
+        {
+          "contentId": "2672393",
+          "category": "attraction",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 752,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3112126",
+          "category": "leisure",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 768,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3350880",
+          "category": "food",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 762,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3426656",
+          "category": "attraction",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "allowed",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 779,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3438936",
+          "category": "food",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 768,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3443614",
+          "category": "food",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "allowed",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 800,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        }
+      ],
+      "canonicalResult": "[{\"contentId\":\"3443614\",\"category\":\"food\",\"eligibility\":{\"eligible\":true,\"status\":\"eligible\",\"reasonCodes\":[],\"warnings\":[\"license_no_match\"],\"evidenceFieldNames\":[\"acmpyTypeCd\"]},\"utility\":{\"version\":\"place-utility-v1\",\"total\":800,\"prefere"
+    },
+    {
+      "id": "packed_day_trip",
+      "label": "Packed Busan broad useful-category day trip",
+      "phase": "cold",
+      "status": "ready",
+      "durationMs": 6,
+      "diagnostics": {
+        "initialCatalogCount": 39,
+        "exposedCount": 39,
+        "coordinateValidCount": 39,
+        "categoryAcceptedCount": 34,
+        "stageACount": 25,
+        "stageBCount": 20,
+        "detailedEvaluationCount": 20,
+        "detailedBatchCount": 4,
+        "eligibleCount": 5,
+        "finalEligibleCount": 5,
+        "categoryDistribution": {
+          "attraction": 1,
+          "food": 3,
+          "leisure": 1
+        },
+        "excludedByReason": {
+          "category_not_selected": 5,
+          "mandatory_condition_verification_required": 15,
+          "pet_size_verification_required": 1,
+          "pet_type_verification_required": 1
+        },
+        "warningsByReason": {
+          "운영시간 확인 필요": 19,
+          "license_no_match": 15,
+          "operating_hours_unknown": 32
+        }
+      },
+      "accounting": {
+        "physicalProviderCalls": 0,
+        "logicalProviderOperations": 95,
+        "cacheHits": 95,
+        "retries": 0,
+        "timeouts": 0,
+        "providerFailures": 0,
+        "duplicateDetailOperations": 0,
+        "callsByOperation": {
+          "areaBasedList2": {
+            "physicalCalls": 0,
+            "logicalOperations": 0,
+            "cacheHits": 0,
+            "failures": 0
+          },
+          "detailCommon2": {
+            "physicalCalls": 0,
+            "logicalOperations": 25,
+            "cacheHits": 25,
+            "failures": 0
+          },
+          "detailIntro2": {
+            "physicalCalls": 0,
+            "logicalOperations": 25,
+            "cacheHits": 25,
+            "failures": 0
+          },
+          "detailPetTour2": {
+            "physicalCalls": 0,
+            "logicalOperations": 20,
+            "cacheHits": 20,
+            "failures": 0
+          },
+          "licensing": {
+            "physicalCalls": 0,
+            "logicalOperations": 0,
+            "cacheHits": 0,
+            "failures": 0
+          },
+          "petTourSyncList2": {
+            "physicalCalls": 0,
+            "logicalOperations": 25,
+            "cacheHits": 25,
+            "failures": 0
+          }
+        }
+      },
+      "eligibleContentIds": [
+        "3112126",
+        "3350880",
+        "3426656",
+        "3438936",
+        "3443614"
+      ],
+      "knownSamples": [
+        {
+          "contentId": "2504464",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "stage_b_not_selected"
+        },
+        {
+          "contentId": "2672393",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "stage_b_not_selected"
+        },
+        {
+          "contentId": "3426656",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "3112126",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "2699563",
+          "presentInInitialCatalog": true,
+          "enteredStageA": false,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "category_not_selected"
+        },
+        {
+          "contentId": "3350880",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "3438936",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        }
+      ],
+      "finalCandidates": [
+        {
+          "contentId": "3112126",
+          "category": "leisure",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 768,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3350880",
+          "category": "food",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 762,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3426656",
+          "category": "attraction",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "allowed",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 786,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3438936",
+          "category": "food",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 768,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3443614",
+          "category": "food",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "allowed",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 800,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        }
+      ],
+      "canonicalResult": "[{\"contentId\":\"3443614\",\"category\":\"food\",\"eligibility\":{\"eligible\":true,\"status\":\"eligible\",\"reasonCodes\":[],\"warnings\":[\"license_no_match\"],\"evidenceFieldNames\":[\"acmpyTypeCd\"]},\"utility\":{\"version\":\"place-utility-v1\",\"total\":800,\"prefere"
+    },
+    {
+      "id": "overnight",
+      "label": "Packed Busan overnight with accommodation",
+      "phase": "cold",
+      "status": "ready",
+      "durationMs": 535,
+      "diagnostics": {
+        "initialCatalogCount": 39,
+        "exposedCount": 39,
+        "coordinateValidCount": 39,
+        "categoryAcceptedCount": 39,
+        "stageACount": 25,
+        "stageBCount": 20,
+        "detailedEvaluationCount": 20,
+        "detailedBatchCount": 4,
+        "eligibleCount": 6,
+        "finalEligibleCount": 6,
+        "categoryDistribution": {
+          "accommodation": 1,
+          "attraction": 1,
+          "food": 3,
+          "leisure": 1
+        },
+        "excludedByReason": {
+          "mandatory_condition_verification_required": 14,
+          "pet_size_verification_required": 2,
+          "pet_type_incompatible": 1,
+          "pet_type_verification_required": 2
+        },
+        "warningsByReason": {
+          "운영시간 확인 필요": 20,
+          "license_no_match": 14,
+          "operating_hours_unknown": 33
+        }
+      },
+      "accounting": {
+        "physicalProviderCalls": 15,
+        "logicalProviderOperations": 95,
+        "cacheHits": 80,
+        "retries": 0,
+        "timeouts": 0,
+        "providerFailures": 0,
+        "duplicateDetailOperations": 0,
+        "callsByOperation": {
+          "areaBasedList2": {
+            "physicalCalls": 0,
+            "logicalOperations": 0,
+            "cacheHits": 0,
+            "failures": 0
+          },
+          "detailCommon2": {
+            "physicalCalls": 5,
+            "logicalOperations": 25,
+            "cacheHits": 20,
+            "failures": 0
+          },
+          "detailIntro2": {
+            "physicalCalls": 5,
+            "logicalOperations": 25,
+            "cacheHits": 20,
+            "failures": 0
+          },
+          "detailPetTour2": {
+            "physicalCalls": 5,
+            "logicalOperations": 20,
+            "cacheHits": 15,
+            "failures": 0
+          },
+          "licensing": {
+            "physicalCalls": 0,
+            "logicalOperations": 0,
+            "cacheHits": 0,
+            "failures": 0
+          },
+          "petTourSyncList2": {
+            "physicalCalls": 0,
+            "logicalOperations": 25,
+            "cacheHits": 25,
+            "failures": 0
+          }
+        }
+      },
+      "eligibleContentIds": [
+        "2699563",
+        "3112126",
+        "3350880",
+        "3426656",
+        "3438936",
+        "3443614"
+      ],
+      "knownSamples": [
+        {
+          "contentId": "2504464",
+          "presentInInitialCatalog": true,
+          "enteredStageA": false,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "stage_a_not_selected"
+        },
+        {
+          "contentId": "2672393",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "stage_b_not_selected"
+        },
+        {
+          "contentId": "3426656",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "3112126",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "2699563",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "3350880",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "3438936",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        }
+      ],
+      "finalCandidates": [
+        {
+          "contentId": "2699563",
+          "category": "accommodation",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "allowed",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 837,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3112126",
+          "category": "leisure",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 768,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3350880",
+          "category": "food",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 762,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3426656",
+          "category": "attraction",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "allowed",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 786,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3438936",
+          "category": "food",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 768,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3443614",
+          "category": "food",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "allowed",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 800,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        }
+      ],
+      "canonicalResult": "[{\"contentId\":\"2699563\",\"category\":\"accommodation\",\"eligibility\":{\"eligible\":true,\"status\":\"eligible\",\"reasonCodes\":[],\"warnings\":[\"license_no_match\",\"operating_hours_unknown\"],\"evidenceFieldNames\":[\"acmpyTypeCd\"]},\"utility\":{\"version\":\"pla"
+    }
+  ],
+  "warmScenarios": [
+    {
+      "id": "relaxed_day_trip",
+      "label": "Relaxed Busan activity day trip",
+      "phase": "warm",
+      "status": "ready",
+      "durationMs": 5,
+      "diagnostics": {
+        "initialCatalogCount": 39,
+        "exposedCount": 39,
+        "coordinateValidCount": 39,
+        "categoryAcceptedCount": 31,
+        "stageACount": 25,
+        "stageBCount": 20,
+        "detailedEvaluationCount": 20,
+        "detailedBatchCount": 4,
+        "eligibleCount": 3,
+        "finalEligibleCount": 3,
+        "categoryDistribution": {
+          "attraction": 2,
+          "leisure": 1
+        },
+        "excludedByReason": {
+          "category_not_selected": 8,
+          "mandatory_condition_verification_required": 17,
+          "pet_size_verification_required": 1,
+          "pet_type_verification_required": 1
+        },
+        "warningsByReason": {
+          "운영시간 확인 필요": 21,
+          "license_no_match": 17,
+          "operating_hours_unknown": 35
+        }
+      },
+      "accounting": {
+        "physicalProviderCalls": 0,
+        "logicalProviderOperations": 95,
+        "cacheHits": 95,
+        "retries": 0,
+        "timeouts": 0,
+        "providerFailures": 0,
+        "duplicateDetailOperations": 0,
+        "callsByOperation": {
+          "areaBasedList2": {
+            "physicalCalls": 0,
+            "logicalOperations": 0,
+            "cacheHits": 0,
+            "failures": 0
+          },
+          "detailCommon2": {
+            "physicalCalls": 0,
+            "logicalOperations": 25,
+            "cacheHits": 25,
+            "failures": 0
+          },
+          "detailIntro2": {
+            "physicalCalls": 0,
+            "logicalOperations": 25,
+            "cacheHits": 25,
+            "failures": 0
+          },
+          "detailPetTour2": {
+            "physicalCalls": 0,
+            "logicalOperations": 20,
+            "cacheHits": 20,
+            "failures": 0
+          },
+          "licensing": {
+            "physicalCalls": 0,
+            "logicalOperations": 0,
+            "cacheHits": 0,
+            "failures": 0
+          },
+          "petTourSyncList2": {
+            "physicalCalls": 0,
+            "logicalOperations": 25,
+            "cacheHits": 25,
+            "failures": 0
+          }
+        }
+      },
+      "eligibleContentIds": [
+        "2672393",
+        "3112126",
+        "3426656"
+      ],
+      "knownSamples": [
+        {
+          "contentId": "2504464",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "stage_b_not_selected"
+        },
+        {
+          "contentId": "2672393",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "3426656",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "3112126",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "2699563",
+          "presentInInitialCatalog": true,
+          "enteredStageA": false,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "category_not_selected"
+        },
+        {
+          "contentId": "3350880",
+          "presentInInitialCatalog": true,
+          "enteredStageA": false,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "category_not_selected"
+        },
+        {
+          "contentId": "3438936",
+          "presentInInitialCatalog": true,
+          "enteredStageA": false,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "category_not_selected"
+        }
+      ],
+      "finalCandidates": [
+        {
+          "contentId": "2672393",
+          "category": "attraction",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 752,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3112126",
+          "category": "leisure",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 768,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3426656",
+          "category": "attraction",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "allowed",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 779,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        }
+      ],
+      "canonicalResult": "[{\"contentId\":\"3426656\",\"category\":\"attraction\",\"eligibility\":{\"eligible\":true,\"status\":\"eligible\",\"reasonCodes\":[],\"warnings\":[\"license_no_match\",\"operating_hours_unknown\"],\"evidenceFieldNames\":[\"acmpyTypeCd\"]},\"utility\":{\"version\":\"place-"
+    },
+    {
+      "id": "balanced_day_trip",
+      "label": "Balanced Busan activity and food day trip",
+      "phase": "warm",
+      "status": "ready",
+      "durationMs": 5,
+      "diagnostics": {
+        "initialCatalogCount": 39,
+        "exposedCount": 39,
+        "coordinateValidCount": 39,
+        "categoryAcceptedCount": 34,
+        "stageACount": 25,
+        "stageBCount": 20,
+        "detailedEvaluationCount": 20,
+        "detailedBatchCount": 4,
+        "eligibleCount": 6,
+        "finalEligibleCount": 6,
+        "categoryDistribution": {
+          "attraction": 2,
+          "food": 3,
+          "leisure": 1
+        },
+        "excludedByReason": {
+          "category_not_selected": 5,
+          "mandatory_condition_verification_required": 14,
+          "pet_size_verification_required": 1,
+          "pet_type_verification_required": 1
+        },
+        "warningsByReason": {
+          "운영시간 확인 필요": 19,
+          "license_no_match": 14,
+          "operating_hours_unknown": 31
+        }
+      },
+      "accounting": {
+        "physicalProviderCalls": 0,
+        "logicalProviderOperations": 95,
+        "cacheHits": 95,
+        "retries": 0,
+        "timeouts": 0,
+        "providerFailures": 0,
+        "duplicateDetailOperations": 0,
+        "callsByOperation": {
+          "areaBasedList2": {
+            "physicalCalls": 0,
+            "logicalOperations": 0,
+            "cacheHits": 0,
+            "failures": 0
+          },
+          "detailCommon2": {
+            "physicalCalls": 0,
+            "logicalOperations": 25,
+            "cacheHits": 25,
+            "failures": 0
+          },
+          "detailIntro2": {
+            "physicalCalls": 0,
+            "logicalOperations": 25,
+            "cacheHits": 25,
+            "failures": 0
+          },
+          "detailPetTour2": {
+            "physicalCalls": 0,
+            "logicalOperations": 20,
+            "cacheHits": 20,
+            "failures": 0
+          },
+          "licensing": {
+            "physicalCalls": 0,
+            "logicalOperations": 0,
+            "cacheHits": 0,
+            "failures": 0
+          },
+          "petTourSyncList2": {
+            "physicalCalls": 0,
+            "logicalOperations": 25,
+            "cacheHits": 25,
+            "failures": 0
+          }
+        }
+      },
+      "eligibleContentIds": [
+        "2672393",
+        "3112126",
+        "3350880",
+        "3426656",
+        "3438936",
+        "3443614"
+      ],
+      "knownSamples": [
+        {
+          "contentId": "2504464",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "stage_b_not_selected"
+        },
+        {
+          "contentId": "2672393",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "3426656",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "3112126",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "2699563",
+          "presentInInitialCatalog": true,
+          "enteredStageA": false,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "category_not_selected"
+        },
+        {
+          "contentId": "3350880",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "3438936",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        }
+      ],
+      "finalCandidates": [
+        {
+          "contentId": "2672393",
+          "category": "attraction",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 752,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3112126",
+          "category": "leisure",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 768,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3350880",
+          "category": "food",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 762,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3426656",
+          "category": "attraction",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "allowed",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 779,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3438936",
+          "category": "food",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 768,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3443614",
+          "category": "food",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "allowed",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 800,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        }
+      ],
+      "canonicalResult": "[{\"contentId\":\"3443614\",\"category\":\"food\",\"eligibility\":{\"eligible\":true,\"status\":\"eligible\",\"reasonCodes\":[],\"warnings\":[\"license_no_match\"],\"evidenceFieldNames\":[\"acmpyTypeCd\"]},\"utility\":{\"version\":\"place-utility-v1\",\"total\":800,\"prefere"
+    },
+    {
+      "id": "packed_day_trip",
+      "label": "Packed Busan broad useful-category day trip",
+      "phase": "warm",
+      "status": "ready",
+      "durationMs": 5,
+      "diagnostics": {
+        "initialCatalogCount": 39,
+        "exposedCount": 39,
+        "coordinateValidCount": 39,
+        "categoryAcceptedCount": 34,
+        "stageACount": 25,
+        "stageBCount": 20,
+        "detailedEvaluationCount": 20,
+        "detailedBatchCount": 4,
+        "eligibleCount": 5,
+        "finalEligibleCount": 5,
+        "categoryDistribution": {
+          "attraction": 1,
+          "food": 3,
+          "leisure": 1
+        },
+        "excludedByReason": {
+          "category_not_selected": 5,
+          "mandatory_condition_verification_required": 15,
+          "pet_size_verification_required": 1,
+          "pet_type_verification_required": 1
+        },
+        "warningsByReason": {
+          "운영시간 확인 필요": 19,
+          "license_no_match": 15,
+          "operating_hours_unknown": 32
+        }
+      },
+      "accounting": {
+        "physicalProviderCalls": 0,
+        "logicalProviderOperations": 95,
+        "cacheHits": 95,
+        "retries": 0,
+        "timeouts": 0,
+        "providerFailures": 0,
+        "duplicateDetailOperations": 0,
+        "callsByOperation": {
+          "areaBasedList2": {
+            "physicalCalls": 0,
+            "logicalOperations": 0,
+            "cacheHits": 0,
+            "failures": 0
+          },
+          "detailCommon2": {
+            "physicalCalls": 0,
+            "logicalOperations": 25,
+            "cacheHits": 25,
+            "failures": 0
+          },
+          "detailIntro2": {
+            "physicalCalls": 0,
+            "logicalOperations": 25,
+            "cacheHits": 25,
+            "failures": 0
+          },
+          "detailPetTour2": {
+            "physicalCalls": 0,
+            "logicalOperations": 20,
+            "cacheHits": 20,
+            "failures": 0
+          },
+          "licensing": {
+            "physicalCalls": 0,
+            "logicalOperations": 0,
+            "cacheHits": 0,
+            "failures": 0
+          },
+          "petTourSyncList2": {
+            "physicalCalls": 0,
+            "logicalOperations": 25,
+            "cacheHits": 25,
+            "failures": 0
+          }
+        }
+      },
+      "eligibleContentIds": [
+        "3112126",
+        "3350880",
+        "3426656",
+        "3438936",
+        "3443614"
+      ],
+      "knownSamples": [
+        {
+          "contentId": "2504464",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "stage_b_not_selected"
+        },
+        {
+          "contentId": "2672393",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "stage_b_not_selected"
+        },
+        {
+          "contentId": "3426656",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "3112126",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "2699563",
+          "presentInInitialCatalog": true,
+          "enteredStageA": false,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "category_not_selected"
+        },
+        {
+          "contentId": "3350880",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "3438936",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        }
+      ],
+      "finalCandidates": [
+        {
+          "contentId": "3112126",
+          "category": "leisure",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 768,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3350880",
+          "category": "food",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 762,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3426656",
+          "category": "attraction",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "allowed",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 786,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3438936",
+          "category": "food",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 768,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3443614",
+          "category": "food",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "allowed",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 800,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        }
+      ],
+      "canonicalResult": "[{\"contentId\":\"3443614\",\"category\":\"food\",\"eligibility\":{\"eligible\":true,\"status\":\"eligible\",\"reasonCodes\":[],\"warnings\":[\"license_no_match\"],\"evidenceFieldNames\":[\"acmpyTypeCd\"]},\"utility\":{\"version\":\"place-utility-v1\",\"total\":800,\"prefere"
+    },
+    {
+      "id": "overnight",
+      "label": "Packed Busan overnight with accommodation",
+      "phase": "warm",
+      "status": "ready",
+      "durationMs": 6,
+      "diagnostics": {
+        "initialCatalogCount": 39,
+        "exposedCount": 39,
+        "coordinateValidCount": 39,
+        "categoryAcceptedCount": 39,
+        "stageACount": 25,
+        "stageBCount": 20,
+        "detailedEvaluationCount": 20,
+        "detailedBatchCount": 4,
+        "eligibleCount": 6,
+        "finalEligibleCount": 6,
+        "categoryDistribution": {
+          "accommodation": 1,
+          "attraction": 1,
+          "food": 3,
+          "leisure": 1
+        },
+        "excludedByReason": {
+          "mandatory_condition_verification_required": 14,
+          "pet_size_verification_required": 2,
+          "pet_type_incompatible": 1,
+          "pet_type_verification_required": 2
+        },
+        "warningsByReason": {
+          "운영시간 확인 필요": 20,
+          "license_no_match": 14,
+          "operating_hours_unknown": 33
+        }
+      },
+      "accounting": {
+        "physicalProviderCalls": 0,
+        "logicalProviderOperations": 95,
+        "cacheHits": 95,
+        "retries": 0,
+        "timeouts": 0,
+        "providerFailures": 0,
+        "duplicateDetailOperations": 0,
+        "callsByOperation": {
+          "areaBasedList2": {
+            "physicalCalls": 0,
+            "logicalOperations": 0,
+            "cacheHits": 0,
+            "failures": 0
+          },
+          "detailCommon2": {
+            "physicalCalls": 0,
+            "logicalOperations": 25,
+            "cacheHits": 25,
+            "failures": 0
+          },
+          "detailIntro2": {
+            "physicalCalls": 0,
+            "logicalOperations": 25,
+            "cacheHits": 25,
+            "failures": 0
+          },
+          "detailPetTour2": {
+            "physicalCalls": 0,
+            "logicalOperations": 20,
+            "cacheHits": 20,
+            "failures": 0
+          },
+          "licensing": {
+            "physicalCalls": 0,
+            "logicalOperations": 0,
+            "cacheHits": 0,
+            "failures": 0
+          },
+          "petTourSyncList2": {
+            "physicalCalls": 0,
+            "logicalOperations": 25,
+            "cacheHits": 25,
+            "failures": 0
+          }
+        }
+      },
+      "eligibleContentIds": [
+        "2699563",
+        "3112126",
+        "3350880",
+        "3426656",
+        "3438936",
+        "3443614"
+      ],
+      "knownSamples": [
+        {
+          "contentId": "2504464",
+          "presentInInitialCatalog": true,
+          "enteredStageA": false,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "stage_a_not_selected"
+        },
+        {
+          "contentId": "2672393",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": false,
+          "receivedDetailedEvaluation": false,
+          "passedAutomaticEligibility": false,
+          "finalEligiblePool": false,
+          "removalReason": "stage_b_not_selected"
+        },
+        {
+          "contentId": "3426656",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "3112126",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "2699563",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "3350880",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        },
+        {
+          "contentId": "3438936",
+          "presentInInitialCatalog": true,
+          "enteredStageA": true,
+          "enteredStageB": true,
+          "receivedDetailedEvaluation": true,
+          "passedAutomaticEligibility": true,
+          "finalEligiblePool": true,
+          "removalReason": null
+        }
+      ],
+      "finalCandidates": [
+        {
+          "contentId": "2699563",
+          "category": "accommodation",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "allowed",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 837,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3112126",
+          "category": "leisure",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 768,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3350880",
+          "category": "food",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 762,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3426656",
+          "category": "attraction",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "allowed",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 786,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3438936",
+          "category": "food",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "conditional",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 768,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        },
+        {
+          "contentId": "3443614",
+          "category": "food",
+          "sourceIsTourismService2": true,
+          "visibilityIsFreshExposed": true,
+          "coordinatesValidAndInScope": true,
+          "meaningfulPetEvidence": true,
+          "phase3Verdict": "allowed",
+          "phase3EligibleState": true,
+          "mandatoryConditionsSatisfied": true,
+          "licensingExplicitlyClosed": false,
+          "confirmedScheduleConflict": false,
+          "categoryRequested": true,
+          "shoppingExplicitlySelected": true,
+          "kakaoOrDemoSource": false,
+          "utility": {
+            "version": "place-utility-v1",
+            "total": 800,
+            "componentsWithinRange": true
+          },
+          "popularity": {
+            "version": "popularity-v1",
+            "score": 0.5,
+            "status": "insufficient_data",
+            "neutralColdStart": true
+          }
+        }
+      ],
+      "canonicalResult": "[{\"contentId\":\"2699563\",\"category\":\"accommodation\",\"eligibility\":{\"eligible\":true,\"status\":\"eligible\",\"reasonCodes\":[],\"warnings\":[\"license_no_match\",\"operating_hours_unknown\"],\"evidenceFieldNames\":[\"acmpyTypeCd\"]},\"utility\":{\"version\":\"pla"
+    }
+  ],
+  "totalPhysicalProviderCalls": 106,
+  "totalDurationMs": 3712,
+  "gateChecks": {
+    "atLeastOneScenarioCompletedWithoutProviderFailure": true,
+    "atLeastThreeEligibleInOneScenario": true,
+    "enoughForRelaxedOrBalancedItinerary": true,
+    "atLeastTwoUsefulCategories": true,
+    "requestCapNotExceeded": true,
+    "concurrencyBoundRespected": true,
+    "noDuplicateDetailOperations": true,
+    "stageLimitsRespected": true,
+    "adaptiveBackfillObserved": true,
+    "noStrictBoundaryLeakage": true,
+    "popularityRemainedNeutral": true
+  }
+}

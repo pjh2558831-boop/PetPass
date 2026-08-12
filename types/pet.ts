@@ -25,6 +25,10 @@ export type PlaceCategory =
 
 export interface ResolvedDeparture {
   label: string;
+  source?:
+    | "kakao_place_search"
+    | "address_search"
+    | "map_selection";
   coordinates: {
     latitude: number;
     longitude: number;
@@ -47,4 +51,5 @@ export interface TravelPreferences {
   desiredDurationMinutes?: number;
   indoorAccessPreference?: PlannerIndoorAccessPreference;
   includeShopping?: boolean;
+  roundTrip?: boolean;
 }

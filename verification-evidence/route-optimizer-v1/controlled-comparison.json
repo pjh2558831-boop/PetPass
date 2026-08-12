@@ -1,0 +1,660 @@
+{
+  "version": "route-optimizer-v1-controlled-comparison",
+  "generatedAt": "2026-08-12T00:00:00.000Z",
+  "syntheticDataOnly": true,
+  "scenarioCount": 12,
+  "allDeterministic": true,
+  "readyCount": 12,
+  "hardViolationCount": 0,
+  "optimizerNoWorseThanFeasibleBaselines": true,
+  "rows": [
+    {
+      "id": "relaxed_day_one_way",
+      "optimizer": {
+        "status": "ready",
+        "score": 2264,
+        "stopIds": [
+          "culture2",
+          "activity1",
+          "meal3"
+        ],
+        "drivingSeconds": 1380,
+        "warnings": [
+          "current_traffic_matrix_used_for_search"
+        ],
+        "solverDurationMs": 3,
+        "exactSearchCompleted": true,
+        "beamFallbackUsed": false
+      },
+      "deterministic": true,
+      "baselines": [
+        {
+          "name": "nearest_neighbor",
+          "score": 1649,
+          "stopIds": [
+            "culture2",
+            "activity1"
+          ],
+          "drivingSeconds": 1080
+        },
+        {
+          "name": "highest_utility_fastest",
+          "score": 1649,
+          "stopIds": [
+            "culture2",
+            "activity1"
+          ],
+          "drivingSeconds": 1080
+        },
+        {
+          "name": "category_greedy",
+          "score": 1649,
+          "stopIds": [
+            "culture2",
+            "activity1"
+          ],
+          "drivingSeconds": 1080
+        }
+      ]
+    },
+    {
+      "id": "relaxed_day_round",
+      "optimizer": {
+        "status": "ready",
+        "score": 2229,
+        "stopIds": [
+          "culture2",
+          "activity1",
+          "meal3"
+        ],
+        "drivingSeconds": 1800,
+        "warnings": [
+          "current_traffic_matrix_used_for_search"
+        ],
+        "solverDurationMs": 2,
+        "exactSearchCompleted": true,
+        "beamFallbackUsed": false
+      },
+      "deterministic": true,
+      "baselines": [
+        {
+          "name": "nearest_neighbor",
+          "score": 1584,
+          "stopIds": [
+            "culture2",
+            "activity1"
+          ],
+          "drivingSeconds": 1860
+        },
+        {
+          "name": "highest_utility_fastest",
+          "score": 1584,
+          "stopIds": [
+            "culture2",
+            "activity1"
+          ],
+          "drivingSeconds": 1860
+        },
+        {
+          "name": "category_greedy",
+          "score": 1584,
+          "stopIds": [
+            "culture2",
+            "activity1"
+          ],
+          "drivingSeconds": 1860
+        }
+      ]
+    },
+    {
+      "id": "relaxed_overnight_one_way",
+      "optimizer": {
+        "status": "ready",
+        "score": 2216,
+        "stopIds": [
+          "activity1",
+          "culture2",
+          "hotel6"
+        ],
+        "drivingSeconds": 2220,
+        "warnings": [
+          "current_traffic_matrix_used_for_search"
+        ],
+        "solverDurationMs": 1,
+        "exactSearchCompleted": true,
+        "beamFallbackUsed": false
+      },
+      "deterministic": true,
+      "baselines": [
+        {
+          "name": "nearest_neighbor",
+          "score": 1610,
+          "stopIds": [
+            "culture2",
+            "hotel6"
+          ],
+          "drivingSeconds": 720
+        },
+        {
+          "name": "highest_utility_fastest",
+          "score": 1550,
+          "stopIds": [
+            "activity1",
+            "hotel6"
+          ],
+          "drivingSeconds": 2160
+        },
+        {
+          "name": "category_greedy",
+          "score": 1610,
+          "stopIds": [
+            "culture2",
+            "hotel6"
+          ],
+          "drivingSeconds": 720
+        }
+      ]
+    },
+    {
+      "id": "relaxed_overnight_round",
+      "optimizer": {
+        "status": "ready",
+        "score": 2171,
+        "stopIds": [
+          "activity1",
+          "culture2",
+          "hotel6"
+        ],
+        "drivingSeconds": 2760,
+        "warnings": [
+          "current_traffic_matrix_used_for_search"
+        ],
+        "solverDurationMs": 0,
+        "exactSearchCompleted": true,
+        "beamFallbackUsed": false
+      },
+      "deterministic": true,
+      "baselines": [
+        {
+          "name": "nearest_neighbor",
+          "score": 1565,
+          "stopIds": [
+            "culture2",
+            "hotel6"
+          ],
+          "drivingSeconds": 1260
+        },
+        {
+          "name": "highest_utility_fastest",
+          "score": 1505,
+          "stopIds": [
+            "activity1",
+            "hotel6"
+          ],
+          "drivingSeconds": 2700
+        },
+        {
+          "name": "category_greedy",
+          "score": 1565,
+          "stopIds": [
+            "culture2",
+            "hotel6"
+          ],
+          "drivingSeconds": 1260
+        }
+      ]
+    },
+    {
+      "id": "balanced_day_one_way",
+      "optimizer": {
+        "status": "ready",
+        "score": 2915,
+        "stopIds": [
+          "activity5",
+          "rest4",
+          "activity1",
+          "meal3"
+        ],
+        "drivingSeconds": 2160,
+        "warnings": [
+          "current_traffic_matrix_used_for_search"
+        ],
+        "solverDurationMs": 2,
+        "exactSearchCompleted": true,
+        "beamFallbackUsed": false
+      },
+      "deterministic": true,
+      "baselines": [
+        {
+          "name": "nearest_neighbor",
+          "score": 2384,
+          "stopIds": [
+            "culture2",
+            "activity1",
+            "meal3"
+          ],
+          "drivingSeconds": 1380
+        },
+        {
+          "name": "highest_utility_fastest",
+          "score": 2384,
+          "stopIds": [
+            "culture2",
+            "activity1",
+            "meal3"
+          ],
+          "drivingSeconds": 1380
+        },
+        {
+          "name": "category_greedy",
+          "score": 2384,
+          "stopIds": [
+            "culture2",
+            "activity1",
+            "meal3"
+          ],
+          "drivingSeconds": 1380
+        }
+      ]
+    },
+    {
+      "id": "balanced_day_round",
+      "optimizer": {
+        "status": "ready",
+        "score": 2990,
+        "stopIds": [
+          "culture2",
+          "rest4",
+          "activity1",
+          "meal3"
+        ],
+        "drivingSeconds": 2940,
+        "warnings": [
+          "current_traffic_matrix_used_for_search"
+        ],
+        "solverDurationMs": 2,
+        "exactSearchCompleted": true,
+        "beamFallbackUsed": false
+      },
+      "deterministic": true,
+      "baselines": [
+        {
+          "name": "nearest_neighbor",
+          "score": 2349,
+          "stopIds": [
+            "culture2",
+            "activity1",
+            "meal3"
+          ],
+          "drivingSeconds": 1800
+        },
+        {
+          "name": "highest_utility_fastest",
+          "score": 2349,
+          "stopIds": [
+            "culture2",
+            "activity1",
+            "meal3"
+          ],
+          "drivingSeconds": 1800
+        },
+        {
+          "name": "category_greedy",
+          "score": 2349,
+          "stopIds": [
+            "culture2",
+            "activity1",
+            "meal3"
+          ],
+          "drivingSeconds": 1800
+        }
+      ]
+    },
+    {
+      "id": "balanced_overnight_one_way",
+      "optimizer": {
+        "status": "ready",
+        "score": 2859,
+        "stopIds": [
+          "activity1",
+          "meal3",
+          "culture2",
+          "hotel6"
+        ],
+        "drivingSeconds": 2160,
+        "warnings": [
+          "current_traffic_matrix_used_for_search"
+        ],
+        "solverDurationMs": 1,
+        "exactSearchCompleted": true,
+        "beamFallbackUsed": false
+      },
+      "deterministic": true,
+      "baselines": [
+        {
+          "name": "nearest_neighbor",
+          "score": 2333,
+          "stopIds": [
+            "culture2",
+            "activity1",
+            "hotel6"
+          ],
+          "drivingSeconds": 2220
+        },
+        {
+          "name": "highest_utility_fastest",
+          "score": 2336,
+          "stopIds": [
+            "activity1",
+            "culture2",
+            "hotel6"
+          ],
+          "drivingSeconds": 2220
+        },
+        {
+          "name": "category_greedy",
+          "score": 2333,
+          "stopIds": [
+            "culture2",
+            "activity1",
+            "hotel6"
+          ],
+          "drivingSeconds": 2220
+        }
+      ]
+    },
+    {
+      "id": "balanced_overnight_round",
+      "optimizer": {
+        "status": "ready",
+        "score": 2814,
+        "stopIds": [
+          "activity1",
+          "meal3",
+          "culture2",
+          "hotel6"
+        ],
+        "drivingSeconds": 2700,
+        "warnings": [
+          "current_traffic_matrix_used_for_search"
+        ],
+        "solverDurationMs": 1,
+        "exactSearchCompleted": true,
+        "beamFallbackUsed": false
+      },
+      "deterministic": true,
+      "baselines": [
+        {
+          "name": "nearest_neighbor",
+          "score": 2288,
+          "stopIds": [
+            "culture2",
+            "activity1",
+            "hotel6"
+          ],
+          "drivingSeconds": 2760
+        },
+        {
+          "name": "highest_utility_fastest",
+          "score": 2291,
+          "stopIds": [
+            "activity1",
+            "culture2",
+            "hotel6"
+          ],
+          "drivingSeconds": 2760
+        },
+        {
+          "name": "category_greedy",
+          "score": 2288,
+          "stopIds": [
+            "culture2",
+            "activity1",
+            "hotel6"
+          ],
+          "drivingSeconds": 2760
+        }
+      ]
+    },
+    {
+      "id": "packed_day_one_way",
+      "optimizer": {
+        "status": "ready",
+        "score": 3604,
+        "stopIds": [
+          "culture2",
+          "activity5",
+          "rest4",
+          "activity1",
+          "meal3"
+        ],
+        "drivingSeconds": 2220,
+        "warnings": [
+          "current_traffic_matrix_used_for_search"
+        ],
+        "solverDurationMs": 3,
+        "exactSearchCompleted": true,
+        "beamFallbackUsed": false
+      },
+      "deterministic": true,
+      "baselines": [
+        {
+          "name": "nearest_neighbor",
+          "score": 3184,
+          "stopIds": [
+            "culture2",
+            "activity1",
+            "meal3",
+            "rest4",
+            "activity5"
+          ],
+          "drivingSeconds": 2580
+        },
+        {
+          "name": "highest_utility_fastest",
+          "score": 3363,
+          "stopIds": [
+            "culture2",
+            "activity1",
+            "activity5",
+            "rest4",
+            "meal3"
+          ],
+          "drivingSeconds": 2220
+        },
+        {
+          "name": "category_greedy",
+          "score": 3246,
+          "stopIds": [
+            "culture2",
+            "activity1",
+            "meal3",
+            "activity5",
+            "rest4"
+          ],
+          "drivingSeconds": 3060
+        }
+      ]
+    },
+    {
+      "id": "packed_day_round",
+      "optimizer": {
+        "status": "ready",
+        "score": 3569,
+        "stopIds": [
+          "culture2",
+          "activity5",
+          "rest4",
+          "activity1",
+          "meal3"
+        ],
+        "drivingSeconds": 2640,
+        "warnings": [
+          "current_traffic_matrix_used_for_search"
+        ],
+        "solverDurationMs": 3,
+        "exactSearchCompleted": true,
+        "beamFallbackUsed": false
+      },
+      "deterministic": true,
+      "baselines": [
+        {
+          "name": "nearest_neighbor",
+          "score": 2866,
+          "stopIds": [
+            "culture2",
+            "activity1",
+            "meal3",
+            "rest4",
+            "activity5"
+          ],
+          "drivingSeconds": 3960
+        },
+        {
+          "name": "highest_utility_fastest",
+          "score": 3328,
+          "stopIds": [
+            "culture2",
+            "activity1",
+            "activity5",
+            "rest4",
+            "meal3"
+          ],
+          "drivingSeconds": 2640
+        },
+        {
+          "name": "category_greedy",
+          "score": 3098,
+          "stopIds": [
+            "culture2",
+            "activity1",
+            "meal3",
+            "activity5",
+            "rest4"
+          ],
+          "drivingSeconds": 3960
+        }
+      ]
+    },
+    {
+      "id": "packed_overnight_one_way",
+      "optimizer": {
+        "status": "ready",
+        "score": 3541,
+        "stopIds": [
+          "activity5",
+          "rest4",
+          "activity1",
+          "meal3",
+          "hotel6"
+        ],
+        "drivingSeconds": 2940,
+        "warnings": [
+          "current_traffic_matrix_used_for_search"
+        ],
+        "solverDurationMs": 3,
+        "exactSearchCompleted": true,
+        "beamFallbackUsed": false
+      },
+      "deterministic": true,
+      "baselines": [
+        {
+          "name": "nearest_neighbor",
+          "score": 2868,
+          "stopIds": [
+            "culture2",
+            "activity1",
+            "meal3",
+            "rest4",
+            "hotel6"
+          ],
+          "drivingSeconds": 3300
+        },
+        {
+          "name": "highest_utility_fastest",
+          "score": 3493,
+          "stopIds": [
+            "rest4",
+            "activity1",
+            "meal3",
+            "culture2",
+            "hotel6"
+          ],
+          "drivingSeconds": 1980
+        },
+        {
+          "name": "category_greedy",
+          "score": 3353,
+          "stopIds": [
+            "culture2",
+            "activity1",
+            "meal3",
+            "activity5",
+            "hotel6"
+          ],
+          "drivingSeconds": 3180
+        }
+      ]
+    },
+    {
+      "id": "packed_overnight_round",
+      "optimizer": {
+        "status": "ready",
+        "score": 3496,
+        "stopIds": [
+          "activity5",
+          "rest4",
+          "activity1",
+          "meal3",
+          "hotel6"
+        ],
+        "drivingSeconds": 3480,
+        "warnings": [
+          "current_traffic_matrix_used_for_search"
+        ],
+        "solverDurationMs": 3,
+        "exactSearchCompleted": true,
+        "beamFallbackUsed": false
+      },
+      "deterministic": true,
+      "baselines": [
+        {
+          "name": "nearest_neighbor",
+          "score": 2899,
+          "stopIds": [
+            "culture2",
+            "activity1",
+            "meal3",
+            "rest4",
+            "hotel6"
+          ],
+          "drivingSeconds": 3840
+        },
+        {
+          "name": "highest_utility_fastest",
+          "score": 3448,
+          "stopIds": [
+            "rest4",
+            "activity1",
+            "meal3",
+            "culture2",
+            "hotel6"
+          ],
+          "drivingSeconds": 2520
+        },
+        {
+          "name": "category_greedy",
+          "score": 3308,
+          "stopIds": [
+            "culture2",
+            "activity1",
+            "meal3",
+            "activity5",
+            "hotel6"
+          ],
+          "drivingSeconds": 3720
+        }
+      ]
+    }
+  ]
+}

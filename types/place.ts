@@ -68,7 +68,22 @@ export type TourOperationName =
   | "areaBasedList2"
   | "detailCommon2"
   | "detailIntro2"
-  | "detailPetTour2";
+  | "detailPetTour2"
+  | "petTourSyncList2";
+
+export type ProviderVisibility =
+  | "exposed"
+  | "not_exposed"
+  | "unknown"
+  | "provider_unavailable";
+
+export interface ProviderVisibilityResult {
+  status: ProviderVisibility;
+  providerField: string | null;
+  providerValue: string | null;
+  checkedAt: string;
+  reasonCodes: string[];
+}
 
 export interface TourClassificationCodes {
   primary: string | null;
@@ -106,6 +121,7 @@ export interface TourPlaceSummary {
   legalRegionCode: string | null;
   legalDistrictCode: string | null;
   classificationCodes: TourClassificationCodes;
+  providerVisibility?: ProviderVisibilityResult;
   source: TourSourceReference;
 }
 
@@ -136,6 +152,27 @@ export interface TourPetPolicyEvidence {
     contentId: string;
     originalEvidenceFields: TourPetPolicyFields;
   };
+}
+
+export type TourPetPolicyFieldName = keyof TourPetPolicyFields;
+
+export type PetEvidenceAvailability =
+  | "usable"
+  | "partial"
+  | "empty"
+  | "absent"
+  | "provider_unavailable";
+
+export interface NormalizedPetEvidence {
+  availability: PetEvidenceAvailability;
+  fields: TourPetPolicyFields;
+  sourceFields: Array<{
+    field: TourPetPolicyFieldName;
+    value: string;
+  }>;
+  emptyFieldNames: TourPetPolicyFieldName[];
+  absentFieldNames: TourPetPolicyFieldName[];
+  warningCodes: string[];
 }
 
 export type TourIntroPetPolicyField =
@@ -174,6 +211,7 @@ export interface TourPlaceDetail {
   contactInformation: string | null;
   providerModifiedTime: string | null;
   petPolicyEvidence: TourPetPolicyEvidence | null;
+  normalizedPetEvidence?: NormalizedPetEvidence;
   introPetPolicyEvidence: TourIntroPetPolicyEvidence | null;
   licensing?: LicensingMatchResult;
   sections: Record<TourDetailSectionName, TourDetailSectionState> & {

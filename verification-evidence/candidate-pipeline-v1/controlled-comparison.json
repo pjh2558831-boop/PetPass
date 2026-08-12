@@ -1,0 +1,507 @@
+{
+  "version": "candidate-pipeline-controlled-comparison-v1",
+  "fixtureVersion": "candidate-pipeline-v1-controlled-fixture",
+  "scenarioCount": 4,
+  "scenarios": [
+    {
+      "scenario": {
+        "id": "relaxed_activity",
+        "label": "Relaxed day trip with activity coverage",
+        "tripType": "DAY_TRIP",
+        "tripPace": "relaxed",
+        "minStops": 2,
+        "maxStops": 3,
+        "start": {
+          "latitude": 35.1151,
+          "longitude": 129.0414
+        },
+        "selectedCategories": [
+          "attraction",
+          "culture",
+          "leisure"
+        ],
+        "includeShopping": false
+      },
+      "legacy": {
+        "implementation": "pre_stage2_fixed_12_role_aware",
+        "initialCatalogCount": 31,
+        "lightweightAcceptedCount": 22,
+        "stageACount": 12,
+        "stageBCount": 12,
+        "detailedEvaluationCount": 12,
+        "detailedBatchCount": 1,
+        "eligibleContentIds": [
+          "fixture-c02",
+          "fixture-l02",
+          "fixture-a05"
+        ],
+        "finalEligibleContentIds": [
+          "fixture-l02",
+          "fixture-c02",
+          "fixture-a05"
+        ],
+        "representedCategories": [
+          "attraction",
+          "culture",
+          "leisure"
+        ],
+        "providerCalls": 42,
+        "cacheHits": 12,
+        "detailCallsByOperation": {
+          "detailCommon2": 12,
+          "detailIntro2": 12,
+          "detailPetTour2": 12
+        },
+        "duplicatedDetailCalls": 0,
+        "excludedByReason": {
+          "pet_access_unknown": 4,
+          "pet_access_not_allowed": 1,
+          "mandatory_condition_verification_required": 1,
+          "mandatory_condition_unsatisfied": 1,
+          "pet_evidence_absent": 1,
+          "pet_size_verification_required": 1
+        },
+        "insufficientEligiblePlaces": false,
+        "requiredMinimum": 2
+      },
+      "stage2": {
+        "implementation": "candidate_pipeline_v1",
+        "initialCatalogCount": 32,
+        "lightweightAcceptedCount": 22,
+        "stageACount": 22,
+        "stageBCount": 20,
+        "detailedEvaluationCount": 10,
+        "detailedBatchCount": 2,
+        "eligibleContentIds": [
+          "fixture-l02",
+          "fixture-c02",
+          "fixture-a05",
+          "fixture-a13",
+          "fixture-a16",
+          "fixture-a17"
+        ],
+        "finalEligibleContentIds": [
+          "fixture-l02",
+          "fixture-c02",
+          "fixture-a05",
+          "fixture-a13",
+          "fixture-a16",
+          "fixture-a17"
+        ],
+        "representedCategories": [
+          "attraction",
+          "culture",
+          "leisure"
+        ],
+        "providerCalls": 58,
+        "cacheHits": 21,
+        "detailCallsByOperation": {
+          "detailCommon2": 21,
+          "detailIntro2": 21,
+          "detailPetTour2": 10
+        },
+        "duplicatedDetailCalls": 0,
+        "excludedByReason": {
+          "category_not_selected": 9,
+          "confirmed_schedule_conflict": 1,
+          "pet_access_not_allowed": 4,
+          "provider_visibility_not_exposed": 1,
+          "schedule_provider_unavailable": 1,
+          "shopping_not_explicitly_selected": 2,
+          "travel_unsuitable": 2
+        },
+        "insufficientEligiblePlaces": false,
+        "requiredMinimum": 2
+      },
+      "eligibleDiscoveryDelta": 3,
+      "categoryCoverageDelta": 0,
+      "providerCallDelta": 16,
+      "detailCallDelta": 16,
+      "deterministicStage2Output": true
+    },
+    {
+      "scenario": {
+        "id": "balanced_food",
+        "label": "Balanced day trip with a selected meal category",
+        "tripType": "DAY_TRIP",
+        "tripPace": "balanced",
+        "minStops": 3,
+        "maxStops": 4,
+        "start": {
+          "latitude": 35.1151,
+          "longitude": 129.0414
+        },
+        "selectedCategories": [
+          "attraction",
+          "culture",
+          "leisure",
+          "food"
+        ],
+        "includeShopping": false
+      },
+      "legacy": {
+        "implementation": "pre_stage2_fixed_12_role_aware",
+        "initialCatalogCount": 31,
+        "lightweightAcceptedCount": 25,
+        "stageACount": 12,
+        "stageBCount": 12,
+        "detailedEvaluationCount": 12,
+        "detailedBatchCount": 1,
+        "eligibleContentIds": [
+          "fixture-c02",
+          "fixture-f02",
+          "fixture-l02"
+        ],
+        "finalEligibleContentIds": [
+          "fixture-l02",
+          "fixture-f02",
+          "fixture-c02"
+        ],
+        "representedCategories": [
+          "culture",
+          "food",
+          "leisure"
+        ],
+        "providerCalls": 44,
+        "cacheHits": 12,
+        "detailCallsByOperation": {
+          "detailCommon2": 12,
+          "detailIntro2": 12,
+          "detailPetTour2": 12
+        },
+        "duplicatedDetailCalls": 0,
+        "excludedByReason": {
+          "pet_access_unknown": 5,
+          "pet_access_not_allowed": 1,
+          "operating_time_conflict": 1,
+          "mandatory_condition_verification_required": 1,
+          "mandatory_condition_unsatisfied": 1
+        },
+        "insufficientEligiblePlaces": false,
+        "requiredMinimum": 3
+      },
+      "stage2": {
+        "implementation": "candidate_pipeline_v1",
+        "initialCatalogCount": 32,
+        "lightweightAcceptedCount": 26,
+        "stageACount": 25,
+        "stageBCount": 20,
+        "detailedEvaluationCount": 15,
+        "detailedBatchCount": 3,
+        "eligibleContentIds": [
+          "fixture-f02",
+          "fixture-l02",
+          "fixture-c02",
+          "fixture-a05",
+          "fixture-a13",
+          "fixture-a16",
+          "fixture-a17"
+        ],
+        "finalEligibleContentIds": [
+          "fixture-f02",
+          "fixture-l02",
+          "fixture-c02",
+          "fixture-a05",
+          "fixture-a13",
+          "fixture-a16",
+          "fixture-a17"
+        ],
+        "representedCategories": [
+          "attraction",
+          "culture",
+          "food",
+          "leisure"
+        ],
+        "providerCalls": 71,
+        "cacheHits": 24,
+        "detailCallsByOperation": {
+          "detailCommon2": 24,
+          "detailIntro2": 24,
+          "detailPetTour2": 15
+        },
+        "duplicatedDetailCalls": 0,
+        "excludedByReason": {
+          "category_not_selected": 5,
+          "confirmed_schedule_conflict": 2,
+          "duplicate_content_id_removed": 1,
+          "pet_access_not_allowed": 8,
+          "provider_visibility_not_exposed": 1,
+          "schedule_provider_unavailable": 1,
+          "shopping_not_explicitly_selected": 2,
+          "travel_unsuitable": 2
+        },
+        "insufficientEligiblePlaces": false,
+        "requiredMinimum": 3
+      },
+      "eligibleDiscoveryDelta": 4,
+      "categoryCoverageDelta": 1,
+      "providerCallDelta": 27,
+      "detailCallDelta": 27,
+      "deterministicStage2Output": true
+    },
+    {
+      "scenario": {
+        "id": "packed_overnight",
+        "label": "Packed overnight trip with accommodation coverage",
+        "tripType": "OVERNIGHT",
+        "tripPace": "packed",
+        "minStops": 4,
+        "maxStops": 5,
+        "start": {
+          "latitude": 35.1151,
+          "longitude": 129.0414
+        },
+        "selectedCategories": [
+          "attraction",
+          "culture",
+          "leisure",
+          "food",
+          "accommodation"
+        ],
+        "includeShopping": false
+      },
+      "legacy": {
+        "implementation": "pre_stage2_fixed_12_role_aware",
+        "initialCatalogCount": 31,
+        "lightweightAcceptedCount": 28,
+        "stageACount": 12,
+        "stageBCount": 12,
+        "detailedEvaluationCount": 12,
+        "detailedBatchCount": 1,
+        "eligibleContentIds": [
+          "fixture-h02",
+          "fixture-c02",
+          "fixture-f02",
+          "fixture-l02"
+        ],
+        "finalEligibleContentIds": [
+          "fixture-h02",
+          "fixture-l02",
+          "fixture-f02",
+          "fixture-c02"
+        ],
+        "representedCategories": [
+          "accommodation",
+          "culture",
+          "food",
+          "leisure"
+        ],
+        "providerCalls": 46,
+        "cacheHits": 12,
+        "detailCallsByOperation": {
+          "detailCommon2": 12,
+          "detailIntro2": 12,
+          "detailPetTour2": 12
+        },
+        "duplicatedDetailCalls": 0,
+        "excludedByReason": {
+          "pet_access_unknown": 6,
+          "detail_provider_unavailable": 1,
+          "pet_access_not_allowed": 1
+        },
+        "insufficientEligiblePlaces": false,
+        "requiredMinimum": 4
+      },
+      "stage2": {
+        "implementation": "candidate_pipeline_v1",
+        "initialCatalogCount": 32,
+        "lightweightAcceptedCount": 29,
+        "stageACount": 25,
+        "stageBCount": 20,
+        "detailedEvaluationCount": 15,
+        "detailedBatchCount": 3,
+        "eligibleContentIds": [
+          "fixture-h02",
+          "fixture-f02",
+          "fixture-l02",
+          "fixture-c02",
+          "fixture-a05",
+          "fixture-a13",
+          "fixture-a16",
+          "fixture-a17"
+        ],
+        "finalEligibleContentIds": [
+          "fixture-h02",
+          "fixture-f02",
+          "fixture-l02",
+          "fixture-c02",
+          "fixture-a05",
+          "fixture-a13",
+          "fixture-a16",
+          "fixture-a17"
+        ],
+        "representedCategories": [
+          "accommodation",
+          "attraction",
+          "culture",
+          "food",
+          "leisure"
+        ],
+        "providerCalls": 74,
+        "cacheHits": 25,
+        "detailCallsByOperation": {
+          "detailCommon2": 25,
+          "detailIntro2": 25,
+          "detailPetTour2": 14
+        },
+        "duplicatedDetailCalls": 0,
+        "excludedByReason": {
+          "candidate_detail_provider_unavailable": 1,
+          "category_not_selected": 2,
+          "confirmed_schedule_conflict": 2,
+          "duplicate_content_id_removed": 1,
+          "pet_access_not_allowed": 6,
+          "provider_visibility_not_exposed": 1,
+          "shopping_not_explicitly_selected": 2,
+          "travel_unsuitable": 2
+        },
+        "insufficientEligiblePlaces": false,
+        "requiredMinimum": 4
+      },
+      "eligibleDiscoveryDelta": 4,
+      "categoryCoverageDelta": 1,
+      "providerCallDelta": 28,
+      "detailCallDelta": 28,
+      "deterministicStage2Output": true
+    },
+    {
+      "scenario": {
+        "id": "packed_sparse_activity",
+        "label": "Packed day trip that must backfill beyond the first 15 details",
+        "tripType": "DAY_TRIP",
+        "tripPace": "packed",
+        "minStops": 4,
+        "maxStops": 5,
+        "start": {
+          "latitude": 35.1151,
+          "longitude": 129.0414
+        },
+        "selectedCategories": [
+          "attraction",
+          "culture"
+        ],
+        "includeShopping": false
+      },
+      "legacy": {
+        "implementation": "pre_stage2_fixed_12_role_aware",
+        "initialCatalogCount": 31,
+        "lightweightAcceptedCount": 19,
+        "stageACount": 12,
+        "stageBCount": 12,
+        "detailedEvaluationCount": 12,
+        "detailedBatchCount": 1,
+        "eligibleContentIds": [
+          "fixture-c02",
+          "fixture-a05"
+        ],
+        "finalEligibleContentIds": [
+          "fixture-c02",
+          "fixture-a05"
+        ],
+        "representedCategories": [
+          "attraction",
+          "culture"
+        ],
+        "providerCalls": 40,
+        "cacheHits": 12,
+        "detailCallsByOperation": {
+          "detailCommon2": 12,
+          "detailIntro2": 12,
+          "detailPetTour2": 12
+        },
+        "duplicatedDetailCalls": 0,
+        "excludedByReason": {
+          "pet_access_unknown": 3,
+          "pet_access_not_allowed": 1,
+          "mandatory_condition_unsatisfied": 1,
+          "pet_evidence_absent": 1,
+          "pet_size_verification_required": 1,
+          "detail_provider_unavailable": 1,
+          "pet_type_verification_required": 1,
+          "operating_time_conflict": 1
+        },
+        "insufficientEligiblePlaces": true,
+        "requiredMinimum": 4
+      },
+      "stage2": {
+        "implementation": "candidate_pipeline_v1",
+        "initialCatalogCount": 32,
+        "lightweightAcceptedCount": 19,
+        "stageACount": 19,
+        "stageBCount": 17,
+        "detailedEvaluationCount": 17,
+        "detailedBatchCount": 4,
+        "eligibleContentIds": [
+          "fixture-c02",
+          "fixture-a05",
+          "fixture-a13",
+          "fixture-a16",
+          "fixture-a17"
+        ],
+        "finalEligibleContentIds": [
+          "fixture-c02",
+          "fixture-a05",
+          "fixture-a13",
+          "fixture-a16",
+          "fixture-a17"
+        ],
+        "representedCategories": [
+          "attraction",
+          "culture"
+        ],
+        "providerCalls": 56,
+        "cacheHits": 18,
+        "detailCallsByOperation": {
+          "detailCommon2": 18,
+          "detailIntro2": 18,
+          "detailPetTour2": 16
+        },
+        "duplicatedDetailCalls": 0,
+        "excludedByReason": {
+          "candidate_detail_provider_unavailable": 1,
+          "category_not_selected": 12,
+          "confirmed_schedule_conflict": 1,
+          "pet_access_not_allowed": 11,
+          "provider_visibility_not_exposed": 1,
+          "schedule_provider_unavailable": 1,
+          "shopping_not_explicitly_selected": 2,
+          "travel_unsuitable": 2
+        },
+        "insufficientEligiblePlaces": false,
+        "requiredMinimum": 4
+      },
+      "eligibleDiscoveryDelta": 3,
+      "categoryCoverageDelta": 0,
+      "providerCallDelta": 16,
+      "detailCallDelta": 16,
+      "deterministicStage2Output": true
+    }
+  ],
+  "summary": {
+    "legacyEligibleDiscovered": 12,
+    "stage2EligibleDiscovered": 26,
+    "eligibleDiscoveryDelta": 14,
+    "legacyCategoryCoverage": 12,
+    "stage2CategoryCoverage": 14,
+    "categoryCoverageDelta": 2,
+    "legacyProviderCalls": 172,
+    "stage2ProviderCalls": 259,
+    "providerCallDelta": 87,
+    "legacyDetailCalls": 144,
+    "stage2DetailCalls": 231,
+    "detailCallDelta": 87,
+    "legacyDuplicatedCalls": 0,
+    "stage2DuplicatedCalls": 0,
+    "legacyInsufficientRouteFrequency": {
+      "count": 1,
+      "total": 4,
+      "ratio": 0.25
+    },
+    "stage2InsufficientRouteFrequency": {
+      "count": 0,
+      "total": 4,
+      "ratio": 0
+    },
+    "deterministicStage2Output": true
+  }
+}

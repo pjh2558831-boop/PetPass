@@ -14,6 +14,14 @@ export const MAP_PLACE_CATEGORIES = [
 export type MapPlaceProvider = (typeof MAP_PLACE_PROVIDERS)[number];
 export type MapPlaceCategory = (typeof MAP_PLACE_CATEGORIES)[number];
 
+export const MAP_PLACE_PROVIDER_VISIBILITIES = [
+  "exposed",
+  "not_exposed",
+  "unknown",
+  "provider_unavailable",
+  "not_applicable",
+] as const;
+
 export const mapPlaceSchema = z.object({
   id: z.number().int().positive(),
   provider: z.enum(MAP_PLACE_PROVIDERS),
@@ -30,6 +38,7 @@ export const mapPlaceSchema = z.object({
   phone: z.string().nullable(),
   image_url: z.string().nullable(),
   source_url: z.string().nullable(),
+  provider_visibility: z.enum(MAP_PLACE_PROVIDER_VISIBILITIES),
   pet_evidence_status: z.enum([
     "official_verified",
     "official_unknown",
@@ -38,6 +47,7 @@ export const mapPlaceSchema = z.object({
   pet_evidence: z.record(z.unknown()),
   pet_notes: z.string().nullable(),
   fetched_at: z.string().datetime({ offset: true }),
+  expires_at: z.string().datetime({ offset: true }).nullable(),
 });
 
 export const mapPlaceListSchema = z.array(mapPlaceSchema);
