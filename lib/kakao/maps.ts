@@ -321,14 +321,14 @@ export function createKakaoMapController(
   );
   const nativeMarkerImages = new Map<KakaoMapMarkerKind, KakaoMarkerImage>();
   const nativeMarkerVisual = (kind: KakaoMapMarkerKind) => {
-    const visuals: Record<KakaoMapMarkerKind, { color: string; label: string; textColor?: string; shape: "diamond" | "circle" | "square" }> = {
-      catalog: { color: "#2f6fed", label: "공", shape: "diamond" },
-      "tourism-official": { color: "#2f6fed", label: "공", shape: "diamond" },
+    const visuals: Record<KakaoMapMarkerKind, { color: string; label: string; textColor?: string; shape: "pin" | "diamond" | "circle" | "square" }> = {
+      catalog: { color: "#236148", label: "공", shape: "pin" },
+      "tourism-official": { color: "#236148", label: "공", shape: "pin" },
       "business-confirmed": { color: "#267d73", label: "업", shape: "square" },
       "administrator-confirmed": { color: "#7356a8", label: "관", shape: "circle" },
       "user-reported": { color: "#a8692d", label: "제", shape: "circle" },
-      search: { color: "#f2b705", label: "?", textColor: "#3b2d00", shape: "circle" },
-      "kakao-candidate": { color: "#f2b705", label: "?", textColor: "#3b2d00", shape: "circle" },
+      search: { color: "#f4c84a", label: "K", textColor: "#493a0b", shape: "pin" },
+      "kakao-candidate": { color: "#f4c84a", label: "K", textColor: "#493a0b", shape: "pin" },
       shopping: { color: "#6d588c", label: "쇼", shape: "diamond" },
       itinerary: { color: "#b85f40", label: "", shape: "diamond" },
     };
@@ -339,7 +339,9 @@ export function createKakaoMapController(
     if (existing) return existing;
     const visual = nativeMarkerVisual(kind);
     const shape =
-      visual.shape === "diamond"
+      visual.shape === "pin"
+        ? '<path d="M15 1C7.27 1 1 7.27 1 15c0 10.5 14 20 14 20s14-9.5 14-20C29 7.27 22.73 1 15 1Z"/>'
+        : visual.shape === "diamond"
         ? '<path d="M15 1 29 15 15 35 1 15Z"/>'
         : visual.shape === "square"
           ? '<rect x="2" y="2" width="26" height="30" rx="6"/>'
@@ -369,7 +371,7 @@ export function createKakaoMapController(
             boxSizing: "border-box",
             border: "4px solid rgba(255,255,255,.96)",
             borderRadius: "50%",
-            background: "#2f6fed",
+            background: "#596760",
             boxShadow: "0 8px 22px rgba(35,97,72,.28)",
             color: "#fff",
             cursor: "pointer",

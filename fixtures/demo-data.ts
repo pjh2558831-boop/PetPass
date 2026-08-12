@@ -25,6 +25,7 @@ export const demoPreferences: TravelPreferences = {
   districtName: "해운대구",
   tripDate: "2026-08-15",
   tripType: "DAY_TRIP",
+  tripPace: "balanced",
   startTime: "10:00",
   preferredCategories: ["ATTRACTION", "RESTAURANT", "CAFE"],
 };

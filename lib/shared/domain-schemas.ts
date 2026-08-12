@@ -33,6 +33,7 @@ export const travelPreferencesSchema = z.object({
   districtName: z.string().min(1).optional(),
   tripDate: z.string().date(),
   tripType: z.enum(["DAY_TRIP", "OVERNIGHT"]),
+  tripPace: z.enum(["relaxed", "balanced", "packed"]).default("balanced"),
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
   preferredCategories: z.array(placeCategorySchema).min(1),
   departure: z

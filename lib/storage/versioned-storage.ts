@@ -1,4 +1,4 @@
-import type { ZodType } from "zod";
+import type { ZodType, ZodTypeDef } from "zod";
 
 export interface StorageLike {
   getItem(key: string): string | null;
@@ -19,7 +19,7 @@ function getBrowserStorage(): StorageLike | null {
 
 export function readVersionedValue<T>(
   key: string,
-  schema: ZodType<T>,
+  schema: ZodType<T, ZodTypeDef, unknown>,
   options: {
     version: number;
     migrations?: Record<number, Migration>;
@@ -77,7 +77,7 @@ export function readVersionedValue<T>(
 export function writeVersionedValue<T>(
   key: string,
   value: T,
-  schema: ZodType<T>,
+  schema: ZodType<T, ZodTypeDef, unknown>,
   options: { version: number; storage?: StorageLike | null },
 ): boolean {
   const storage = options.storage === undefined ? getBrowserStorage() : options.storage;

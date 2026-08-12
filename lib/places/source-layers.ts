@@ -3,7 +3,7 @@ import type { PlaceSourceLayerId } from "@/types/place-source";
 export const PLACE_SOURCE_LAYERS = [
   {
     id: "tourism_official",
-    label: "관광공사 공식 데이터",
+    label: "한국관광공사",
     markerKind: "tourism-official",
     defaultVisible: true,
     description: "한국관광공사 KorPetTourService2 원문 장소",
@@ -31,9 +31,9 @@ export const PLACE_SOURCE_LAYERS = [
   },
   {
     id: "kakao_discovery",
-    label: "카카오 검색 후보",
+    label: "카카오 검색",
     markerKind: "kakao-candidate",
-    defaultVisible: true,
+    defaultVisible: false,
     description: "반려동물 동반 여부를 별도로 확인해야 하는 검색 후보",
   },
 ] as const satisfies readonly {
