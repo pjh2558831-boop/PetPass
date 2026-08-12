@@ -1,8 +1,12 @@
 import "server-only";
 
-import { TourRequestCache } from "@/lib/tour-api/cache";
+import {
+  TourRequestCache,
+  type TourCacheOutcome,
+} from "@/lib/tour-api/cache";
 import { TourApiClient } from "@/lib/tour-api/client";
 import { TourProviderError } from "@/lib/tour-api/errors";
+import { normalizePetEvidence } from "@/lib/tour-api/pet-evidence";
 import {
   extractSafeHomepageUrl,
   getTourProviderName,
@@ -15,12 +19,19 @@ import {
   sanitizeProviderText,
 } from "@/lib/tour-api/normalizers";
 import type { ParsedTourResponse, TourItem } from "@/lib/tour-api/schemas";
+import {
+  normalizeProviderVisibility,
+  TOUR_VISIBILITY_MAX_PAGES,
+  TOUR_VISIBILITY_PROVIDER_PAGE_SIZE,
+} from "@/lib/tour-api/visibility";
 import type {
+  ProviderVisibilityResult,
   TourContentTypeId,
   TourOperationName,
   TourPetPolicyEvidence,
   TourPlaceDetail,
   TourPlaceList,
+  TourSourceReference,
 } from "@/types/place";
 
 const LIST_CACHE_TTL_MS = 5 * 60 * 1_000;
@@ -34,6 +45,57 @@ export interface TourPlacesQuery {
   pageSize: number;
 }
 
+export interface TourProviderVisibilityQuery {
+  regionCode: string;
+  districtCode?: string;
+  contentTypeId?: TourContentTypeId;
+  showFlag?: "0" | "1";
+  page: number;
+  pageSize: number;
+}
+
+export interface TourProviderVisibilityRecord {
+  contentId: string;
+  contentTypeId: TourContentTypeId;
+  visibility: ProviderVisibilityResult;
+}
+
+export interface TourProviderVisibilityPage {
+  records: TourProviderVisibilityRecord[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  source: TourSourceReference & { operation: "petTourSyncList2" };
+}
+
+export interface TourRequestObservation {
+  operation: TourOperationName;
+  cache: TourCacheOutcome;
+  /** True only for the caller that starts the upstream request. */
+  liveProviderCall: boolean;
+  /** Outcome of the logical provider operation; omitted for cache/coalescing events. */
+  providerOutcome?: "succeeded" | "failed";
+}
+
+export type TourRequestObserver = (event: TourRequestObservation) => void;
+
+export interface TourPlaceScheduleDetail {
+  summary: TourPlaceDetail["summary"];
+  overview: TourPlaceDetail["overview"];
+  homepageUrl: TourPlaceDetail["homepageUrl"];
+  operatingInformation: TourPlaceDetail["operatingInformation"];
+  checkInTime: TourPlaceDetail["checkInTime"];
+  checkOutTime: TourPlaceDetail["checkOutTime"];
+  restDayInformation: TourPlaceDetail["restDayInformation"];
+  parkingInformation: TourPlaceDetail["parkingInformation"];
+  reservationInformation: TourPlaceDetail["reservationInformation"];
+  contactInformation: TourPlaceDetail["contactInformation"];
+  providerModifiedTime: TourPlaceDetail["providerModifiedTime"];
+  introPetPolicyEvidence: TourPlaceDetail["introPetPolicyEvidence"];
+  sections: Pick<TourPlaceDetail["sections"], "common" | "intro">;
+  source: TourPlaceDetail["source"];
+}
+
 export interface TourClientLike {
   request(
     operation: TourOperationName,
@@ -42,10 +104,27 @@ export interface TourClientLike {
 }
 
 export interface TourPlaceService {
-  listPlaces(query: TourPlacesQuery): Promise<TourPlaceList>;
+  listPlaces(
+    query: TourPlacesQuery,
+    observe?: TourRequestObserver,
+  ): Promise<TourPlaceList>;
+  listProviderVisibility?(
+    query: TourProviderVisibilityQuery,
+    observe?: TourRequestObserver,
+  ): Promise<TourProviderVisibilityPage>;
+  getPlaceScheduleDetail?(
+    contentId: string,
+    contentTypeId?: TourContentTypeId,
+    observe?: TourRequestObserver,
+  ): Promise<TourPlaceScheduleDetail>;
+  completePlaceDetail?(
+    schedule: TourPlaceScheduleDetail,
+    observe?: TourRequestObserver,
+  ): Promise<TourPlaceDetail>;
   getPlaceDetail(
     contentId: string,
     contentTypeId?: TourContentTypeId,
+    observe?: TourRequestObserver,
   ): Promise<TourPlaceDetail>;
 }
 
@@ -69,6 +148,28 @@ function rawValue(item: TourItem | null, key: string): string | null {
   return typeof candidate === "string" && candidate !== "" ? candidate : null;
 }
 
+function visibilityRecord(
+  item: TourItem,
+  checkedAt: string,
+): TourProviderVisibilityRecord {
+  const contentId = rawValue(item, "contentid")?.trim() || null;
+  const contentTypeId = normalizeTourContentTypeId(
+    rawValue(item, "contenttypeid")?.trim(),
+  );
+  if (!contentId || !contentTypeId) {
+    throw new TourProviderError(
+      "INVALID_RESPONSE",
+      "공개 상태 목록의 필수 식별자가 올바르지 않습니다.",
+      { operation: "petTourSyncList2" },
+    );
+  }
+  return {
+    contentId,
+    contentTypeId,
+    visibility: normalizeProviderVisibility(item.showflag, checkedAt),
+  };
+}
+
 function unavailable(message: string) {
   return { status: "unavailable" as const, message };
 }
@@ -88,15 +189,45 @@ export class KoreaTourismService implements TourPlaceService {
     operation: TourOperationName,
     params: Record<string, string>,
     ttlMs: number,
+    observe?: TourRequestObserver,
   ): Promise<ParsedTourResponse> {
     return this.cache.getOrLoad(
       stableCacheKey(operation, params),
       ttlMs,
-      () => this.client.request(operation, params),
+      async () => {
+        try {
+          const response = await this.client.request(operation, params);
+          observe?.({
+            operation,
+            cache: "miss",
+            liveProviderCall: false,
+            providerOutcome: "succeeded",
+          });
+          return response;
+        } catch (error) {
+          observe?.({
+            operation,
+            cache: "miss",
+            liveProviderCall: false,
+            providerOutcome: "failed",
+          });
+          throw error;
+        }
+      },
+      Date.now(),
+      (cache) =>
+        observe?.({
+          operation,
+          cache,
+          liveProviderCall: cache === "miss",
+        }),
     );
   }
 
-  async listPlaces(query: TourPlacesQuery): Promise<TourPlaceList> {
+  async listPlaces(
+    query: TourPlacesQuery,
+    observe?: TourRequestObserver,
+  ): Promise<TourPlaceList> {
     const params: Record<string, string> = {
       lDongRegnCd: query.regionCode,
       pageNo: String(query.page),
@@ -110,6 +241,7 @@ export class KoreaTourismService implements TourPlaceService {
       "areaBasedList2",
       params,
       LIST_CACHE_TTL_MS,
+      observe,
     );
     const retrievedAt = this.now().toISOString();
     return {
@@ -129,30 +261,135 @@ export class KoreaTourismService implements TourPlaceService {
     };
   }
 
-  private getCommon(contentId: string): Promise<TourItem | null> {
+  async listProviderVisibility(
+    query: TourProviderVisibilityQuery,
+    observe?: TourRequestObserver,
+  ): Promise<TourProviderVisibilityPage> {
+    const params: Record<string, string> = {
+      lDongRegnCd: query.regionCode,
+      pageNo: String(query.page),
+      numOfRows: String(query.pageSize),
+      arrange: "A",
+    };
+    if (query.districtCode) params.lDongSignguCd = query.districtCode;
+    if (query.contentTypeId) params.contentTypeId = query.contentTypeId;
+    if (query.showFlag) params.showflag = query.showFlag;
+
+    const response = await this.requestCached(
+      "petTourSyncList2",
+      params,
+      LIST_CACHE_TTL_MS,
+      observe,
+    );
+    const checkedAt = this.now().toISOString();
+    return {
+      records: response.items.map((item) => visibilityRecord(item, checkedAt)),
+      page: response.pageNo || query.page,
+      pageSize: response.numOfRows || query.pageSize,
+      totalCount: response.totalCount,
+      source: {
+        provider: getTourProviderName(),
+        operation: "petTourSyncList2",
+        retrievedAt: checkedAt,
+      },
+    };
+  }
+
+  private async collectVisibilityRecords(
+    query: Omit<TourProviderVisibilityQuery, "page" | "pageSize">,
+    observe?: TourRequestObserver,
+  ): Promise<TourProviderVisibilityRecord[]> {
+    const providerQuery: TourProviderVisibilityQuery = {
+      ...query,
+      page: 1,
+      pageSize: TOUR_VISIBILITY_PROVIDER_PAGE_SIZE,
+    };
+    const first = await this.listProviderVisibility(providerQuery, observe);
+    const effectivePageSize =
+      first.pageSize || TOUR_VISIBILITY_PROVIDER_PAGE_SIZE;
+    const totalPages = Math.ceil(first.totalCount / effectivePageSize);
+    if (totalPages > TOUR_VISIBILITY_MAX_PAGES) {
+      throw new TourProviderError(
+        "INVALID_RESPONSE",
+        "공개 상태 목록이 안전한 페이지 조회 한도를 초과했습니다.",
+        { operation: "petTourSyncList2" },
+      );
+    }
+
+    const records = [...first.records];
+    for (let page = 2; page <= totalPages; page += 1) {
+      const next = await this.listProviderVisibility(
+        { ...providerQuery, page },
+        observe,
+      );
+      records.push(...next.records);
+    }
+    return records;
+  }
+
+  private async resolveProviderVisibility(
+    contentId: string,
+    regionCode: string,
+    contentTypeId: TourContentTypeId,
+    observe?: TourRequestObserver,
+  ): Promise<ProviderVisibilityResult> {
+    const exposedRecords = await this.collectVisibilityRecords({
+      regionCode,
+      contentTypeId,
+      showFlag: "1",
+    }, observe);
+    const exposed = exposedRecords.find(
+      (record) =>
+        record.contentId === contentId && record.contentTypeId === contentTypeId,
+    );
+    if (exposed) return exposed.visibility;
+
+    const hiddenRecords = await this.collectVisibilityRecords({
+      regionCode,
+      contentTypeId,
+      showFlag: "0",
+    }, observe);
+    const hidden = hiddenRecords.find(
+      (record) =>
+        record.contentId === contentId && record.contentTypeId === contentTypeId,
+    );
+    return hidden?.visibility ?? normalizeProviderVisibility(undefined, this.now().toISOString());
+  }
+
+  private getCommon(
+    contentId: string,
+    observe?: TourRequestObserver,
+  ): Promise<TourItem | null> {
     return this.requestCached(
       "detailCommon2",
       { contentId },
       DETAIL_CACHE_TTL_MS,
+      observe,
     ).then(firstItem);
   }
 
   private getIntro(
     contentId: string,
     contentTypeId: TourContentTypeId,
+    observe?: TourRequestObserver,
   ): Promise<TourItem | null> {
     return this.requestCached(
       "detailIntro2",
       { contentId, contentTypeId },
       DETAIL_CACHE_TTL_MS,
+      observe,
     ).then(firstItem);
   }
 
-  private getPet(contentId: string): Promise<TourItem | null> {
+  private getPet(
+    contentId: string,
+    observe?: TourRequestObserver,
+  ): Promise<TourItem | null> {
     return this.requestCached(
       "detailPetTour2",
       { contentId },
       DETAIL_CACHE_TTL_MS,
+      observe,
     ).then(firstItem);
   }
 
@@ -172,76 +409,83 @@ export class KoreaTourismService implements TourPlaceService {
     return evidence;
   }
 
-  async getPlaceDetail(
+  async getPlaceScheduleDetail(
     contentId: string,
     requestedContentTypeId?: TourContentTypeId,
-  ): Promise<TourPlaceDetail> {
-    let commonResult: PromiseSettledResult<TourItem | null>;
-    let introResult: PromiseSettledResult<TourItem | null>;
-    let petResult: PromiseSettledResult<TourItem | null>;
-
-    if (requestedContentTypeId) {
-      [commonResult, introResult, petResult] = await Promise.allSettled([
-        this.getCommon(contentId),
-        this.getIntro(contentId, requestedContentTypeId),
-        this.getPet(contentId),
-      ]);
-    } else {
-      [commonResult, petResult] = await Promise.allSettled([
-        this.getCommon(contentId),
-        this.getPet(contentId),
-      ]);
-      const commonItem =
-        commonResult.status === "fulfilled" ? commonResult.value : null;
-      const derivedContentTypeId = normalizeTourContentTypeId(
-        rawValue(commonItem, "contenttypeid"),
-      );
-      introResult = derivedContentTypeId
-        ? await Promise.resolve(
-            this.getIntro(contentId, derivedContentTypeId),
-          ).then(
-            (value): PromiseSettledResult<TourItem | null> => ({
-              status: "fulfilled",
-              value,
-            }),
-            (reason): PromiseSettledResult<TourItem | null> => ({
-              status: "rejected",
-              reason,
-            }),
-          )
-        : {
-            status: "rejected",
-            reason: new TourProviderError(
-              "INVALID_RESPONSE",
-              "상세 소개 조회에 필요한 콘텐츠 유형을 확인하지 못했습니다.",
-              { operation: "detailIntro2" },
-            ),
-          };
-    }
-
-    const commonItem =
-      commonResult.status === "fulfilled" ? commonResult.value : null;
-    const introItem = introResult.status === "fulfilled" ? introResult.value : null;
-    const petItem = petResult.status === "fulfilled" ? petResult.value : null;
-    if (!commonItem && !introItem && !petItem) {
-      const rejected = [commonResult, introResult, petResult].find(
-        (result): result is PromiseRejectedResult => result.status === "rejected",
-      );
-      if (rejected?.reason instanceof TourProviderError) throw rejected.reason;
+    observe?: TourRequestObserver,
+  ): Promise<TourPlaceScheduleDetail> {
+    const commonItem = await this.getCommon(contentId, observe);
+    if (!commonItem) {
       throw new TourProviderError(
         "NOT_FOUND",
         "관광지 상세 정보를 찾지 못했습니다.",
         { operation: "detailCommon2" },
       );
     }
+    const resolvedContentTypeId = normalizeTourContentTypeId(
+      rawValue(commonItem, "contenttypeid"),
+    );
+    if (!resolvedContentTypeId) {
+      throw new TourProviderError(
+        "INVALID_RESPONSE",
+        "관광지의 콘텐츠 유형을 확인하지 못했습니다.",
+        { operation: "detailCommon2" },
+      );
+    }
+    if (
+      requestedContentTypeId &&
+      requestedContentTypeId !== resolvedContentTypeId
+    ) {
+      throw new TourProviderError(
+        "INVALID_REQUEST",
+        "요청한 콘텐츠 유형이 제공자 상세 정보와 일치하지 않습니다.",
+        { operation: "detailCommon2" },
+      );
+    }
+    const regionCode =
+      rawValue(commonItem, "lDongRegnCd") ??
+      rawValue(commonItem, "ldongregncd") ??
+      rawValue(commonItem, "areacode");
+    if (!regionCode) {
+      throw new TourProviderError(
+        "INVALID_RESPONSE",
+        "관광지의 법정동 지역 코드를 확인하지 못했습니다.",
+        { operation: "detailCommon2" },
+      );
+    }
+
+    const providerVisibility = await this.resolveProviderVisibility(
+      contentId,
+      regionCode,
+      resolvedContentTypeId,
+      observe,
+    );
+    if (providerVisibility.status === "not_exposed") {
+      throw new TourProviderError(
+        "NOT_FOUND",
+        "관광지 상세 정보를 찾지 못했습니다.",
+        { operation: "petTourSyncList2" },
+      );
+    }
+    if (providerVisibility.status !== "exposed") {
+      throw new TourProviderError(
+        "INVALID_RESPONSE",
+        "관광지 공개 상태를 확인하지 못했습니다.",
+        { operation: "petTourSyncList2" },
+      );
+    }
+
+    const introResult = await Promise.resolve(
+      this.getIntro(contentId, resolvedContentTypeId, observe),
+    ).then(
+      (value) => ({ status: "fulfilled" as const, value }),
+      () => ({ status: "rejected" as const }),
+    );
+    const introItem = introResult.status === "fulfilled" ? introResult.value : null;
 
     const retrievedAt = this.now().toISOString();
-    const resolvedContentTypeId =
-      normalizeTourContentTypeId(rawValue(commonItem, "contenttypeid")) ??
-      requestedContentTypeId ??
-      normalizeTourContentTypeId(rawValue(introItem, "contenttypeid"));
     const summary = normalizeTourPlaceSummary(
-      commonItem ?? introItem ?? petItem ?? {},
+      commonItem,
       {
         operation: "detailCommon2",
         retrievedAt,
@@ -258,10 +502,6 @@ export class KoreaTourismService implements TourPlaceService {
     }
 
     const intro = normalizeTourIntroDetails(introItem);
-    const petPolicyEvidence = normalizePetPolicyEvidence(petItem, {
-      contentId,
-      retrievedAt,
-    });
     const trustedProviderContentTypeId = normalizeTourContentTypeId(
       summary.providerContentTypeId,
     );
@@ -273,26 +513,20 @@ export class KoreaTourismService implements TourPlaceService {
     const providerModifiedTime =
       rawValue(commonItem, "modifiedtime") ??
       rawValue(introItem, "modifiedtime") ??
-      rawValue(petItem, "modifiedtime");
+      null;
 
     return {
-      summary,
+      summary: { ...summary, providerVisibility },
       overview: sanitizeProviderText(rawValue(commonItem, "overview")),
       homepageUrl: extractSafeHomepageUrl(rawValue(commonItem, "homepage")),
       ...intro,
       providerModifiedTime,
-      petPolicyEvidence,
       introPetPolicyEvidence,
       sections: {
-        common: commonResult.status === "fulfilled"
-          ? available()
-          : unavailable("기본 상세 정보를 불러오지 못했습니다."),
+        common: available(),
         intro: introResult.status === "fulfilled"
           ? available()
           : unavailable("운영 상세 정보를 불러오지 못했습니다."),
-        petPolicy: petResult.status === "fulfilled"
-          ? available()
-          : unavailable("반려동물 동반 원문 정보를 불러오지 못했습니다."),
       },
       source: {
         provider: getTourProviderName(),
@@ -302,6 +536,55 @@ export class KoreaTourismService implements TourPlaceService {
         retrievedAt,
       },
     };
+  }
+
+  async completePlaceDetail(
+    schedule: TourPlaceScheduleDetail,
+    observe?: TourRequestObserver,
+  ): Promise<TourPlaceDetail> {
+    const contentId = schedule.summary.contentId;
+    const petResult = await Promise.resolve(this.getPet(contentId, observe)).then(
+      (value) => ({ status: "fulfilled" as const, value }),
+      () => ({ status: "rejected" as const }),
+    );
+    const petItem = petResult.status === "fulfilled" ? petResult.value : null;
+    const retrievedAt = this.now().toISOString();
+    const petPolicyEvidence = normalizePetPolicyEvidence(petItem, {
+      contentId,
+      retrievedAt,
+    });
+    const normalizedPetEvidence = normalizePetEvidence(petItem, {
+      contentId,
+      retrievedAt,
+      providerAvailable: petResult.status === "fulfilled",
+    });
+    return {
+      ...schedule,
+      providerModifiedTime:
+        schedule.providerModifiedTime ?? rawValue(petItem, "modifiedtime"),
+      petPolicyEvidence,
+      normalizedPetEvidence,
+      sections: {
+        ...schedule.sections,
+        petPolicy:
+          petResult.status === "fulfilled"
+            ? available()
+            : unavailable("반려동물 동반 원문 정보를 불러오지 못했습니다."),
+      },
+    };
+  }
+
+  async getPlaceDetail(
+    contentId: string,
+    requestedContentTypeId?: TourContentTypeId,
+    observe?: TourRequestObserver,
+  ): Promise<TourPlaceDetail> {
+    const schedule = await this.getPlaceScheduleDetail(
+      contentId,
+      requestedContentTypeId,
+      observe,
+    );
+    return this.completePlaceDetail(schedule, observe);
   }
 }
 

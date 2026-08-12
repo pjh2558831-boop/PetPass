@@ -38,6 +38,7 @@ export const tourItemSchema = z
     lclssystm3: providerStringSchema,
     overview: providerStringSchema,
     homepage: providerStringSchema,
+    showflag: providerStringSchema,
     acmpyTypeCd: providerStringSchema,
     acmpyPsblCpam: providerStringSchema,
     acmpyNeedMtr: providerStringSchema,

@@ -1,0 +1,31 @@
+import "server-only";
+
+export const ROUTE_OBJECTIVE_V1_CONFIG = {
+  version: "route-objective-v1",
+  positionDiscount: [1, 0.95, 0.9, 0.82, 0.74],
+  categoryCoveragePerCategory: 100,
+  categoryCoverageMaximum: 300,
+  drivingPenaltyPerMinute: 5,
+  waitingFreeMinutes: 15,
+  waitingPenaltyPerMinute: 2,
+  consecutiveCategoryPenalty: 120,
+  unknownSchedulePenalty: 150,
+  paceDeviationPenaltyPerStop: 120,
+  mealAlignmentBonus: 100,
+  mealOutsideWindowPenalty: 80,
+  minimumMealWindowOverlapMinutes: 30,
+  restAfterActivityBonus: 60,
+  accommodationFinalBonus: 80,
+  popularAnchorThreshold: 0.7,
+  popularAnchorBonus: 100,
+  explorationBonus: 60,
+  explorationMinimumPreferenceFit: 0.7,
+  explorationMinimumTrustScore: 70,
+  explorationMaximumExposure: 0.3,
+  detourFreeRatio: 1.15,
+  detourPenaltyScale: 600,
+  detourPenaltyMaximum: 300,
+  lowerTravelAlternativeMinimumRatio: 0.9,
+  popularityAlternativeMinimumRatio: 0.85,
+} as const;
+

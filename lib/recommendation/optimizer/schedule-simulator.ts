@@ -1,0 +1,106 @@
+import "server-only";
+
+import { ROUTE_SOLVER_V1_CONFIG } from "@/lib/recommendation/config/route-solver-v1";
+import type {
+  RouteOptimizationCandidate,
+  RouteOptimizationTripRequest,
+  ScheduledRouteVisit,
+} from "@/lib/recommendation/types/route-optimizer";
+import type { TravelMatrixEdge } from "@/lib/travel/types";
+
+const DAY_MS = 86_400_000;
+
+export function tripStartMs(request: RouteOptimizationTripRequest): number {
+  const parsed = Date.parse(`${request.date}T${request.startTime}:00+09:00`);
+  if (!Number.isFinite(parsed)) throw new TypeError("Invalid Asia/Seoul trip start.");
+  return parsed;
+}
+
+export function isUsableTravelEdge(
+  edge: TravelMatrixEdge | undefined,
+): edge is TravelMatrixEdge & { distanceMeters: number; durationSeconds: number } {
+  return Boolean(
+    edge &&
+      edge.status === "resolved" &&
+      edge.distanceMeters !== null &&
+      edge.durationSeconds !== null &&
+      edge.confidence !== "estimated_only" &&
+      edge.source !== "haversine_lower_bound",
+  );
+}
+
+export function koreaMinuteOfDay(epochMs: number): number {
+  const minutes = Math.floor((epochMs + 9 * 60 * 60 * 1000) / 60_000);
+  return ((minutes % (24 * 60)) + 24 * 60) % (24 * 60);
+}
+
+export function appendScheduledVisit(input: {
+  candidate: RouteOptimizationCandidate;
+  edge: TravelMatrixEdge;
+  currentTimeMs: number;
+  serviceDayStartMs: number;
+  tripRequest: RouteOptimizationTripRequest;
+}): { visit: ScheduledRouteVisit; unknownIncrement: number } | null {
+  const timing = appendScheduledVisitTiming(input);
+  if (!timing) return null;
+  return {
+    unknownIncrement: timing.unknownIncrement,
+    visit: {
+      candidate: input.candidate,
+      ...timing.visit,
+    },
+  };
+}
+
+export function appendScheduledVisitTiming(input: {
+  candidate: Pick<RouteOptimizationCandidate, "schedule" | "dwellDurationMinutes">;
+  edge: TravelMatrixEdge;
+  currentTimeMs: number;
+  serviceDayStartMs: number;
+  tripRequest: RouteOptimizationTripRequest;
+}): {
+  visit: Omit<ScheduledRouteVisit, "candidate">;
+  unknownIncrement: number;
+} | null {
+  if (!isUsableTravelEdge(input.edge)) return null;
+  const arrivalAtMs = input.currentTimeMs + input.edge.durationSeconds * 1000;
+  let visitStartsAtMs = arrivalAtMs;
+  let unknownIncrement = 0;
+  if (input.candidate.schedule.status === "known") {
+    const arrivalMinutes = koreaMinuteOfDay(arrivalAtMs);
+    const window = input.candidate.schedule.windows.find((item) => {
+      const start = Math.max(arrivalMinutes, item.startMinutes);
+      const finalEntryOkay =
+        item.finalEntryMinutes === null || start <= item.finalEntryMinutes;
+      return (
+        finalEntryOkay &&
+        start + input.candidate.dwellDurationMinutes <= item.endMinutes
+      );
+    });
+    if (!window) return null;
+    const serviceMidnightMs =
+      input.serviceDayStartMs - koreaMinuteOfDay(input.serviceDayStartMs) * 60_000;
+    visitStartsAtMs =
+      serviceMidnightMs + Math.max(arrivalMinutes, window.startMinutes) * 60_000;
+  } else {
+    unknownIncrement = 1;
+  }
+  const departureAtMs =
+    visitStartsAtMs + input.candidate.dwellDurationMinutes * 60_000;
+  const pace = ROUTE_SOLVER_V1_CONFIG.pace[input.tripRequest.tripPace];
+  if (departureAtMs - input.serviceDayStartMs > pace.maxDurationMinutes * 60_000) {
+    return null;
+  }
+  if (departureAtMs >= input.serviceDayStartMs + DAY_MS) return null;
+  return {
+    unknownIncrement,
+    visit: {
+      arrivalAtMs,
+      visitStartsAtMs,
+      departureAtMs,
+      travelSeconds: input.edge.durationSeconds,
+      travelDistanceMeters: input.edge.distanceMeters,
+      waitSeconds: Math.max(0, Math.round((visitStartsAtMs - arrivalAtMs) / 1000)),
+    },
+  };
+}

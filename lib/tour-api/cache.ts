@@ -5,6 +5,10 @@ interface CacheEntry<T> {
   value: T;
 }
 
+export type TourCacheOutcome = "hit" | "miss" | "coalesced";
+
+export type TourCacheObserver = (outcome: TourCacheOutcome) => void;
+
 export class TourRequestCache {
   private readonly values = new Map<string, CacheEntry<unknown>>();
   private readonly pending = new Map<string, Promise<unknown>>();
@@ -14,12 +18,21 @@ export class TourRequestCache {
     ttlMs: number,
     loader: () => Promise<T>,
     now = Date.now(),
+    observe?: TourCacheObserver,
   ): Promise<T> {
     const cached = this.values.get(key);
-    if (cached && cached.expiresAt > now) return cached.value as T;
+    if (cached && cached.expiresAt > now) {
+      observe?.("hit");
+      return cached.value as T;
+    }
 
     const active = this.pending.get(key);
-    if (active) return active as Promise<T>;
+    if (active) {
+      observe?.("coalesced");
+      return active as Promise<T>;
+    }
+
+    observe?.("miss");
 
     const request = loader()
       .then((value) => {

@@ -5,7 +5,12 @@ import {
   type BusanDistrictCode,
 } from "@/lib/tour-api/catalog";
 import { TourProviderError } from "@/lib/tour-api/errors";
-import type { TourPlaceService } from "@/lib/tour-api/service";
+import type {
+  TourPlaceService,
+  TourProviderVisibilityPage,
+  TourProviderVisibilityRecord,
+  TourRequestObserver,
+} from "@/lib/tour-api/service";
 import type {
   TourContentTypeId,
   TourPlaceList,
@@ -32,6 +37,7 @@ async function collectContentType(
   service: TourPlaceService,
   query: TourCatalogCollectionQuery,
   contentTypeId: TourContentTypeId,
+  observe?: TourRequestObserver,
 ): Promise<TourPlaceList[]> {
   const providerQuery = {
     regionCode: query.regionCode,
@@ -40,7 +46,27 @@ async function collectContentType(
     page: 1,
     pageSize: TOUR_CATALOG_PROVIDER_PAGE_SIZE,
   };
-  const first = await service.listPlaces(providerQuery);
+  const visibilityRequest = service.listProviderVisibility?.bind(service);
+  if (!visibilityRequest) {
+    throw new TourProviderError(
+      "INVALID_RESPONSE",
+      "관광지 공개 상태 조회 기능을 사용할 수 없습니다.",
+      { operation: "petTourSyncList2" },
+    );
+  }
+
+  const visibilityQuery = {
+    ...providerQuery,
+    showFlag: "1" as const,
+  };
+  const [first, firstVisibility] = await Promise.all([
+    observe
+      ? service.listPlaces(providerQuery, observe)
+      : service.listPlaces(providerQuery),
+    observe
+      ? visibilityRequest(visibilityQuery, observe)
+      : visibilityRequest(visibilityQuery),
+  ]);
   const effectivePageSize = first.pageSize || TOUR_CATALOG_PROVIDER_PAGE_SIZE;
   const totalPages = Math.ceil(first.totalCount / effectivePageSize);
 
@@ -52,16 +78,55 @@ async function collectContentType(
     );
   }
 
+  const visibilityPageSize =
+    firstVisibility.pageSize || TOUR_CATALOG_PROVIDER_PAGE_SIZE;
+  const visibilityTotalPages = Math.ceil(
+    firstVisibility.totalCount / visibilityPageSize,
+  );
+  if (visibilityTotalPages > TOUR_CATALOG_MAX_PAGES_PER_CONTENT_TYPE) {
+    throw new TourProviderError(
+      "INVALID_RESPONSE",
+      "공개 상태 목록이 안전한 페이지 조회 한도를 초과했습니다.",
+      { operation: "petTourSyncList2" },
+    );
+  }
+
+  const visibilityPages: TourProviderVisibilityPage[] = [firstVisibility];
+  for (let page = 2; page <= visibilityTotalPages; page += 1) {
+    visibilityPages.push(
+      observe
+        ? await visibilityRequest({ ...visibilityQuery, page }, observe)
+        : await visibilityRequest({ ...visibilityQuery, page }),
+    );
+  }
+  const exposedByContentId = new Map<string, TourProviderVisibilityRecord>();
+  for (const record of visibilityPages.flatMap(({ records }) => records)) {
+    if (
+      record.contentTypeId === contentTypeId &&
+      record.visibility.status === "exposed"
+    ) {
+      exposedByContentId.set(record.contentId, record);
+    }
+  }
+
   const keepRequestedType = (list: TourPlaceList): TourPlaceList => ({
     ...list,
-    places: list.places.filter(
-      (place) => place.contentTypeId === contentTypeId,
-    ),
+    places: list.places.flatMap((place) => {
+      if (place.contentTypeId !== contentTypeId) return [];
+      const record = exposedByContentId.get(place.contentId);
+      return record
+        ? [{ ...place, providerVisibility: record.visibility }]
+        : [];
+    }),
   });
   const pages = [keepRequestedType(first)];
   for (let page = 2; page <= totalPages; page += 1) {
     pages.push(
-      keepRequestedType(await service.listPlaces({ ...providerQuery, page })),
+      keepRequestedType(
+        observe
+          ? await service.listPlaces({ ...providerQuery, page }, observe)
+          : await service.listPlaces({ ...providerQuery, page }),
+      ),
     );
   }
   return pages;
@@ -82,8 +147,9 @@ function deduplicateAndSort(places: TourPlaceSummary[]): TourPlaceSummary[] {
 export async function listTourCatalog(
   service: TourPlaceService,
   query: TourCatalogQuery,
+  observe?: TourRequestObserver,
 ): Promise<TourPlaceList> {
-  const collection = await collectTourCatalog(service, query);
+  const collection = await collectTourCatalog(service, query, observe);
   const offset = (query.page - 1) * query.pageSize;
 
   return {
@@ -97,13 +163,14 @@ export async function listTourCatalog(
 export async function collectTourCatalog(
   service: TourPlaceService,
   query: TourCatalogCollectionQuery,
+  observe?: TourRequestObserver,
 ): Promise<TourPlaceList> {
   const contentTypeIds = query.contentTypeId
     ? [query.contentTypeId]
     : [...TOUR_DEFAULT_CATALOG_CONTENT_TYPE_IDS];
   const pageGroups = await Promise.all(
     contentTypeIds.map((contentTypeId) =>
-      collectContentType(service, query, contentTypeId),
+      collectContentType(service, query, contentTypeId, observe),
     ),
   );
   const lists = pageGroups.flat();

@@ -15,6 +15,7 @@ const IMPLEMENTED_OPERATIONS = new Set<TourOperationName>([
   "detailCommon2",
   "detailIntro2",
   "detailPetTour2",
+  "petTourSyncList2",
 ]);
 
 export interface TourApiClientOptions {
@@ -129,6 +130,7 @@ export class TourApiClient {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       try {
         const response = await this.fetchImpl(url, {
+          method: "GET",
           headers: { Accept: "application/json" },
           signal: AbortSignal.timeout(this.timeoutMs),
           cache: "no-store",
