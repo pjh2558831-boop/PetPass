@@ -60,6 +60,31 @@ function parsed(items: TourItem[]): ParsedTourResponse {
   return { items, numOfRows: 20, pageNo: 1, totalCount: items.length, resultCode: "0000" };
 }
 
+function exposedVisibilityPage(contentId: string, contentTypeId: "12" | "38" | "39") {
+  const checkedAt = "2026-08-05T00:00:00.000Z";
+  return {
+    records: [{
+      contentId,
+      contentTypeId,
+      visibility: {
+        status: "exposed" as const,
+        providerField: "showflag",
+        providerValue: "1",
+        checkedAt,
+        reasonCodes: [],
+      },
+    }],
+    page: 1,
+    pageSize: 50,
+    totalCount: 1,
+    source: {
+      provider: "Korea Tourism Organization" as const,
+      operation: "petTourSyncList2" as const,
+      retrievedAt: checkedAt,
+    },
+  };
+}
+
 describe("Korea Tourism Organization provider", () => {
   it.each([
     "https://apis.data.go.kr/B551011/KorPetTourService2",
@@ -413,6 +438,7 @@ describe("Korea Tourism Organization provider", () => {
         totalCount: 1,
         source: summary.source,
       })),
+      listProviderVisibility: vi.fn(async () => exposedVisibilityPage("3801", "38")),
       getPlaceDetail: vi.fn(),
     } as unknown as TourPlaceService;
     const response = await createTourPlacesHandler(service)(
@@ -449,6 +475,7 @@ describe("Korea Tourism Organization provider", () => {
           { retryable: true, operation: "areaBasedList2" },
         );
       }),
+      listProviderVisibility: vi.fn(async () => exposedVisibilityPage("3801", "38")),
       getPlaceDetail: vi.fn(),
     } as unknown as TourPlaceService;
     const response = await createTourPlacesHandler(service)(
@@ -469,7 +496,10 @@ describe("Korea Tourism Organization provider", () => {
     const client: TourClientLike = {
       request: vi.fn(async (operation) => {
         if (operation === "detailCommon2") {
-          return parsed([{ contentid: "100", contenttypeid: "39", title: "부산 음식점" }]);
+          return parsed([{ contentid: "100", contenttypeid: "39", lDongRegnCd: "26", title: "부산 음식점" }]);
+        }
+        if (operation === "petTourSyncList2") {
+          return parsed([{ contentid: "100", contenttypeid: "39", showflag: "1" }]);
         }
         if (operation === "detailIntro2") {
           throw new TourProviderError("TIMEOUT", "timeout", { operation });
@@ -498,7 +528,10 @@ describe("Korea Tourism Organization provider", () => {
     const client: TourClientLike = {
       request: vi.fn(async (operation) => {
         if (operation === "detailCommon2") {
-          return parsed([{ contentid: "100", contenttypeid: "38" }]);
+          return parsed([{ contentid: "100", contenttypeid: "38", lDongRegnCd: "26" }]);
+        }
+        if (operation === "petTourSyncList2") {
+          return parsed([{ contentid: "100", contenttypeid: "38", showflag: "1" }]);
         }
         if (operation === "detailIntro2") return parsed([]);
         if (operation === "detailPetTour2") return parsed([]);
@@ -512,11 +545,14 @@ describe("Korea Tourism Organization provider", () => {
     expect(detail.introPetPolicyEvidence).toBeNull();
   });
 
-  it("returns a partial assessment from trusted intro fallback without licensing influence", async () => {
+  it("uses provider detail identity despite a spoofed browser type hint", async () => {
     const client: TourClientLike = {
       request: vi.fn(async (operation) => {
         if (operation === "detailCommon2") {
-          return parsed([{ contentid: "100", contenttypeid: "12", title: "부산 관광지" }]);
+          return parsed([{ contentid: "100", contenttypeid: "12", lDongRegnCd: "26", title: "부산 관광지" }]);
+        }
+        if (operation === "petTourSyncList2") {
+          return parsed([{ contentid: "100", contenttypeid: "12", showflag: "1" }]);
         }
         if (operation === "detailIntro2") {
           return parsed([{ contentid: "100", contenttypeid: "12", chkpet: "반려동물 동반 가능" }]);
@@ -540,7 +576,7 @@ describe("Korea Tourism Organization provider", () => {
       licenseMatcher,
       () => new Date("2026-08-05T01:00:00.000Z"),
     )(
-      new Request("http://localhost/api/tour/places/100?contentTypeId=12"),
+      new Request("http://localhost/api/tour/places/100?contentTypeId=39"),
       { params: Promise.resolve({ contentId: "100" }) },
     );
     const body = await response.json();
@@ -551,6 +587,10 @@ describe("Korea Tourism Organization provider", () => {
       evaluatedAt: "2026-08-05T01:00:00.000Z",
     });
     expect(licenseMatcher.matchTourPlace).toHaveBeenCalledOnce();
+    expect(client.request).toHaveBeenCalledWith("detailIntro2", {
+      contentId: "100",
+      contentTypeId: "12",
+    });
     expect(body.data.sourceRecords).toEqual([
       expect.objectContaining({
         layer: "tourism_official",

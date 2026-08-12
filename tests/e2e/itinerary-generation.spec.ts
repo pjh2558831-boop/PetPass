@@ -1,91 +1,93 @@
 import { expect, test } from "@playwright/test";
 
 const BASE_REQUEST = {
-  scope: { type: "busan" },
-  start: {
-    coordinates: { latitude: 35.115, longitude: 129.04 },
+  departure: {
     label: "부산역",
+    latitude: 35.115,
+    longitude: 129.04,
+    source: "kakao_place_search",
   },
-  travelDate: "2026-08-06",
-  startTime: "10:00",
-  planning: { desiredStopCount: 2 },
-  petSize: "SMALL",
-  indoorAccessPreference: "any",
-  selectedCategories: ["attraction", "leisure", "food"],
-  includeShopping: false,
+  trip: {
+    regionId: "busan",
+    districtId: null,
+    date: "2026-08-15",
+    startTime: "10:00",
+    tripType: "day_trip",
+    tripPace: "relaxed",
+    selectedCategories: ["attraction", "food", "leisure"],
+    roundTrip: false,
+  },
+  pet: {
+    name: "보리",
+    species: "DOG",
+    size: "SMALL",
+    availableEquipment: { carrier: true, leash: true, muzzle: false },
+    acceptsOutdoorOnlyPlaces: true,
+  },
 };
 
-test("builds real-boundary itineraries from Tourism details and Kakao directions", async ({
+test("runs the canonical Stage 2 → 3 → 4 boundary and returns only a validated strict-Tourism route", async ({
   request,
 }) => {
   const response = await request.post("/api/itineraries/generate", {
     data: BASE_REQUEST,
+    headers: { "x-forwarded-for": "stage5-product-route" },
   });
-  expect(response.status()).toBe(200);
   const body = await response.json();
-  expect(body.ok).toBe(true);
-  expect(body.data.state).toBe("ready");
-  expect(body.data.itineraries.length).toBeGreaterThan(0);
-  expect(body.data.itineraries.length).toBeLessThanOrEqual(3);
-  expect(body.data.providerCalls.detail).toBeLessThanOrEqual(
-    body.data.limits.maxDetailCalls,
-  );
-  expect(body.data.providerCalls.directions).toBeLessThanOrEqual(
-    body.data.limits.maxDirectionsCalls,
-  );
-  for (const itinerary of body.data.itineraries) {
-    expect(itinerary.totalDistanceMeters).toBeGreaterThan(0);
-    expect(itinerary.totalDurationSeconds).toBeGreaterThan(0);
-    expect(itinerary.geometry.length).toBeGreaterThan(1);
-    for (const stop of itinerary.stops) {
-      expect(stop.contentId).not.toContain("demo-");
-      expect(["allowed", "conditional"]).toContain(stop.petAccess.verdict);
-      expect(stop.providerContentTypeId).toBe(stop.contentTypeId);
-      expect(stop).not.toHaveProperty("licensing");
-    }
-  }
-  expect(JSON.stringify(body)).not.toContain("serviceKey");
-  expect(JSON.stringify(body)).not.toContain("Authorization");
+  expect(response.status(), body.status).toBe(200);
+  expect(body).toMatchObject({
+    status: "ready",
+    apiVersion: "route-recommendation-response-v1",
+    optimality: "optimal_within_candidate_set_current_matrix",
+    route: {
+      kind: "optimized",
+      routeSummary: { stopCount: 3 },
+      temporalBasis: {
+        searchMatrix: "traffic_independent",
+        finalRoute: "future_departure",
+      },
+    },
+  });
+  const serialized = JSON.stringify(body);
+  expect(serialized).not.toContain("serviceKey");
+  expect(serialized).not.toContain("Authorization");
+  expect(serialized).not.toContain("kakao-candidate");
+  expect(body.route.stops).toHaveLength(3);
+  expect(
+    body.route.stops.every(
+      (stop: { source?: string }) => stop.source === "tourism_service2",
+    ),
+  ).toBe(true);
+  expect(body.route.geometry.length).toBeGreaterThan(1);
+  expect(body).not.toHaveProperty("itineraries");
+  expect(body).not.toHaveProperty("limits");
 });
 
-test("changes scope and category results while keeping shopping opt-in", async ({
+test("rejects legacy parameters, arbitrary provider URLs, and client-owned limits", async ({
   request,
 }) => {
-  const district = await request.post("/api/itineraries/generate", {
-    data: {
+  for (const body of [
+    {
       ...BASE_REQUEST,
-      scope: { type: "district", districtCode: "350" },
-      selectedCategories: ["attraction", "food"],
+      planning: { desiredStopCount: 5 },
     },
-  });
-  const shoppingOff = await request.post("/api/itineraries/generate", {
-    data: {
+    {
       ...BASE_REQUEST,
-      selectedCategories: ["shopping"],
-      includeShopping: false,
+      providerUrl: "https://example.invalid/upstream",
     },
-  });
-  const shoppingOn = await request.post("/api/itineraries/generate", {
-    data: {
+    {
       ...BASE_REQUEST,
-      planning: { desiredStopCount: 2 },
-      selectedCategories: ["shopping", "attraction"],
-      includeShopping: true,
+      maxCandidates: 999,
     },
-  });
-
-  const districtBody = await district.json();
-  const shoppingOffBody = await shoppingOff.json();
-  const shoppingOnBody = await shoppingOn.json();
-  expect(districtBody.data.request.scope).toMatchObject({
-    type: "district",
-    districtCode: "350",
-  });
-  expect(shoppingOffBody.data.itineraries).toEqual([]);
-  expect(shoppingOffBody.data.exclusionCounts.shopping_disabled).toBe(1);
-  expect(
-    shoppingOnBody.data.itineraries
-      .flatMap((itinerary: { stops: Array<{ category: string }> }) => itinerary.stops)
-      .some((stop: { category: string }) => stop.category === "shopping"),
-  ).toBe(true);
+  ]) {
+    const response = await request.post("/api/itineraries/generate", {
+      data: body,
+      headers: { "x-forwarded-for": `stage5-invalid-${Math.random()}` },
+    });
+    expect(response.status()).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      status: "invalid_request",
+      retryable: false,
+    });
+  }
 });

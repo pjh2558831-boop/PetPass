@@ -393,6 +393,47 @@ function tourismResponse(url: URL): Response {
       },
     );
   }
+  if (operation === "petTourSyncList2") {
+    const contentTypeId = url.searchParams.get("contentTypeId");
+    const districtCode = url.searchParams.get("lDongSignguCd");
+    const showflag = url.searchParams.get("showflag");
+    const pageNo = Number(url.searchParams.get("pageNo") ?? "1");
+    const providerPageSize = 4;
+    if (showflag === "0") {
+      return json([], 200, { numOfRows: providerPageSize, pageNo, totalCount: 0 });
+    }
+
+    const records = new Map<
+      string,
+      { contentId: string; contentTypeId: string; districtCode?: string }
+    >();
+    for (const item of catalogScenarios) {
+      records.set(item.contentId, item);
+    }
+    if (!districtCode) {
+      for (const [scenarioContentId, item] of Object.entries(scenarios)) {
+        records.set(scenarioContentId, {
+          contentId: scenarioContentId,
+          contentTypeId: item.contentTypeId,
+        });
+      }
+    }
+    const matches = [...records.values()].filter(
+      (item) =>
+        (!contentTypeId || item.contentTypeId === contentTypeId) &&
+        (!districtCode || item.districtCode === districtCode),
+    );
+    const offset = (pageNo - 1) * providerPageSize;
+    return json(
+      matches.slice(offset, offset + providerPageSize).map((item) => ({
+        contentid: item.contentId,
+        contenttypeid: item.contentTypeId,
+        showflag: "1",
+      })),
+      200,
+      { numOfRows: providerPageSize, pageNo, totalCount: matches.length },
+    );
+  }
   if (operation === "detailCommon2") {
     return json([
       {
@@ -404,6 +445,7 @@ function tourismResponse(url: URL): Response {
         mapy: "35.16",
         overview: "한국관광공사 숙박 상세 소개입니다.",
         firstimage: scenario.imageUrl,
+        lDongRegnCd: "26",
         modifiedtime: "20260805000000",
       },
     ]);
@@ -485,6 +527,68 @@ function directionsResponse(url: URL): Response {
       },
     ],
   });
+}
+
+function kakaoMobilityResponse(url: URL, init?: RequestInit): Response {
+  const body =
+    typeof init?.body === "string"
+      ? (JSON.parse(init.body) as {
+          origin?: { x: number; y: number };
+          destination?: { x: number; y: number };
+          destinations?: Array<{ x: number; y: number; key: string }>;
+          waypoints?: Array<{ x: number; y: number }>;
+        })
+      : null;
+  if (url.pathname === "/v1/destinations/directions" && body?.origin) {
+    return Response.json({
+      routes: (body.destinations ?? []).map((destination) => {
+        const distance = Math.max(
+          100,
+          Math.round(
+            (Math.abs(destination.x - body.origin!.x) +
+              Math.abs(destination.y - body.origin!.y)) *
+              100_000,
+          ),
+        );
+        return {
+          key: destination.key,
+          result_code: 0,
+          summary: { distance, duration: Math.max(60, Math.round(distance / 8)) },
+        };
+      }),
+    });
+  }
+  if (url.pathname === "/v1/waypoints/directions" && body?.origin && body.destination) {
+    const points = [body.origin, ...(body.waypoints ?? []), body.destination];
+    const sections = points.slice(1).map((point, index) => {
+      const previous = points[index]!;
+      const distance = Math.max(
+        100,
+        Math.round(
+          (Math.abs(point.x - previous.x) + Math.abs(point.y - previous.y)) *
+            100_000,
+        ),
+      );
+      return {
+        distance,
+        duration: Math.max(60, Math.round(distance / 8)),
+        roads: [{ vertexes: [previous.x, previous.y, point.x, point.y] }],
+      };
+    });
+    return Response.json({
+      routes: [
+        {
+          result_code: 0,
+          summary: {
+            distance: sections.reduce((sum, section) => sum + section.distance, 0),
+            duration: sections.reduce((sum, section) => sum + section.duration, 0),
+          },
+          sections,
+        },
+      ],
+    });
+  }
+  return directionsResponse(url);
 }
 
 function kakaoLocalResponse(url: URL): Response {
@@ -724,7 +828,7 @@ export function installE2EUpstreamMock(): void {
       }
     }
     if (url.hostname === "apis-navi.kakaomobility.com") {
-      return Promise.resolve(directionsResponse(url));
+      return Promise.resolve(kakaoMobilityResponse(url, init));
     }
     if (
       url.hostname === "tong.visitkorea.or.kr" &&

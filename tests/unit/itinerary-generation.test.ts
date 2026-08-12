@@ -11,7 +11,12 @@ import {
   itineraryGenerationRequestSchema,
   normalizeItineraryRequest,
 } from "@/lib/itinerary/request-schema";
-import type { TourPlaceService, TourPlacesQuery } from "@/lib/tour-api/service";
+import type {
+  TourPlaceService,
+  TourPlacesQuery,
+  TourProviderVisibilityPage,
+  TourProviderVisibilityQuery,
+} from "@/lib/tour-api/service";
 import type { KakaoDirectionsRequest, KakaoDrivingRoute } from "@/types/kakao";
 import type {
   TourContentTypeId,
@@ -21,7 +26,7 @@ import type {
   TourPlaceSummary,
 } from "@/types/place";
 
-const RETRIEVED_AT = "2026-08-05T00:00:00.000Z";
+const RETRIEVED_AT = new Date().toISOString();
 const TYPE_CATEGORY = {
   "12": "attraction",
   "14": "culture",
@@ -97,6 +102,7 @@ function makeSummary(
     source: {
       provider: "Korea Tourism Organization",
       operation: "areaBasedList2",
+      contentId,
       retrievedAt: RETRIEVED_AT,
     },
   };
@@ -138,10 +144,22 @@ function makeDetail(
       providerContentTypeId && providerContentTypeId in TYPE_CATEGORY
         ? TYPE_CATEGORY[providerContentTypeId as TourContentTypeId]
         : "unknown",
+    source: {
+      provider: "Korea Tourism Organization",
+      operation: "detailCommon2",
+      contentId: summary.contentId,
+      retrievedAt: RETRIEVED_AT,
+      providerModifiedTime: "20260805000000",
+    },
   };
   const fields = options.petPolicyText === undefined
     ? policyFields(policy)
     : { ...EMPTY_POLICY_FIELDS, etcAcmpyInfo: options.petPolicyText };
+  const sourceFields = Object.entries(fields).flatMap(([field, value]) =>
+    value
+      ? [{ field: field as keyof TourPetPolicyFields, value }]
+      : [],
+  );
   return {
     summary: detailSummary,
     overview: null,
@@ -167,6 +185,19 @@ function makeDetail(
         providerModifiedTime: "20260805000000",
         originalEvidenceFields: { ...fields },
       },
+    },
+    normalizedPetEvidence: {
+      availability: sourceFields.length > 0 ? "partial" : "empty",
+      fields,
+      sourceFields,
+      emptyFieldNames: Object.entries(fields).flatMap(([field, value]) =>
+        value === null ? [field as keyof TourPetPolicyFields] : [],
+      ),
+      absentFieldNames: [],
+      warningCodes:
+        sourceFields.length > 0
+          ? ["pet_detail_fields_partial"]
+          : ["pet_detail_fields_empty"],
     },
     introPetPolicyEvidence: null,
     sections: {
@@ -224,6 +255,45 @@ class MockTourService implements TourPlaceService {
     };
   }
 
+  async listProviderVisibility(
+    query: TourProviderVisibilityQuery,
+  ): Promise<TourProviderVisibilityPage> {
+    if (this.options.failList) throw new Error("provider unavailable");
+    const matches = this.places.filter(
+      (place) =>
+        (!query.contentTypeId || place.contentTypeId === query.contentTypeId) &&
+        (!query.districtCode || place.legalDistrictCode === query.districtCode),
+    );
+    const offset = (query.page - 1) * query.pageSize;
+    return {
+      records: matches.slice(offset, offset + query.pageSize).flatMap((place) =>
+        place.contentTypeId
+          ? [
+              {
+                contentId: place.contentId,
+                contentTypeId: place.contentTypeId,
+                visibility: {
+                  status: "exposed" as const,
+                  providerField: "showflag",
+                  providerValue: "1",
+                  checkedAt: RETRIEVED_AT,
+                  reasonCodes: [],
+                },
+              },
+            ]
+          : [],
+      ),
+      page: query.page,
+      pageSize: query.pageSize,
+      totalCount: matches.length,
+      source: {
+        provider: "Korea Tourism Organization",
+        operation: "petTourSyncList2",
+        retrievedAt: RETRIEVED_AT,
+      },
+    };
+  }
+
   async getPlaceDetail(contentId: string): Promise<TourPlaceDetail> {
     this.detailIds.push(contentId);
     this.activeDetailCalls += 1;
@@ -242,7 +312,19 @@ class MockTourService implements TourPlaceService {
     }
     const detail = this.details.get(contentId);
     if (!detail) throw new Error("not found");
-    return detail;
+    return {
+      ...detail,
+      summary: {
+        ...detail.summary,
+        providerVisibility: {
+          status: "exposed",
+          providerField: "showflag",
+          providerValue: "1",
+          checkedAt: RETRIEVED_AT,
+          reasonCodes: [],
+        },
+      },
+    };
   }
 }
 
@@ -278,7 +360,9 @@ function makeRequest(
     travelDate: "2026-08-06",
     startTime: "10:00",
     planning: { desiredStopCount: 2 },
+    petSpecies: "DOG" as const,
     petSize: "SMALL" as const,
+    acceptsOutdoorOnly: false,
     indoorAccessPreference: "any" as const,
     selectedCategories: ["attraction" as const],
     includeShopping: false,
@@ -306,6 +390,8 @@ describe("itinerary request validation", () => {
     ["malformed coordinates", { start: { coordinates: { latitude: 91, longitude: 129 } } }],
     ["impossible time", { startTime: "25:00" }],
     ["invalid stop count", { planning: { desiredStopCount: 6 } }],
+    ["invalid trip type", { tripType: "WEEKEND" }],
+    ["invalid trip pace", { tripPace: "rushed" }],
     ["unsupported category", { selectedCategories: ["pharmacy"] }],
     [
       "duration past midnight",
@@ -331,6 +417,10 @@ describe("itinerary request validation", () => {
     expect(request).toMatchObject({
       scope: { type: "district", districtCode: "350", districtName: "해운대구" },
       petSize: "SMALL",
+      petSpecies: "DOG",
+      acceptsOutdoorOnly: false,
+      tripType: "DAY_TRIP",
+      tripPace: "balanced",
       indoorAccessPreference: "any",
       includeShopping: false,
     });
@@ -352,6 +442,20 @@ describe("itinerary request validation", () => {
     const large = makeRequest({ petSize: "LARGE" });
     expect(getItineraryGenerationRequestKey(small)).not.toBe(
       getItineraryGenerationRequestKey(large),
+    );
+  });
+
+  it("carries trip type and pace into the stable Stage 2 request identity", () => {
+    const dayTrip = makeRequest({ tripType: "DAY_TRIP", tripPace: "relaxed" });
+    const overnight = makeRequest({
+      tripType: "OVERNIGHT",
+      tripPace: "packed",
+    });
+
+    expect(dayTrip).toMatchObject({ tripType: "DAY_TRIP", tripPace: "relaxed" });
+    expect(overnight).toMatchObject({ tripType: "OVERNIGHT", tripPace: "packed" });
+    expect(getItineraryGenerationRequestKey(dayTrip)).not.toBe(
+      getItineraryGenerationRequestKey(overnight),
     );
   });
 });
@@ -417,7 +521,7 @@ describe("bounded request-driven itinerary generation", () => {
     expect(JSON.stringify(result)).not.toContain("demo-busan");
   });
 
-  it("accepts a missing list raw type only after trusted detail confirms the current type", async () => {
+  it("requires a valid raw current type before a list record can reach detail evaluation", async () => {
     const fallback = makeSummary("fallback", "12", {
       providerContentTypeId: null,
     });
@@ -429,18 +533,24 @@ describe("bounded request-driven itinerary generation", () => {
       ],
       [confirmed.contentId, makeDetail(confirmed)],
     ]);
-    const result = await generateItineraries(makeRequest(), {
-      tourService: new MockTourService([fallback, confirmed], details),
+    const service = new MockTourService([fallback, confirmed], details);
+    const result = await generateItineraries(makeRequest({
+      planning: { desiredStopCount: 1 },
+    }), {
+      tourService: service,
       directions: mockDirections,
     });
-    expect(result.itineraries[0]?.stops).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          contentId: "fallback",
-          providerContentTypeId: "12",
-        }),
-      ]),
-    );
+    expect(result.itineraries[0]?.stops[0]).toMatchObject({
+      contentId: "confirmed",
+      providerContentTypeId: "12",
+    });
+    expect(service.detailIds).not.toContain("fallback");
+    expect(result.candidatePipeline.diagnostics).toMatchObject({
+      initialCatalogCount: 2,
+      stageACount: 1,
+      detailedEvaluationCount: 1,
+      finalEligibleCount: 1,
+    });
   });
 
   it("uses different Tourism scopes for all Busan and a selected district", async () => {
@@ -536,10 +646,19 @@ describe("bounded request-driven itinerary generation", () => {
       ["denied", makeDetail(places[2], "denied")],
       ["unknown", makeDetail(places[3], "unknown")],
     ]);
-    const result = await generateItineraries(makeRequest(), {
+    const result = await generateItineraries(
+      makeRequest({
+        petEquipment: {
+          hasCarrier: true,
+          hasLeash: false,
+          hasMuzzle: false,
+        },
+      }),
+      {
       tourService: new MockTourService(places, details),
       directions: mockDirections,
-    });
+      },
+    );
     expect(result.itineraries[0]?.stops.map(({ petAccess }) => petAccess.verdict)).toEqual([
       "allowed",
       "conditional",
@@ -632,7 +751,7 @@ describe("bounded request-driven itinerary generation", () => {
     expect(result.itineraries[0]?.stops[0]?.imageUrl).toBe(expected);
   });
 
-  it("excludes unsupported and not-applicable detail structures", async () => {
+  it("excludes invalid raw current types and unsupported detailed current types", async () => {
     const unsupportedCatalog = makeSummary("catalog-unsupported", "12", {
       providerContentTypeId: "75",
     });
@@ -653,28 +772,47 @@ describe("bounded request-driven itinerary generation", () => {
     expect(result.itineraries).toEqual([]);
     expect(result.exclusionCounts.unsupported_record).toBe(1);
     expect(result.exclusionCounts.not_applicable).toBe(1);
-    expect(result.exclusionCounts.detail_mismatch).toBe(0);
+    expect(result.exclusionCounts.detail_mismatch).toBe(1);
+    expect(result.candidatePipeline.reasonCounts).toMatchObject({
+      unsupported_content_type: 2,
+    });
+    expect(result.candidatePipeline.diagnostics).toMatchObject({
+      stageACount: 1,
+      detailedEvaluationCount: 1,
+      finalEligibleCount: 0,
+    });
   });
 
-  it("never reads licensing to determine eligibility or the verdict", async () => {
-    const places = [makeSummary("l1"), makeSummary("l2")];
-    const details = new Map(
-      places.map((place) => {
-        const detail = makeDetail(place, "allowed");
-        Object.defineProperty(detail, "licensing", {
-          get: () => {
-            throw new Error("licensing must stay separate");
-          },
-        });
-        return [place.contentId, detail] as const;
-      }),
+  it("excludes a confirmed closed license without changing the pet verdict", async () => {
+    const place = makeSummary("l1");
+    const result = await generateItineraries(
+      makeRequest({ planning: { desiredStopCount: 1 } }),
+      {
+        tourService: new MockTourService(
+          [place],
+          new Map([[place.contentId, makeDetail(place, "allowed")]]),
+        ),
+        licenseMatcher: {
+          matchTourPlace: async () => ({
+            licensingKind: "food" as const,
+            matchState: "matched_high" as const,
+            refinedVenueKind: "restaurant" as const,
+            confidence: "high" as const,
+            totalScore: 0.99,
+            reasons: [],
+            selectedRecord: null,
+            alternatives: [],
+            operatingState: "closed" as const,
+            sources: [],
+            section: { status: "available" as const },
+          }),
+        },
+        directions: mockDirections,
+      },
     );
-    const result = await generateItineraries(makeRequest(), {
-      tourService: new MockTourService(places, details),
-      directions: mockDirections,
-    });
-    expect(result.itineraries[0]?.stops.every(({ petAccess }) => petAccess.verdict === "allowed")).toBe(true);
-    expect(JSON.stringify(result)).not.toContain("licensing");
+    expect(result.itineraries).toEqual([]);
+    expect(result.exclusionCounts.travel_unsuitable).toBe(1);
+    expect(result.exclusionCounts.not_allowed).toBe(0);
   });
 
   it("keeps missing pet evidence unknown instead of converting it to denial", async () => {
@@ -688,9 +826,25 @@ describe("bounded request-driven itinerary generation", () => {
     expect(result.exclusionCounts.not_allowed).toBe(0);
     expect(result.itineraries).toEqual([]);
     expect(result.candidateFunnel).toMatchObject({
-      basePetAccess: { unknown: 2 },
+      detailedAssessmentCandidates: 2,
+      basePetAccess: {
+        allowed: 0,
+        conditional: 0,
+        notAllowed: 0,
+        unknown: 0,
+        notApplicable: 0,
+      },
       itineraryEligibleCandidates: 0,
       returnedRoutes: 0,
+    });
+    expect(result.candidatePipeline.reasonCounts).toMatchObject({
+      pet_evidence_empty: 2,
+      pet_access_unknown: 2,
+    });
+    expect(result.candidatePipeline.diagnostics).toMatchObject({
+      detailedEvaluationCount: 2,
+      eligibleCount: 0,
+      finalEligibleCount: 0,
     });
   });
 
@@ -780,7 +934,54 @@ describe("bounded request-driven itinerary generation", () => {
     expect(partial.exclusionCounts.detail_unavailable).toBe(1);
   });
 
-  it("enforces catalog, detail-call and concurrency limits before detail fan-out", async () => {
+  it("classifies a pet-detail outage before Phase 3's unknown verdict", async () => {
+    const place = makeSummary("pet-detail-outage");
+    const unavailableDetail = makeDetail(place, "unknown");
+    unavailableDetail.petPolicyEvidence = null;
+    unavailableDetail.normalizedPetEvidence = {
+      availability: "provider_unavailable",
+      fields: { ...EMPTY_POLICY_FIELDS },
+      sourceFields: [],
+      emptyFieldNames: [],
+      absentFieldNames: Object.keys(
+        EMPTY_POLICY_FIELDS,
+      ) as Array<keyof TourPetPolicyFields>,
+      warningCodes: ["pet_detail_provider_unavailable"],
+    };
+    unavailableDetail.sections.petPolicy = { status: "unavailable" };
+
+    const result = await generateItineraries(
+      makeRequest({ planning: { desiredStopCount: 1 } }),
+      {
+        tourService: new MockTourService(
+          [place],
+          new Map([[place.contentId, unavailableDetail]]),
+        ),
+        directions: mockDirections,
+      },
+    );
+
+    expect(result).toMatchObject({
+      state: "provider_unavailable",
+      itineraries: [],
+      exclusionCounts: { detail_unavailable: 1, unknown: 0 },
+      candidateFunnel: {
+        detailOutcomes: { unavailable: 1 },
+        basePetAccess: { unknown: 0 },
+      },
+      candidatePipeline: {
+        reasonCounts: { required_pet_detail_call_unavailable: 1 },
+        diagnostics: {
+          providerFailures: 0,
+          providerUnavailableCandidates: 1,
+          eligibleCount: 0,
+          finalEligibleCount: 0,
+        },
+      },
+    });
+  });
+
+  it("enforces the 25/20 caps and stops adaptive evaluation after complete five-item batches", async () => {
     const places = Array.from({ length: 100 }, (_, index) =>
       makeSummary(`p${String(index).padStart(3, "0")}`),
     );
@@ -793,10 +994,24 @@ describe("bounded request-driven itinerary generation", () => {
     expect(result.candidateFunnel.preliminaryRankedCandidates).toBe(
       ITINERARY_GENERATION_LIMITS.maxCatalogCandidates,
     );
-    expect(result.shortlistedCandidates).toBe(
-      ITINERARY_GENERATION_LIMITS.maxDetailCalls,
-    );
-    expect(result.providerCalls.detail).toBe(
+    expect(ITINERARY_GENERATION_LIMITS).toMatchObject({
+      maxCatalogCandidates: 25,
+      maxDetailCalls: 20,
+      detailConcurrency: 3,
+    });
+    expect(result.candidatePipeline.eligiblePoolTarget).toBe(7);
+    expect(result.candidatePipeline.diagnostics).toMatchObject({
+      stageACount: 25,
+      stageBCount: 20,
+      detailedEvaluationCount: 10,
+      detailedBatchCount: 2,
+      eligibleCount: 10,
+      finalEligibleCount: 10,
+    });
+    expect(result.shortlistedCandidates).toBe(10);
+    expect(result.providerCalls.detail).toBe(10);
+    expect(service.detailIds).toHaveLength(10);
+    expect(result.providerCalls.detail).toBeLessThan(
       ITINERARY_GENERATION_LIMITS.maxDetailCalls,
     );
     expect(service.maxActiveDetailCalls).toBeLessThanOrEqual(
@@ -805,7 +1020,7 @@ describe("bounded request-driven itinerary generation", () => {
     expect(result.exclusionCounts.candidate_limit).toBeGreaterThan(0);
   });
 
-  it("ranks the complete matching catalog before applying the 80 and 12 limits", async () => {
+  it("ranks the complete matching catalog before the 25/20 caps and adaptive early stop", async () => {
     const farPlaces = Array.from({ length: 99 }, (_, index) =>
       makeSummary(`far-${String(index).padStart(3, "0")}`, "12", {
         latitude: 35.3 + index / 100_000,
@@ -829,8 +1044,14 @@ describe("bounded request-driven itinerary generation", () => {
     expect(result.candidateFunnel).toMatchObject({
       matchingCatalogCandidates: 100,
       afterBasicFilters: 100,
-      preliminaryRankedCandidates: 80,
-      detailedAssessmentCandidates: 12,
+      preliminaryRankedCandidates: 25,
+      detailedAssessmentCandidates: 10,
+    });
+    expect(result.candidatePipeline.diagnostics).toMatchObject({
+      stageACount: 25,
+      stageBCount: 20,
+      detailedEvaluationCount: 10,
+      detailedBatchCount: 2,
     });
     expect(service.detailIds[0]).toBe("zz-nearest");
     expect(result.itineraries[0]?.stops[0].contentId).toBe("zz-nearest");
@@ -900,20 +1121,31 @@ describe("bounded request-driven itinerary generation", () => {
       funnel.petSizeCompatibility.verificationRequired +
       funnel.petSizeCompatibility.notSpecified;
 
-    expect(funnel.detailedAssessmentCandidates).toBe(
-      funnel.detailOutcomes.unavailable + funnel.detailOutcomes.mismatch + baseTotal,
-    );
+    expect(funnel.detailedAssessmentCandidates).toBe(6);
+    expect(baseTotal).toBe(result.candidatePipeline.diagnostics.finalEligibleCount);
     expect(compatibilityTotal).toBe(
       funnel.basePetAccess.allowed + funnel.basePetAccess.conditional,
     );
     expect(funnel).toMatchObject({
       petSizeCompatibility: {
         compatible: 1,
-        incompatible: 1,
-        verificationRequired: 1,
+        incompatible: 0,
+        verificationRequired: 0,
         notSpecified: 1,
       },
       itineraryEligibleCandidates: 2,
+    });
+    expect(result.candidatePipeline.reasonCounts).toMatchObject({
+      pet_size_incompatible: 1,
+      pet_size_verification_required: 1,
+      pet_access_not_allowed: 1,
+      pet_access_unknown: 1,
+    });
+    expect(result.candidatePipeline.diagnostics).toMatchObject({
+      detailedEvaluationCount: 6,
+      detailedBatchCount: 2,
+      eligibleCount: 2,
+      finalEligibleCount: 2,
     });
     expect(result.exclusionCounts).toMatchObject({
       pet_size_incompatible: 1,
@@ -926,7 +1158,7 @@ describe("bounded request-driven itinerary generation", () => {
     expect(funnel.returnedRoutes).toBe(result.itineraries.length);
   });
 
-  it("changes recommendations only when explicit size evidence supports it", async () => {
+  it("uses explicit size evidence as a hard gate while preserving deterministic utility ordering", async () => {
     const restricted = makeSummary("nearest-small-only", "12", {
       latitude: 35.1001,
       longitude: 129.0001,
@@ -953,8 +1185,12 @@ describe("bounded request-driven itinerary generation", () => {
       makeRequest({ petSize: "LARGE", planning: { desiredStopCount: 1 } }),
       { tourService: service(), directions: mockDirections },
     );
-    expect(small.itineraries[0]?.stops[0].contentId).toBe("nearest-small-only");
+    expect(small.itineraries[0]?.stops[0].contentId).toBe("far-unrestricted");
     expect(large.itineraries[0]?.stops[0].contentId).toBe("far-unrestricted");
+    expect(small.exclusionCounts.pet_size_incompatible).toBe(0);
+    expect(large.exclusionCounts.pet_size_incompatible).toBe(1);
+    expect(small.itineraries[0]?.stops[0].placeUtility.petCompatibility).toBe(1);
+    expect(large.itineraries[0]?.stops[0].placeUtility.petCompatibility).toBe(1);
 
     const noSizeEvidence = [
       makeSummary("plain-1", "12", { latitude: 35.101 }),
@@ -1063,6 +1299,14 @@ describe("bounded request-driven itinerary generation", () => {
     );
     expect(result.itineraries).toEqual([]);
     expect(result.exclusionCounts.indoor_requirement).toBe(2);
+    expect(result.candidatePipeline.reasonCounts).toMatchObject({
+      mandatory_condition_unsatisfied: 2,
+    });
+    expect(result.candidatePipeline.diagnostics).toMatchObject({
+      detailedEvaluationCount: 2,
+      eligibleCount: 0,
+      finalEligibleCount: 0,
+    });
   });
 });
 
@@ -1108,6 +1352,8 @@ describe("itinerary generation Route Handler", () => {
           travelDate: "2026-08-06",
           startTime: "10:00",
           planning: { desiredStopCount: 2 },
+          petSpecies: "DOG",
+          acceptsOutdoorOnly: false,
           selectedCategories: ["attraction"],
         }),
       }),
@@ -1367,7 +1613,7 @@ describe("Phase 2 recommendation regressions", () => {
     )).toBe(true);
   });
 
-  it("allows at most one unknown Kakao-only stop in the discovery strategy", async () => {
+  it("never includes an unknown Kakao-only stop in an automatic route", async () => {
     const places = createSupply();
     const dependencies = {
       tourService: new MockTourService(places),
@@ -1418,18 +1664,11 @@ describe("Phase 2 recommendation regressions", () => {
       }),
       dependencies,
     );
-    const discovery = result.itineraries.find(({ profile }) =>
-      profile === ("discovery" as typeof profile),
-    );
-    const kakaoStops = (discovery?.stops ?? []).filter((stop) =>
-      (stop as unknown as { source?: string }).source === "KAKAO",
-    );
-
-    expect(kakaoStops).toHaveLength(1);
-    expect(kakaoStops[0]?.petAccess.verdict).toBe("unknown");
-    expect((kakaoStops[0] as unknown as { callAheadRequired?: boolean })
-      ?.callAheadRequired).toBe(true);
-    expect(kakaoStops[0]).not.toHaveProperty("imageUrl");
+    expect(
+      result.itineraries.flatMap(({ stops }) => stops).some(
+        ({ source }) => source === "KAKAO",
+      ),
+    ).toBe(false);
   });
 
   it("never uses a Kakao-only candidate as a mandatory meal stop", async () => {
@@ -1487,14 +1726,22 @@ describe("Phase 2 recommendation regressions", () => {
     ).toBe(false);
   });
 
-  it("never describes provider order as popularity", async () => {
+  it("reports neutral cold-start popularity without presenting provider order as popularity", async () => {
     const places = createSupply();
     const result = await generateItineraries(makeRequest(), {
       tourService: new MockTourService(places),
       directions: mockDirections,
     });
-    expect(JSON.stringify(result)).not.toMatch(
-      /"(?:popularity|rating|reviewCount)"|인기순/u,
+    const stops = result.itineraries.flatMap(({ stops: itineraryStops }) =>
+      itineraryStops,
     );
+    expect(stops.length).toBeGreaterThan(0);
+    for (const stop of stops) {
+      expect(stop.placeUtility.popularity).toBe(0.5);
+      expect(stop.placeUtility.warningCodes).toContain(
+        "popularity_insufficient_data",
+      );
+    }
+    expect(JSON.stringify(result)).not.toMatch(/"(?:rating|reviewCount)"|인기순/u);
   });
 });

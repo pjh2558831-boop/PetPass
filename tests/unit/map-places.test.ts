@@ -23,10 +23,12 @@ const mapPlace: MapPlace = {
   phone: null,
   image_url: null,
   source_url: "https://place.map.kakao.com/123",
+  provider_visibility: "not_applicable",
   pet_evidence_status: "search_candidate",
   pet_evidence: { verification_required: true },
   pet_notes: "카카오 검색 후보 · 방문 전 동반 가능 여부 확인",
   fetched_at: "2026-08-11T00:00:00.000Z",
+  expires_at: "2099-08-12T00:00:00.000Z",
 };
 
 describe("stored map place route", () => {
@@ -48,7 +50,7 @@ describe("stored map place route", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("cache-control")).toContain("s-maxage=60");
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(body.data).toMatchObject({ count: 1, places: [mapPlace] });
     expect(query).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -57,6 +59,79 @@ describe("stored map place route", () => {
       }),
     );
   });
+
+  it.each(["not_exposed", "unknown", "provider_unavailable"] as const)(
+    "never returns a Tourism marker with %s visibility",
+    async (providerVisibility) => {
+      const hiddenTourPlace: MapPlace = {
+        ...mapPlace,
+        id: 2,
+        provider: "tour",
+        provider_place_id: "2930927",
+        provider_visibility: providerVisibility,
+        pet_evidence_status: "official_verified",
+      };
+      const query = vi.fn(async () => [mapPlace, hiddenTourPlace]);
+      const response = await createMapPlacesHandler({ query })(
+        new Request(
+          "http://localhost/api/map/places?south=35.1&west=129&north=35.2&east=129.2",
+        ),
+      );
+      const body = await response.json();
+
+      expect(body.data).toMatchObject({ count: 1, places: [mapPlace] });
+    },
+  );
+
+  it("never serves a stored Tourism marker without a visibility refresh writer", async () => {
+    const exposedTourPlace: MapPlace = {
+      ...mapPlace,
+      id: 2,
+      provider: "tour",
+      provider_place_id: "2930927",
+      provider_visibility: "exposed",
+      pet_evidence_status: "official_verified",
+    };
+    const response = await createMapPlacesHandler({
+      query: vi.fn(async () => [exposedTourPlace]),
+    })(
+      new Request(
+        "http://localhost/api/map/places?south=35.1&west=129&north=35.2&east=129.2",
+      ),
+    );
+    const body = await response.json();
+
+    expect(body.data).toMatchObject({ count: 0, places: [] });
+  });
+
+  it("never serves an expired stored marker", async () => {
+    const response = await createMapPlacesHandler({
+      query: vi.fn(async () => [{ ...mapPlace, expires_at: "2020-01-01T00:00:00.000Z" }]),
+    })(
+      new Request(
+        "http://localhost/api/map/places?south=35.1&west=129&north=35.2&east=129.2",
+      ),
+    );
+    const body = await response.json();
+
+    expect(body.data).toMatchObject({ count: 0, places: [] });
+  });
+
+  it.each([null, new Date().toISOString()])(
+    "fails closed for a missing or non-future expiry %s",
+    async (expiresAt) => {
+      const response = await createMapPlacesHandler({
+        query: vi.fn(async () => [{ ...mapPlace, expires_at: expiresAt }]),
+      })(
+        new Request(
+          "http://localhost/api/map/places?south=35.1&west=129&north=35.2&east=129.2",
+        ),
+      );
+      const body = await response.json();
+
+      expect(body.data).toMatchObject({ count: 0, places: [] });
+    },
+  );
 
   it.each([
     "south=35.2&west=129&north=35.1&east=129.2",
@@ -116,6 +191,7 @@ describe("Kakao map place ingestion", () => {
       district_name: "수영구",
       location: "POINT(129.1131 35.1456)",
       pet_evidence_status: "search_candidate",
+      provider_visibility: "not_applicable",
       is_active: true,
     });
   });

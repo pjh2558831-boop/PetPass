@@ -195,16 +195,31 @@ test("searches a departure by place name and generates exactly once", async ({
     button.click();
   });
 
-  expect((await generationResponse).status()).toBe(200);
+  const generated = await generationResponse;
+  expect(generated.status()).toBe(200);
+  await expect(generated.json()).resolves.toMatchObject({
+    status: "ready",
+    route: { kind: "optimized" },
+  });
   await expect(page).toHaveURL(/\/results\?tab=recommendations$/u);
   await expect.poll(() => requests.length).toBe(1);
   expect(requests[0]).toMatchObject({
-    start: { label: "부산역 공통 결과" },
-    travelDate: "2026-08-15",
-    startTime: "10:00",
-    petSize: "SMALL",
-    petEquipment: { hasCarrier: true, hasLeash: true, hasMuzzle: false },
-    selectedCategories: ["attraction", "food"],
+    departure: {
+      label: "부산역 공통 결과",
+      source: "kakao_place_search",
+    },
+    trip: {
+      date: "2026-08-15",
+      startTime: "10:00",
+      tripPace: "balanced",
+      selectedCategories: ["attraction", "food"],
+    },
+    pet: {
+      species: "DOG",
+      size: "SMALL",
+      acceptsOutdoorOnlyPlaces: false,
+      availableEquipment: { carrier: true, leash: true, muzzle: false },
+    },
   });
 });
 
@@ -224,8 +239,10 @@ test("uses a map-picked departure coordinate for routing", async ({ page }, test
   await page.getByRole("button", { name: "여행 추천 받기" }).click();
   const request = await requestPromise;
   expect(request.postDataJSON()).toMatchObject({
-    start: {
-      coordinates: { latitude: 35.1151, longitude: 129.0414 },
+    departure: {
+      latitude: 35.1151,
+      longitude: 129.0414,
+      source: "map_selection",
     },
   });
 });

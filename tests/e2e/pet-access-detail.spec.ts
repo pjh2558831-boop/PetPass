@@ -101,15 +101,11 @@ test("keeps the detail page usable when the pet provider is unavailable", async 
   await expect(page.getByRole("region", { name: "반려동물 원문 장애 관광지 위치" })).toBeVisible();
 });
 
-test("labels unsupported provider records as not applicable rather than denied", async ({
+test("fails closed for a legacy provider record rather than showing a pet denial", async ({
   page,
 }) => {
   await page.goto("/places/3013?contentTypeId=38");
-  await expect(
-    page.getByText("반려동물 동반 여부 확인 필요", { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText("평가 대상 아님")).toBeVisible();
-  await expect(page.getByText(/지원되지 않거나 제공기관 유형/u)).toBeVisible();
+  await expect(page.getByRole("alert")).toBeVisible();
   await expect(
     page.getByText("반려동물 동반 불가로 안내됨", { exact: true }),
   ).toHaveCount(0);

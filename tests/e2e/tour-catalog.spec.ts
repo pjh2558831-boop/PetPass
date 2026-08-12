@@ -55,7 +55,7 @@ test("loads the Busan catalog and exposes the stored-map source layers", async (
 
   const kakaoLayer = page.getByRole("button", { name: "카카오 검색 0" });
   await expect(kakaoLayer).toHaveAttribute("aria-pressed", "false");
-  await expect(page.getByText("DB 지도 0곳 표시", { exact: true })).toBeVisible();
+  await expect(page.getByText(/확인된 장소 13곳을 표시합니다/u)).toBeVisible();
 });
 
 test("changes the Tourism catalog district without calling Kakao discovery", async ({
@@ -109,6 +109,21 @@ test("labels a non-Haeundae live detail from its address", async ({ page }) => {
 test("keeps an official planner district code in memory and uses it on results", async ({
   page,
 }) => {
+  let requestBody: { trip?: { districtId?: string | null } } | null = null;
+  await page.route("**/api/itineraries/generate", async (route) => {
+    requestBody = route.request().postDataJSON() as typeof requestBody;
+    await route.fulfill({
+      status: 422,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "insufficient_eligible_places",
+        apiVersion: "route-recommendation-response-v1",
+        reasonCodes: ["synthetic_district_boundary"],
+        userMessage: "입력한 조건을 모두 충족하는 공식 동반 장소가 충분하지 않습니다.",
+        retryable: false,
+      }),
+    });
+  });
   await page.goto("/planner/pet");
   await continueToTrip(page);
   const plannerDistrict = page.getByRole("combobox", {
@@ -125,7 +140,8 @@ test("keeps an official planner district code in memory and uses it on results",
       response.request().method() === "POST",
   );
   await page.getByRole("button", { name: "여행 추천 받기" }).click();
-  expect((await generationResponse).status()).toBe(200);
+  expect((await generationResponse).status()).toBe(422);
   await expect(page).toHaveURL(/\/results\?tab=recommendations$/u);
-  await expect(page.getByText(/→ 부산진구/u).first()).toBeVisible();
+  expect(requestBody).toMatchObject({ trip: { districtId: "230" } });
+  await expect(page.getByRole("alert", { name: "일정을 표시할 수 없어요" })).toBeVisible();
 });

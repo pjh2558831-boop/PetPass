@@ -266,6 +266,15 @@ describe("Kakao integration boundaries", () => {
     const controller = createKakaoMapController(container, {
       locations: [
         {
+          id: "departure",
+          name: "출발지",
+          address: "부산역",
+          coordinates: { latitude: 35.115, longitude: 129.04 },
+          markerKind: "departure",
+          markerLabel: "출",
+          sourceLabel: "선택한 출발지",
+        },
+        {
           id: "one",
           name: "첫 장소",
           address: "부산",
@@ -330,6 +339,9 @@ describe("Kakao integration boundaries", () => {
     const markerButton = overlays.find(({ content }) =>
       content.matches('[data-location-id="one"]'),
     )?.content as HTMLButtonElement;
+    const departureMarkerButton = overlays.find(({ content }) =>
+      content.matches('[data-location-id="departure"]'),
+    )?.content as HTMLButtonElement;
     const kakaoMarkerButton = overlays.find(({ content }) =>
       content.matches('[data-location-id="kakao"]'),
     )?.content as HTMLButtonElement;
@@ -337,6 +349,8 @@ describe("Kakao integration boundaries", () => {
       content.matches('[data-location-id="route-one"]'),
     )?.content as HTMLButtonElement;
     expect(markerButton.classList.contains("kakao-map-marker--tourism-official")).toBe(true);
+    expect(departureMarkerButton.classList.contains("kakao-map-marker--departure")).toBe(true);
+    expect(departureMarkerButton.textContent).toBe("출");
     expect(markerButton.getAttribute("aria-label")).toBe(
       "첫 장소 · 한국관광공사 제공 장소 지도 마커",
     );

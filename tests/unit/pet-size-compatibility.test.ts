@@ -94,10 +94,15 @@ describe("pet-size compatibility", () => {
     expect(assessPetSizeCompatibility(base, "LARGE").state).toBe("incompatible");
   });
 
-  it("uses an explicit large-dog denial only for the named size", () => {
+  it("does not infer permission for another size from a named-size denial", () => {
     const base = assessment("반려동물 동반 가능, 대형견 동반 불가");
     expect(assessPetSizeCompatibility(base, "LARGE").state).toBe("incompatible");
-    expect(assessPetSizeCompatibility(base, "SMALL").state).toBe("compatible");
+    expect(assessPetSizeCompatibility(base, "SMALL").state).toBe(
+      "verification_required",
+    );
+    expect(assessPetSizeCompatibility(base, "MEDIUM").state).toBe(
+      "verification_required",
+    );
   });
 
   it("requires exact verification for kg limits for every coarse size", () => {

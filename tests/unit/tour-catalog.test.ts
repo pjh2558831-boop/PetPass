@@ -7,6 +7,7 @@ import {
   TOUR_OPT_IN_CATALOG_CONTENT_TYPE_IDS,
 } from "@/lib/tour-api/catalog";
 import {
+  collectTourCatalog,
   listTourCatalog,
   TOUR_CATALOG_MAX_PAGES_PER_CONTENT_TYPE,
   TOUR_CATALOG_PROVIDER_PAGE_SIZE,
@@ -15,6 +16,8 @@ import { normalizeTourPlaceSummary } from "@/lib/tour-api/normalizers";
 import type {
   TourPlaceService,
   TourPlacesQuery,
+  TourProviderVisibilityQuery,
+  TourRequestObserver,
 } from "@/lib/tour-api/service";
 import { TOUR_CATEGORY_LABELS } from "@/lib/shared/format";
 import {
@@ -97,6 +100,34 @@ function serviceFrom(
 ): TourPlaceService {
   return {
     listPlaces: vi.fn(implementation),
+    listProviderVisibility: vi.fn(async (query: TourProviderVisibilityQuery) => {
+      const result = await implementation(query);
+      return {
+        records: result.places.flatMap((item) =>
+          item.contentTypeId
+            ? [{
+                contentId: item.contentId,
+                contentTypeId: item.contentTypeId,
+                visibility: {
+                  status: "exposed" as const,
+                  providerField: "showflag",
+                  providerValue: "1",
+                  checkedAt: retrievedAt,
+                  reasonCodes: [],
+                },
+              }]
+            : [],
+        ),
+        page: result.page,
+        pageSize: result.pageSize,
+        totalCount: result.totalCount,
+        source: {
+          provider: "Korea Tourism Organization" as const,
+          operation: "petTourSyncList2" as const,
+          retrievedAt,
+        },
+      };
+    }),
     getPlaceDetail: vi.fn(),
   } as unknown as TourPlaceService;
 }
@@ -214,6 +245,80 @@ describe("Tourism catalog contract", () => {
     ]);
     expect(result).toMatchObject({ page: 2, pageSize: 10, totalCount: 101 });
     expect(result.places).toHaveLength(10);
+  });
+
+  it("forwards one request observer through every list and visibility page", async () => {
+    const service = serviceFrom((query) =>
+      list(query, [place(`page-${query.page}`, "12")], 51),
+    );
+    const observations: string[] = [];
+    const observe: TourRequestObserver = (event) => {
+      observations.push(event.operation);
+    };
+
+    vi.mocked(service.listPlaces).mockImplementation(async (query, requestObserver) => {
+      requestObserver?.({
+        operation: "areaBasedList2",
+        cache: "miss",
+        liveProviderCall: true,
+      });
+      return list(query, [place(`page-${query.page}`, "12")], 51);
+    });
+    vi.mocked(service.listProviderVisibility!).mockImplementation(
+      async (query, requestObserver) => {
+        requestObserver?.({
+          operation: "petTourSyncList2",
+          cache: "miss",
+          liveProviderCall: true,
+        });
+        return {
+          records: [
+            {
+              contentId: `page-${query.page}`,
+              contentTypeId: "12",
+              visibility: {
+                status: "exposed",
+                providerField: "showflag",
+                providerValue: "1",
+                checkedAt: retrievedAt,
+                reasonCodes: [],
+              },
+            },
+          ],
+          page: query.page,
+          pageSize: query.pageSize,
+          totalCount: 51,
+          source: {
+            provider: "Korea Tourism Organization",
+            operation: "petTourSyncList2",
+            retrievedAt,
+          },
+        };
+      },
+    );
+
+    await collectTourCatalog(
+      service,
+      { regionCode: "26", contentTypeId: "12" },
+      observe,
+    );
+
+    expect(service.listPlaces).toHaveBeenCalledTimes(2);
+    expect(service.listProviderVisibility).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(service.listPlaces).mock.calls.every(([, value]) => value === observe)).toBe(
+      true,
+    );
+    expect(
+      vi.mocked(service.listProviderVisibility!).mock.calls.every(
+        ([, value]) => value === observe,
+      ),
+    ).toBe(true);
+    expect(observations).toEqual([
+      "areaBasedList2",
+      "petTourSyncList2",
+      "petTourSyncList2",
+      "areaBasedList2",
+    ]);
   });
 
   it("fails truthfully before an unbounded provider loop can begin", async () => {
