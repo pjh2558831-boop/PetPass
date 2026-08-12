@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LocateFixed, MapPinned, ScanSearch } from "lucide-react";
 import {
   createKakaoMapController,
-  getRenderableRouteCoordinates,
   isValidMapCoordinates,
   type KakaoMapController,
   type KakaoMapLocation,
@@ -30,11 +29,35 @@ export interface MapLayerControl {
   description?: string;
 }
 
+const DEFAULT_LOCATIONS: KakaoMapLocation[] = [
+  {
+    id: "demo-busan-coast-walk",
+    name: "청사포 바다 산책길",
+    address: "부산 해운대구 청사포로 000",
+    coordinates: { latitude: 35.1596, longitude: 129.1917 },
+    order: 1,
+  },
+  {
+    id: "demo-busan-terrace-table",
+    name: "마린 테라스 식탁",
+    address: "부산 해운대구 달맞이길 000",
+    coordinates: { latitude: 35.1582, longitude: 129.1782 },
+    order: 2,
+  },
+  {
+    id: "demo-busan-mint-cafe",
+    name: "민트 파도 카페",
+    address: "부산 해운대구 해운대해변로 000",
+    coordinates: { latitude: 35.159, longitude: 129.1603 },
+    order: 3,
+  },
+];
+
 export function MapPanel({
   compact = false,
-  title = "장소 지도",
+  title = "부산 데모 지도",
   locationLabel,
-  locations,
+  locations = DEFAULT_LOCATIONS,
   routeCoordinates = [],
   selectedLocationId = null,
   onLocationSelect,
@@ -43,12 +66,12 @@ export function MapPanel({
   viewportKey = "default",
   layerControls = [],
   onLayerToggle,
-  emptyMessage,
+  emptyMessage = "현재 지도 범위에 표시할 장소가 없습니다.",
 }: {
   compact?: boolean;
   title?: string;
   locationLabel?: string;
-  locations: KakaoMapLocation[];
+  locations?: KakaoMapLocation[];
   routeCoordinates?: Coordinates[];
   selectedLocationId?: string | null;
   onLocationSelect?: (id: string | null) => void;
@@ -210,10 +233,11 @@ export function MapPanel({
     (location) => !isValidMapCoordinates(location.coordinates),
   ).length;
   const validLocationCount = locations.length - missingCoordinateCount;
-  const renderableRoutePointCount =
-    getRenderableRouteCoordinates(routeCoordinates).length;
-  const hasVisibleMapPoints =
-    validLocationCount > 0 || renderableRoutePointCount > 0;
+  const providerLegend = layerControls.filter(
+    (layer) =>
+      layer.markerKind === "tourism-official" ||
+      layer.markerKind === "kakao-candidate",
+  );
 
   return (
     <section className="relative" aria-label={title}>
@@ -221,7 +245,7 @@ export function MapPanel({
         className={`map-canvas kakao-map-canvas ${compact ? "!min-h-[300px]" : ""}`}
         data-location-count={validLocationCount}
         data-map-version={mapVersion}
-        data-route-point-count={renderableRoutePointCount}
+        data-route-point-count={routeCoordinates.length}
       >
         <div
           ref={mapContainerRef}
@@ -242,8 +266,8 @@ export function MapPanel({
             {loadError}
           </p>
         ) : null}
-        {loadState === "ready" && validLocationCount === 0 && emptyMessage ? (
-          <p className="absolute inset-x-4 top-20 z-10 rounded-2xl bg-white/95 p-4 text-center text-sm font-bold leading-6 text-[#52665b] shadow-sm">
+        {loadState === "ready" && validLocationCount === 0 ? (
+          <p className="absolute inset-x-4 top-20 z-10 rounded-2xl bg-white/95 p-4 text-center text-sm font-bold text-[#52665b] shadow-sm">
             {emptyMessage}
           </p>
         ) : null}
@@ -252,21 +276,35 @@ export function MapPanel({
             좌표 확인이 필요한 장소 {missingCoordinateCount}곳은 지도에서 제외했어요.
           </p>
         ) : null}
-        <div className="map-watermark">
-          {renderableRoutePointCount > 0
-            ? "Kakao Maps · 실제 장소 및 경로"
-            : "Kakao Maps · 실제 장소 위치"}
-        </div>
+        <div className="map-watermark">Kakao Maps · 실제 장소 및 경로</div>
         <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3 py-2 text-xs font-bold text-[#314b3f] shadow-sm">
           <MapPinned size={15} aria-hidden="true" />
           {resolvedLocationLabel}
         </div>
+        {providerLegend.length > 0 ? (
+          <div
+            className="absolute right-3 top-3 z-10 flex max-w-[calc(100%-7rem)] flex-wrap justify-end gap-1.5 rounded-xl border border-white/90 bg-white/95 p-2 text-[10px] font-extrabold text-[#405249] shadow-sm sm:right-4 sm:top-4 sm:text-[11px]"
+            aria-label="지도 마커 범례"
+          >
+            {providerLegend.map((layer) => (
+              <span key={layer.id} className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                <span
+                  className={`map-legend-marker map-legend-marker--${layer.markerKind}`}
+                  aria-hidden="true"
+                />
+                {layer.markerKind === "tourism-official"
+                  ? "한국관광공사"
+                  : "카카오 검색"}
+              </span>
+            ))}
+          </div>
+        ) : null}
         <button
           type="button"
           onClick={() => controllerRef.current?.fitBounds()}
-          disabled={loadState !== "ready" || !hasVisibleMapPoints}
+          disabled={loadState !== "ready"}
           title="표시된 장소에 지도 맞추기"
-          className="absolute bottom-4 left-4 z-10 grid size-11 place-items-center rounded-full border border-white/80 bg-white/90 text-[#236148] shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+          className="absolute bottom-4 left-4 z-10 grid size-10 place-items-center rounded-full border border-white/80 bg-white/90 text-[#236148] shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
           aria-label="표시된 장소에 지도 위치 맞추기"
         >
           <LocateFixed size={18} aria-hidden="true" />
@@ -279,7 +317,7 @@ export function MapPanel({
               if (viewport) onCurrentMapSearchRef.current?.(viewport);
             }}
             disabled={loadState !== "ready"}
-            className="absolute bottom-4 right-4 z-10 inline-flex min-h-11 items-center gap-2 rounded-full border border-white/80 bg-white/95 px-3 text-xs font-extrabold text-[#236148] shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+            className="absolute bottom-4 right-4 z-10 inline-flex min-h-10 items-center gap-2 rounded-full border border-white/80 bg-white/95 px-3 text-xs font-extrabold text-[#236148] shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="현재 지도에서 검색"
           >
             <ScanSearch size={16} aria-hidden="true" />

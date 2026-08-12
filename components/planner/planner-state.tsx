@@ -34,6 +34,7 @@ export const DEFAULT_PLANNER_PREFERENCES: TravelPreferences = {
   regionName: BUSAN_REGION.name,
   tripDate: "",
   tripType: "DAY_TRIP",
+  tripPace: "balanced",
   startTime: "",
   preferredCategories: [],
   planningMode: "stop_count",

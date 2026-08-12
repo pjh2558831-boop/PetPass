@@ -4,28 +4,15 @@
   --background: #f7f5ef;
   --surface: #fffdf8;
   --surface-strong: #ffffff;
-  --surface-muted: #f3f6f2;
-  --surface-sage: #e9f3ed;
   --foreground: #21312a;
   --muted: #66736d;
   --line: #dfe5df;
-  --brand: #176946;
-  --brand-deep: #0f5137;
-  --brand-soft: #e8f3ec;
   --mint-50: #edf8f2;
   --mint-100: #dcefe5;
   --mint-500: #3d8b68;
   --mint-700: #236148;
   --orange: #d66e37;
-  --orange-soft: #fff5eb;
-  --radius-control: 12px;
-  --radius-card: 18px;
-  --radius-panel: 24px;
   --shadow: 0 18px 45px rgba(39, 62, 50, 0.08);
-  --shadow-panel: 0 16px 42px rgba(28, 58, 45, 0.08);
-  --shadow-card: 0 8px 28px rgba(28, 58, 45, 0.055);
-  --shadow-button: 0 8px 18px rgba(23, 105, 70, 0.16);
-  --container-width: 1240px;
 }
 
 * {
@@ -64,22 +51,6 @@ select {
 
 .page-shell {
   width: min(1180px, calc(100% - 32px));
-  margin-inline: auto;
-}
-
-.landing-page {
-  --surface: #fffefa;
-  --foreground: #18302a;
-  --muted: #64726b;
-  --line: #dce4dd;
-  background: #fbfaf6;
-  color: #18302a;
-  overflow-wrap: break-word;
-  word-break: keep-all;
-}
-
-.landing-shell {
-  width: min(var(--container-width), calc(100% - 64px));
   margin-inline: auto;
 }
 
@@ -184,8 +155,8 @@ select {
 
 .kakao-map-marker {
   display: grid;
-  width: 44px;
-  height: 44px;
+  width: 38px;
+  height: 38px;
   cursor: pointer;
   place-items: center;
   border: 4px solid white;
@@ -195,19 +166,20 @@ select {
   font-size: 13px;
   font-weight: 900;
   box-shadow: 0 8px 20px rgba(35, 97, 72, 0.28);
-  touch-action: manipulation;
   transform: rotate(-45deg);
+  transition: transform 150ms ease, box-shadow 150ms ease, outline-color 150ms ease;
 }
 
 .kakao-map-marker--itinerary {
+  border-radius: 999px;
   background: #b85f40;
   box-shadow: 0 8px 20px rgba(144, 65, 38, 0.28);
+  transform: none;
 }
 
 .kakao-map-marker--tourism-official,
 .kakao-map-marker--catalog {
-  background: #2f6fed;
-  box-shadow: 0 8px 20px rgba(47, 111, 237, 0.28);
+  background: #236148;
 }
 
 .kakao-map-marker--business-confirmed {
@@ -232,11 +204,11 @@ select {
 .kakao-map-marker--search,
 .kakao-map-marker--kakao-candidate {
   border-color: white;
-  border-radius: 999px;
-  background: #f2b705;
-  box-shadow: 0 8px 20px rgba(190, 139, 0, 0.3);
-  color: #3b2d00;
-  transform: none;
+  border-radius: 50% 50% 50% 10%;
+  background: #f4c84a;
+  box-shadow: 0 8px 20px rgba(121, 93, 12, 0.28);
+  color: #493a0b;
+  transform: rotate(-45deg);
 }
 
 .kakao-map-marker--shopping {
@@ -246,6 +218,28 @@ select {
 
 .kakao-map-marker.is-selected {
   outline: 4px solid rgba(241, 178, 112, 0.72);
+  outline-offset: 3px;
+}
+
+.kakao-map-marker:hover,
+.kakao-map-marker:focus-visible {
+  box-shadow: 0 10px 24px rgba(32, 61, 47, 0.35);
+  transform: translateY(-2px) rotate(-45deg) scale(1.06);
+}
+
+.kakao-map-marker--itinerary:hover,
+.kakao-map-marker--itinerary:focus-visible,
+.kakao-map-marker--business-confirmed:hover,
+.kakao-map-marker--business-confirmed:focus-visible,
+.kakao-map-marker--administrator-confirmed:hover,
+.kakao-map-marker--administrator-confirmed:focus-visible,
+.kakao-map-marker--user-reported:hover,
+.kakao-map-marker--user-reported:focus-visible {
+  transform: translateY(-2px) scale(1.06);
+}
+
+.kakao-map-marker:focus-visible {
+  outline: 4px solid rgba(35, 97, 72, 0.35);
   outline-offset: 3px;
 }
 
@@ -262,8 +256,7 @@ select {
 .kakao-map-marker--business-confirmed span,
 .kakao-map-marker--administrator-confirmed span,
 .kakao-map-marker--user-reported span,
-.kakao-map-marker--search span,
-.kakao-map-marker--kakao-candidate span {
+.kakao-map-marker--itinerary span {
   transform: none;
 }
 
@@ -274,7 +267,7 @@ select {
   flex: 0 0 auto;
   border: 2px solid white;
   border-radius: 50% 50% 50% 10%;
-  background: #2f6fed;
+  background: #236148;
   box-shadow: 0 0 0 1px #9eb4a8;
   transform: rotate(-45deg);
 }
@@ -301,10 +294,10 @@ select {
 .map-legend-marker--kakao-candidate,
 .map-legend-marker--search {
   border-color: white;
-  border-radius: 999px;
-  background: #f2b705;
-  box-shadow: 0 0 0 1px #b88b00;
-  transform: none;
+  border-radius: 50% 50% 50% 10%;
+  background: #f4c84a;
+  box-shadow: 0 0 0 1px #a68627;
+  transform: rotate(-45deg);
 }
 
 .map-legend-marker--shopping {
@@ -312,8 +305,8 @@ select {
 }
 
 .kakao-map-selection {
-  width: 58px;
-  height: 58px;
+  width: 52px;
+  height: 52px;
   border: 4px solid rgba(241, 178, 112, 0.88);
   border-radius: 999px;
   box-shadow: 0 0 0 7px rgba(255, 253, 248, 0.72);
@@ -351,19 +344,6 @@ select {
   box-shadow: 0 10px 30px rgba(39, 62, 50, 0.05);
 }
 
-.surface-panel {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-panel);
-  background: var(--surface-strong);
-  box-shadow: var(--shadow-panel);
-}
-
-.surface-panel--brand {
-  border-color: rgba(255, 255, 255, 0.12);
-  background: var(--brand-deep);
-  color: white;
-}
-
 .eyebrow {
   color: var(--mint-700);
   font-size: 12px;
@@ -381,18 +361,10 @@ select {
     width: min(100% - 24px, 1180px);
   }
 
-  .landing-shell {
-    width: min(100% - 40px, var(--container-width));
-  }
-
   .map-canvas {
     min-height: 330px;
     border-radius: 22px;
   }
-}
-
-.landing-page .eyebrow {
-  color: var(--brand);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { ExternalLink, Eye, EyeOff, LoaderCircle, MapPin, Search, Undo2 } from "lucide-react";
-import { parseKakaoPlaceUrl } from "@/lib/kakao/place-url";
 import { createKakaoSearchPlan } from "@/lib/kakao/search-area";
 import { TOUR_CATALOG_FILTERS, type TourCatalogFilter } from "@/lib/tour-api/catalog";
 import type { ApiResult } from "@/types/api";
@@ -35,15 +34,6 @@ function isDiscoveryCategory(
   category: TourCatalogFilter,
 ): category is KakaoDiscoveryCategory {
   return KAKAO_DISCOVERY_CATEGORIES.includes(category as KakaoDiscoveryCategory);
-}
-
-function sanitizeCandidatePlaceUrl(
-  candidate: KakaoDiscoveryCandidate,
-): KakaoDiscoveryCandidate {
-  const placeUrl = parseKakaoPlaceUrl(candidate.placeUrl);
-  const safeCandidate = { ...candidate };
-  delete safeCandidate.placeUrl;
-  return placeUrl ? { ...safeCandidate, placeUrl } : safeCandidate;
 }
 
 export function KakaoPlaceSearch({
@@ -128,18 +118,14 @@ export function KakaoPlaceSearch({
           body.ok ? "추가 장소 후보 검색에 실패했습니다." : body.error.message,
         );
       }
-      const safeData = {
-        ...body.data,
-        candidates: body.data.candidates.map(sanitizeCandidatePlaceUrl),
-      };
-      onCandidatesChange?.(safeData.candidates);
+      onCandidatesChange?.(body.data.candidates);
       setSearchState({
         scopeKey,
         loading: false,
         searched: true,
         error: "",
-        results: safeData.candidates,
-        response: safeData,
+        results: body.data.candidates,
+        response: body.data,
       });
     } catch (error) {
       onCandidatesChange?.([]);
@@ -255,7 +241,6 @@ export function KakaoPlaceSearch({
           {activeState.results.map((result) => {
             const mapId = `kakao-local:${result.id}`;
             const selected = selectedId === mapId;
-            const placeUrl = parseKakaoPlaceUrl(result.placeUrl);
             return (
               <li key={result.id}>
                 <article
@@ -268,7 +253,7 @@ export function KakaoPlaceSearch({
                 >
                   <div className="flex flex-wrap gap-1.5">
                     <span className="rounded-full bg-[#eef6f9] px-2 py-1 text-[10px] font-extrabold text-[#285b70]">
-                      카카오 검색 후보
+                      카카오 검색
                     </span>
                     <span className="rounded-full bg-[#fff8f1] px-2 py-1 text-[10px] font-extrabold text-[#76542f]">
                       동반 여부 확인 필요
@@ -295,13 +280,13 @@ export function KakaoPlaceSearch({
                       onClick={() => onSelect(result)}
                       aria-pressed={selected}
                       className="inline-flex min-h-9 items-center gap-1 text-xs font-extrabold text-[#52665b] hover:text-[#236148]"
-                      aria-label={`${result.name} 카카오 검색 후보 지도에서 보기`}
+                      aria-label={`${result.name} 카카오 검색 장소 지도에서 보기`}
                     >
                       <MapPin size={14} aria-hidden="true" /> 지도
                     </button>
-                    {placeUrl ? (
+                    {result.placeUrl ? (
                       <a
-                        href={placeUrl}
+                        href={result.placeUrl}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex min-h-9 items-center gap-1 text-xs font-extrabold text-[#285b70]"

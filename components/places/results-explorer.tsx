@@ -63,6 +63,7 @@ const DEFAULT_PREFERENCES: TravelPreferences = {
   regionName: BUSAN_REGION.name,
   tripDate: "2026-08-15",
   tripType: "DAY_TRIP",
+  tripPace: "balanced",
   startTime: "10:00",
   preferredCategories: ["ATTRACTION", "RESTAURANT", "WALK"],
 };
@@ -272,11 +273,11 @@ export function ResultsExplorer({
                   ? "shopping"
                   : "tourism-official"
                 : "kakao-candidate",
-            markerLabel: place.provider === "tour" ? "공" : "?",
+            markerLabel: place.provider === "tour" ? "공" : "K",
             sourceLabel:
               place.provider === "tour"
-                ? "한국관광공사 제공"
-                : "카카오 검색 후보 · 방문 전 동반 가능 여부 확인",
+                ? "한국관광공사 제공 장소"
+                : "카카오 검색 장소 · 반려동물 동반 여부 확인 필요",
             interactive: true,
             clusterable: true,
           }),

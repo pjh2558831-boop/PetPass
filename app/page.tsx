@@ -1,374 +1,190 @@
+import Link from "next/link";
 import {
   ArrowRight,
   Backpack,
-  CalendarDays,
-  Check,
-  CircleHelp,
-  Compass,
-  ListChecks,
+  CheckCircle2,
+  Clock3,
   MapPinned,
-  PawPrint,
+  Quote,
   Route,
   ShieldCheck,
-  SlidersHorizontal,
-  Waypoints,
 } from "lucide-react";
+import { MapPanel } from "@/components/map/map-panel";
+import { StatusBadge } from "@/components/pet-access/status-badge";
 import { ButtonLink } from "@/components/ui/button";
-
-const planningSteps = [
-  {
-    number: "01",
-    icon: PawPrint,
-    title: "반려동물 정보",
-    description: "종류와 크기, 이동장·목줄 같은 준비물을 입력해요.",
-  },
-  {
-    number: "02",
-    icon: CalendarDays,
-    title: "여행 조건",
-    description: "지역과 날짜, 여행 형태, 원하는 장소 유형을 정해요.",
-  },
-  {
-    number: "03",
-    icon: Waypoints,
-    title: "경로 비교",
-    description: "조건에 맞는 경우 최대 세 가지 경로 전략을 비교해요.",
-  },
-  {
-    number: "04",
-    icon: ListChecks,
-    title: "상세 결과",
-    description: "추천 결과에서 장소별 동반 판정과 근거, 이동 순서를 확인해요.",
-  },
-] as const;
-
-const routeStrategies = [
-  {
-    icon: SlidersHorizontal,
-    title: "취향 균형 코스",
-    description: "선호한 장소 유형과 여행 역할을 고르게 살펴요.",
-  },
-  {
-    icon: Route,
-    title: "이동 최소 코스",
-    description: "품질 기준 안에서 이동과 역주행이 적은 조합을 살펴요.",
-  },
-  {
-    icon: Compass,
-    title: "새로운 발견 코스",
-    description: "검증된 관광공사 장소의 역할 다양성을 우선해요.",
-  },
-] as const;
-
-function PlanningPreview() {
-  return (
-    <section
-      className="surface-panel p-5 sm:p-7"
-      aria-labelledby="planning-preview-title"
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="eyebrow">Planning preview</p>
-          <h2 id="planning-preview-title" className="mt-2 text-lg font-black">
-            입력한 조건이 일정이 되기까지
-          </h2>
-        </div>
-        <span className="shrink-0 rounded-full border border-[#c9ddd0] bg-[var(--brand-soft)] px-3 py-1.5 text-[11px] font-extrabold text-[var(--brand)]">
-          현재 부산 지원
-        </span>
-      </div>
-
-      <div className="mt-6 grid grid-cols-2 gap-3">
-        <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-muted)] p-4">
-          <span className="grid size-10 place-items-center rounded-xl bg-white text-[var(--brand)] shadow-sm">
-            <PawPrint size={19} aria-hidden="true" />
-          </span>
-          <p className="mt-4 text-sm font-black">반려동물 프로필</p>
-          <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
-            크기와 준비물 조건
-          </p>
-        </div>
-        <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-muted)] p-4">
-          <span className="grid size-10 place-items-center rounded-xl bg-white text-[var(--brand)] shadow-sm">
-            <CalendarDays size={19} aria-hidden="true" />
-          </span>
-          <p className="mt-4 text-sm font-black">여행 조건</p>
-          <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
-            날짜와 범위, 장소 유형
-          </p>
-        </div>
-      </div>
-
-      <div className="my-4 flex items-center gap-3" aria-hidden="true">
-        <span className="h-px flex-1 bg-[var(--line)]" />
-        <span className="grid size-9 place-items-center rounded-full bg-[var(--brand)] text-white">
-          <Route size={16} />
-        </span>
-        <span className="h-px flex-1 bg-[var(--line)]" />
-      </div>
-
-      <div className="rounded-2xl border border-[#c9ddd0] bg-[var(--brand-soft)] p-4">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-sm font-black text-[#174b36]">경로 전략 비교</p>
-          <span className="text-[11px] font-bold text-[#547466]">조건 충족 시 최대 3개</span>
-        </div>
-        <div className="mt-3 grid grid-cols-3 gap-2 text-center text-[11px] font-extrabold text-[#315d49]">
-          <span className="rounded-lg bg-white px-2 py-2">취향 균형</span>
-          <span className="rounded-lg bg-white px-2 py-2">이동 최소</span>
-          <span className="rounded-lg bg-white px-2 py-2">새로운 발견</span>
-        </div>
-      </div>
-
-      <div className="mt-4 flex items-center justify-between gap-4 rounded-2xl bg-[var(--brand-deep)] p-4 text-white">
-        <div>
-          <p className="text-xs font-bold text-[#badcca]">비교 뒤 선택한 경로</p>
-          <p className="mt-1 text-sm font-black">근거와 순서를 담은 추천 결과</p>
-        </div>
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white/10">
-          <ListChecks size={19} aria-hidden="true" />
-        </span>
-      </div>
-
-      <p className="mt-4 text-xs leading-5 text-[var(--muted)]">
-        실제 장소는 추천 단계에서 공공 관광 정보와 제공자 응답을 검증한 뒤 불러옵니다.
-      </p>
-    </section>
-  );
-}
+import { DemoBadge } from "@/components/ui/demo-badge";
 
 export default function HomePage() {
   return (
     <div className="landing-page">
-      <section className="landing-shell grid gap-12 py-14 sm:py-20 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-14 lg:py-24">
-        <div className="max-w-2xl">
-          <p className="eyebrow">반려동물 동반 여행 플래너</p>
-          <h1 className="balance mt-5 text-4xl font-black leading-[1.12] tracking-[-0.055em] sm:text-5xl sm:leading-[1.1] xl:text-[56px]">
-            함께 들어갈 수 있는 곳부터,
-            <br className="hidden sm:block" />
-            <span className="text-[var(--brand)]">이동하기 좋은 순서까지.</span>
+      <section className="page-shell grid items-center gap-8 py-10 sm:py-16 lg:grid-cols-[.88fr_1.12fr] lg:py-20">
+        <div className="max-w-xl">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-2 rounded-full border border-[#bad6c6] bg-[#eaf6ef] px-3 py-1.5 text-xs font-extrabold text-[#236148]">
+              <ShieldCheck size={15} aria-hidden="true" />
+              원문 근거로 확인하는 동반 조건
+            </span>
+            <DemoBadge />
+          </div>
+          <h1 className="balance mt-6 text-4xl font-black leading-[1.08] tracking-[-0.055em] sm:text-5xl lg:text-[58px]">
+            이번 여행,
+            <br />
+            <span className="text-[#3d8b68]">함께 들어갈 수 있는 곳</span>만
+            이어요.
           </h1>
-          <p className="mt-6 max-w-xl text-base leading-7 text-[var(--muted)] sm:text-lg sm:leading-8">
-            한국관광공사의 반려동물 동반 정보와 우리 아이의 크기·준비물을
-            비교하고, 여행 조건에 맞는 경로를 현실적인 일정으로 정리해요.
+          <p className="mt-6 max-w-lg text-base leading-7 text-[#5e6e66] sm:text-lg sm:leading-8">
+            장소의 반려동물 규정과 우리 아이의 크기, 이동장, 목줄 조건을 비교해
+            방문할 장소를 먼저 살펴보거나, 관광지부터 식당과 카페까지 조건에 맞는
+            여행 일정을 만들 수 있어요.
           </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <ButtonLink href="/planner/pet" variant="brand" className="w-full sm:w-auto">
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <ButtonLink href="/planner/pet" className="w-full sm:w-auto">
               여행 계획 시작하기
               <ArrowRight size={17} aria-hidden="true" />
             </ButtonLink>
             <ButtonLink
-              href="#planning-flow"
-              variant="brandSecondary"
+              href="/results"
+              variant="secondary"
               className="w-full sm:w-auto"
             >
-              이용 흐름 보기
+              <MapPinned size={17} aria-hidden="true" />
+              방문 가능 장소 보기
             </ButtonLink>
           </div>
-          <ul className="mt-8 grid gap-3 text-sm font-bold text-[#52665d] sm:grid-cols-2">
-            <li className="flex items-start gap-2.5">
-              <Check
-                size={17}
-                className="mt-0.5 shrink-0 text-[var(--brand)]"
-                aria-hidden="true"
-              />
-              원문 출처와 조회 시각 보존
+          <ul className="mt-8 grid gap-3 text-sm font-semibold text-[#52635a] sm:grid-cols-2">
+            <li className="flex items-center gap-2">
+              <CheckCircle2 size={17} className="text-[#3d8b68]" aria-hidden="true" />
+              계정 없이 바로 사용
             </li>
-            <li className="flex items-start gap-2.5">
-              <Check
-                size={17}
-                className="mt-0.5 shrink-0 text-[var(--brand)]"
-                aria-hidden="true"
-              />
-              모호한 조건은 확인 필요로 안내
+            <li className="flex items-center gap-2">
+              <CheckCircle2 size={17} className="text-[#3d8b68]" aria-hidden="true" />
+              정보가 모호하면 확인 필요 표시
             </li>
           </ul>
         </div>
 
-        <PlanningPreview />
-      </section>
-
-      <section
-        className="border-y border-[var(--line)] bg-[var(--surface)]"
-        aria-labelledby="source-note-title"
-      >
-        <div className="landing-shell grid gap-4 py-6 md:grid-cols-[auto_1fr_auto] md:items-center md:gap-6">
-          <span className="grid size-11 place-items-center rounded-2xl bg-[var(--orange-soft)] text-[var(--orange)]">
-            <ShieldCheck size={21} aria-hidden="true" />
-          </span>
-          <div>
-            <h2 id="source-note-title" className="text-sm font-black">
-              공공 반려동물 동반 정보에서 시작합니다.
-            </h2>
-            <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
-              외부 응답을 검증한 뒤 도메인 판정에 사용하며, 제공자 실패를 데모 장소로
-              대체하지 않습니다.
-            </p>
-          </div>
-          <p className="text-xs font-bold text-[#6c7d74] md:text-right">
-            현재 지원 지역 · 부산
-          </p>
-        </div>
-      </section>
-
-      <section id="planning-flow" className="landing-shell py-16 sm:py-24" aria-labelledby="planning-flow-title">
-        <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
-          <div>
-            <p className="eyebrow">How it works</p>
-            <h2
-              id="planning-flow-title"
-              className="balance mt-3 text-3xl font-black tracking-[-0.045em] sm:text-4xl"
-            >
-              조건을 묻고, 비교하고,
-              <br />
-              근거까지 확인해요.
-            </h2>
-          </div>
-          <p className="max-w-xl text-sm leading-7 text-[var(--muted)] sm:text-base">
-            입력은 두 단계로 나누고, 추천 결과에서는 서로 다른 경로 전략과 장소별
-            근거, 이동 순서를 이어서 살펴볼 수 있어요.
-          </p>
-        </div>
-
-        <ol className="mt-10 grid gap-x-6 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
-          {planningSteps.map(({ number, icon: Icon, title, description }) => (
-            <li key={number} className="border-t-2 border-[#cfdcd3] pt-5">
-              <div className="flex items-center justify-between gap-3">
-                <span className="grid size-11 place-items-center rounded-2xl bg-[var(--brand-soft)] text-[var(--brand)]">
-                  <Icon size={20} aria-hidden="true" />
-                </span>
-                <span className="text-xs font-black tracking-[0.12em] text-[#9aa79f]">
-                  {number}
-                </span>
+        <div className="relative">
+          <MapPanel />
+          <div className="surface-card absolute -bottom-5 left-4 right-4 z-10 flex items-center justify-between gap-3 p-3 sm:left-7 sm:right-auto sm:min-w-[340px] sm:p-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-[#63736b]">2번째 · 식당</span>
+                <StatusBadge status="CONDITIONAL" />
               </div>
-              <h3 className="mt-5 text-lg font-black">{title}</h3>
-              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{description}</p>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      <section className="border-y border-[var(--line)] bg-[var(--surface)] py-16 sm:py-24" aria-labelledby="evidence-title">
-        <div className="landing-shell grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-center lg:gap-16">
-          <div>
-            <p className="eyebrow">확인할 것부터</p>
-            <h2
-              id="evidence-title"
-              className="balance mt-3 text-3xl font-black tracking-[-0.045em] sm:text-4xl"
-            >
-              정보가 부족할수록
-              <br />
-              더 분명하게 말합니다.
-            </h2>
-            <p className="mt-5 max-w-md text-sm leading-7 text-[var(--muted)] sm:text-base">
-              “동반 가능”이라는 한 줄만으로는 여행을 결정하기 어려워요. PetPass는
-              시설 원문과 반려동물 조건을 나란히 보고, 확인되지 않은 내용을 허용으로
-              단정하지 않아요.
-            </p>
-          </div>
-
-          <div className="surface-panel overflow-hidden">
-            {[
-              {
-                icon: MapPinned,
-                title: "공공 원문에서 시작",
-                description:
-                  "한국관광공사의 반려동물 동반 관광 정보를 검증한 뒤 사용해요.",
-              },
-              {
-                icon: Backpack,
-                title: "우리 아이 조건과 대조",
-                description:
-                  "종류·크기와 이동장·목줄·입마개, 실내외 선호를 시설 조건과 비교해요.",
-              },
-              {
-                icon: CircleHelp,
-                title: "모르면 확인 필요",
-                description:
-                  "근거가 없거나 모호하거나 충돌하면 방문 전 확인이 필요하다고 남겨요.",
-              },
-            ].map(({ icon: Icon, title, description }, index) => (
-              <article
-                key={title}
-                className={`flex gap-4 p-5 sm:p-6 ${index > 0 ? "border-t border-[var(--line)]" : ""}`}
-              >
-                <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[var(--brand-soft)] text-[var(--brand)]">
-                  <Icon size={20} aria-hidden="true" />
-                </span>
-                <div>
-                  <h3 className="text-base font-black">{title}</h3>
-                  <p className="mt-1.5 text-sm leading-6 text-[var(--muted)]">
-                    {description}
-                  </p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="landing-shell py-16 sm:py-24" aria-labelledby="strategies-title">
-        <div className="max-w-2xl">
-          <p className="eyebrow">세 가지 관점</p>
-          <h2
-            id="strategies-title"
-            className="balance mt-3 text-3xl font-black tracking-[-0.045em] sm:text-4xl"
-          >
-            한 경로를 정답처럼 내놓지 않아요.
-          </h2>
-          <p className="mt-4 text-sm leading-7 text-[var(--muted)] sm:text-base">
-            조건을 충족하는 경우 서로 다른 기준으로 구성한 최대 세 코스를 비교하고,
-            여행에 맞는 경로를 직접 선택할 수 있어요.
-          </p>
-        </div>
-
-        <div className="surface-panel mt-10 overflow-hidden">
-          <div className="grid md:grid-cols-3 md:divide-x md:divide-[var(--line)]">
-            {routeStrategies.map(({ icon: Icon, title, description }, index) => (
-              <article
-                key={title}
-                className={`p-6 sm:p-7 ${index > 0 ? "border-t border-[var(--line)] md:border-t-0" : ""}`}
-              >
-                <span className="grid size-11 place-items-center rounded-2xl bg-[var(--brand-soft)] text-[var(--brand)]">
-                  <Icon size={20} aria-hidden="true" />
-                </span>
-                <h3 className="mt-5 text-lg font-black">{title}</h3>
-                <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{description}</p>
-              </article>
-            ))}
-          </div>
-          <div className="border-t border-[var(--line)] bg-[var(--orange-soft)] px-6 py-4 text-sm font-bold leading-6 text-[#765034] sm:px-7">
-            추천 결과에서는 각 전략의 이유와 장소별 동반 판정, 이동 경로를 함께
-            확인할 수 있어요.
-          </div>
-        </div>
-      </section>
-
-      <section className="landing-shell" aria-labelledby="closing-cta-title">
-        <div className="surface-panel surface-panel--brand flex flex-col gap-7 p-7 sm:p-10 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex max-w-2xl items-start gap-4">
-            <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/10 text-[#c9e5d6]">
-              <PawPrint size={22} aria-hidden="true" />
+              <p className="mt-2 truncate text-sm font-black">마린 테라스 식탁</p>
+              <p className="mt-1 text-xs text-[#6f7d76]">야외석 · 이동장 필요</p>
+            </div>
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#fff0e3] text-[#b85a2a]">
+              <Backpack size={19} aria-hidden="true" />
             </span>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-[#dfe5df] bg-[#fffdf8] py-14 sm:py-18">
+        <div className="page-shell">
+          <div className="grid gap-8 lg:grid-cols-[.75fr_1.25fr]">
             <div>
-              <p className="text-xs font-extrabold tracking-[0.12em] text-[#b8d9c8]">
-                START WITH YOUR PET
-              </p>
-              <h2 id="closing-cta-title" className="mt-2 text-2xl font-black sm:text-3xl">
-                우리 아이의 조건부터 여행을 시작해 보세요.
+              <p className="eyebrow">헛걸음을 줄이는 방법</p>
+              <h2 className="balance mt-3 text-3xl font-black tracking-[-0.045em] sm:text-4xl">
+                “동반 가능” 한 줄보다
+                <br />
+                필요한 조건을 먼저 봐요.
               </h2>
-              <p className="mt-3 text-sm leading-6 text-[#d4e6dc]">
-                반려동물 정보와 준비물은 브라우저에 검증된 형식으로 저장됩니다.
+              <p className="mt-4 max-w-md text-sm leading-7 text-[#65746c]">
+                펫패스는 없는 규정을 만들어내지 않아요. 관광공사 원문에서 확인한
+                내용만 준비물과 제한으로 보여주고, 부족한 정보는 방문 전 문의로
+                남겨둬요.
               </p>
             </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                {
+                  icon: MapPinned,
+                  number: "01",
+                  title: "조건 비교",
+                  text: "크기, 이동장, 목줄과 시설 원문을 대조해요.",
+                },
+                {
+                  icon: Route,
+                  number: "02",
+                  title: "경로 구성",
+                  text: "운영시간과 이동 순서를 고려해 하루를 이어요.",
+                },
+                {
+                  icon: Quote,
+                  number: "03",
+                  title: "근거 확인",
+                  text: "판정 아래에서 출처와 원문을 그대로 확인해요.",
+                },
+              ].map(({ icon: Icon, number, title, text }) => (
+                <article key={number} className="surface-card p-5">
+                  <div className="flex items-center justify-between">
+                    <span className="grid size-10 place-items-center rounded-2xl bg-[#edf8f2] text-[#236148]">
+                      <Icon size={20} aria-hidden="true" />
+                    </span>
+                    <span className="text-xs font-black text-[#a7b1ab]">{number}</span>
+                  </div>
+                  <h3 className="mt-6 text-base font-black">{title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-[#6a7971]">{text}</p>
+                </article>
+              ))}
+            </div>
           </div>
-          <ButtonLink
-            href="/planner/pet"
-            variant="brandSecondary"
-            className="w-full shrink-0 lg:w-auto"
-          >
-            여행 계획 시작하기
-            <ArrowRight size={17} aria-hidden="true" />
-          </ButtonLink>
+        </div>
+      </section>
+
+      <section className="page-shell py-16 sm:py-20">
+        <div className="surface-card grid overflow-hidden lg:grid-cols-2">
+          <div className="p-7 sm:p-10">
+            <p className="eyebrow">첫 지원 시나리오</p>
+            <h2 className="mt-3 text-3xl font-black tracking-[-0.04em]">
+              소형견과 이동장이 있다면,
+              <br />
+              부산 하루는 이렇게.
+            </h2>
+            <div className="mt-7 space-y-3">
+              {[
+                ["10:00", "청사포 바다 산책길", "목줄 필수"],
+                ["11:40", "마린 테라스 식탁", "야외석 · 이동장"],
+                ["14:00", "민트 파도 카페", "방문 전 전화 확인"],
+              ].map(([time, name, note], index) => (
+                <div key={name} className="flex items-center gap-4 rounded-2xl bg-[#f5f7f4] p-4">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-white text-xs font-black text-[#236148] shadow-sm">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-black">{name}</p>
+                    <p className="mt-1 text-xs text-[#6b7972]">{note}</p>
+                  </div>
+                  <span className="flex items-center gap-1 text-xs font-bold text-[#66766e]">
+                    <Clock3 size={13} aria-hidden="true" />
+                    {time}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-col justify-center bg-[#254a3a] p-7 text-white sm:p-10">
+            <p className="text-xs font-extrabold tracking-[0.12em] text-[#b9dfca]">
+              SOURCE-FIRST
+            </p>
+            <blockquote className="mt-5 text-2xl font-bold leading-relaxed tracking-[-0.025em]">
+              “소형 반려견은 야외 테라스에 한해 동반 가능하며 이동장 사용 필수”
+            </blockquote>
+            <p className="mt-5 text-sm leading-7 text-[#d5e6dc]">
+              화면의 상태와 준비물은 이 원문 안에 있는 정보만 사용해 만들어요.
+              이번 버전의 장소와 문구는 실제 영업 정보가 아닌 명시적 로컬 데모
+              픽스처예요.
+            </p>
+            <Link
+              href="/places/demo-busan-terrace-table"
+              className="mt-7 inline-flex items-center gap-2 text-sm font-extrabold text-[#d8f0e3]"
+            >
+              상세 근거 화면 보기
+              <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          </div>
         </div>
       </section>
     </div>

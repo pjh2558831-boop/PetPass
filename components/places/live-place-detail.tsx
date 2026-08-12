@@ -261,7 +261,7 @@ export function LivePlaceDetail({
                 address,
                 coordinates,
                 markerKind: "tourism-official",
-                sourceLabel: "관광공사 공식 데이터",
+                sourceLabel: "한국관광공사 제공 장소",
               },
             ]}
           />

@@ -32,6 +32,10 @@ import {
   usePlannerState,
 } from "@/components/planner/planner-state";
 import { Button } from "@/components/ui/button";
+import {
+  getTripPacePlanning,
+  TRIP_PACE_OPTIONS,
+} from "@/lib/itinerary/trip-pace";
 import { BUSAN_DISTRICTS, BUSAN_REGION } from "@/lib/tour-api/catalog";
 import type {
   PetProfile,
@@ -402,16 +406,44 @@ export function UnifiedPlannerForm() {
         </fieldset>
 
         <fieldset className="mt-7 border-t border-[var(--line)] pt-7" aria-describedby={errors.planning ? "planning-error" : undefined}>
-          <legend className="text-sm font-extrabold">일정 길이</legend>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <div className={`rounded-[var(--radius-card)] border p-4 ${planningMode === "stop_count" ? "border-[var(--mint-500)] bg-[var(--brand-soft)]" : "border-[var(--line)] bg-white"}`}>
-              <label className="flex items-center gap-2 text-sm font-extrabold"><input id="planning-mode-stop-count" type="radio" name="planning-mode" value="stop_count" checked={planningMode === "stop_count"} onChange={() => { updatePreferences("planningMode", "stop_count"); clearError("planning"); }} className="size-4 accent-[var(--brand)]" />방문 장소 수</label>
-              <select id="planning-stop-count" aria-label="방문 장소 수" value={desiredStopCount} disabled={planningMode !== "stop_count"} onChange={(event) => { updatePreferences("desiredStopCount", Number(event.target.value)); clearError("planning"); }} className="mt-3 min-h-11 w-full rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-3 text-sm font-semibold disabled:opacity-50">{[1,2,3,4,5].map((count) => <option key={count} value={count}>{count}곳</option>)}</select>
-            </div>
-            <div className={`rounded-[var(--radius-card)] border p-4 ${planningMode === "duration" ? "border-[var(--mint-500)] bg-[var(--brand-soft)]" : "border-[var(--line)] bg-white"}`}>
-              <label className="flex items-center gap-2 text-sm font-extrabold"><input id="planning-mode-duration" type="radio" name="planning-mode" value="duration" checked={planningMode === "duration"} onChange={() => { updatePreferences("planningMode", "duration"); clearError("planning"); }} className="size-4 accent-[var(--brand)]" />전체 일정 시간</label>
-              <select id="planning-duration" aria-label="전체 일정 시간" value={desiredDurationMinutes} disabled={planningMode !== "duration"} onChange={(event) => { updatePreferences("desiredDurationMinutes", Number(event.target.value)); clearError("planning"); }} className="mt-3 min-h-11 w-full rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-3 text-sm font-semibold disabled:opacity-50">{[120,180,240,300,360,480,600].map((minutes) => <option key={minutes} value={minutes}>{minutes / 60}시간</option>)}</select>
-            </div>
+          <legend className="text-sm font-extrabold">일정 페이스</legend>
+          <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+            원하는 여행 리듬을 고르면 추천 엔진의 방문 장소 수로 변환합니다.
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            {TRIP_PACE_OPTIONS.map((option) => {
+              const selected = preferences.tripPace === option.id;
+              return (
+                <label
+                  key={option.id}
+                  className={`min-h-28 cursor-pointer rounded-[var(--radius-card)] border p-4 transition focus-within:outline focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-[#3d8b6859] ${selected ? "border-[var(--mint-500)] bg-[var(--brand-soft)] text-[var(--brand)]" : "border-[var(--line)] bg-white text-[#607168]"}`}
+                >
+                  <input
+                    type="radio"
+                    name="tripPace"
+                    value={option.id}
+                    checked={selected}
+                    onChange={() => {
+                      const planning = getTripPacePlanning(option.id);
+                      setPreferences((current) => ({
+                        ...current,
+                        tripPace: option.id,
+                        planningMode: "stop_count",
+                        desiredStopCount: planning.desiredStopCount,
+                      }));
+                      clearError("planning");
+                    }}
+                    className="sr-only"
+                  />
+                  <span className="flex items-center gap-2 text-sm font-black">
+                    <span aria-hidden="true">{option.icon}</span>
+                    {option.label}
+                  </span>
+                  <span className="mt-2 block text-sm font-extrabold">{option.rangeLabel}</span>
+                  <span className="mt-1 block text-xs leading-5 text-[#68776f]">{option.description}</span>
+                </label>
+              );
+            })}
           </div>
           {errors.planning ? <p id="planning-error" className="mt-2 text-sm font-bold text-[#a44537]" role="alert">{errors.planning}</p> : null}
         </fieldset>
