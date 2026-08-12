@@ -2,12 +2,13 @@
 
 ## System boundaries
 
-PetPass is a Next.js App Router application with four explicit layers:
+PetPass is a Next.js App Router application with five explicit layers:
 
 1. Presentation and navigation in `app/` and `components/`.
 2. Provider adapters in `lib/tour-api`, `lib/kakao`, and `lib/licenses`.
 3. Deterministic domain services in `lib/pet-access` and `lib/itinerary`.
-4. Device-local persistence in `lib/storage`.
+4. Server-only bounded retrieval and ranking in `lib/recommendation`.
+5. Device-local persistence in `lib/storage`.
 
 No presentation component imports provider response shapes directly. Provider
 responses are validated with Zod and normalized before domain evaluation.
@@ -20,7 +21,8 @@ flowchart LR
   RH --> LA["License adapter"]
   TA --> N["Validated normalized domain input"]
   N --> PA["Pet access evaluator"]
-  PA --> IT["Itinerary services"]
+  PA --> RC["Bounded recommendation candidate pool"]
+  RC --> IT["Itinerary services"]
   IT --> UI
   UI --> LS["Versioned localStorage"]
 ```
@@ -57,6 +59,27 @@ keys are absent; they never substitute the fixture.
 - `itinerary/scheduler.ts` assigns visit windows.
 - `itinerary/optimizer.ts` contains a provider-independent geometric baseline.
   Live road routing remains Kakao's responsibility.
+
+## Recommendation candidate boundary
+
+`lib/recommendation` owns Stage 2 server-only candidate work. It receives only
+visibility-joined Korea Tourism Organization Service2 records and applies:
+
+1. category-aware lightweight retrieval, capped at 25;
+2. schedule-aware common/intro inspection, capped at 20;
+3. adaptive detailed eligibility evaluation in batches of five, capped at 20;
+4. the canonical Stage 1 automatic-route gate; and
+5. deterministic place utility over at most 15 eligible records.
+
+The module does not own provider response parsing, Phase 3 pet-access rules,
+licensing rules, information-trust rules, route ordering, or Kakao travel time.
+Those existing owners are called through typed inputs or injected server-only
+dependencies. This avoids a second eligibility or trust implementation.
+
+Popularity is a separate provider-neutral repository and deterministic
+calculator. Its default repository returns neutral insufficient data. A future
+interaction store requires an authenticated, privacy-safe ingest boundary; the
+map Supabase client and public map tables are not reused for analytics writes.
 
 ## Provider adapters
 
@@ -116,6 +139,20 @@ verdict, licensing result, or recommendation eligibility. Kakao-only candidates
 remain low trust and cannot enter automatic itinerary generation.
 
 ## Extension points
+
+## Server-only route optimization boundary
+
+`lib/recommendation/optimizer` is the Stage 4 boundary after candidate retrieval
+and the directed travel matrix. It imports provider-neutral travel contracts;
+Kakao requests remain in `lib/kakao`. The optimizer can consume only strict
+Tourism Service2 candidates, never browser state, discovery records, raw
+provider payloads, or secrets. It performs deterministic search, schedule
+simulation, objective scoring, exact final validation, and explanation
+construction. No public route or client import is added in Stage 4.
+
+The existing itinerary composer remains the active HTTP integration. Adopting
+Stage 4 there is a separate future integration change with response-schema and
+interactive-flow verification.
 
 A future Supabase boundary may store authenticated user-owned profiles, itinerary
 references, and field reports. It must not be introduced into the current storage

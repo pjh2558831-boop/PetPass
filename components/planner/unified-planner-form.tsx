@@ -78,8 +78,7 @@ const tripTypeOptions: Array<{
   {
     value: "OVERNIGHT",
     label: "1박 여행",
-    note: "준비 중 · 현재는 당일 일정만 생성",
-    disabled: true,
+    note: "숙소를 마지막 방문지로 배치하는 일정",
   },
 ];
 
@@ -230,6 +229,11 @@ export function UnifiedPlannerForm() {
         }
         if (preferences.preferredCategories.length === 0 && !includeShopping) {
           nextErrors.categories = "방문하고 싶은 장소 유형을 하나 이상 선택해 주세요.";
+        } else if (
+          preferences.tripType === "OVERNIGHT" &&
+          !preferences.preferredCategories.includes("ACCOMMODATION")
+        ) {
+          nextErrors.categories = "1박 여행은 숙소 유형을 함께 선택해 주세요.";
         }
 
         if (Object.keys(nextErrors).length > 0) {
@@ -403,6 +407,15 @@ export function UnifiedPlannerForm() {
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {tripTypeOptions.map((option) => { const selected = preferences.tripType === option.value; return <label key={option.value} className={`relative rounded-[var(--radius-card)] border p-4 transition focus-within:outline focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-[#3d8b6859] ${option.disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"} ${selected ? "border-[var(--mint-500)] bg-[var(--brand-soft)]" : "border-[var(--line)] bg-white"}`}><input type="radio" name="tripType" value={option.value} checked={selected} disabled={option.disabled} onChange={() => updatePreferences("tripType", option.value)} className="sr-only" /><span className="block text-sm font-extrabold">{option.label}</span><span className="mt-1 block text-xs text-[var(--muted)]">{option.note}</span></label>; })}
           </div>
+          <label className="mt-3 flex min-h-12 cursor-pointer items-center gap-3 rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[#607168]">
+            <input
+              type="checkbox"
+              checked={preferences.roundTrip ?? false}
+              onChange={(event) => updatePreferences("roundTrip", event.target.checked)}
+              className="size-4 accent-[var(--brand)]"
+            />
+            마지막 장소 방문 후 출발지로 돌아오기
+          </label>
         </fieldset>
 
         <fieldset className="mt-7 border-t border-[var(--line)] pt-7" aria-describedby={errors.planning ? "planning-error" : undefined}>

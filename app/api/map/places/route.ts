@@ -10,7 +10,9 @@ import {
 } from "@/types/map-place";
 
 const CACHE_HEADERS = {
-  "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+  // Stored candidates carry their own expiry. Do not let an edge cache serve
+  // one beyond that provider-freshness boundary.
+  "Cache-Control": "private, no-store",
 } as const;
 const DEFAULT_CATEGORIES: MapPlaceCategory[] = MAP_PLACE_CATEGORIES.filter(
   (category) => category !== "shopping",
@@ -104,7 +106,17 @@ export function createMapPlacesHandler(dependencies: MapPlacesRouteDependencies 
       );
     }
     try {
-      const places = await (dependencies.query ?? queryMapPlaces)(input);
+      const queriedPlaces = await (dependencies.query ?? queryMapPlaces)(input);
+      // Stored Tourism rows have no visibility-refresh writer yet. Serving an
+      // old `exposed` bit could leak a record after the provider hides it, so
+      // official markers come only from the freshly visibility-joined catalog.
+      const now = Date.now();
+      const places = queriedPlaces.filter(
+        (place) =>
+          place.provider !== "tour" &&
+          place.expires_at !== null &&
+          Date.parse(place.expires_at) > now,
+      );
       return apiSuccess({ places, count: places.length }, 200, CACHE_HEADERS);
     } catch {
       return apiFailure(

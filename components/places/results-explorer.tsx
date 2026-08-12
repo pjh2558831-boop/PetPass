@@ -151,6 +151,10 @@ export function ResultsExplorer({
     if (activeTab !== "catalog") return;
     const controller = new AbortController();
     const load = async () => {
+      // Never retain markers from a previous district/category while the new
+      // visibility-joined catalog is pending.
+      setCatalogPlaces([]);
+      setProviderTotalCount(0);
       setListState("loading");
       try {
         const params = new URLSearchParams({
@@ -247,12 +251,38 @@ export function ResultsExplorer({
   );
 
   const catalogLocations = useMemo(
-    () =>
-      storedMapPlaces
-        .filter((place) =>
-          place.provider === "tour"
-            ? sourceLayerVisibility.tourism_official
-            : sourceLayerVisibility.kakao_discovery,
+    () => {
+      const officialTourLocations = filteredPlaces
+        .filter(
+          (place) =>
+            sourceLayerVisibility.tourism_official &&
+            place.providerVisibility?.status === "exposed" &&
+            place.latitude !== null &&
+            place.longitude !== null &&
+            (place.category !== "shopping" || shoppingMapVisible),
+        )
+        .map(
+          (place): KakaoMapLocation => ({
+            id: place.contentId,
+            name: place.title ?? "이름 미확인",
+            address: [place.address, place.detailAddress].filter(Boolean).join(" "),
+            coordinates: {
+              latitude: place.latitude as number,
+              longitude: place.longitude as number,
+            },
+            markerKind:
+              place.category === "shopping" ? "shopping" : "tourism-official",
+            markerLabel: "공",
+            sourceLabel: "한국관광공사 제공 장소",
+            interactive: true,
+            clusterable: true,
+          }),
+        );
+      const storedDiscoveryLocations = storedMapPlaces
+        .filter(
+          (place) =>
+            place.provider === "kakao" &&
+            sourceLayerVisibility.kakao_discovery,
         )
         .filter(
           (place) =>
@@ -267,22 +297,16 @@ export function ResultsExplorer({
               latitude: place.latitude,
               longitude: place.longitude,
             },
-            markerKind:
-              place.provider === "tour"
-                ? place.category_group === "shopping"
-                  ? "shopping"
-                  : "tourism-official"
-                : "kakao-candidate",
-            markerLabel: place.provider === "tour" ? "공" : "K",
-            sourceLabel:
-              place.provider === "tour"
-                ? "한국관광공사 제공 장소"
-                : "카카오 검색 장소 · 반려동물 동반 여부 확인 필요",
+            markerKind: "kakao-candidate",
+            markerLabel: "K",
+            sourceLabel: "카카오 검색 장소 · 반려동물 동반 여부 확인 필요",
             interactive: true,
             clusterable: true,
           }),
-        ),
-    [shoppingMapVisible, sourceLayerVisibility, storedMapPlaces],
+        );
+      return [...officialTourLocations, ...storedDiscoveryLocations];
+    },
+    [filteredPlaces, shoppingMapVisible, sourceLayerVisibility, storedMapPlaces],
   );
 
   const loadStoredMapPlaces = useCallback(
@@ -359,11 +383,16 @@ export function ResultsExplorer({
 
   const layerControls = useMemo<MapLayerControl[]>(() => {
     const counts: Record<PlaceSourceLayerId, number> = {
-      tourism_official: storedMapPlaces.filter(({ provider }) => provider === "tour").length,
+      tourism_official: catalogLocations.filter(
+        ({ markerKind }) =>
+          markerKind === "tourism-official" || markerKind === "shopping",
+      ).length,
       business_confirmed: 0,
       administrator_confirmed: 0,
       user_reported: 0,
-      kakao_discovery: storedMapPlaces.filter(({ provider }) => provider === "kakao").length,
+      kakao_discovery: catalogLocations.filter(
+        ({ markerKind }) => markerKind === "kakao-candidate",
+      ).length,
     };
     const controls: MapLayerControl[] = PLACE_SOURCE_LAYERS.map((layer) => ({
       id: layer.id,
@@ -379,14 +408,14 @@ export function ResultsExplorer({
         id: "shopping",
         label: "쇼핑(선택형)",
         markerKind: "shopping",
-        count: storedMapPlaces.filter(({ category_group }) => category_group === "shopping").length,
+        count: catalogLocations.filter(({ markerKind }) => markerKind === "shopping").length,
         visible: shoppingMapVisible,
-        disabled: !storedMapPlaces.some(({ category_group }) => category_group === "shopping"),
+        disabled: !catalogLocations.some(({ markerKind }) => markerKind === "shopping"),
         description: "명시적으로 쇼핑을 선택했을 때만 켜지는 지도 레이어",
       });
     }
     return controls;
-  }, [category, shoppingMapVisible, sourceLayerVisibility, storedMapPlaces]);
+  }, [catalogLocations, category, shoppingMapVisible, sourceLayerVisibility]);
 
   const toggleMapLayer = useCallback((id: string, visible: boolean) => {
     if (id === "shopping") {
@@ -530,7 +559,7 @@ export function ResultsExplorer({
               ? "현재 지도 범위의 저장된 장소를 불러오는 중입니다."
               : storedMapState === "error"
                 ? "저장된 장소를 불러오지 못했습니다. 지도 이동 후 다시 시도해 주세요."
-                : `현재 지도 범위의 DB 저장 장소 ${catalogLocations.length}곳을 표시합니다.`}
+                : `현재 지도 범위의 확인된 장소 ${catalogLocations.length}곳을 표시합니다.`}
           </p>
           </div>
         ) : null}
@@ -545,7 +574,7 @@ export function ResultsExplorer({
           <div className="surface-card p-4 sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="eyebrow">Supabase map storage</p>
+                <p className="eyebrow">Map data sources</p>
                 <h2 className="mt-1 text-lg font-black">저장된 부산 장소</h2>
               </div>
               <span className="rounded-full bg-[#fff6cc] px-3 py-1.5 text-xs font-extrabold text-[#6b5200]">

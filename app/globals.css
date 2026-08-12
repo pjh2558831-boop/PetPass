@@ -177,6 +177,13 @@ select {
   transform: none;
 }
 
+.kakao-map-marker--departure {
+  border-radius: 999px;
+  background: #2467a8;
+  box-shadow: 0 8px 20px rgba(36, 103, 168, 0.28);
+  transform: none;
+}
+
 .kakao-map-marker--tourism-official,
 .kakao-map-marker--catalog {
   background: #236148;
@@ -229,6 +236,8 @@ select {
 
 .kakao-map-marker--itinerary:hover,
 .kakao-map-marker--itinerary:focus-visible,
+.kakao-map-marker--departure:hover,
+.kakao-map-marker--departure:focus-visible,
 .kakao-map-marker--business-confirmed:hover,
 .kakao-map-marker--business-confirmed:focus-visible,
 .kakao-map-marker--administrator-confirmed:hover,
@@ -257,6 +266,10 @@ select {
 .kakao-map-marker--administrator-confirmed span,
 .kakao-map-marker--user-reported span,
 .kakao-map-marker--itinerary span {
+  transform: none;
+}
+
+.kakao-map-marker--departure span {
   transform: none;
 }
 

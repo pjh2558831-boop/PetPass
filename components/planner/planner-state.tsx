@@ -42,6 +42,7 @@ export const DEFAULT_PLANNER_PREFERENCES: TravelPreferences = {
   desiredDurationMinutes: 360,
   indoorAccessPreference: "any",
   includeShopping: false,
+  roundTrip: false,
 };
 
 export type PlannerGenerationPhase = "idle" | "loading" | "ready" | "error";

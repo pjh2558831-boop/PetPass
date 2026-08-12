@@ -18,6 +18,7 @@ import type { ResolvedDeparture } from "@/types/pet";
 function mapDeparture(coordinates: Coordinates): ResolvedDeparture {
   return {
     label: `지도에서 선택한 위치 (${coordinates.latitude.toFixed(5)}, ${coordinates.longitude.toFixed(5)})`,
+    source: "map_selection",
     coordinates,
   };
 }

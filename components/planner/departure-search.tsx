@@ -49,6 +49,8 @@ function parseDepartureResults(value: unknown): KakaoDepartureSearchResult[] | n
 function selectedDeparture(result: KakaoDepartureSearchResult): ResolvedDeparture {
   return {
     label: result.label.trim(),
+    source:
+      result.kind === "place" ? "kakao_place_search" : "address_search",
     coordinates: result.coordinates,
   };
 }

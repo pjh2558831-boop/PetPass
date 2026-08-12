@@ -70,10 +70,9 @@ export function createTourPlaceDetailHandler(
     }
 
     try {
-      const tourismDetail = await service.getPlaceDetail(
-        contentIdResult.data,
-        contentTypeIdResult.data,
-      );
+      // The URL's contentTypeId is a navigation hint, never provider identity.
+      // detailCommon2 remains authoritative and selects the typed detail parser.
+      const tourismDetail = await service.getPlaceDetail(contentIdResult.data);
       const computedAt = now().toISOString();
       const petAccessAssessment = attachTourPetAccessEvaluationTime(
         evaluateTourPetAccess(createTrustedTourPetAccessInput(tourismDetail)),

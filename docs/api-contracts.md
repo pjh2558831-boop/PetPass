@@ -52,6 +52,12 @@ assessment, separate licensing enrichment, provider source records, and a
 versioned information-trust result. Trust components are diagnostic evidence
 weights, not probabilities and not inputs to the pet-access verdict.
 
+The detail boundary independently confirms `petTourSyncList2.showflag=1` before
+returning a record. `showflag=0` is hidden as not found; a missing, undocumented,
+failed, or timed-out visibility result fails closed and is never treated as
+public. The response also distinguishes a usable/partial pet item, a present but
+empty item, an absent item, and a pet-detail provider failure.
+
 Accommodation (`contentTypeId=32`) returns `checkInTime` and `checkOutTime` as
 separate nullable fields. They are never substituted into generic
 `operatingInformation`.
@@ -86,20 +92,38 @@ latitude/longitude polyline. The REST key is never accepted from the client.
 
 ## `POST /api/itineraries/generate`
 
+Stage 5 supersedes the legacy contract below. The current endpoint accepts the
+strict `RouteRecommendationRequest` and returns the direct, versioned
+`route-recommendation-response-v1` union. With
+`ROUTE_ENGINE_V1_ENABLED=true`, its only path is canonical Stage 2 candidate
+retrieval → Stage 3 asymmetric matrix → Stage 4 optimization → final Kakao
+validation. It rejects legacy planning fields and client-owned limits. No
+provider failure falls back to fixtures, Kakao discovery candidates, or the old
+composer. See `docs/recommendation-api-v1.md` for the authoritative request,
+response, failure, and manual revalidation contracts.
+
+### Historical pre-Stage-5 contract (no longer served by the product handler)
+
 The JSON request selects all Busan or one verified district, a validated start
 coordinate, travel date and start time, either a duration (120–600 minutes) or
-a stop count (1–5), optional existing pet size, indoor-access preference,
-travel categories, and `includeShopping` (default `false`). Shopping is queried
-only when both selected and explicitly enabled.
+a stop count (1–5), pet species and size, carrier/leash/muzzle availability,
+whether an outdoor-only visit is acceptable, indoor-access preference, travel
+categories, and `includeShopping` (default `false`). Shopping is queried only
+when both selected and explicitly enabled.
 
-The server completes bounded Service2 pagination for every selected category,
-rejects malformed or unsupported records, ranks the complete matching catalog
-by distance from the requested origin, retains at most 80 preliminary
-candidates, and loads details for at most the nearest 12. It then evaluates pet
-access with the existing deterministic rules and routes eligible proposals
-through Kakao Mobility. Only `allowed` and `conditional` stops are returned.
-Conditional terms and unknown-hours warnings stay attached, and licensing is
-neither read nor returned.
+The server completes bounded Service2 pagination for every selected category and
+joins the cached `petTourSyncList2` visibility list before a record enters the
+catalog. Only `showflag=1` records continue. It rejects malformed or unsupported
+records, retrieves at most 25 lightweight category-aware candidates, retains at
+most 20 after schedule-aware common/intro inspection, and evaluates remaining
+pet details adaptively in batches of five up to 20 records. Automatic-route
+eligibility then requires successful
+required provider sections, valid coordinates, meaningful primary
+`detailPetTour2` evidence, an `allowed` verdict or a fully satisfied
+`conditional` verdict, no confirmed closed licensing match, no impossible
+operating-time conflict, and an allowed requested category. Kakao-only discovery
+candidates never enter automatic routes; exact Kakao matches may enrich Tourism
+metadata only.
 
 Pet-size compatibility is a separate typed result. It never changes the base
 pet-access verdict. Only explicit size wording can be automatically compatible
@@ -107,19 +131,48 @@ or incompatible; kg limits and ambiguous size restrictions require verification
 and stay out of automatic routes. Missing size wording remains `not_specified`
 instead of being invented as compatible.
 
+Licensing, provider availability, provider visibility, pet access, information
+trust, and route eligibility remain separate results. A confirmed closed match
+can exclude a route candidate but cannot change its pet-access verdict. A
+missing, ambiguous, or unavailable licensing match remains a warning, not proof
+of closure. Trust or popularity cannot override an unmet pet condition.
+
 The response reports the normalized request, safe exclusion counts, configured
 limits, actual call counts, up to three diverse profiles, ordered stops, raw
 provider content type plus normalized category, actual Kakao totals, and safe
 geometry. Its `candidateFunnel` reconciles the complete catalog, basic filters,
-80-place preliminary rank, 12-place detail assessment, base pet verdicts,
+the 25-place Stage A rank, at most 20 Stage B/Stage C assessments, base pet verdicts,
 pet-size compatibility, final eligible candidates, and returned routes. It
 returns a typed `insufficient_candidates`, `partial`, or `provider_unavailable`
 state instead of filling missing routes with demo data.
 
-Per request, the complete matching catalog is ranked locally, at most 80
-candidates survive the preliminary rank, 12 composite place details are loaded
-with concurrency 3, and 6 Kakao route proposals are tried. The existing catalog
-limit of 20 provider pages per selected content type also applies.
+Per request, the complete matching catalog is ranked locally, Stage A keeps at
+most 25, Stage B keeps at most 20, and Stage C performs at most 20 detailed
+evaluations with concurrency 3 before exposing at most 15 strict-eligible
+candidates to the existing itinerary composer. Six Kakao route proposals may
+then be tried. The existing catalog limit of 20 provider pages per selected
+content type also applies.
+
+### Stage 2 server-only candidate contract
+
+Stage 2 adds a server-only candidate-pool boundary inside this production Route
+Handler; it is not a new public HTTP endpoint and does not redesign the planner
+UI. Its limits are Stage A 25,
+Stage B 20, adaptive Stage C batches of five with at most 20 detailed
+evaluations, and a final strict-eligible pool of 15. It returns typed
+`insufficient_eligible_places` diagnostics rather than weakening eligibility.
+
+The response includes a `candidatePipeline` summary with the version, typed
+status, eligible-pool target, required minimum, aggregated reasons, and safe
+diagnostics. These fields describe candidate discovery. Stage 3 matrix
+construction and Stage 4 optimization are server-only modules and do not add
+public fields to this endpoint in their current integration state.
+
+### Historical Stage 3 and Stage 4 integration status
+
+There is no public travel-matrix or route-optimizer endpoint. Stage 5 now invokes
+both modules through the server-only orchestration service and exposes only the
+normalized versioned product response described above.
 
 ## `GET /api/licenses`
 

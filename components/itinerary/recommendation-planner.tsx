@@ -1,17 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
-  ArrowRight,
-  CheckCircle2,
+  ArrowDown,
+  ArrowUp,
+  Check,
   LoaderCircle,
   MapPinned,
   PawPrint,
   RefreshCw,
-  Route,
-  ShieldAlert,
+  RotateCcw,
+  Save,
+  ShieldCheck,
+  Trash2,
 } from "lucide-react";
 import {
   useCallback,
@@ -19,285 +21,210 @@ import {
   useMemo,
   useRef,
   useState,
-  type KeyboardEvent,
 } from "react";
-import { ConfirmedTripSummary } from "@/components/itinerary/confirmed-trip-summary";
-import { RouteStopCard } from "@/components/itinerary/route-stop-card";
 import { MapPanel } from "@/components/map/map-panel";
 import { usePlannerState } from "@/components/planner/planner-state";
 import { Button } from "@/components/ui/button";
 import {
-  createItineraryPresentation,
-  formatKoreanDurationMinutes,
-  GENERATED_PET_VERDICT_COPY,
-} from "@/lib/itinerary/presentation";
-import type { ItineraryGenerationRequest } from "@/lib/itinerary/request-schema";
-import { itineraryGenerationResponseSchema } from "@/lib/itinerary/response-schema";
+  recommendationActions,
+  recommendationReasonCopy,
+  recommendationWarningCopy,
+} from "@/lib/recommendation/recommendation-copy";
+import { createRouteRecommendationRequest } from "@/lib/recommendation/recommendation-ui-request";
 import {
-  BUSAN_REGION,
-  isBusanDistrictCode,
-  type TourCatalogCategory,
-} from "@/lib/tour-api/catalog";
-import {
-  formatRouteDistance,
-  formatRouteDuration,
-} from "@/lib/kakao/directions-client";
+  manualRouteValidationResponseSchema,
+  routeRecommendationResponseSchema,
+} from "@/lib/recommendation/recommendation-response";
+import { saveRouteRecommendation } from "@/lib/storage/recommendation-storage";
 import type { KakaoMapLocation } from "@/lib/kakao/maps";
-import type { ApiResult } from "@/types/api";
-import type { PetProfile, TravelPreferences } from "@/types/pet";
 import type {
-  GeneratedItinerary,
-  ItineraryGenerationResponse,
-} from "@/types/route-generation";
+  ProductRouteV1,
+  RouteRecommendationResponseV1,
+} from "@/types/recommendation";
 
-const DEFAULT_DEPARTURE = {
-  label: "부산역",
-  coordinates: { latitude: 35.1151, longitude: 129.0414 },
+const PACE_LABEL = {
+  relaxed: "여유롭게",
+  balanced: "적당한 속도로",
+  packed: "알차게",
 } as const;
 
-const PREFERENCE_CATEGORY_MAP = {
-  ATTRACTION: "attraction",
-  RESTAURANT: "food",
-  CAFE: "food",
-  ACCOMMODATION: "accommodation",
-  WALK: "leisure",
-} as const satisfies Record<
-  TravelPreferences["preferredCategories"][number],
-  TourCatalogCategory
->;
+const CATEGORY_LABEL = {
+  attraction: "관광지",
+  culture: "문화시설",
+  festival: "축제",
+  leisure: "레저",
+  accommodation: "숙소",
+  food: "음식점",
+  shopping: "쇼핑",
+} as const;
 
-function categoriesFromPreferences(
-  preferences: TravelPreferences,
-): TourCatalogCategory[] {
-  const categories: TourCatalogCategory[] = preferences.preferredCategories.map(
-    (category) => PREFERENCE_CATEGORY_MAP[category],
-  );
-  if (preferences.includeShopping) categories.push("shopping");
-  return Array.from(new Set(categories));
+const LOADING_STAGES = [
+  "방문 가능한 공식 장소를 확인하고 있어요",
+  "동반 조건과 운영 정보를 확인하고 있어요",
+  "실제 이동시간을 비교하고 있어요",
+  "가장 자연스러운 일정 순서를 찾고 있어요",
+  "최종 이동 경로를 확인하고 있어요",
+] as const;
+
+function formatDistance(meters: number): string {
+  return meters >= 1_000
+    ? `${(meters / 1_000).toFixed(1)}km`
+    : `${Math.round(meters)}m`;
 }
 
-function createGenerationRequest(
-  profile: PetProfile,
-  preferences: TravelPreferences,
-  operation: "initial" | "reroll",
-  recentRouteSignatures: string[],
-): ItineraryGenerationRequest {
-  const departure = preferences.departure ?? DEFAULT_DEPARTURE;
-  const scope =
-    preferences.regionCode === BUSAN_REGION.code &&
-    isBusanDistrictCode(preferences.districtCode)
-      ? { type: "district" as const, districtCode: preferences.districtCode }
-      : { type: "busan" as const };
-  const planning =
-    preferences.planningMode === "duration"
-      ? {
-          desiredDurationMinutes: preferences.desiredDurationMinutes ?? 360,
-        }
-      : { desiredStopCount: preferences.desiredStopCount ?? 3 };
-
-  return {
-    scope,
-    start: {
-      label: departure.label,
-      coordinates: departure.coordinates,
-    },
-    travelDate: preferences.tripDate,
-    startTime: preferences.startTime,
-    planning,
-    petSize: profile.size,
-    petEquipment: {
-      hasCarrier: profile.hasCarrier,
-      hasLeash: profile.hasLeash,
-      hasMuzzle: profile.hasMuzzle,
-    },
-    indoorAccessPreference: preferences.indoorAccessPreference ?? "any",
-    selectedCategories: categoriesFromPreferences(preferences),
-    includeShopping: preferences.includeShopping ?? false,
-    generationSeed:
-      operation === "initial"
-        ? "initial"
-        : globalThis.crypto.randomUUID(),
-    recentRouteSignatures:
-      operation === "reroll" ? recentRouteSignatures : [],
-  };
+function formatDuration(seconds: number): string {
+  const minutes = Math.round(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (hours === 0) return `${remainder}분`;
+  return remainder === 0 ? `${hours}시간` : `${hours}시간 ${remainder}분`;
 }
 
-function generationStateCopy(state: ItineraryGenerationResponse["state"]): {
-  title: string;
-  description: string;
-  tone: string;
-} {
-  if (state === "ready") {
-    return {
-      title: "확인된 조건으로 실제 경로를 만들었어요.",
-      description: "반환된 경로만 순서대로 비교할 수 있습니다. 전략을 바꿔도 새 요청은 보내지 않습니다.",
-      tone: "border-[#cce2d5] bg-[#edf8f2] text-[#285c45]",
-    };
-  }
-  if (state === "partial") {
-    return {
-      title: "일부 제공자 응답이 불완전한 상태예요.",
-      description: "표시된 장소와 경로는 사용할 수 있지만, 누락된 후보가 있을 수 있습니다.",
-      tone: "border-[#ead7b8] bg-[#fff8ec] text-[#76542f]",
-    };
-  }
-  if (state === "provider_unavailable") {
-    return {
-      title: "현재 경로 제공자 정보를 모두 확인하지 못했어요.",
-      description: "제공자 장애를 동반 불가로 해석하지 않았습니다. 같은 조건으로 다시 시도할 수 있습니다.",
-      tone: "border-[#edcaca] bg-[#fdf0f0] text-[#853e3e]",
-    };
-  }
-  return {
-    title: "조건을 충족하는 실제 장소가 충분하지 않아요.",
-    description: "근거가 부족하거나 지원되지 않는 장소를 임의로 채우지 않았습니다.",
-    tone: "border-[#d8ddd9] bg-[#f5f6f4] text-[#56655d]",
-  };
+function koreaTime(value: string): string {
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(value));
 }
 
-function ResultsEmptyState() {
+function trustLabel(value: "high" | "medium" | "low"): string {
+  return value === "high" ? "높음" : value === "medium" ? "보통" : "낮음";
+}
+
+function EmptyResult() {
   return (
-    <section className="surface-panel mx-auto max-w-3xl p-7 text-center sm:p-10" aria-labelledby="results-empty-heading">
-      <span className="mx-auto grid size-12 place-items-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]">
-        <Route size={22} aria-hidden="true" />
-      </span>
-      <p className="eyebrow mt-4">추천 준비가 필요해요</p>
-      <h1 id="results-empty-heading" className="mt-2 text-2xl font-black tracking-[-0.04em] sm:text-3xl">
-        확정된 여행 조건이 없습니다.
-      </h1>
-      <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-[var(--muted)]">
-        새로고침하거나 이 주소로 바로 들어오면 이전 결과를 복원하지 않습니다. 반려동물과 출발지를 다시 확인해 실제 경로를 만들어 주세요.
-      </p>
-      <Link
-        href="/planner/pet"
-        className="mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--brand)] px-5 text-sm font-extrabold text-white shadow-[var(--shadow-button)] hover:bg-[var(--brand-deep)]"
-      >
-        여행 정보 입력하기
-        <ArrowRight size={17} aria-hidden="true" />
-      </Link>
+    <section className="surface-panel mx-auto max-w-3xl p-8 text-center" aria-labelledby="route-empty-heading">
+      <PawPrint className="mx-auto text-[var(--brand)]" aria-hidden="true" />
+      <h1 id="route-empty-heading" className="mt-4 text-2xl font-black">여행 조건이 아직 확정되지 않았어요.</h1>
+      <p className="mt-3 text-sm leading-7 text-[var(--muted)]">반려동물과 여행 조건을 입력하면 공식 동반 근거와 실제 이동 경로를 확인해 일정을 만듭니다.</p>
+      <Link href="/planner/pet" className="mt-6 inline-flex min-h-12 items-center rounded-[var(--radius-control)] bg-[var(--brand)] px-5 text-sm font-extrabold text-white">여행 정보 입력하기</Link>
     </section>
   );
 }
 
-function ResultsLoadingState({ reroll }: { reroll: boolean }) {
-  if (reroll) {
-    return (
-      <section
-        className="rounded-[var(--radius-card)] border border-[#cce2d5] bg-[#f4faf6] p-4"
-        aria-live="polite"
-        aria-busy="true"
-        aria-label="다른 경로 계산 중"
-      >
-        <div className="flex items-center gap-3">
-          <LoaderCircle className="animate-spin text-[var(--brand)]" size={20} aria-hidden="true" />
-          <div>
-            <h2 className="text-sm font-black">현재 결과를 유지한 채 다른 조합을 계산하고 있어요.</h2>
-            <p className="mt-1 text-xs leading-5 text-[var(--muted)]">완료되기 전까지 아래 경로를 계속 확인할 수 있습니다.</p>
-          </div>
-        </div>
-      </section>
-    );
-  }
+function LoadingResult({ slow }: { slow: boolean }) {
   return (
-    <section
-      className="surface-panel overflow-hidden p-5 sm:p-6"
-      aria-live="polite"
-      aria-busy="true"
-      aria-label="추천 경로 계산 중"
-    >
+    <section className="surface-panel p-6" aria-live="polite" aria-busy="true">
       <div className="flex items-center gap-3">
-        <LoaderCircle className="animate-spin text-[var(--brand)]" size={22} aria-hidden="true" />
+        <LoaderCircle className="animate-spin text-[var(--brand)]" aria-hidden="true" />
         <div>
-          <h2 className="font-black">조건에 맞는 실제 경로를 계산하고 있어요.</h2>
-          <p className="mt-1 text-xs leading-5 text-[var(--muted)]">관광공사 동반 근거를 확인한 뒤 Kakao 실제 이동 경로를 계산합니다.</p>
+          <p className="eyebrow">추천 일정 생성 중</p>
+          <h1 className="mt-1 text-xl font-black">공식 근거와 실제 경로를 차례로 확인하고 있어요.</h1>
         </div>
       </div>
-      <div className="mt-5 grid gap-3 lg:grid-cols-3" aria-hidden="true">
-        {[0, 1, 2].map((item) => (
-          <div key={item} className="h-32 animate-pulse rounded-2xl bg-[#eef2ee]" />
+      <ol className="mt-6 grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="추천 일정 생성 단계">
+        {LOADING_STAGES.map((stage, index) => (
+          <li key={stage} className="flex items-center gap-2 rounded-xl bg-[#f3f7f4] p-3 text-sm font-bold text-[#52665b]">
+            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-white text-xs text-[var(--brand)]">{index + 1}</span>
+            {stage}
+          </li>
         ))}
+      </ol>
+      {slow ? <p className="mt-4 rounded-xl bg-[#fff8ec] p-3 text-sm font-bold text-[#76542f]">공식 데이터를 확인하는 데 시간이 조금 더 걸리고 있습니다.</p> : null}
+    </section>
+  );
+}
+
+function FailureResult({
+  response,
+  onRetry,
+}: {
+  response: Exclude<RouteRecommendationResponseV1, { status: "ready" }>;
+  onRetry: () => void;
+}) {
+  return (
+    <section className="surface-panel p-6" role="alert" aria-labelledby="route-error-heading">
+      <AlertTriangle className="text-[#a44537]" aria-hidden="true" />
+      <h1 id="route-error-heading" className="mt-3 text-2xl font-black">일정을 표시할 수 없어요.</h1>
+      <p className="mt-2 text-sm leading-7 text-[var(--muted)]">{response.userMessage}</p>
+      <ul className="mt-4 list-disc space-y-1 pl-5 text-sm font-semibold text-[#52665b]">
+        {recommendationActions(response.status).map((action) => <li key={action}>{action}</li>)}
+      </ul>
+      <div className="mt-5 flex flex-wrap gap-2">
+        {response.retryable ? <Button type="button" variant="brand" onClick={onRetry}><RefreshCw size={16} aria-hidden="true" /> 다시 시도</Button> : null}
+        <Link href="/planner/pet" className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">여행 조건 수정</Link>
+        <Link href="/results?tab=catalog" className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">방문 가능한 장소 보기</Link>
       </div>
     </section>
   );
 }
 
-function StrategyCard({
-  itinerary,
-  selected,
-  index,
+function Timeline({
+  route,
+  validated,
+  selectedPlaceId,
   onSelect,
-  onKeyDown,
-  tabRef,
+  onMove,
+  onRemove,
 }: {
-  itinerary: GeneratedItinerary;
-  selected: boolean;
-  index: number;
-  onSelect: () => void;
-  onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
-  tabRef: (node: HTMLButtonElement | null) => void;
+  route: ProductRouteV1;
+  validated: boolean;
+  selectedPlaceId: string | null;
+  onSelect: (id: string) => void;
+  onMove: (id: string, direction: -1 | 1) => void;
+  onRemove: (id: string) => void;
 }) {
-  const presentation = createItineraryPresentation(itinerary, {
-    hasCarrier: null,
-    hasLeash: null,
-    hasMuzzle: null,
-  });
-  const elapsed = formatKoreanDurationMinutes(
-    presentation.metrics.estimatedElapsedDurationMinutes,
-  );
-
   return (
-    <button
-      ref={tabRef}
-      id={`strategy-tab-${index}`}
-      type="button"
-      role="tab"
-      aria-selected={selected}
-      aria-controls="selected-strategy-panel"
-      tabIndex={selected ? 0 : -1}
-      onClick={onSelect}
-      onKeyDown={onKeyDown}
-      className={`min-h-44 rounded-[var(--radius-card)] border p-4 text-left shadow-[var(--shadow-card)] transition-colors sm:p-5 ${
-        selected
-          ? "border-[var(--mint-500)] bg-[#f3faf6] ring-2 ring-[rgba(61,139,104,.14)]"
-          : "border-[var(--line)] bg-white hover:border-[#9bb9a9]"
-      }`}
-    >
-      <span className="flex items-center justify-between gap-3">
-        <span className="text-xs font-black text-[var(--brand)]">경로 {index + 1}</span>
-        {selected ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--brand)] px-2.5 py-1 text-[11px] font-black text-white">
-            <CheckCircle2 size={13} aria-hidden="true" /> 선택됨
-          </span>
-        ) : (
-          <span className="text-[11px] font-bold text-[var(--muted)]">선택해서 비교</span>
-        )}
-      </span>
-      <span className="mt-3 block text-lg font-black tracking-[-0.03em]">{itinerary.title}</span>
-      <span className="mt-2 line-clamp-2 block text-xs leading-5 text-[var(--muted)]">{itinerary.explanation}</span>
-      <span className="mt-4 grid grid-cols-3 gap-2 text-center">
-        <span className="rounded-xl bg-white/80 px-2 py-2">
-          <span className="block text-[10px] font-bold text-[var(--muted)]">장소</span>
-          <span className="mt-0.5 block text-xs font-black">{presentation.metrics.stopCount}곳</span>
-        </span>
-        <span className="rounded-xl bg-white/80 px-2 py-2">
-          <span className="block text-[10px] font-bold text-[var(--muted)]">이동</span>
-          <span className="mt-0.5 block text-xs font-black">{formatRouteDistance(presentation.metrics.totalDistanceMeters)}</span>
-        </span>
-        <span className="rounded-xl bg-white/80 px-2 py-2">
-          <span className="block text-[10px] font-bold text-[var(--muted)]">전체</span>
-          <span className="mt-0.5 block text-xs font-black">{elapsed ?? "미제공"}</span>
-        </span>
-      </span>
-      <span className="mt-3 flex flex-wrap gap-1.5 text-[10px] font-extrabold">
-        {Object.entries(presentation.verdictCounts).map(([verdict, count]) =>
-          count > 0 ? (
-            <span key={verdict} className="rounded-full border border-[#d7e0da] bg-white px-2 py-1 text-[#52665b]">
-              {GENERATED_PET_VERDICT_COPY[verdict as keyof typeof GENERATED_PET_VERDICT_COPY].label} {count}
-            </span>
-          ) : null,
-        )}
-      </span>
-    </button>
+    <ol className="space-y-4" aria-label={`${route.label} 방문 순서`}>
+      {route.stops.map((stop, index) => {
+        const inclusion = stop.inclusionReasonCodes.flatMap((code) => {
+          const copy = recommendationReasonCopy(code);
+          return copy ? [copy] : [];
+        });
+        const ordering = (validated ? stop.orderingReasonCodes : []).flatMap((code) => {
+          const copy = recommendationReasonCopy(code);
+          return copy ? [copy] : [];
+        });
+        const warnings = [...stop.operatingHoursWarnings, ...stop.warningCodes].flatMap((code) => {
+          const copy = recommendationWarningCopy(code);
+          return copy ? [copy] : [];
+        });
+        return (
+          <li
+            key={stop.placeId}
+            id={`recommended-stop-${stop.placeId}`}
+            className={`surface-card p-5 ${selectedPlaceId === stop.placeId ? "ring-2 ring-[var(--mint-500)]" : ""}`}
+          >
+            <button type="button" onClick={() => onSelect(stop.placeId)} className="w-full text-left focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-[#3d8b6859]">
+              <span className="flex flex-wrap items-center justify-between gap-3">
+                <span className="inline-flex items-center gap-2 text-sm font-black text-[var(--brand)]"><span className="grid size-8 place-items-center rounded-full bg-[var(--brand)] text-white">{stop.sequence}</span>{validated ? `${koreaTime(stop.arrivalAt)} 도착` : "경로 재계산 전"}</span>
+                <span className="text-xs font-bold text-[var(--muted)]">예상 체류 {stop.dwellMinutes}분{validated ? ` · ${koreaTime(stop.departureAt)} 출발` : ""}</span>
+              </span>
+              <h3 className="mt-4 text-xl font-black tracking-[-0.03em]">{stop.title}</h3>
+              <p className="mt-2 text-sm text-[var(--muted)]">{CATEGORY_LABEL[stop.category]} · {stop.sourceLabel}</p>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs font-extrabold">
+                <span className="rounded-full bg-[#edf8f2] px-3 py-1.5 text-[#285c45]">{stop.petAssessment === "allowed" ? "동반 가능" : "조건부 가능"}</span>
+                <span className="rounded-full border border-[#d7e0da] bg-white px-3 py-1.5 text-[#52665b]">정보 신뢰도 {trustLabel(stop.informationTrust)}</span>
+                <span className="rounded-full border border-[#d7e0da] bg-white px-3 py-1.5 text-[#52665b]">공식 관광 정보</span>
+                {stop.licensingStatus === "no_match" || stop.licensingStatus === "verification_required" ? <span className="rounded-full border border-[#dfccb3] bg-[#fff8ec] px-3 py-1.5 text-[#76542f]">인허가 데이터 추가 확인 필요</span> : null}
+              </div>
+              {validated && stop.driveSecondsFromPrevious > 0 ? <p className="mt-3 text-xs font-bold text-[#607168]">이전 지점에서 {formatDistance(stop.distanceMetersFromPrevious)} · 약 {formatDuration(stop.driveSecondsFromPrevious)}</p> : null}
+            </button>
+            {stop.mandatoryConditions.length > 0 ? (
+              <ul className="mt-4 space-y-1 rounded-xl bg-[#fff8ec] p-3 text-sm font-bold text-[#76542f]">
+                {stop.mandatoryConditions.map((condition) => <li key={`${condition.type}:${condition.label}`}>· {condition.label}</li>)}
+              </ul>
+            ) : null}
+            <details className="mt-4 rounded-xl border border-[var(--line)] p-3">
+              <summary className="cursor-pointer text-sm font-black text-[var(--brand)]">추천 근거와 확인사항</summary>
+              <div className="mt-3 grid gap-4 text-sm leading-6 sm:grid-cols-2">
+                <div><h4 className="font-black">포함한 이유</h4><ul className="mt-1 space-y-1 text-[var(--muted)]">{inclusion.map((copy) => <li key={copy}>· {copy}</li>)}</ul></div>
+                <div><h4 className="font-black">이 위치에 둔 이유</h4>{validated ? <ul className="mt-1 space-y-1 text-[var(--muted)]">{ordering.map((copy) => <li key={copy}>· {copy}</li>)}</ul> : <p className="mt-1 text-[var(--muted)]">경로를 다시 계산한 뒤 표시합니다.</p>}</div>
+              </div>
+              {warnings.length > 0 ? <ul className="mt-3 space-y-1 text-sm font-bold text-[#76542f]">{[...new Set(warnings)].map((warning) => <li key={warning}>· {warning}</li>)}</ul> : null}
+              {stop.evidence.length > 0 ? <div className="mt-3 border-t border-[var(--line)] pt-3"><h4 className="text-sm font-black">한국관광공사 동반 근거</h4>{stop.evidence.map((evidence) => <p key={`${evidence.field}:${evidence.originalText}`} className="mt-2 text-xs leading-5 text-[var(--muted)]"><span className="font-black text-[#405249]">{evidence.label}</span> · {evidence.originalText}</p>)}</div> : null}
+            </details>
+            <div className="mt-4 flex flex-wrap gap-2" aria-label={`${stop.title} 순서 편집`}>
+              <button type="button" disabled={index === 0} onClick={() => onMove(stop.placeId, -1)} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[var(--line)] px-3 text-xs font-extrabold disabled:opacity-40"><ArrowUp size={15} aria-hidden="true" /> 앞으로</button>
+              <button type="button" disabled={index === route.stops.length - 1} onClick={() => onMove(stop.placeId, 1)} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[var(--line)] px-3 text-xs font-extrabold disabled:opacity-40"><ArrowDown size={15} aria-hidden="true" /> 뒤로</button>
+              <button type="button" disabled={route.stops.length <= 1} onClick={() => onRemove(stop.placeId)} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[#e5bdb7] px-3 text-xs font-extrabold text-[#8d3838] disabled:opacity-40"><Trash2 size={15} aria-hidden="true" /> 제외</button>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -308,394 +235,259 @@ export function RecommendationPlanner({
   autoGenerate?: boolean;
   onAutoGenerateStart?: () => void;
 }) {
-  const router = useRouter();
-  const {
-    profile,
-    preferences,
-    profileConfirmed,
-    preferencesConfirmed,
-    generationState,
-    selectedItinerary,
-    beginGeneration,
-    resolveGeneration,
-    rejectGeneration,
-    selectItinerary,
-  } = usePlannerState();
-  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(
-    () => selectedItinerary?.stops[0]?.stableIdentity ?? null,
-  );
+  const { profile, preferences, profileConfirmed, preferencesConfirmed } = usePlannerState();
+  const [response, setResponse] = useState<RouteRecommendationResponseV1 | null>(null);
+  const [activeRoute, setActiveRoute] = useState<ProductRouteV1 | null>(null);
+  const [editableIds, setEditableIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [revalidating, setRevalidating] = useState(false);
+  const [slow, setSlow] = useState(false);
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState("");
+  const [manualError, setManualError] = useState("");
+  const [editDirty, setEditDirty] = useState(false);
   const submittingRef = useRef(false);
-  const requestControllerRef = useRef<AbortController | null>(null);
-  const activeRequestIdRef = useRef<number | null>(null);
-  const autoGenerateStartedRef = useRef(false);
+  const controllerRef = useRef<AbortController | null>(null);
+  const startedRef = useRef(false);
   const errorRef = useRef<HTMLDivElement>(null);
-  const strategyTabRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
-  const runGeneration = useCallback(
-    async (operation: "initial" | "reroll") => {
-      if (
-        submittingRef.current ||
-        !profileConfirmed ||
-        !preferencesConfirmed
-      ) {
-        return;
+  const runRecommendation = useCallback(async () => {
+    if (submittingRef.current || !profileConfirmed || !preferencesConfirmed) return;
+    submittingRef.current = true;
+    setLoading(true);
+    setSlow(false);
+    setSaveMessage("");
+    setManualError("");
+    const controller = new AbortController();
+    controllerRef.current?.abort();
+    controllerRef.current = controller;
+    const slowTimer = window.setTimeout(() => setSlow(true), 8_000);
+    try {
+      const request = createRouteRecommendationRequest(profile, preferences);
+      const result = await fetch("/api/itineraries/generate", {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(request),
+        signal: controller.signal,
+      });
+      const parsed = routeRecommendationResponseSchema.safeParse(await result.json());
+      if (!parsed.success) throw new Error("추천 응답 형식을 확인하지 못했습니다.");
+      if (controller.signal.aborted) return;
+      setResponse(parsed.data);
+      if (parsed.data.status === "ready") {
+        setActiveRoute(parsed.data.route);
+        setEditableIds(parsed.data.route.stops.map(({ placeId }) => placeId));
+        setEditDirty(false);
+        setSelectedPlaceId(parsed.data.route.stops[0]?.placeId ?? null);
+      } else {
+        setActiveRoute(null);
+        setEditableIds([]);
       }
-
-      submittingRef.current = true;
-      requestControllerRef.current?.abort();
-      const controller = new AbortController();
-      requestControllerRef.current = controller;
-      const requestId = beginGeneration(operation);
-      activeRequestIdRef.current = requestId;
-      const payload = createGenerationRequest(
-        profile,
-        preferences,
-        operation,
-        generationState.recentRouteSignatures,
-      );
-
-      try {
-        const response = await fetch("/api/itineraries/generate", {
-          method: "POST",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-          signal: controller.signal,
-        });
-        const body = (await response.json()) as ApiResult<unknown>;
-        if (!response.ok || !body.ok) {
-          throw new Error(
-            !body.ok
-              ? body.error.message
-              : "추천 경로를 계산하지 못했습니다.",
-          );
-        }
-        const parsedGeneration = itineraryGenerationResponseSchema.safeParse(
-          body.data,
-        );
-        if (!parsedGeneration.success) {
-          throw new Error("추천 응답 형식을 확인하지 못했습니다.");
-        }
-        if (controller.signal.aborted) return;
-        resolveGeneration(requestId, parsedGeneration.data);
-        setSelectedLocationId(
-          parsedGeneration.data.itineraries[0]?.stops[0]?.stableIdentity ?? null,
-        );
-      } catch (error) {
-        if (controller.signal.aborted) return;
-        rejectGeneration(
-          requestId,
-          error instanceof Error
-            ? error.message
-            : "추천 경로를 계산하지 못했습니다.",
-        );
-      } finally {
-        if (requestControllerRef.current === controller) {
-          requestControllerRef.current = null;
-          activeRequestIdRef.current = null;
-          submittingRef.current = false;
-        }
-      }
-    },
-    [
-      beginGeneration,
-      generationState.recentRouteSignatures,
-      preferences,
-      preferencesConfirmed,
-      profile,
-      profileConfirmed,
-      rejectGeneration,
-      resolveGeneration,
-    ],
-  );
-
-  useEffect(
-    () => () => {
-      const requestId = activeRequestIdRef.current;
-      requestControllerRef.current?.abort();
-      if (requestId !== null) {
-        rejectGeneration(requestId, "경로 계산이 중단되었습니다. 다시 시도해 주세요.");
-      }
-    },
-    [rejectGeneration],
-  );
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setResponse({
+        status: "internal_error",
+        apiVersion: "route-recommendation-response-v1",
+        reasonCodes: ["client_request_failed"],
+        userMessage: error instanceof Error ? error.message : "추천 일정을 요청하지 못했습니다.",
+        retryable: true,
+      });
+      setActiveRoute(null);
+    } finally {
+      window.clearTimeout(slowTimer);
+      if (controllerRef.current === controller) controllerRef.current = null;
+      submittingRef.current = false;
+      setLoading(false);
+    }
+  }, [preferences, preferencesConfirmed, profile, profileConfirmed]);
 
   useEffect(() => {
-    if (!autoGenerate || autoGenerateStartedRef.current) return;
-    const frame = window.requestAnimationFrame(() => {
-      if (autoGenerateStartedRef.current) return;
-      autoGenerateStartedRef.current = true;
+    if (!autoGenerate || startedRef.current) return;
+    // React development Strict Mode mounts and immediately cleans up effects
+    // once. Deferring the first request lets that synthetic cleanup cancel the
+    // timer without aborting the only real recommendation request.
+    const timer = window.setTimeout(() => {
+      if (startedRef.current) return;
+      startedRef.current = true;
       onAutoGenerateStart?.();
-      void runGeneration("initial");
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [autoGenerate, onAutoGenerateStart, runGeneration]);
+      void runRecommendation();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [autoGenerate, onAutoGenerateStart, runRecommendation]);
 
+  useEffect(() => () => controllerRef.current?.abort(), []);
   useEffect(() => {
-    if (generationState.phase === "error") errorRef.current?.focus();
-  }, [generationState.error, generationState.phase]);
+    if (response && response.status !== "ready") errorRef.current?.focus();
+  }, [response]);
 
-  const chooseMapLocation = useCallback((locationId: string | null) => {
-    setSelectedLocationId(locationId);
-    if (!locationId) return;
+  const ready = response?.status === "ready" ? response : null;
+  const editableStops = useMemo(() => {
+    if (!activeRoute) return [];
+    const byId = new Map(activeRoute.stops.map((stop) => [stop.placeId, stop]));
+    return editableIds.flatMap((id) => {
+      const stop = byId.get(id);
+      return stop ? [stop] : [];
+    });
+  }, [activeRoute, editableIds]);
+  const displayedRoute = useMemo(
+    () =>
+      activeRoute
+        ? editDirty
+          ? {
+              ...activeRoute,
+              stops: editableStops.map((stop, index) => ({
+                ...stop,
+                sequence: index + 1,
+              })),
+              routeSummary: {
+                ...activeRoute.routeSummary,
+                stopCount: editableStops.length,
+              },
+            }
+          : activeRoute
+        : null,
+    [activeRoute, editDirty, editableStops],
+  );
+  const routeLocations = useMemo<KakaoMapLocation[]>(() => {
+    if (!displayedRoute || !ready) return [];
+    return [
+      {
+        id: "route-departure",
+        name: ready.requestSummary.departureLabel,
+        address: "출발지",
+        coordinates: preferences.departure?.coordinates,
+        markerKind: "departure",
+        markerLabel: "출",
+        sourceLabel: "선택한 출발지",
+        interactive: true,
+        clusterable: false,
+      },
+      ...displayedRoute.stops.map((stop) => ({
+        id: stop.placeId,
+        name: stop.title,
+        address: stop.address ?? "주소 정보 없음",
+        coordinates: stop.coordinates,
+        order: stop.sequence,
+        markerKind: "itinerary" as const,
+        sourceLabel: "한국관광공사 공식 장소",
+        interactive: true,
+        clusterable: false,
+      })),
+    ];
+  }, [displayedRoute, preferences.departure?.coordinates, ready]);
+
+  const selectPlace = useCallback((id: string | null) => {
+    setSelectedPlaceId(id);
+    if (!id || id === "route-departure") return;
     window.requestAnimationFrame(() => {
-      const reducedMotion = window.matchMedia(
-        "(prefers-reduced-motion: reduce)",
-      ).matches;
-      document.getElementById(`route-stop-${locationId}`)?.scrollIntoView({
-        behavior: reducedMotion ? "auto" : "smooth",
+      document.getElementById(`recommended-stop-${id}`)?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
         block: "nearest",
       });
     });
   }, []);
 
-  const generation = generationState.response;
-  const selectedPresentation = useMemo(
-    () =>
-      selectedItinerary && generation
-        ? createItineraryPresentation(
-            selectedItinerary,
-            generation.request.petEquipment,
-          )
-        : null,
-    [generation, selectedItinerary],
-  );
-  const routeLocations = useMemo<KakaoMapLocation[]>(
-    () =>
-      selectedItinerary?.stops.map((stop) => ({
-        id: stop.stableIdentity,
-        name: stop.title,
-        address: stop.address ?? "주소 정보 없음",
-        coordinates: stop.coordinates,
-        order: stop.order,
-        markerKind: "itinerary",
-        sourceLabel:
-          stop.source === "TOUR_API"
-            ? "한국관광공사 동반 근거 장소"
-            : "카카오 탐색 후보 · 직접 확인 필요",
-        interactive: true,
-        clusterable: false,
-      })) ?? [],
-    [selectedItinerary],
-  );
+  const moveStop = (id: string, direction: -1 | 1) => {
+    setEditableIds((current) => {
+      const index = current.indexOf(id);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target]!, next[index]!];
+      return next;
+    });
+    setEditDirty(true);
+    setManualError("");
+  };
 
-  if (!profileConfirmed || !preferencesConfirmed) {
-    return <ResultsEmptyState />;
+  const revalidate = async () => {
+    if (!ready || !editDirty || revalidating) return;
+    setRevalidating(true);
+    setManualError("");
+    try {
+      const responseValue = await fetch("/api/itineraries/revalidate", {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ editSessionId: ready.editSessionId, orderedPlaceIds: editableIds }),
+      });
+      const parsed = manualRouteValidationResponseSchema.safeParse(await responseValue.json());
+      if (!parsed.success) throw new Error("수정한 일정의 응답을 확인하지 못했습니다.");
+      if (parsed.data.status !== "ready") {
+        setManualError(parsed.data.userMessage);
+        return;
+      }
+      setActiveRoute(parsed.data.route);
+      setEditableIds(parsed.data.route.stops.map(({ placeId }) => placeId));
+      setEditDirty(false);
+      setSelectedPlaceId(parsed.data.route.stops[0]?.placeId ?? null);
+    } catch {
+      setManualError("이 순서로는 운영시간 또는 전체 일정 조건을 맞추기 어렵습니다.");
+    } finally {
+      setRevalidating(false);
+    }
+  };
+
+  if (!profileConfirmed || !preferencesConfirmed) return <EmptyResult />;
+  if (loading) return <LoadingResult slow={slow} />;
+  if (response && response.status !== "ready") {
+    return <div ref={errorRef} tabIndex={-1}><FailureResult response={response} onRetry={() => void runRecommendation()} /></div>;
+  }
+  if (!ready || !displayedRoute) {
+    return <section className="surface-panel p-8 text-center"><h1 className="text-2xl font-black">추천 일정을 만들어 볼까요?</h1><Button type="button" variant="brand" className="mt-5" onClick={() => void runRecommendation()}>추천 일정 만들기</Button></section>;
   }
 
-  const loading = generationState.phase === "loading";
-  const rerolling = loading && generationState.operation === "reroll";
-  const copy = generation ? generationStateCopy(generation.state) : null;
-
-  const chooseStrategy = (itinerary: GeneratedItinerary, focusIndex?: number) => {
-    selectItinerary(itinerary.id);
-    setSelectedLocationId(itinerary.stops[0]?.stableIdentity ?? null);
-    if (typeof focusIndex === "number") {
-      window.requestAnimationFrame(() => strategyTabRefs.current[focusIndex]?.focus());
-    }
-  };
-
-  const handleStrategyKeyDown = (
-    event: KeyboardEvent<HTMLButtonElement>,
-    index: number,
-  ) => {
-    if (!generation || generation.itineraries.length === 0) return;
-    let nextIndex: number | null = null;
-    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
-      nextIndex = (index + 1) % generation.itineraries.length;
-    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
-      nextIndex = (index - 1 + generation.itineraries.length) % generation.itineraries.length;
-    } else if (event.key === "Home") {
-      nextIndex = 0;
-    } else if (event.key === "End") {
-      nextIndex = generation.itineraries.length - 1;
-    }
-    if (nextIndex === null) return;
-    event.preventDefault();
-    const itinerary = generation.itineraries[nextIndex];
-    if (itinerary) chooseStrategy(itinerary, nextIndex);
-  };
-
+  const summary = displayedRoute.routeSummary;
+  const exact = ready.optimality === "optimal_within_candidate_set_current_matrix";
   return (
     <div className="space-y-6">
-      <header className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-        <div className="max-w-3xl">
-          <p className="eyebrow">추천 결과</p>
-          <h1 className="balance mt-2 text-3xl font-black tracking-[-0.045em] sm:text-4xl lg:text-[42px]">
-            {profile.name}와 함께할 부산 당일 경로를 비교해 보세요.
-          </h1>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)] sm:text-base">
-            반환된 실제 전략과 장소만 보여드립니다. 선택을 바꾸면 지도와 순서만 바뀌며 경로를 다시 생성하지 않습니다.
-          </p>
+      <header className="surface-panel p-6 sm:p-8">
+        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
+          <div>
+            <p className="eyebrow">{editDirty ? "수정 중인 일정" : displayedRoute.kind === "manual" ? "직접 수정한 일정" : "PetPass 추천 일정"}</p>
+            <h1 className="mt-2 text-3xl font-black tracking-[-0.045em]">{ready.requestSummary.departureLabel}에서 시작하는 {summary.stopCount}곳 일정</h1>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--muted)]">{editDirty ? "방문 순서를 수정했습니다. 실제 거리와 운영시간을 다시 확인해야 확정됩니다." : displayedRoute.kind === "manual" ? "직접 정한 방문 순서를 Kakao 경로로 다시 확인한 결과입니다." : exact ? "현재 후보와 확인된 이동 정보 안에서 가장 적합한 일정을 찾았습니다." : "제한 시간 안에서 확인한 일정 중 가장 적합한 결과입니다."}</p>
+            {!editDirty && displayedRoute.temporalBasis.searchMatrix !== displayedRoute.temporalBasis.finalRoute ? <p className="mt-2 text-xs font-bold text-[#76542f]">장소 순서는 확인된 이동 정보로 비교하고, 표시된 시간과 경로는 Kakao의 최종 길찾기 결과를 반영했습니다.</p> : null}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="brandSecondary" disabled={editDirty} onClick={() => { const saved = saveRouteRecommendation(ready, displayedRoute); setSaveMessage(saved ? "현재 일정을 이 브라우저에 저장했습니다." : "저장하지 못했습니다. 브라우저 저장 공간을 확인해 주세요."); }}><Save size={16} aria-hidden="true" /> 일정 저장</Button>
+            <Button type="button" variant="brandSecondary" onClick={() => void runRecommendation()}><RefreshCw size={16} aria-hidden="true" /> 추천 일정 다시 만들기</Button>
+          </div>
         </div>
-        {generation ? (
-          <Button
-            type="button"
-            variant="brandSecondary"
-            disabled={loading}
-            onClick={() => void runGeneration("reroll")}
-          >
-            {rerolling ? <LoaderCircle className="animate-spin" size={17} aria-hidden="true" /> : <RefreshCw size={17} aria-hidden="true" />}
-            {rerolling ? "다른 경로 계산 중" : "다른 조합 다시 보기"}
-          </Button>
-        ) : null}
+        {saveMessage ? <p className="mt-3 text-sm font-bold text-[var(--brand)]" role="status">{saveMessage}</p> : null}
+        <dl className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="rounded-xl bg-[#f3f6f2] p-4"><dt className="text-xs font-bold text-[var(--muted)]">일정</dt><dd className="mt-1 font-black">{ready.requestSummary.tripDate} · {editDirty ? "시간 재계산 필요" : `${koreaTime(summary.startAt)}~${koreaTime(summary.endAt)}`}</dd></div>
+          <div className="rounded-xl bg-[#f3f6f2] p-4"><dt className="text-xs font-bold text-[var(--muted)]">여행 속도</dt><dd className="mt-1 font-black">{PACE_LABEL[ready.requestSummary.tripPace]} · 총 {summary.stopCount}곳</dd></div>
+          <div className="rounded-xl bg-[#f3f6f2] p-4"><dt className="text-xs font-bold text-[var(--muted)]">이동</dt><dd className="mt-1 font-black">{editDirty ? "경로 재계산 필요" : `${formatDistance(summary.totalDistanceMeters)} · 약 ${formatDuration(summary.totalDrivingSeconds)}`}</dd></div>
+          <div className="rounded-xl bg-[#f3f6f2] p-4"><dt className="text-xs font-bold text-[var(--muted)]">방문</dt><dd className="mt-1 font-black">{editDirty ? `총 ${summary.stopCount}곳` : `${formatDuration(summary.totalVisitSeconds)}${summary.totalWaitSeconds > 0 ? ` · 대기 ${formatDuration(summary.totalWaitSeconds)}` : ""}`}</dd></div>
+        </dl>
       </header>
 
-      <ConfirmedTripSummary profile={profile} preferences={preferences} />
-
-      {generationState.phase === "error" && generationState.error ? (
-        <div
-          ref={errorRef}
-          tabIndex={-1}
-          role="alert"
-          className="rounded-[var(--radius-card)] border border-[#edcaca] bg-[#fdf0f0] p-4 text-[#853e3e] outline-none"
-        >
-          <p className="flex items-center gap-2 font-black"><AlertTriangle size={18} aria-hidden="true" /> 경로를 계산하지 못했습니다.</p>
-          <p className="mt-1 text-sm leading-6">{generationState.error}</p>
-          <Button
-            type="button"
-            variant="secondary"
-            className="mt-3"
-            onClick={() => void runGeneration(generation ? "reroll" : "initial")}
-          >
-            <RefreshCw size={16} aria-hidden="true" /> 같은 조건으로 다시 시도
-          </Button>
-        </div>
-      ) : null}
-
-      {loading && !rerolling ? <ResultsLoadingState reroll={false} /> : null}
-      {!generation && !loading && generationState.phase !== "error" ? (
-        <section className="surface-panel p-6 text-center sm:p-8">
-          <PawPrint className="mx-auto text-[var(--brand)]" size={25} aria-hidden="true" />
-          <h2 className="mt-3 text-xl font-black">확정한 조건으로 경로를 만들 준비가 됐어요.</h2>
-          <p className="mt-2 text-sm text-[var(--muted)]">요청할 때만 실제 장소와 이동 경로를 계산합니다.</p>
-          <Button type="button" variant="brand" className="mt-5" onClick={() => void runGeneration("initial")}>
-            <Route size={17} aria-hidden="true" /> 추천 경로 만들기
-          </Button>
+      {ready.alternatives.length > 0 ? (
+        <section className="surface-card p-4" aria-labelledby="route-alternatives-heading">
+          <h2 id="route-alternatives-heading" className="text-sm font-black">검증된 다른 일정</h2>
+          <div className="mt-3 flex flex-wrap gap-2" role="tablist" aria-label="일정 대안">
+            {[ready.route, ...ready.alternatives].map((route) => (
+              <button key={route.id} type="button" role="tab" aria-selected={activeRoute?.id === route.id} onClick={() => { setActiveRoute(route); setEditableIds(route.stops.map(({ placeId }) => placeId)); setEditDirty(false); setSelectedPlaceId(route.stops[0]?.placeId ?? null); setManualError(""); }} className={`min-h-11 rounded-full border px-4 text-sm font-extrabold ${activeRoute?.id === route.id ? "border-[var(--mint-500)] bg-[var(--brand-soft)] text-[var(--brand)]" : "border-[var(--line)] bg-white text-[#607168]"}`}>{route.label}</button>
+            ))}
+          </div>
         </section>
       ) : null}
 
-      {generation && copy ? (
-        <>
-          <div className={`rounded-[var(--radius-card)] border p-4 ${copy.tone}`} aria-live="polite">
-            <p className="font-black">{copy.title}</p>
-            <p className="mt-1 text-xs leading-5">{copy.description}</p>
-            {generation.notices.length > 0 ? (
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5">
-                {generation.notices.map((notice) => <li key={notice}>{notice}</li>)}
-              </ul>
-            ) : null}
-          </div>
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(340px,.92fr)]">
+        <section className="min-w-0" aria-labelledby="route-timeline-heading">
+          <div className="mb-4"><p className="eyebrow">시간순 방문 일정</p><h2 id="route-timeline-heading" className="mt-1 text-2xl font-black">출발지부터 이어지는 실제 이동 순서</h2></div>
+          <Timeline route={displayedRoute} validated={!editDirty} selectedPlaceId={selectedPlaceId} onSelect={selectPlace} onMove={moveStop} onRemove={(id) => { setEditableIds((current) => current.filter((value) => value !== id)); setEditDirty(true); setManualError(""); }} />
+          {editDirty ? <div className="sticky bottom-3 z-10 mt-4 flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-[#aac2b4] bg-white/95 p-4 shadow-lg backdrop-blur"><p className="mr-auto text-sm font-bold text-[#52665b]">순서 또는 방문지를 바꿨습니다. 실제 경로를 다시 확인해 주세요.</p><Button type="button" variant="brand" disabled={revalidating} onClick={() => void revalidate()}>{revalidating ? <LoaderCircle className="animate-spin" size={16} aria-hidden="true" /> : <Check size={16} aria-hidden="true" />} 경로 다시 계산</Button><Button type="button" variant="brandSecondary" onClick={() => { setActiveRoute(ready.route); setEditableIds(ready.route.stops.map(({ placeId }) => placeId)); setEditDirty(false); setSelectedPlaceId(ready.route.stops[0]?.placeId ?? null); setManualError(""); }}><RotateCcw size={16} aria-hidden="true" /> 원래 추천 복원</Button></div> : null}
+          {manualError ? <p className="mt-3 rounded-xl border border-[#e5bdb7] bg-[#fff1ef] p-4 text-sm font-bold text-[#823f36]" role="alert">{manualError}</p> : null}
+        </section>
 
-          {rerolling ? <ResultsLoadingState reroll /> : null}
-
-          {generation.itineraries.length > 0 ? (
-            <section aria-labelledby="strategy-heading">
-              <div className="flex flex-wrap items-end justify-between gap-3">
-                <div>
-                  <p className="eyebrow">경로 전략 비교</p>
-                  <h2 id="strategy-heading" className="mt-1 text-2xl font-black tracking-[-0.035em]">반환된 {generation.itineraries.length}개 경로</h2>
-                </div>
-                <p className="text-xs font-bold text-[var(--muted)]">방향키로도 전략을 바꿀 수 있어요.</p>
-              </div>
-              <div className="mt-4 grid gap-3 lg:grid-cols-3" role="tablist" aria-label="추천 경로 전략">
-                {generation.itineraries.map((itinerary, index) => (
-                  <StrategyCard
-                    key={itinerary.id}
-                    itinerary={itinerary}
-                    index={index}
-                    selected={itinerary.id === generationState.selectedItineraryId}
-                    onSelect={() => chooseStrategy(itinerary)}
-                    onKeyDown={(event) => handleStrategyKeyDown(event, index)}
-                    tabRef={(node) => { strategyTabRefs.current[index] = node; }}
-                  />
-                ))}
-              </div>
-            </section>
-          ) : (
-            <section className="surface-panel p-7 text-center" aria-labelledby="no-routes-heading">
-              <ShieldAlert className="mx-auto text-[#76542f]" size={26} aria-hidden="true" />
-              <h2 id="no-routes-heading" className="mt-3 text-xl font-black">표시할 수 있는 실제 경로가 없습니다.</h2>
-              <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-[var(--muted)]">조건을 넓혀 다시 생성하거나, 여행 조건 단계에서 지역·카테고리·일정 길이를 수정해 주세요.</p>
-              <div className="mt-5 flex flex-wrap justify-center gap-2">
-                <Link href="/planner/pet" className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[#c9d7ce] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">여행 정보 수정</Link>
-                <Button type="button" onClick={() => void runGeneration("reroll")}><RefreshCw size={16} aria-hidden="true" /> 같은 조건으로 다시 시도</Button>
-              </div>
-            </section>
-          )}
-
-          {selectedItinerary && selectedPresentation ? (
-            <section
-              id="selected-strategy-panel"
-              role="tabpanel"
-              aria-labelledby={`strategy-tab-${generation.itineraries.findIndex((item) => item.id === selectedItinerary.id)}`}
-              className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(360px,.92fr)]"
-            >
-              <div className="min-w-0">
-                <div className="surface-card p-4 sm:p-5">
-                  <p className="eyebrow">선택한 경로</p>
-                  <h2 className="mt-1 break-words text-2xl font-black tracking-[-0.04em] [overflow-wrap:anywhere]">{selectedItinerary.title}</h2>
-                  <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{selectedItinerary.explanation}</p>
-                  <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <div className="rounded-xl bg-[#f3f6f2] p-3"><dt className="text-[11px] font-bold text-[var(--muted)]">방문 장소</dt><dd className="mt-1 font-black">{selectedPresentation.metrics.stopCount}곳</dd></div>
-                    <div className="rounded-xl bg-[#f3f6f2] p-3"><dt className="text-[11px] font-bold text-[var(--muted)]">총 이동 거리</dt><dd className="mt-1 font-black">{formatRouteDistance(selectedPresentation.metrics.totalDistanceMeters)}</dd></div>
-                    <div className="rounded-xl bg-[#f3f6f2] p-3"><dt className="text-[11px] font-bold text-[var(--muted)]">차량 이동</dt><dd className="mt-1 font-black">{formatRouteDuration(selectedPresentation.metrics.totalDurationSeconds)}</dd></div>
-                    <div className="rounded-xl bg-[#f3f6f2] p-3"><dt className="text-[11px] font-bold text-[var(--muted)]">전체 일정</dt><dd className="mt-1 font-black">{formatKoreanDurationMinutes(selectedPresentation.metrics.estimatedElapsedDurationMinutes) ?? "미제공"}</dd></div>
-                  </dl>
-                </div>
-
-                <ol className="mt-4 space-y-4" aria-label={`${selectedItinerary.title} 방문 순서`}>
-                  {selectedPresentation.stops.map((stopPresentation, index) => (
-                    <RouteStopCard
-                      key={stopPresentation.stop.stableIdentity}
-                      domId={`route-stop-${stopPresentation.stop.stableIdentity}`}
-                      presentation={stopPresentation}
-                      previousLabel={index === 0 ? generation.request.start.label ?? "출발지" : selectedItinerary.stops[index - 1]?.title ?? "이전 장소"}
-                      selected={selectedLocationId === stopPresentation.stop.stableIdentity}
-                      onSelect={() => chooseMapLocation(stopPresentation.stop.stableIdentity)}
-                    />
-                  ))}
-                </ol>
-              </div>
-
-              <aside className="min-w-0 lg:sticky lg:top-24 lg:self-start" aria-label="선택 경로 지도와 결정">
-                <MapPanel
-                  locations={routeLocations}
-                  routeCoordinates={selectedPresentation.geometry}
-                  selectedLocationId={selectedLocationId}
-                  onLocationSelect={chooseMapLocation}
-                  viewportKey={`recommendation:${selectedItinerary.id}`}
-                  title={`${selectedItinerary.title} 경로 지도`}
-                  locationLabel={`${selectedItinerary.title} · ${selectedItinerary.stops.length}곳`}
-                  emptyMessage="유효한 좌표가 없어 지도를 표시할 수 없습니다. 아래 텍스트 순서를 이용해 주세요."
-                />
-                <p className="mt-3 rounded-xl bg-[#f4f7f4] p-3 text-xs font-semibold leading-5 text-[var(--muted)]">
-                  {selectedPresentation.geometry.length >= 2
-                    ? "Kakao 길찾기가 반환한 실제 geometry와 방문 순서 마커를 표시합니다."
-                    : "정확한 경로 geometry가 제공되지 않아 장소 위치만 표시합니다. 마커 사이를 임의의 직선으로 연결하지 않습니다."}
-                </p>
-                {selectedPresentation.blockedByPetAccess ? (
-                  <p className="mt-3 rounded-xl border border-[#e5bdb7] bg-[#fff1ef] p-3 text-sm font-bold leading-6 text-[#823f36]" role="alert">
-                    동반 불가 판정이 포함되어 이 경로를 일정으로 선택할 수 없습니다. 다른 전략을 확인해 주세요.
-                  </p>
-                ) : null}
-                <Button
-                  type="button"
-                  variant="brand"
-                  className="mt-3 w-full"
-                  disabled={loading || selectedPresentation.blockedByPetAccess}
-                  onClick={() => router.push("/itinerary")}
-                >
-                  <MapPinned size={17} aria-hidden="true" /> 이 경로로 상세 일정 보기 <ArrowRight size={17} aria-hidden="true" />
-                </Button>
-                <p className="mt-2 text-center text-[11px] leading-5 text-[var(--muted)]">현재 선택한 정확한 경로를 다시 생성하지 않고 전달합니다.</p>
-              </aside>
-            </section>
-          ) : null}
-        </>
-      ) : null}
+        <aside className="min-w-0 lg:sticky lg:top-24 lg:self-start" aria-label="추천 일정 지도">
+          <MapPanel compact locations={routeLocations} routeCoordinates={editDirty ? [] : displayedRoute.geometry} selectedLocationId={selectedPlaceId} onLocationSelect={selectPlace} viewportKey={`route:${displayedRoute.id}:${editDirty ? "draft" : "validated"}`} title="추천 일정의 Kakao 실제 이동 경로" locationLabel={`${summary.stopCount}곳 방문 일정`} emptyMessage={editDirty ? "수정한 순서를 재계산하면 실제 경로를 표시합니다." : "검증된 경로 geometry가 없습니다."} />
+          <p className="mt-3 rounded-xl bg-[#f4f7f4] p-3 text-xs font-semibold leading-5 text-[var(--muted)]"><MapPinned className="mr-1 inline" size={14} aria-hidden="true" /> {editDirty ? "번호는 수정한 방문 순서입니다. 경로 재계산 전에는 선을 표시하지 않습니다." : "번호는 방문 순서이며 선은 최종 Kakao 길찾기가 반환한 geometry입니다."}</p>
+          <section className="surface-card mt-4 p-4" aria-labelledby="route-reliability-heading"><h2 id="route-reliability-heading" className="flex items-center gap-2 text-sm font-black"><ShieldCheck size={17} className="text-[var(--brand)]" aria-hidden="true" /> 정보 안내</h2><p className="mt-2 text-xs leading-6 text-[var(--muted)]">자동 일정에는 한국관광공사의 공식 동반 근거와 노출 상태를 확인한 장소만 포함합니다. 운영 정책은 바뀔 수 있어 방문 전 최종 확인을 권합니다.</p></section>
+          {displayedRoute.kind === "manual" ? <Button type="button" variant="brandSecondary" className="mt-4 w-full" onClick={() => { setActiveRoute(ready.route); setEditableIds(ready.route.stops.map(({ placeId }) => placeId)); setEditDirty(false); setSelectedPlaceId(ready.route.stops[0]?.placeId ?? null); }}><RotateCcw size={16} aria-hidden="true" /> 원래 추천 일정 복원</Button> : null}
+        </aside>
+      </div>
     </div>
   );
 }
