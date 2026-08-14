@@ -25,10 +25,17 @@ export interface KakaoPlaceSearchResult {
   roadAddress?: string;
   categoryName?: string;
   categoryGroupCode?: string;
+  categoryGroupName?: string;
   phone?: string;
   placeUrl?: string;
   distanceMeters?: number;
   coordinates: Coordinates;
+}
+
+export interface KakaoPlaceSearchSameName {
+  region: string[];
+  keyword: string;
+  selectedRegion: string;
 }
 
 export interface KakaoDiscoveryExactExistingPlaceLink {
@@ -59,6 +66,7 @@ export interface KakaoPlaceSearchPage {
   totalCount: number;
   pageableCount: number;
   isEnd: boolean;
+  sameName?: KakaoPlaceSearchSameName;
 }
 
 export type KakaoSearchAreaMode =
