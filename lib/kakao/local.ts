@@ -3,7 +3,11 @@ import "server-only";
 import { z } from "zod";
 import { parseKakaoPlaceUrl } from "@/lib/kakao/place-url";
 import { getKakaoRestApiKey } from "@/lib/kakao/server-config";
-import { ProviderResponseError } from "@/lib/shared/errors";
+import {
+  ProviderHttpError,
+  ProviderResponseError,
+  ProviderTimeoutError,
+} from "@/lib/shared/errors";
 import type {
   KakaoGeocodeResult,
   KakaoPlaceSearchPage,
@@ -14,6 +18,13 @@ const kakaoMetaSchema = z.object({
   total_count: z.number().int().nonnegative(),
   pageable_count: z.number().int().nonnegative(),
   is_end: z.boolean(),
+  same_name: z
+    .object({
+      region: z.array(z.string()),
+      keyword: z.string(),
+      selected_region: z.string(),
+    })
+    .optional(),
 });
 
 const keywordResponseSchema = z.object({
@@ -24,6 +35,7 @@ const keywordResponseSchema = z.object({
       place_name: z.string(),
       category_name: z.string(),
       category_group_code: z.string().optional().default(""),
+      category_group_name: z.string().optional().default(""),
       phone: z.string(),
       address_name: z.string(),
       road_address_name: z.string(),
@@ -56,6 +68,7 @@ const addressResponseSchema = z.object({
 export interface KakaoLocalRequestOptions {
   apiKey?: string;
   fetchImpl?: typeof fetch;
+  timeoutMs?: number;
 }
 
 export interface KakaoKeywordSearchInput {
@@ -85,6 +98,16 @@ function finiteNumber(value: string, field: string): number {
   return number;
 }
 
+function parseRetryAfter(value: string | null): number | null {
+  if (!value) return null;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.ceil(seconds * 1_000);
+  }
+  const date = Date.parse(value);
+  return Number.isFinite(date) ? Math.max(0, date - Date.now()) : null;
+}
+
 async function requestKakaoLocal(
   url: URL,
   options: KakaoLocalRequestOptions,
@@ -99,18 +122,29 @@ async function requestKakaoLocal(
         Accept: "application/json",
         Authorization: `KakaoAK ${key}`,
       },
-      signal: AbortSignal.timeout(6_000),
+      signal: AbortSignal.timeout(options.timeoutMs ?? 6_000),
       cache: "no-store",
     });
-  } catch {
+  } catch (error) {
+    const errorName =
+      typeof error === "object" && error !== null && "name" in error
+        ? String(error.name)
+        : "";
+    if (errorName === "TimeoutError" || errorName === "AbortError") {
+      throw new ProviderTimeoutError(
+        "카카오 Local API가 제한 시간 안에 응답하지 않았습니다.",
+      );
+    }
     throw new ProviderResponseError(
-      "카카오 Local API가 제한 시간 안에 응답하지 않았습니다.",
+      "카카오 Local API 네트워크 요청에 실패했습니다.",
     );
   }
 
   if (!response.ok) {
-    throw new ProviderResponseError(
+    throw new ProviderHttpError(
       `카카오 Local API 요청이 ${response.status} 상태로 실패했습니다.`,
+      response.status,
+      parseRetryAfter(response.headers.get("retry-after")),
     );
   }
 
@@ -172,6 +206,7 @@ export async function searchKakaoPlacePage(
       roadAddress: optionalText(document.road_address_name),
       categoryName: optionalText(document.category_name),
       categoryGroupCode: optionalText(document.category_group_code),
+      categoryGroupName: optionalText(document.category_group_name),
       phone: optionalText(document.phone),
       ...optionalKakaoPlaceUrl(document.place_url),
       distanceMeters: optionalText(document.distance)
@@ -185,6 +220,15 @@ export async function searchKakaoPlacePage(
     totalCount: parsed.data.meta.total_count,
     pageableCount: parsed.data.meta.pageable_count,
     isEnd: parsed.data.meta.is_end,
+    ...(parsed.data.meta.same_name
+      ? {
+          sameName: {
+            region: parsed.data.meta.same_name.region,
+            keyword: parsed.data.meta.same_name.keyword,
+            selectedRegion: parsed.data.meta.same_name.selected_region,
+          },
+        }
+      : {}),
   };
 }
 
