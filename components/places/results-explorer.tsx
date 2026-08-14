@@ -30,6 +30,7 @@ import {
   type TourCatalogFilter,
 } from "@/lib/tour-api/catalog";
 import type { KakaoMapLocation } from "@/lib/kakao/maps";
+import { createOfficialTourMapLocations } from "@/lib/places/tour-map-locations";
 import {
   PLACE_SOURCE_LAYERS,
   createDefaultSourceLayerVisibility,
@@ -252,32 +253,11 @@ export function ResultsExplorer({
 
   const catalogLocations = useMemo(
     () => {
-      const officialTourLocations = filteredPlaces
-        .filter(
-          (place) =>
-            sourceLayerVisibility.tourism_official &&
-            place.providerVisibility?.status === "exposed" &&
-            place.latitude !== null &&
-            place.longitude !== null &&
-            (place.category !== "shopping" || shoppingMapVisible),
-        )
-        .map(
-          (place): KakaoMapLocation => ({
-            id: place.contentId,
-            name: place.title ?? "이름 미확인",
-            address: [place.address, place.detailAddress].filter(Boolean).join(" "),
-            coordinates: {
-              latitude: place.latitude as number,
-              longitude: place.longitude as number,
-            },
-            markerKind:
-              place.category === "shopping" ? "shopping" : "tourism-official",
-            markerLabel: "공",
-            sourceLabel: "한국관광공사 제공 장소",
-            interactive: true,
-            clusterable: true,
-          }),
-        );
+      const officialTourLocations = sourceLayerVisibility.tourism_official
+        ? createOfficialTourMapLocations(filteredPlaces, {
+            includeShopping: shoppingMapVisible,
+          })
+        : [];
       const storedDiscoveryLocations = storedMapPlaces
         .filter(
           (place) =>
@@ -382,6 +362,10 @@ export function ResultsExplorer({
   const mapViewportKey = `catalog:${districtCode}:${category}`;
 
   const layerControls = useMemo<MapLayerControl[]>(() => {
+    const shoppingLocationCount = createOfficialTourMapLocations(
+      filteredPlaces.filter(({ category: placeCategory }) => placeCategory === "shopping"),
+      { includeShopping: true },
+    ).length;
     const counts: Record<PlaceSourceLayerId, number> = {
       tourism_official: catalogLocations.filter(
         ({ markerKind }) =>
@@ -407,15 +391,15 @@ export function ResultsExplorer({
       controls.push({
         id: "shopping",
         label: "쇼핑(선택형)",
-        markerKind: "shopping",
-        count: catalogLocations.filter(({ markerKind }) => markerKind === "shopping").length,
+        markerKind: "tourism-official",
+        count: shoppingLocationCount,
         visible: shoppingMapVisible,
-        disabled: !catalogLocations.some(({ markerKind }) => markerKind === "shopping"),
+        disabled: shoppingLocationCount === 0,
         description: "명시적으로 쇼핑을 선택했을 때만 켜지는 지도 레이어",
       });
     }
     return controls;
-  }, [catalogLocations, category, shoppingMapVisible, sourceLayerVisibility]);
+  }, [catalogLocations, category, filteredPlaces, shoppingMapVisible, sourceLayerVisibility]);
 
   const toggleMapLayer = useCallback((id: string, visible: boolean) => {
     if (id === "shopping") {

@@ -29,35 +29,11 @@ export interface MapLayerControl {
   description?: string;
 }
 
-const DEFAULT_LOCATIONS: KakaoMapLocation[] = [
-  {
-    id: "demo-busan-coast-walk",
-    name: "청사포 바다 산책길",
-    address: "부산 해운대구 청사포로 000",
-    coordinates: { latitude: 35.1596, longitude: 129.1917 },
-    order: 1,
-  },
-  {
-    id: "demo-busan-terrace-table",
-    name: "마린 테라스 식탁",
-    address: "부산 해운대구 달맞이길 000",
-    coordinates: { latitude: 35.1582, longitude: 129.1782 },
-    order: 2,
-  },
-  {
-    id: "demo-busan-mint-cafe",
-    name: "민트 파도 카페",
-    address: "부산 해운대구 해운대해변로 000",
-    coordinates: { latitude: 35.159, longitude: 129.1603 },
-    order: 3,
-  },
-];
-
 export function MapPanel({
   compact = false,
-  title = "부산 데모 지도",
+  title = "부산 장소 지도",
   locationLabel,
-  locations = DEFAULT_LOCATIONS,
+  locations,
   routeCoordinates = [],
   selectedLocationId = null,
   onLocationSelect,
@@ -66,12 +42,14 @@ export function MapPanel({
   viewportKey = "default",
   layerControls = [],
   onLayerToggle,
+  showLocationLabel = true,
+  showSelectionInfo = true,
   emptyMessage = "현재 지도 범위에 표시할 장소가 없습니다.",
 }: {
   compact?: boolean;
   title?: string;
   locationLabel?: string;
-  locations?: KakaoMapLocation[];
+  locations: KakaoMapLocation[];
   routeCoordinates?: Coordinates[];
   selectedLocationId?: string | null;
   onLocationSelect?: (id: string | null) => void;
@@ -80,6 +58,8 @@ export function MapPanel({
   viewportKey?: string;
   layerControls?: MapLayerControl[];
   onLayerToggle?: (id: string, visible: boolean) => void;
+  showLocationLabel?: boolean;
+  showSelectionInfo?: boolean;
   emptyMessage?: string;
 }) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -130,6 +110,7 @@ export function MapPanel({
         routeCoordinates: latestData.routeCoordinates,
         onLocationSelect: (id) => onLocationSelectRef.current?.(id),
         onViewportIdle: (viewport) => onViewportIdleRef.current?.(viewport),
+        showSelectionInfo,
       });
       viewportKeyRef.current = viewportKey;
       controllerRef.current.selectLocation(latestData.selectedLocationId);
@@ -145,7 +126,7 @@ export function MapPanel({
           : "카카오 지도를 초기화하지 못했습니다.",
       );
     }
-  }, [viewportKey]);
+  }, [showSelectionInfo, viewportKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -186,6 +167,10 @@ export function MapPanel({
   }, [selectedLocationId]);
 
   useEffect(() => {
+    controllerRef.current?.setShowSelectionInfo(showSelectionInfo);
+  }, [showSelectionInfo]);
+
+  useEffect(() => {
     const container = mapContainerRef.current;
     const controller = controllerRef.current;
     if (!container || !controller || typeof ResizeObserver === "undefined") return;
@@ -217,10 +202,12 @@ export function MapPanel({
             compact ? "!min-h-[300px]" : ""
           }`}
         >
-          <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3 py-2 text-xs font-bold text-[#314b3f] shadow-sm">
-            <MapPinned size={15} aria-hidden="true" />
-            {resolvedLocationLabel}
-          </div>
+          {showLocationLabel ? (
+            <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3 py-2 text-xs font-bold text-[#314b3f] shadow-sm">
+              <MapPinned size={15} aria-hidden="true" />
+              {resolvedLocationLabel}
+            </div>
+          ) : null}
           <p className="relative z-10 max-w-md rounded-2xl bg-white/90 p-4 text-sm font-bold text-[#8d3838] shadow-sm">
             카카오 지도 설정 오류: {message}
           </p>
@@ -277,10 +264,12 @@ export function MapPanel({
           </p>
         ) : null}
         <div className="map-watermark">Kakao Maps · 실제 장소 및 경로</div>
-        <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3 py-2 text-xs font-bold text-[#314b3f] shadow-sm">
-          <MapPinned size={15} aria-hidden="true" />
-          {resolvedLocationLabel}
-        </div>
+        {showLocationLabel ? (
+          <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3 py-2 text-xs font-bold text-[#314b3f] shadow-sm">
+            <MapPinned size={15} aria-hidden="true" />
+            {resolvedLocationLabel}
+          </div>
+        ) : null}
         {providerLegend.length > 0 ? (
           <div
             className="absolute right-3 top-3 z-10 flex max-w-[calc(100%-7rem)] flex-wrap justify-end gap-1.5 rounded-xl border border-white/90 bg-white/95 p-2 text-[10px] font-extrabold text-[#405249] shadow-sm sm:right-4 sm:top-4 sm:text-[11px]"

@@ -8,24 +8,31 @@ export function PlaceImage({
   imageUrl,
   title,
   priority = false,
+  className = "",
+  sizes = "(max-width: 640px) 100vw, 420px",
 }: {
   imageUrl: string | null;
   title: string;
   priority?: boolean;
+  className?: string;
+  sizes?: string;
 }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
-  if (!imageUrl) return <MissingImage label={title} />;
+  const wrapperClassName = `relative min-h-40 overflow-hidden rounded-2xl bg-[#eef3ef] ${className}`;
+  if (!imageUrl) return <MissingImage label={title} className={className} />;
   if (failedUrl === imageUrl) {
-    return <MissingImage label={title} mode="load-error" />;
+    return (
+      <MissingImage label={title} mode="load-error" className={className} />
+    );
   }
   return (
-    <div className="relative min-h-40 overflow-hidden rounded-2xl bg-[#eef3ef]">
+    <div className={wrapperClassName}>
       <Image
         src={imageUrl}
         alt={`${title} 제공 이미지`}
         fill
         priority={priority}
-        sizes="(max-width: 640px) 100vw, 420px"
+        sizes={sizes}
         className="object-cover"
         onError={() => setFailedUrl(imageUrl)}
       />

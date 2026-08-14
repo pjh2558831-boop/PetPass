@@ -43,7 +43,7 @@ export function InformationReportDraftPanel({
     });
     setDraftText(
       [
-        "[PetPass 정보 제보 초안]",
+        "[WEEKENDOG 정보 제보 초안]",
         `장소: ${report.placeName}`,
         `제공자 ID: ${report.providerIds.map(({ provider, id }) => `${provider} ${id}`).join(" / ")}`,
         `제보 유형: ${REPORT_TYPE_LABELS[report.reportType]}`,
@@ -71,7 +71,7 @@ export function InformationReportDraftPanel({
         <FileWarning size={18} aria-hidden="true" /> 정보 오류 제보문 만들기
       </summary>
       <p className="mt-3 rounded-xl bg-[#fff8f1] p-3 text-xs font-semibold leading-5 text-[#6a5547]">
-        현재 PetPass에는 승인된 Supabase 접수·관리자 인증 경계가 없습니다. 아래 기능은 검토용 제보문만 만들며 서버에 접수됐다고 표시하지 않습니다.
+        현재 WEEKENDOG에는 승인된 Supabase 접수·관리자 인증 경계가 없습니다. 아래 기능은 검토용 제보문만 만들며 서버에 접수됐다고 표시하지 않습니다.
       </p>
       <div className="mt-4 grid gap-3">
         <label className="text-xs font-extrabold text-[#52665b]">

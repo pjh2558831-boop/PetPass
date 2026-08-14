@@ -4,15 +4,16 @@ import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 
-type NavigationLink = {
-  href: string;
-  label: string;
-};
+export type NavigationItem =
+  | { kind: "link"; href: string; label: string }
+  | { kind: "future"; label: string };
 
 export function MobileNavigation({
-  links,
+  items,
+  accountItems = [],
 }: {
-  links: readonly NavigationLink[];
+  items: readonly NavigationItem[];
+  accountItems?: readonly NavigationItem[];
 }) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
@@ -58,16 +59,60 @@ export function MobileNavigation({
           aria-label="모바일 주요 메뉴"
           className="surface-card absolute right-0 top-[calc(100%+10px)] w-64 max-w-[calc(100vw-24px)] p-2"
         >
-          {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              onClick={() => setOpen(false)}
-              className="flex min-h-12 items-center rounded-xl px-4 text-sm font-extrabold text-[#385246] transition-colors hover:bg-[var(--brand-soft)] hover:text-[var(--brand)]"
-            >
-              {link.label}
-            </Link>
-          ))}
+          <div className="space-y-1">
+            {items.map((item) =>
+              item.kind === "link" ? (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setOpen(false)}
+                  className="flex min-h-12 items-center rounded-xl px-4 text-sm font-extrabold text-[#385246] transition-colors hover:bg-[var(--brand-soft)] hover:text-[var(--brand)]"
+                >
+                  {item.label}
+                </Link>
+              ) : (
+                <button
+                  key={item.label}
+                  type="button"
+                  aria-disabled="true"
+                  title={`${item.label} 준비 중`}
+                  className="flex min-h-12 w-full cursor-not-allowed items-center justify-between rounded-xl px-4 text-left text-sm font-extrabold text-[#718078]"
+                >
+                  <span>{item.label}</span>
+                  <span className="rounded-full bg-[#eef3ef] px-2 py-1 text-[10px] leading-none">
+                    준비 중
+                  </span>
+                </button>
+              ),
+            )}
+          </div>
+          {accountItems.length > 0 ? (
+            <div className="mt-2 grid grid-cols-2 gap-2 border-t border-[var(--line)] pt-2">
+              {accountItems.map((item) =>
+                item.kind === "link" ? (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setOpen(false)}
+                    className="flex min-h-12 items-center justify-center rounded-xl border border-[var(--line)] px-2 text-xs font-extrabold text-[#385246]"
+                  >
+                    {item.label}
+                  </Link>
+                ) : (
+                  <button
+                    key={item.label}
+                    type="button"
+                    aria-disabled="true"
+                    title={`${item.label} 준비 중`}
+                    className="flex min-h-12 cursor-not-allowed flex-col items-center justify-center rounded-xl border border-[var(--line)] px-2 text-xs font-extrabold text-[#718078]"
+                  >
+                    <span>{item.label}</span>
+                    <span className="mt-0.5 text-[9px] font-bold">준비 중</span>
+                  </button>
+                ),
+              )}
+            </div>
+          ) : null}
         </nav>
       ) : null}
     </div>
