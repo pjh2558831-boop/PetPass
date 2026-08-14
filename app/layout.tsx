@@ -18,15 +18,15 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase = new URL(`${protocol}://${host}`);
   }
 
-  const title = "PetPass | 근거 있는 반려동물 동반 여행";
+  const title = "WEEKENDOG | 근거 있는 반려동물 동반 여행";
   const description =
-    "반려동물 조건과 시설 규정을 비교해 부산의 현실적인 동반 여행 경로를 만드는 지도 기반 플래너";
+    "공식 반려동물 동반 정보와 실제 이동시간을 바탕으로 부산 여행 장소를 확인하고 자연스러운 일정을 만드는 서비스";
 
   return {
     metadataBase,
     title: {
       default: title,
-      template: "%s | PetPass",
+      template: "%s | WEEKENDOG",
     },
     description,
     openGraph: {
@@ -34,20 +34,11 @@ export async function generateMetadata(): Promise<Metadata> {
       description,
       type: "website",
       locale: "ko_KR",
-      images: [
-        {
-          url: "/og.png",
-          width: 1536,
-          height: 1024,
-          alt: "PetPass — 함께 들어갈 수 있는 곳만 이어요.",
-        },
-      ],
     },
     twitter: {
-      card: "summary_large_image",
+      card: "summary",
       title,
       description,
-      images: ["/og.png"],
     },
   };
 }
