@@ -288,7 +288,7 @@ test("revalidates manual order, labels it honestly, and restores the original", 
   expect(stored).toContain('"manuallyModified":true');
   expect(stored).not.toContain(READY.editSessionId);
   await page.getByRole("button", { name: "원래 추천 일정 복원" }).click();
-  await expect(page.getByText("PetPass 추천 일정", { exact: true })).toBeVisible();
+  await expect(page.getByText("WEEKENDOG 추천 일정", { exact: true })).toBeVisible();
   await expect(page.getByText(/9\.6km · 약 45분/u)).toBeVisible();
 });
 

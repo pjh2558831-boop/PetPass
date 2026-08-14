@@ -1,25 +1,61 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+const PAGE_TITLE = "WEEKENDOG | 근거 있는 반려동물 동반 여행";
+
+async function mockUnavailableHomepageData(page: Page) {
+  await page.route("**/api/tour/homepage", async (route) => {
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: false,
+        error: {
+          code: "UPSTREAM_ERROR",
+          message: "navigation test intentionally keeps live data offline",
+          retryable: false,
+        },
+        requestId: "landing-navigation",
+      }),
+    });
+  });
+}
+
+test.beforeEach(async ({ page }) => {
+  await mockUnavailableHomepageData(page);
+});
 
 test("renders the landing page and reaches the existing planner entry", async ({
   page,
 }) => {
   await page.goto("/");
 
+  await expect(page).toHaveTitle(PAGE_TITLE);
+  await expect(
+    page.locator('meta[name="description"]'),
+  ).toHaveAttribute("content", /공식 반려동물 동반 정보/u);
+  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
+    "content",
+    PAGE_TITLE,
+  );
+  await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute(
+    "content",
+    "summary",
+  );
+  await expect(page.locator('meta[property="og:image"]')).toHaveCount(0);
+  await expect(page.locator('meta[name="twitter:image"]')).toHaveCount(0);
+
   const main = page.locator("main");
   await expect(
     main.getByRole("heading", {
       level: 1,
-      name: /이번 여행,[\s\S]*함께 들어갈 수 있는 곳/u,
+      name: /반려견과 함께,[\s\S]*어디로 떠나볼까요\?/u,
     }),
   ).toBeVisible();
 
   const primaryCta = main
-    .getByRole("link", { name: "여행 계획 시작하기" })
+    .getByRole("link", { name: /여행 (?:일정 )?만들기/u })
     .first();
   await expect(primaryCta).toHaveAttribute("href", "/planner/pet");
-  await expect(
-    main.getByRole("link", { name: "방문 가능 장소 보기" }),
-  ).toHaveAttribute("href", "/results");
   await primaryCta.click();
 
   await expect(page).toHaveURL(/\/planner\/pet$/u);
@@ -28,7 +64,7 @@ test("renders the landing page and reaches the existing planner entry", async ({
   ).toBeVisible();
 });
 
-test("keeps every desktop header link on an existing route", async ({
+test("keeps real desktop navigation routable and future items non-linking", async ({
   page,
   request,
 }) => {
@@ -37,24 +73,53 @@ test("keeps every desktop header link on an existing route", async ({
 
   const header = page.locator("header");
   const navigation = header.getByRole("navigation", { name: "주요 메뉴" });
-  await expect(header.getByRole("link", { name: "PetPass 홈" })).toHaveAttribute(
+  await expect(header.getByRole("link", { name: "WEEKENDOG 홈" })).toHaveAttribute(
     "href",
     "/",
-  );
-  await expect(navigation.getByRole("link", { name: "장소 찾기" })).toHaveAttribute(
-    "href",
-    "/results",
-  );
-  await expect(navigation.getByRole("link", { name: "내 일정" })).toHaveAttribute(
-    "href",
-    "/itinerary",
   );
   await expect(navigation.getByRole("link", { name: "여행 만들기" })).toHaveAttribute(
     "href",
     "/planner/pet",
   );
+  await expect(navigation.getByRole("link", { name: "장소 찾기" })).toHaveAttribute(
+    "href",
+    "/results?tab=catalog",
+  );
+  await expect(navigation.getByRole("link", { name: "추천 코스" })).toHaveAttribute(
+    "href",
+    "/results?tab=recommendations",
+  );
 
-  for (const href of ["/", "/results", "/itinerary", "/planner/pet"]) {
+  for (const label of ["커뮤니티", "마이페이지", "로그인", "회원가입"]) {
+    const future = header.getByRole("button", {
+      name: new RegExp(`${label}\\s*준비 중`, "u"),
+    });
+    await expect(future).toHaveAttribute("aria-disabled", "true");
+    await expect(future).not.toHaveAttribute("href", /.+/u);
+    await expect(header.getByRole("link", { name: new RegExp(label, "u") })).toHaveCount(0);
+  }
+
+  const footer = page.locator("footer");
+  await expect(footer.getByRole("link", { name: "여행 만들기" })).toHaveAttribute(
+    "href",
+    "/planner/pet",
+  );
+  await expect(footer.getByRole("link", { name: "장소 찾기" })).toHaveAttribute(
+    "href",
+    "/results?tab=catalog",
+  );
+  await expect(footer.getByRole("link", { name: "내 일정" })).toHaveAttribute(
+    "href",
+    "/itinerary",
+  );
+
+  for (const href of [
+    "/",
+    "/results?tab=catalog",
+    "/results?tab=recommendations",
+    "/itinerary",
+    "/planner/pet",
+  ]) {
     const response = await request.get(href);
     expect(response.status(), `${href} should resolve`).toBe(200);
   }
@@ -67,7 +132,7 @@ test("opens the mobile navigation and follows its real destination", async ({
   await page.goto("/");
 
   const header = page.locator("header");
-  await expect(header.getByRole("link", { name: "여행 만들기" })).toBeVisible();
+  await expect(header.getByRole("link", { name: "WEEKENDOG 홈" })).toBeVisible();
   await expect(header.getByRole("navigation", { name: "주요 메뉴" })).toBeHidden();
 
   const openMenuButton = header.getByRole("button", { name: "메뉴 열기" });
@@ -80,15 +145,19 @@ test("opens the mobile navigation and follows its real destination", async ({
     name: "모바일 주요 메뉴",
   });
   await expect(mobileNavigation).toBeVisible();
-  await mobileNavigation.getByRole("link", { name: "내 일정" }).click();
+  const community = mobileNavigation.getByRole("button", {
+    name: /커뮤니티\s*준비 중/u,
+  });
+  await expect(community).toHaveAttribute("aria-disabled", "true");
+  await expect(mobileNavigation.getByRole("link", { name: /커뮤니티/u })).toHaveCount(0);
 
-  await expect(page).toHaveURL(/\/itinerary$/u);
-  await expect(
-    page.getByRole("heading", { name: "선택된 추천 경로가 없습니다." }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: "여행 정보 입력하기" }),
-  ).toHaveAttribute("href", "/planner/pet");
+  await mobileNavigation.getByRole("link", { name: "장소 찾기" }).click();
+
+  await expect(page).toHaveURL(/\/results\?tab=catalog$/u);
+  await expect(page.getByRole("tab", { name: "전체 장소" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
 });
 
 test("avoids horizontal overflow at the required viewports", async ({ page }) => {
@@ -100,7 +169,7 @@ test("avoids horizontal overflow at the required viewports", async ({ page }) =>
   ]) {
     await page.setViewportSize(viewport);
     await page.goto("/");
-    await expect(page.locator(".landing-page")).toBeVisible();
+    await expect(page.locator(".weekendoog-home")).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
 
     await expect
@@ -114,7 +183,7 @@ test("avoids horizontal overflow at the required viewports", async ({ page }) =>
       .toBeLessThanOrEqual(1);
 
     const headerBox = await page.locator("header").boundingBox();
-    const heroBox = await page.locator(".landing-page > section").first().boundingBox();
+    const heroBox = await page.locator(".weekendoog-hero").boundingBox();
     expect(headerBox).not.toBeNull();
     expect(heroBox).not.toBeNull();
     expect(headerBox!.x).toBeGreaterThanOrEqual(0);
@@ -124,8 +193,7 @@ test("avoids horizontal overflow at the required viewports", async ({ page }) =>
 
     if (viewport.width === 320) {
       const header = page.locator("header");
-      await expect(header.getByRole("link", { name: "PetPass 홈" })).toBeVisible();
-      await expect(header.getByRole("link", { name: "여행 만들기" })).toBeVisible();
+      await expect(header.getByRole("link", { name: "WEEKENDOG 홈" })).toBeVisible();
       await header.getByRole("button", { name: "메뉴 열기" }).click();
       await expect(header.getByRole("navigation", { name: "모바일 주요 메뉴" })).toBeVisible();
       await expect
@@ -137,7 +205,8 @@ test("avoids horizontal overflow at the required viewports", async ({ page }) =>
           }),
         )
         .toBeLessThanOrEqual(1);
-      await header.getByRole("button", { name: "메뉴 닫기" }).click();
+      await page.keyboard.press("Escape");
+      await expect(header.getByRole("button", { name: "메뉴 열기" })).toBeFocused();
     }
   }
 });

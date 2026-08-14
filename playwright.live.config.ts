@@ -23,6 +23,9 @@ const liveTestMatch = [
   ...(process.env.RUN_LIVE_PROVIDER_E2E === "1"
     ? ["**/provider-live.spec.ts"]
     : []),
+  ...(process.env.CAPTURE_WEEKENDOG_EVIDENCE === "1"
+    ? ["**/weekendog-homepage-evidence.spec.ts"]
+    : []),
 ];
 
 if (!existsSync(".env.local")) {

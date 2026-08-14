@@ -105,7 +105,7 @@ test("fails closed for a legacy provider record rather than showing a pet denial
   page,
 }) => {
   await page.goto("/places/3013?contentTypeId=38");
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.locator(".surface-card[role='alert']")).toBeVisible();
   await expect(
     page.getByText("반려동물 동반 불가로 안내됨", { exact: true }),
   ).toHaveCount(0);
@@ -143,7 +143,7 @@ test("keeps identical pet evidence invariant across licensing states", async ({ 
 
 test("uses a truthful fallback title for provider-backed detail pages", async ({ page }) => {
   await page.goto("/places/3001?contentTypeId=38");
-  await expect(page).toHaveTitle("장소 상세 | PetPass");
+  await expect(page).toHaveTitle("장소 상세 | WEEKENDOG");
 });
 
 test("ignores a spoofed browser content type for the verdict and provider selection", async ({

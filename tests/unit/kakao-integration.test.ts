@@ -367,6 +367,20 @@ describe("Kakao integration boundaries", () => {
     expect(overlays.some(({ content }) => content.matches(".kakao-map-info"))).toBe(
       true,
     );
+    const firstInfoOverlay = overlays.find(({ content }) =>
+      content.matches(".kakao-map-info"),
+    );
+    expect(firstInfoOverlay).toBeDefined();
+    controller.setShowSelectionInfo(false);
+    expect(firstInfoOverlay?.setMap).toHaveBeenCalledWith(null);
+    const overlayCountWithoutInfo = overlays.length;
+    controller.setShowSelectionInfo(true);
+    expect(overlays.length).toBeGreaterThan(overlayCountWithoutInfo);
+    expect(
+      overlays.slice(overlayCountWithoutInfo).some(({ content }) =>
+        content.matches(".kakao-map-info"),
+      ),
+    ).toBe(true);
 
     controller.updateData(
       [
