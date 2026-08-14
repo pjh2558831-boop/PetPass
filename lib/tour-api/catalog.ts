@@ -43,15 +43,14 @@ export const TOUR_DEFAULT_CATALOG_CONTENT_TYPE_IDS = [
   "15",
   "28",
   "32",
+  "38",
   "39",
 ] as const satisfies readonly TourContentTypeId[];
 
-export const TOUR_OPT_IN_CATALOG_CONTENT_TYPE_IDS = [
-  "38",
-] as const satisfies readonly TourContentTypeId[];
+export const TOUR_OPT_IN_CATALOG_CONTENT_TYPE_IDS = [] as const;
 
 // Automatic itinerary eligibility is still gated by request categories and pet access.
-// Shopping remains opt-in even though Service2 type 38 is provider-compatible.
+// Recommendation eligibility remains a separate boundary from public catalog visibility.
 export const TOUR_ITINERARY_ELIGIBLE_CONTENT_TYPE_IDS = [
   "12",
   "14",

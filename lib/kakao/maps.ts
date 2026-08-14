@@ -133,6 +133,8 @@ export type KakaoMapMarkerKind =
   | "administrator-confirmed"
   | "user-reported"
   | "kakao-candidate"
+  | "veterinary"
+  | "pet-shop"
   | "shopping";
 
 export interface KakaoMapLocation {
@@ -325,6 +327,8 @@ export function createKakaoMapController(
   const nativeMarkerImages = new Map<KakaoMapMarkerKind, KakaoMarkerImage>();
   const nativeMarkerVisual = (kind: KakaoMapMarkerKind) => {
     const visuals: Record<KakaoMapMarkerKind, { color: string; label: string; textColor?: string; shape: "pin" | "diamond" | "circle" | "square" }> = {
+      veterinary: { color: "#c84141", label: "+", shape: "circle" },
+      "pet-shop": { color: "#6657a8", label: "▣", shape: "square" },
       catalog: { color: "#236148", label: "공", shape: "pin" },
       departure: { color: "#2467a8", label: "출", shape: "circle" },
       "tourism-official": { color: "#236148", label: "공", shape: "pin" },
@@ -407,6 +411,7 @@ export function createKakaoMapController(
   let selectedId: string | null = null;
   let shouldShowSelectionInfo = options.showSelectionInfo !== false;
   let destroyed = false;
+  let markerRenderFrame: number | null = null;
 
   container.dataset.kakaoMapInitialized = "true";
   container.dataset.clustererReady = clusterer ? "true" : "false";
@@ -535,6 +540,10 @@ export function createKakaoMapController(
   }
 
   const clearLayers = () => {
+    if (markerRenderFrame !== null) {
+      window.cancelAnimationFrame(markerRenderFrame);
+      markerRenderFrame = null;
+    }
     resetSelectionVisuals();
     catalogButtonByMarker.clear();
     clusterer?.clear();
@@ -655,12 +664,12 @@ export function createKakaoMapController(
       let catalogMarkerCount = 0;
       let interactiveMarkerCount = 0;
 
-      for (const location of locations) {
+      const renderLocation = (location: KakaoMapLocation) => {
         if (
           seenLocationIds.has(location.id) ||
           !isValidMapCoordinates(location.coordinates)
         ) {
-          continue;
+          return;
         }
         seenLocationIds.add(location.id);
         const position = new maps.LatLng(
@@ -733,13 +742,7 @@ export function createKakaoMapController(
           else if (!interactive) standaloneMarkers.push(proxyMarker);
           if (markerButton) catalogButtonByMarker.set(proxyMarker, markerButton);
         }
-      }
-
-      container.dataset.catalogMarkerCount = String(catalogMarkerCount);
-      container.dataset.interactiveMarkerCount = String(interactiveMarkerCount);
-      if (clusterer && catalogMarkers.length > 0) {
-        clusterer.addMarkers(catalogMarkers);
-      }
+      };
 
       const routePath = getRenderableRouteCoordinates(routeCoordinates)
         .map(({ latitude, longitude }) => new maps.LatLng(latitude, longitude));
@@ -755,10 +758,27 @@ export function createKakaoMapController(
         });
       }
 
-      if (updateOptions.fitBounds !== false) controller.fitBounds();
-      if (previousSelection && locationPositions.has(previousSelection)) {
-        controller.selectLocation(previousSelection);
-      }
+      const finishMarkers = () => {
+        markerRenderFrame = null;
+        container.dataset.catalogMarkerCount = String(catalogMarkerCount);
+        container.dataset.interactiveMarkerCount = String(interactiveMarkerCount);
+        if (clusterer && catalogMarkers.length > 0) clusterer.addMarkers(catalogMarkers);
+        if (updateOptions.fitBounds !== false) controller.fitBounds();
+        if (previousSelection && locationPositions.has(previousSelection)) controller.selectLocation(previousSelection);
+      };
+      const batchSize = 100;
+      let offset = 0;
+      const renderBatch = () => {
+        if (destroyed) return;
+        const end = Math.min(offset + batchSize, locations.length);
+        for (; offset < end; offset += 1) renderLocation(locations[offset]);
+        container.dataset.catalogMarkerCount = String(catalogMarkerCount);
+        container.dataset.interactiveMarkerCount = String(interactiveMarkerCount);
+        if (offset < locations.length) markerRenderFrame = window.requestAnimationFrame(renderBatch);
+        else finishMarkers();
+      };
+      if (locations.length > batchSize) markerRenderFrame = window.requestAnimationFrame(renderBatch);
+      else { locations.forEach(renderLocation); finishMarkers(); }
     },
   };
 

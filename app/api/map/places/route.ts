@@ -1,94 +1,62 @@
 import { z } from "zod";
-import { BUSAN_DISCOVERY_BOUNDS } from "@/lib/kakao/discovery";
-import { queryMapPlaces, type MapPlaceQuery } from "@/lib/map-places/query";
+import {
+  queryPublicMapCatalog,
+  type PublicMapCatalogQuery,
+} from "@/lib/map-places/public-catalog";
+import { isBusanDistrictCode } from "@/lib/tour-api/catalog";
 import { apiFailure, apiSuccess } from "@/lib/shared/api-response";
 import {
-  MAP_PLACE_CATEGORIES,
-  MAP_PLACE_PROVIDERS,
-  type MapPlaceCategory,
-  type MapPlaceProvider,
-} from "@/types/map-place";
+  PUBLIC_MAP_PLACE_CATEGORIES,
+  PUBLIC_MAP_PLACE_KINDS,
+  type PublicMapPlaceCategory,
+  type PublicMapPlaceKind,
+  type PublicMapPlacePage,
+} from "@/types/public-map-place";
 
-const CACHE_HEADERS = {
-  // Stored candidates carry their own expiry. Do not let an edge cache serve
-  // one beyond that provider-freshness boundary.
-  "Cache-Control": "private, no-store",
-} as const;
-const DEFAULT_CATEGORIES: MapPlaceCategory[] = MAP_PLACE_CATEGORIES.filter(
-  (category) => category !== "shopping",
-);
-const ALLOWED_PARAMETERS = new Set([
-  "south",
-  "west",
-  "north",
-  "east",
-  "providers",
-  "categories",
-  "limit",
-]);
-const decimal = z
-  .string()
-  .trim()
-  .regex(/^-?(?:\d+(?:\.\d*)?|\.\d+)$/u)
-  .transform(Number)
-  .refine(Number.isFinite);
+const CACHE_HEADERS = { "Cache-Control": "private, no-store" } as const;
+const ALLOWED_PARAMETERS = new Set(["district", "kinds", "category", "page", "pageSize"]);
 const rawQuerySchema = z.object({
-  south: decimal,
-  west: decimal,
-  north: decimal,
-  east: decimal,
-  providers: z.string().trim().optional(),
-  categories: z.string().trim().optional(),
-  limit: z.coerce.number().int().min(1).max(1_000).default(500),
+  district: z.string().trim().optional(),
+  kinds: z.string().trim().optional(),
+  category: z.string().trim().optional(),
+  page: z.coerce.number().int().min(1).max(100).default(1),
+  pageSize: z.coerce.number().int().min(1).max(200).default(200),
 });
 
-function parseList<T extends string>(
-  value: string | undefined,
-  allowed: readonly T[],
-): T[] | undefined {
+function parseKinds(value: string | undefined): PublicMapPlaceKind[] | null | undefined {
   if (!value) return undefined;
-  const parsed = [...new Set(value.split(",").map((item) => item.trim()).filter(Boolean))];
-  return parsed.length > 0 && parsed.every((item): item is T => allowed.includes(item as T))
-    ? parsed
-    : undefined;
+  const values = [...new Set(value.split(",").map((item) => item.trim()).filter(Boolean))];
+  return values.length > 0 && values.every(
+    (item): item is PublicMapPlaceKind => PUBLIC_MAP_PLACE_KINDS.includes(item as PublicMapPlaceKind),
+  ) ? values : null;
 }
 
-function parseMapQuery(request: Request): MapPlaceQuery | null {
+function parseMapQuery(request: Request): PublicMapCatalogQuery | null {
   if (request.headers.has("authorization")) return null;
   const params = new URL(request.url).searchParams;
-  if (
-    [...new Set(params.keys())].some((key) => !ALLOWED_PARAMETERS.has(key)) ||
-    [...new Set(params.keys())].some((key) => params.getAll(key).length !== 1)
-  ) {
-    return null;
-  }
+  if ([...new Set(params.keys())].some((key) => !ALLOWED_PARAMETERS.has(key))) return null;
+  if ([...new Set(params.keys())].some((key) => params.getAll(key).length !== 1)) return null;
   const parsed = rawQuerySchema.safeParse(Object.fromEntries(params));
   if (!parsed.success) return null;
-  const { south, west, north, east, limit } = parsed.data;
+  if (parsed.data.district && !isBusanDistrictCode(parsed.data.district)) return null;
+  const kinds = parseKinds(parsed.data.kinds);
+  if (kinds === null) return null;
+  const category = parsed.data.category;
   if (
-    south >= north ||
-    west >= east ||
-    south < BUSAN_DISCOVERY_BOUNDS.south ||
-    north > BUSAN_DISCOVERY_BOUNDS.north ||
-    west < BUSAN_DISCOVERY_BOUNDS.west ||
-    east > BUSAN_DISCOVERY_BOUNDS.east
-  ) {
-    return null;
-  }
-  const providers = parseList<MapPlaceProvider>(
-    parsed.data.providers,
-    MAP_PLACE_PROVIDERS,
-  );
-  if (parsed.data.providers && !providers) return null;
-  const categories = parsed.data.categories
-    ? parseList<MapPlaceCategory>(parsed.data.categories, MAP_PLACE_CATEGORIES)
-    : DEFAULT_CATEGORIES;
-  if (!categories) return null;
-  return { south, west, north, east, providers, categories, limit };
+    category &&
+    !PUBLIC_MAP_PLACE_CATEGORIES.includes(category as PublicMapPlaceCategory)
+  ) return null;
+  return {
+    districtCodes: parsed.data.district ? [parsed.data.district] : undefined,
+    kinds,
+    category: category as PublicMapPlaceCategory | undefined,
+    page: parsed.data.page,
+    pageSize: parsed.data.pageSize,
+  };
 }
 
 export interface MapPlacesRouteDependencies {
-  query?: (input: MapPlaceQuery) => ReturnType<typeof queryMapPlaces>;
+  query?: (input: PublicMapCatalogQuery) => Promise<PublicMapPlacePage>;
 }
 
 export function createMapPlacesHandler(dependencies: MapPlacesRouteDependencies = {}) {
@@ -96,35 +64,20 @@ export function createMapPlacesHandler(dependencies: MapPlacesRouteDependencies 
     const input = parseMapQuery(request);
     if (!input) {
       return apiFailure(
-        {
-          code: "INVALID_REQUEST",
-          message: "부산 지도 범위와 필터 값을 확인해 주세요.",
-          retryable: false,
-        },
+        { code: "INVALID_REQUEST", message: "지도 장소 필터를 확인해 주세요.", retryable: false },
         400,
         { "Cache-Control": "no-store" },
       );
     }
     try {
-      const queriedPlaces = await (dependencies.query ?? queryMapPlaces)(input);
-      // Stored Tourism rows have no visibility-refresh writer yet. Serving an
-      // old `exposed` bit could leak a record after the provider hides it, so
-      // official markers come only from the freshly visibility-joined catalog.
-      const now = Date.now();
-      const places = queriedPlaces.filter(
-        (place) =>
-          place.provider !== "tour" &&
-          place.expires_at !== null &&
-          Date.parse(place.expires_at) > now,
+      return apiSuccess(
+        await (dependencies.query ?? queryPublicMapCatalog)(input),
+        200,
+        CACHE_HEADERS,
       );
-      return apiSuccess({ places, count: places.length }, 200, CACHE_HEADERS);
     } catch {
       return apiFailure(
-        {
-          code: "UPSTREAM_ERROR",
-          message: "저장된 지도 장소를 불러오지 못했습니다.",
-          retryable: true,
-        },
+        { code: "UPSTREAM_ERROR", message: "지도 장소를 불러오지 못했습니다.", retryable: true },
         503,
         { "Cache-Control": "no-store" },
       );

@@ -1,146 +1,72 @@
 import { describe, expect, it, vi } from "vitest";
 import { createMapPlacesHandler } from "@/app/api/map/places/route";
+import { queryPublicMapCatalog } from "@/lib/map-places/public-catalog";
 import {
   deduplicateKakaoMapPlaces,
   normalizeKakaoMapPlace,
 } from "@/lib/map-places/kakao-ingest";
 import type { KakaoDiscoveryCandidate } from "@/types/kakao";
-import { mapPlaceSchema, type MapPlace } from "@/types/map-place";
+import type { PublicMapPlaceDTO, PublicMapPlacePage } from "@/types/public-map-place";
 
-const mapPlace: MapPlace = {
-  id: 1,
-  provider: "kakao",
-  provider_place_id: "123",
+const publicPlace: PublicMapPlaceDTO = {
+  id: "kakao:123",
+  providerPlaceId: "123",
   name: "광안 반려 카페",
-  category_group: "food",
-  category_code: "음식점 > 카페",
-  content_type_id: null,
-  road_address: "부산광역시 수영구 광안해변로 10",
-  lot_address: "부산광역시 수영구 광안동 1",
-  district_name: "수영구",
-  latitude: 35.1456,
-  longitude: 129.1131,
+  kind: "pet_travel_candidate",
+  category: "cafe",
+  district: { code: "500", name: "수영구" },
+  address: "부산광역시 수영구 광안해변로 10",
+  coordinates: { latitude: 35.1456, longitude: 129.1131 },
   phone: null,
-  image_url: null,
-  source_url: "https://place.map.kakao.com/123",
-  provider_visibility: "not_applicable",
-  pet_evidence_status: "search_candidate",
-  pet_evidence: { verification_required: true },
-  pet_notes: "카카오 검색 후보 · 방문 전 동반 가능 여부 확인",
-  fetched_at: "2026-08-11T00:00:00.000Z",
-  expires_at: "2099-08-12T00:00:00.000Z",
+  placeUrl: "https://place.map.kakao.com/123",
+  source: "kakao_search_candidate",
+  reviewStatus: "unreviewed",
+  publicLabel: "동반 여부 확인 필요",
 };
 
-describe("stored map place route", () => {
-  it("accepts the UTC offset timestamp format returned by PostgREST", () => {
-    const fetchedAt = "2026-08-11T12:26:34.681+00:00";
+const resultPage: PublicMapPlacePage = {
+  items: [publicPlace],
+  page: 1,
+  pageSize: 200,
+  totalCount: 1,
+  hasNext: false,
+};
 
-    expect(
-      mapPlaceSchema.parse({ ...mapPlace, fetched_at: fetchedAt }).fetched_at,
-    ).toBe(fetchedAt);
-  });
-
-  it("queries a bounded Busan viewport and excludes shopping by default", async () => {
-    const query = vi.fn(async () => [mapPlace]);
+describe("public Kakao map catalog route", () => {
+  it("returns only the allowlisted DTO envelope", async () => {
+    const query = vi.fn(async () => resultPage);
     const response = await createMapPlacesHandler({ query })(
-      new Request(
-        "http://localhost/api/map/places?south=35.1&west=129&north=35.2&east=129.2&providers=tour,kakao",
-      ),
+      new Request("http://localhost/api/map/places?district=500&kinds=pet_travel_candidate,veterinary&category=cafe&page=1&pageSize=200"),
     );
     const body = await response.json();
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("private, no-store");
-    expect(body.data).toMatchObject({ count: 1, places: [mapPlace] });
-    expect(query).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providers: ["tour", "kakao"],
-        categories: expect.not.arrayContaining(["shopping"]),
-      }),
-    );
+    expect(body.data).toEqual(resultPage);
+    expect(Object.keys(body.data.items[0]).sort()).toEqual([
+      "address", "category", "coordinates", "district", "id", "kind",
+      "name", "phone", "placeUrl", "providerPlaceId", "publicLabel",
+      "reviewStatus", "source",
+    ].sort());
+    expect(query).toHaveBeenCalledWith({
+      districtCodes: ["500"],
+      kinds: ["pet_travel_candidate", "veterinary"],
+      category: "cafe",
+      page: 1,
+      pageSize: 200,
+    });
   });
-
-  it.each(["not_exposed", "unknown", "provider_unavailable"] as const)(
-    "never returns a Tourism marker with %s visibility",
-    async (providerVisibility) => {
-      const hiddenTourPlace: MapPlace = {
-        ...mapPlace,
-        id: 2,
-        provider: "tour",
-        provider_place_id: "2930927",
-        provider_visibility: providerVisibility,
-        pet_evidence_status: "official_verified",
-      };
-      const query = vi.fn(async () => [mapPlace, hiddenTourPlace]);
-      const response = await createMapPlacesHandler({ query })(
-        new Request(
-          "http://localhost/api/map/places?south=35.1&west=129&north=35.2&east=129.2",
-        ),
-      );
-      const body = await response.json();
-
-      expect(body.data).toMatchObject({ count: 1, places: [mapPlace] });
-    },
-  );
-
-  it("never serves a stored Tourism marker without a visibility refresh writer", async () => {
-    const exposedTourPlace: MapPlace = {
-      ...mapPlace,
-      id: 2,
-      provider: "tour",
-      provider_place_id: "2930927",
-      provider_visibility: "exposed",
-      pet_evidence_status: "official_verified",
-    };
-    const response = await createMapPlacesHandler({
-      query: vi.fn(async () => [exposedTourPlace]),
-    })(
-      new Request(
-        "http://localhost/api/map/places?south=35.1&west=129&north=35.2&east=129.2",
-      ),
-    );
-    const body = await response.json();
-
-    expect(body.data).toMatchObject({ count: 0, places: [] });
-  });
-
-  it("never serves an expired stored marker", async () => {
-    const response = await createMapPlacesHandler({
-      query: vi.fn(async () => [{ ...mapPlace, expires_at: "2020-01-01T00:00:00.000Z" }]),
-    })(
-      new Request(
-        "http://localhost/api/map/places?south=35.1&west=129&north=35.2&east=129.2",
-      ),
-    );
-    const body = await response.json();
-
-    expect(body.data).toMatchObject({ count: 0, places: [] });
-  });
-
-  it.each([null, new Date().toISOString()])(
-    "fails closed for a missing or non-future expiry %s",
-    async (expiresAt) => {
-      const response = await createMapPlacesHandler({
-        query: vi.fn(async () => [{ ...mapPlace, expires_at: expiresAt }]),
-      })(
-        new Request(
-          "http://localhost/api/map/places?south=35.1&west=129&north=35.2&east=129.2",
-        ),
-      );
-      const body = await response.json();
-
-      expect(body.data).toMatchObject({ count: 0, places: [] });
-    },
-  );
 
   it.each([
-    "south=35.2&west=129&north=35.1&east=129.2",
-    "south=34&west=129&north=35.1&east=129.2",
-    "south=35.1&west=129&north=35.2&east=129.2&providers=other",
-    "south=35.1&west=129&north=35.2&east=129.2&query=카페",
-    "south=35.1&west=129&north=35.2&east=129.2&limit=1001",
-  ])("rejects invalid map query %s", async (parameters) => {
-    const query = vi.fn(async () => [mapPlace]);
+    "district=99999",
+    "kinds=tourism_place",
+    "category=shopping",
+    "page=0",
+    "pageSize=201",
+    "query=카페",
+    "page=1&page=2",
+  ])("rejects an invalid allowlist query: %s", async (parameters) => {
+    const query = vi.fn(async () => resultPage);
     const response = await createMapPlacesHandler({ query })(
       new Request(`http://localhost/api/map/places?${parameters}`),
     );
@@ -148,16 +74,55 @@ describe("stored map place route", () => {
     expect(query).not.toHaveBeenCalled();
   });
 
-  it("never accepts a client Authorization header", async () => {
-    const query = vi.fn(async () => [mapPlace]);
+  it("rejects a client Authorization header", async () => {
+    const query = vi.fn(async () => resultPage);
     const response = await createMapPlacesHandler({ query })(
-      new Request(
-        "http://localhost/api/map/places?south=35.1&west=129&north=35.2&east=129.2",
-        { headers: { Authorization: "Bearer client-value" } },
-      ),
+      new Request("http://localhost/api/map/places", {
+        headers: { Authorization: "Bearer client-value" },
+      }),
     );
     expect(response.status).toBe(400);
     expect(query).not.toHaveBeenCalled();
+  });
+
+  it("walks the RPC cursor without leaking database-only fields", async () => {
+    const row = {
+      id: 10,
+      provider_place_id: "123",
+      name: "광안 반려 카페",
+      candidate_kind: "pet_travel_candidate" as const,
+      normalized_category: "cafe" as const,
+      district_code: "500",
+      district_name: "수영구",
+      address: "부산광역시 수영구 광안해변로 10",
+      latitude: 35.1456,
+      longitude: 129.1131,
+      phone: "",
+      place_url: "https://place.map.kakao.com/123",
+      review_status: "unreviewed" as const,
+      public_label: "동반 여부 확인 필요",
+      source: "kakao_search_candidate" as const,
+      total_count: 3,
+      has_more: true,
+    };
+    const queryPage = vi.fn()
+      .mockResolvedValueOnce([{ ...row, id: 1 }])
+      .mockResolvedValueOnce([{ ...row, id: 2, has_more: false }]);
+
+    const result = await queryPublicMapCatalog(
+      { page: 2, pageSize: 1 },
+      { queryPage },
+    );
+
+    expect(queryPage).toHaveBeenNthCalledWith(1, expect.anything(), null);
+    expect(queryPage).toHaveBeenNthCalledWith(2, expect.anything(), 1);
+    expect(result).toEqual({
+      items: [{ ...publicPlace, phone: null }],
+      page: 2,
+      pageSize: 1,
+      totalCount: 3,
+      hasNext: false,
+    });
   });
 });
 
@@ -177,33 +142,19 @@ describe("Kakao map place ingestion", () => {
     recommendationEligible: false,
   };
 
-  it("forces the Kakao candidate evidence state and preserves provider identity", () => {
-    expect(
-      normalizeKakaoMapPlace(
-        candidate,
-        "food",
-        "2026-08-11T00:00:00.000Z",
-      ),
-    ).toMatchObject({
-      provider: "kakao",
-      provider_place_id: "123",
-      category_group: "food",
-      district_name: "수영구",
-      location: "POINT(129.1131 35.1456)",
-      pet_evidence_status: "search_candidate",
-      provider_visibility: "not_applicable",
-      is_active: true,
-    });
+  it("forces candidate evidence and preserves provider identity", () => {
+    expect(normalizeKakaoMapPlace(candidate, "food", "2026-08-11T00:00:00.000Z"))
+      .toMatchObject({
+        provider: "kakao",
+        provider_place_id: "123",
+        district_name: "수영구",
+        pet_evidence_status: "search_candidate",
+        is_active: true,
+      });
   });
 
   it("deduplicates only by provider and provider place ID", () => {
-    const row = normalizeKakaoMapPlace(
-      candidate,
-      "food",
-      "2026-08-11T00:00:00.000Z",
-    );
-    expect(deduplicateKakaoMapPlaces([row, { ...row, name: "중복" }])).toEqual([
-      row,
-    ]);
+    const row = normalizeKakaoMapPlace(candidate, "food", "2026-08-11T00:00:00.000Z");
+    expect(deduplicateKakaoMapPlaces([row, { ...row, name: "중복" }])).toEqual([row]);
   });
 });
