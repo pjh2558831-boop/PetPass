@@ -163,9 +163,10 @@ describe("Tourism catalog contract", () => {
       "15",
       "28",
       "32",
+      "38",
       "39",
     ]);
-    expect(TOUR_OPT_IN_CATALOG_CONTENT_TYPE_IDS).toEqual(["38"]);
+    expect(TOUR_OPT_IN_CATALOG_CONTENT_TYPE_IDS).toEqual([]);
     expect(TOUR_ITINERARY_ELIGIBLE_CONTENT_TYPE_IDS).toEqual([
       "12",
       "14",
@@ -176,7 +177,7 @@ describe("Tourism catalog contract", () => {
       "39",
     ]);
     expect(TOUR_CONTENT_TYPE_IDS).toContain("38");
-    expect(TOUR_DEFAULT_CATALOG_CONTENT_TYPE_IDS).not.toContain("38");
+    expect(TOUR_DEFAULT_CATALOG_CONTENT_TYPE_IDS).toContain("38");
     expect(TOUR_CONTENT_TYPE_IDS).not.toContain("75" as TourContentTypeId);
   });
 
@@ -191,13 +192,13 @@ describe("Tourism catalog contract", () => {
     });
     const calls = vi.mocked(service.listPlaces).mock.calls.map(([query]) => query);
 
-    expect(calls).toHaveLength(6);
+    expect(calls).toHaveLength(7);
     expect(calls.every((query) => query.regionCode === "26")).toBe(true);
     expect(calls.every((query) => query.districtCode === undefined)).toBe(true);
     expect(calls.map(({ contentTypeId }) => contentTypeId)).toEqual([
       ...TOUR_DEFAULT_CATALOG_CONTENT_TYPE_IDS,
     ]);
-    expect(result.places).toHaveLength(6);
+    expect(result.places).toHaveLength(7);
   });
 
   it.each(BUSAN_DISTRICTS)(

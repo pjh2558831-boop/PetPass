@@ -245,6 +245,20 @@ select {
   box-shadow: 0 8px 20px rgba(74, 55, 104, 0.28);
 }
 
+.kakao-map-marker--veterinary {
+  border-radius: 999px;
+  background: #c84141;
+  box-shadow: 0 8px 20px rgba(160, 42, 42, 0.3);
+  transform: none;
+}
+
+.kakao-map-marker--pet-shop {
+  border-radius: 10px;
+  background: #6657a8;
+  box-shadow: 0 8px 20px rgba(82, 67, 145, 0.3);
+  transform: none;
+}
+
 .kakao-map-marker.is-selected {
   outline: 4px solid rgba(241, 178, 112, 0.72);
   outline-offset: 3px;
@@ -295,6 +309,11 @@ select {
   transform: none;
 }
 
+.kakao-map-marker--veterinary span,
+.kakao-map-marker--pet-shop span {
+  transform: none;
+}
+
 .map-legend-marker {
   display: inline-grid;
   width: 15px;
@@ -337,6 +356,23 @@ select {
 
 .map-legend-marker--shopping {
   background: #6d588c;
+}
+
+.map-legend-marker--veterinary {
+  border-radius: 999px;
+  background: #c84141;
+  transform: none;
+}
+
+.map-legend-marker--pet-shop {
+  border-radius: 4px;
+  background: #6657a8;
+  transform: none;
+}
+
+.catalog-result-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 220px;
 }
 
 .kakao-map-selection {

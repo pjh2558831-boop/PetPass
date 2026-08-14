@@ -14,8 +14,31 @@ const migrationPath = join(
   "20260814090000_kakao_busan_catalog_v1.sql",
 );
 const sql = readFileSync(migrationPath, "utf8");
+const providerVisibilitySql = readFileSync(
+  join(
+    process.cwd(),
+    "supabase",
+    "migrations",
+    "20260812123000_add_provider_visibility.sql",
+  ),
+  "utf8",
+);
 
 describe("Kakao Busan catalog migration", () => {
+  it("uses distinct provider visibility value and provider constraints", () => {
+    expect(providerVisibilitySql).toContain(
+      "constraint map_places_provider_visibility_value_check check",
+    );
+    expect(providerVisibilitySql).toContain(
+      "constraint map_places_provider_visibility_check check",
+    );
+    expect(
+      providerVisibilitySql.match(
+        /constraint map_places_provider_visibility_check check/gu,
+      ),
+    ).toHaveLength(1);
+  });
+
   it("extends shared storage and creates durable query provenance", () => {
     expect(sql).toContain("alter table public.map_places");
     expect(sql).toContain("alter table public.map_ingest_runs");

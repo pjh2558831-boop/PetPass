@@ -443,7 +443,7 @@ export function RecommendationPlanner({
       <header className="surface-panel p-6 sm:p-8">
         <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
           <div>
-            <p className="eyebrow">{editDirty ? "수정 중인 일정" : displayedRoute.kind === "manual" ? "직접 수정한 일정" : "PetPass 추천 일정"}</p>
+            <p className="eyebrow">{editDirty ? "수정 중인 일정" : displayedRoute.kind === "manual" ? "직접 수정한 일정" : "WEEKENDOG 추천 일정"}</p>
             <h1 className="mt-2 text-3xl font-black tracking-[-0.045em]">{ready.requestSummary.departureLabel}에서 시작하는 {summary.stopCount}곳 일정</h1>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--muted)]">{editDirty ? "방문 순서를 수정했습니다. 실제 거리와 운영시간을 다시 확인해야 확정됩니다." : displayedRoute.kind === "manual" ? "직접 정한 방문 순서를 Kakao 경로로 다시 확인한 결과입니다." : exact ? "현재 후보와 확인된 이동 정보 안에서 가장 적합한 일정을 찾았습니다." : "제한 시간 안에서 확인한 일정 중 가장 적합한 결과입니다."}</p>
             {!editDirty && displayedRoute.temporalBasis.searchMatrix !== displayedRoute.temporalBasis.finalRoute ? <p className="mt-2 text-xs font-bold text-[#76542f]">장소 순서는 확인된 이동 정보로 비교하고, 표시된 시간과 경로는 Kakao의 최종 길찾기 결과를 반영했습니다.</p> : null}

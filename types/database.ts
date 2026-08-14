@@ -14,63 +14,295 @@ export type Database = {
   }
   public: {
     Tables: {
+      map_ingest_run_queries: {
+        Row: {
+          accepted_result_count: number
+          candidate_kind: string
+          category_group_code: string | null
+          classification_rejection_count: number
+          collection_run_id: number
+          completed_at: string | null
+          created_at: string
+          district: string
+          district_code: string
+          duplicate_result_count: number
+          id: number
+          inserted_row_count: number
+          invalid_coordinate_result_count: number
+          last_completed_page: number
+          normalized_category: string | null
+          out_of_district_result_count: number
+          preserved_review_row_count: number
+          provider_429_count: number
+          provider_call_count: number
+          provider_error_count: number
+          provider_result_count: number
+          query_key: string
+          query_text: string
+          rejected_result_count: number
+          sanitized_error_summary: string | null
+          saturated: boolean
+          started_at: string | null
+          status: string
+          timeout_count: number
+          updated_at: string
+          updated_row_count: number
+        }
+        Insert: {
+          accepted_result_count?: number
+          candidate_kind: string
+          category_group_code?: string | null
+          classification_rejection_count?: number
+          collection_run_id: number
+          completed_at?: string | null
+          created_at?: string
+          district: string
+          district_code: string
+          duplicate_result_count?: number
+          id?: never
+          inserted_row_count?: number
+          invalid_coordinate_result_count?: number
+          last_completed_page?: number
+          normalized_category?: string | null
+          out_of_district_result_count?: number
+          preserved_review_row_count?: number
+          provider_429_count?: number
+          provider_call_count?: number
+          provider_error_count?: number
+          provider_result_count?: number
+          query_key: string
+          query_text: string
+          rejected_result_count?: number
+          sanitized_error_summary?: string | null
+          saturated?: boolean
+          started_at?: string | null
+          status?: string
+          timeout_count?: number
+          updated_at?: string
+          updated_row_count?: number
+        }
+        Update: {
+          accepted_result_count?: number
+          candidate_kind?: string
+          category_group_code?: string | null
+          classification_rejection_count?: number
+          collection_run_id?: number
+          completed_at?: string | null
+          created_at?: string
+          district?: string
+          district_code?: string
+          duplicate_result_count?: number
+          id?: never
+          inserted_row_count?: number
+          invalid_coordinate_result_count?: number
+          last_completed_page?: number
+          normalized_category?: string | null
+          out_of_district_result_count?: number
+          preserved_review_row_count?: number
+          provider_429_count?: number
+          provider_call_count?: number
+          provider_error_count?: number
+          provider_result_count?: number
+          query_key?: string
+          query_text?: string
+          rejected_result_count?: number
+          sanitized_error_summary?: string | null
+          saturated?: boolean
+          started_at?: string | null
+          status?: string
+          timeout_count?: number
+          updated_at?: string
+          updated_row_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "map_ingest_run_queries_collection_run_id_fkey"
+            columns: ["collection_run_id"]
+            isOneToOne: false
+            referencedRelation: "map_ingest_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       map_ingest_runs: {
         Row: {
+          accepted_result_count: number
           attempted_query_count: number
+          classification_rejection_count: number
           collector_version: string
           completed_at: string | null
+          completed_query_count: number
           created_at: string
           deactivated_row_count: number
           discovered_row_count: number
+          duplicate_result_count: number
           id: number
           inserted_row_count: number
+          invalid_coordinate_result_count: number
+          is_full_catalog_run: boolean
+          out_of_district_result_count: number
+          pet_shop_count: number
+          pet_travel_count: number
+          planned_query_count: number
+          preserved_review_row_count: number
           provider: string
+          provider_429_count: number
+          provider_call_count: number
+          provider_error_count: number
+          provider_result_count: number
+          registry_version: string | null
+          rejected_result_count: number
           sanitized_error_summary: string | null
           saturated_query_count: number
           started_at: string
           status: string
+          timeout_count: number
+          unique_place_count: number
           updated_row_count: number
+          veterinary_count: number
         }
         Insert: {
+          accepted_result_count?: number
           attempted_query_count?: number
+          classification_rejection_count?: number
           collector_version: string
           completed_at?: string | null
+          completed_query_count?: number
           created_at?: string
           deactivated_row_count?: number
           discovered_row_count?: number
+          duplicate_result_count?: number
           id?: never
           inserted_row_count?: number
+          invalid_coordinate_result_count?: number
+          is_full_catalog_run?: boolean
+          out_of_district_result_count?: number
+          pet_shop_count?: number
+          pet_travel_count?: number
+          planned_query_count?: number
+          preserved_review_row_count?: number
           provider: string
+          provider_429_count?: number
+          provider_call_count?: number
+          provider_error_count?: number
+          provider_result_count?: number
+          registry_version?: string | null
+          rejected_result_count?: number
           sanitized_error_summary?: string | null
           saturated_query_count?: number
           started_at?: string
           status: string
+          timeout_count?: number
+          unique_place_count?: number
           updated_row_count?: number
+          veterinary_count?: number
         }
         Update: {
+          accepted_result_count?: number
           attempted_query_count?: number
+          classification_rejection_count?: number
           collector_version?: string
           completed_at?: string | null
+          completed_query_count?: number
           created_at?: string
           deactivated_row_count?: number
           discovered_row_count?: number
+          duplicate_result_count?: number
           id?: never
           inserted_row_count?: number
+          invalid_coordinate_result_count?: number
+          is_full_catalog_run?: boolean
+          out_of_district_result_count?: number
+          pet_shop_count?: number
+          pet_travel_count?: number
+          planned_query_count?: number
+          preserved_review_row_count?: number
           provider?: string
+          provider_429_count?: number
+          provider_call_count?: number
+          provider_error_count?: number
+          provider_result_count?: number
+          registry_version?: string | null
+          rejected_result_count?: number
           sanitized_error_summary?: string | null
           saturated_query_count?: number
           started_at?: string
           status?: string
+          timeout_count?: number
+          unique_place_count?: number
           updated_row_count?: number
+          veterinary_count?: number
         }
         Relationships: []
       }
+      map_place_query_hits: {
+        Row: {
+          candidate_id: number
+          category_group_code: string | null
+          collection_run_id: number
+          discovered_at: string
+          district: string
+          district_code: string
+          id: number
+          page: number
+          query_key: string
+          query_text: string
+          result_rank: number
+        }
+        Insert: {
+          candidate_id: number
+          category_group_code?: string | null
+          collection_run_id: number
+          discovered_at?: string
+          district: string
+          district_code: string
+          id?: never
+          page: number
+          query_key: string
+          query_text: string
+          result_rank: number
+        }
+        Update: {
+          candidate_id?: number
+          category_group_code?: string | null
+          collection_run_id?: number
+          discovered_at?: string
+          district?: string
+          district_code?: string
+          id?: never
+          page?: number
+          query_key?: string
+          query_text?: string
+          result_rank?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "map_place_query_hits_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "map_places"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "map_place_query_hits_query_fkey"
+            columns: ["collection_run_id", "query_key"]
+            isOneToOne: false
+            referencedRelation: "map_ingest_run_queries"
+            referencedColumns: ["collection_run_id", "query_key"]
+          },
+        ]
+      }
       map_places: {
         Row: {
+          candidate_kind: string | null
           category_code: string | null
           category_group: string | null
+          category_group_code: string | null
+          category_group_name: string | null
+          category_name: string | null
           content_type_id: number | null
           created_at: string
+          district_code: string | null
           district_name: string | null
           expires_at: string | null
           fetched_at: string
@@ -79,9 +311,13 @@ export type Database = {
           image_url: string | null
           is_active: boolean
           last_seen_at: string
+          last_seen_run_id: number | null
+          lifecycle_status: string | null
           location: unknown
           lot_address: string | null
           name: string
+          normalized_category: string | null
+          pending_publication_run_id: number | null
           pet_evidence: Json
           pet_evidence_status: string
           pet_notes: string | null
@@ -89,15 +325,27 @@ export type Database = {
           provider: string
           provider_place_id: string
           provider_visibility: string
+          public_visibility: boolean | null
+          requires_recheck: boolean | null
+          review_note: string | null
+          review_status: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           road_address: string | null
           source_url: string | null
           updated_at: string
+          verification_evidence: Json | null
         }
         Insert: {
+          candidate_kind?: string | null
           category_code?: string | null
           category_group?: string | null
+          category_group_code?: string | null
+          category_group_name?: string | null
+          category_name?: string | null
           content_type_id?: number | null
           created_at?: string
+          district_code?: string | null
           district_name?: string | null
           expires_at?: string | null
           fetched_at?: string
@@ -106,9 +354,13 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           last_seen_at?: string
+          last_seen_run_id?: number | null
+          lifecycle_status?: string | null
           location: unknown
           lot_address?: string | null
           name: string
+          normalized_category?: string | null
+          pending_publication_run_id?: number | null
           pet_evidence?: Json
           pet_evidence_status: string
           pet_notes?: string | null
@@ -116,15 +368,27 @@ export type Database = {
           provider: string
           provider_place_id: string
           provider_visibility?: string
+          public_visibility?: boolean | null
+          requires_recheck?: boolean | null
+          review_note?: string | null
+          review_status?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           road_address?: string | null
           source_url?: string | null
           updated_at?: string
+          verification_evidence?: Json | null
         }
         Update: {
+          candidate_kind?: string | null
           category_code?: string | null
           category_group?: string | null
+          category_group_code?: string | null
+          category_group_name?: string | null
+          category_name?: string | null
           content_type_id?: number | null
           created_at?: string
+          district_code?: string | null
           district_name?: string | null
           expires_at?: string | null
           fetched_at?: string
@@ -133,9 +397,13 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           last_seen_at?: string
+          last_seen_run_id?: number | null
+          lifecycle_status?: string | null
           location?: unknown
           lot_address?: string | null
           name?: string
+          normalized_category?: string | null
+          pending_publication_run_id?: number | null
           pet_evidence?: Json
           pet_evidence_status?: string
           pet_notes?: string | null
@@ -143,17 +411,89 @@ export type Database = {
           provider?: string
           provider_place_id?: string
           provider_visibility?: string
+          public_visibility?: boolean | null
+          requires_recheck?: boolean | null
+          review_note?: string | null
+          review_status?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           road_address?: string | null
           source_url?: string | null
           updated_at?: string
+          verification_evidence?: Json | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "map_places_last_seen_run_fkey"
+            columns: ["last_seen_run_id"]
+            isOneToOne: false
+            referencedRelation: "map_ingest_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "map_places_pending_publication_run_fkey"
+            columns: ["pending_publication_run_id"]
+            isOneToOne: false
+            referencedRelation: "map_ingest_runs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      commit_kakao_catalog_query_v1: {
+        Args: {
+          p_accepted_result_count: number
+          p_candidates: Json
+          p_classification_rejection_count?: number
+          p_completed_at?: string
+          p_duplicate_result_count?: number
+          p_invalid_coordinate_result_count?: number
+          p_last_completed_page: number
+          p_out_of_district_result_count?: number
+          p_provider_429_count?: number
+          p_provider_call_count: number
+          p_provider_error_count?: number
+          p_provider_result_count: number
+          p_query_key: string
+          p_rejected_result_count: number
+          p_run_id: number
+          p_run_provider_429_count?: number
+          p_run_provider_call_count?: number
+          p_run_provider_error_count?: number
+          p_run_timeout_count?: number
+          p_saturated?: boolean
+          p_timeout_count?: number
+        }
+        Returns: {
+          already_completed: boolean
+          inserted_row_count: number
+          preserved_review_row_count: number
+          updated_row_count: number
+        }[]
+      }
+      finalize_kakao_catalog_run_v1: {
+        Args: {
+          p_completed_at?: string
+          p_run_id: number
+          p_run_provider_429_count?: number
+          p_run_provider_call_count?: number
+          p_run_provider_error_count?: number
+          p_run_timeout_count?: number
+          p_sanitized_error_summary?: string
+          p_status: string
+        }
+        Returns: {
+          completed_query_count: number
+          published_row_count: number
+          run_status: string
+          stale_row_count: number
+          unique_place_count: number
+        }[]
+      }
       get_map_places_in_bounds: {
         Args: {
           p_categories?: string[]
@@ -169,7 +509,7 @@ export type Database = {
           category_group: string
           content_type_id: number
           district_name: string
-          expires_at: string | null
+          expires_at: string
           fetched_at: string
           id: number
           image_url: string
@@ -186,6 +526,51 @@ export type Database = {
           provider_visibility: string
           road_address: string
           source_url: string
+        }[]
+      }
+      get_public_map_catalog_v1: {
+        Args: {
+          p_after_id?: number
+          p_candidate_kinds?: string[]
+          p_district_codes?: string[]
+          p_east?: number
+          p_normalized_categories?: string[]
+          p_north?: number
+          p_result_limit?: number
+          p_south?: number
+          p_west?: number
+        }
+        Returns: {
+          address: string
+          candidate_kind: string
+          district_code: string
+          district_name: string
+          has_more: boolean
+          id: number
+          latitude: number
+          longitude: number
+          name: string
+          normalized_category: string
+          phone: string
+          place_url: string
+          provider_place_id: string
+          public_label: string
+          review_status: string
+          source: string
+          total_count: number
+        }[]
+      }
+      start_kakao_catalog_run_v1: {
+        Args: {
+          p_collector_version: string
+          p_is_full_catalog_run?: boolean
+          p_queries: Json
+          p_registry_version: string
+          p_started_at?: string
+        }
+        Returns: {
+          planned_query_count: number
+          run_id: number
         }[]
       }
     }

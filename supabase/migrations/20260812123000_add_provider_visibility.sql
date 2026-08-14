@@ -1,6 +1,6 @@
 alter table public.map_places
-  add column provider_visibility text not null default 'unknown'
-  check (
+  add column provider_visibility text not null default 'unknown',
+  add constraint map_places_provider_visibility_value_check check (
     provider_visibility in (
       'exposed',
       'not_exposed',
