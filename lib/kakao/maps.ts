@@ -154,6 +154,7 @@ export interface KakaoMapController {
   getSearchViewport(): KakaoCurrentMapSearch | null;
   relayout(): void;
   selectLocation(id: string | null, notify?: boolean): void;
+  setShowSelectionInfo(show: boolean): void;
   updateData(
     locations: KakaoMapLocation[],
     routeCoordinates: Coordinates[],
@@ -291,6 +292,7 @@ export function createKakaoMapController(
     routeCoordinates?: Coordinates[];
     onLocationSelect?: (id: string | null) => void;
     onViewportIdle?: (viewport: KakaoCurrentMapSearch) => void;
+    showSelectionInfo?: boolean;
   },
 ): KakaoMapController {
   const maps = window.kakao?.maps;
@@ -403,6 +405,7 @@ export function createKakaoMapController(
   let selectionOverlay: KakaoCustomOverlay | null = null;
   let routeLine: KakaoPolyline | null = null;
   let selectedId: string | null = null;
+  let shouldShowSelectionInfo = options.showSelectionInfo !== false;
   let destroyed = false;
 
   container.dataset.kakaoMapInitialized = "true";
@@ -586,6 +589,13 @@ export function createKakaoMapController(
       map.relayout();
     },
 
+    setShowSelectionInfo(show) {
+      if (shouldShowSelectionInfo === show) return;
+      shouldShowSelectionInfo = show;
+      const currentSelection = selectedId;
+      if (currentSelection) controller.selectLocation(currentSelection);
+    },
+
     selectLocation(id, notify = false) {
       resetSelectionVisuals();
       if (!id) {
@@ -611,27 +621,29 @@ export function createKakaoMapController(
         zIndex: 7,
       });
 
-      const content = document.createElement("div");
-      content.className = "kakao-map-info";
-      const name = document.createElement("strong");
-      name.textContent = selected.location.name;
-      const address = document.createElement("span");
-      address.textContent = selected.location.address;
-      content.append(name, address);
-      if (selected.location.sourceLabel) {
-        const source = document.createElement("small");
-        source.textContent = selected.location.sourceLabel;
-        content.append(source);
-      }
+      if (shouldShowSelectionInfo) {
+        const content = document.createElement("div");
+        content.className = "kakao-map-info";
+        const name = document.createElement("strong");
+        name.textContent = selected.location.name;
+        const address = document.createElement("span");
+        address.textContent = selected.location.address;
+        content.append(name, address);
+        if (selected.location.sourceLabel) {
+          const source = document.createElement("small");
+          source.textContent = selected.location.sourceLabel;
+          content.append(source);
+        }
 
-      infoOverlay = new maps.CustomOverlay({
-        map,
-        position: selected.position,
-        content,
-        xAnchor: 0.5,
-        yAnchor: 1.75,
-        zIndex: 10,
-      });
+        infoOverlay = new maps.CustomOverlay({
+          map,
+          position: selected.position,
+          content,
+          xAnchor: 0.5,
+          yAnchor: 1.75,
+          zIndex: 10,
+        });
+      }
       map.panTo(selected.position);
       if (notify) options.onLocationSelect?.(id);
     },
