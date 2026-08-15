@@ -1,7 +1,13 @@
-import { expect, type Page, type TestInfo } from "@playwright/test";
+import { expect, type Locator, type Page, type TestInfo } from "@playwright/test";
 
 export const GENERATE_PATH = "/api/itineraries/generate";
 export const DEPARTURE_PATH = "/api/kakao/local/departure";
+
+async function selectLabelledControl(control: Locator) {
+  if (await control.isChecked()) return;
+  await control.locator("xpath=ancestor::label[1]").click();
+  await expect(control).toBeChecked();
+}
 
 export async function openPetPlanner(
   page: Page,
@@ -24,18 +30,18 @@ export async function continueToTrip(page: Page) {
   if ((await name.inputValue()).trim() === "") await name.fill("보리");
   const checkedSpecies = page.locator('input[name="species"]:checked');
   if ((await checkedSpecies.count()) === 0) {
-    await page.getByRole("radio", { name: "강아지", exact: true }).check({ force: true });
+    await selectLabelledControl(page.getByRole("radio", { name: "강아지", exact: true }));
   }
   const checkedSize = page.locator('input[name="size"]:checked');
   if ((await checkedSize.count()) === 0) {
-    await page.getByRole("radio", { name: /^소형/u }).check({ force: true });
+    await selectLabelledControl(page.getByRole("radio", { name: /^소형/u }));
   }
-  await page.getByRole("checkbox", { name: "이동장", exact: true }).check({ force: true });
-  await page.getByRole("checkbox", { name: "목줄", exact: true }).check({ force: true });
+  await selectLabelledControl(page.getByRole("checkbox", { name: "이동장", exact: true }));
+  await selectLabelledControl(page.getByRole("checkbox", { name: "목줄", exact: true }));
   await page.getByLabel("여행 날짜").fill("2026-08-15");
   await page.getByLabel("시작 시간").fill("10:00");
-  await page.getByRole("checkbox", { name: "관광지", exact: true }).check({ force: true });
-  await page.getByRole("checkbox", { name: "음식점", exact: true }).check({ force: true });
+  await selectLabelledControl(page.getByRole("checkbox", { name: "관광지", exact: true }));
+  await selectLabelledControl(page.getByRole("checkbox", { name: "음식점", exact: true }));
   await expect(page).toHaveURL(/\/planner\/pet$/u);
 }
 

@@ -3,35 +3,39 @@
 import Link from "next/link";
 import {
   ArrowUpRight,
+  HeartPulse,
   Map as MapIcon,
   MapPin,
+  PawPrint,
   RefreshCw,
   ShieldCheck,
+  ShoppingBag,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MapPanel } from "@/components/map/map-panel";
+import { HomepagePlaceCarousel } from "@/components/home/official-place-carousel";
+import { MapPanel, type MapLayerControl } from "@/components/map/map-panel";
 import { PlaceImage } from "@/components/places/place-image";
-import { OfficialPlaceCarousel } from "@/components/home/official-place-carousel";
-import { createOfficialTourMapLocations } from "@/lib/places/tour-map-locations";
-import { deriveRegionLabel } from "@/lib/regions/label";
-import { TOUR_CATEGORY_LABELS } from "@/lib/shared/format";
+import { createHomepageMapLocations } from "@/lib/homepage/homepage-map-locations";
 import type { ApiError, ApiResult } from "@/types/api";
-import type {
-  HomepageFeaturedPlace,
-  TourHomepageSnapshot,
-} from "@/types/homepage";
-import type { TourPlaceCategory, TourPlaceSummary } from "@/types/place";
-
-const CATEGORY_ORDER: readonly TourPlaceCategory[] = [
-  "attraction",
-  "culture",
-  "festival",
-  "leisure",
-  "accommodation",
-  "food",
-];
+import {
+  HOMEPAGE_PLACE_LAYERS,
+  type HomepageMapMarker,
+  type HomepagePlaceLayer,
+  type HomepagePlacesSnapshot,
+} from "@/types/homepage-places";
 
 const EMPTY_ROUTE_COORDINATES: [] = [];
+
+const LAYER_UI: Array<{
+  id: HomepagePlaceLayer;
+  label: string;
+  markerKind: NonNullable<MapLayerControl["markerKind"]>;
+}> = [
+  { id: "official", label: "공식 장소", markerKind: "tourism-official" },
+  { id: "kakao_candidate", label: "카카오 후보", markerKind: "kakao-candidate" },
+  { id: "veterinary", label: "동물병원", markerKind: "veterinary" },
+  { id: "pet_shop", label: "펫샵·용품점", markerKind: "pet-shop" },
+];
 
 const API_ERROR_CODES = new Set<ApiError["code"]>([
   "CONFIGURATION_REQUIRED",
@@ -45,6 +49,12 @@ const API_ERROR_CODES = new Set<ApiError["code"]>([
   "RATE_LIMITED",
   "NOT_FOUND",
 ]);
+
+const GENERIC_ERROR: ApiError = {
+  code: "UPSTREAM_ERROR",
+  message: "공식 관광 정보를 불러오지 못했습니다.",
+  retryable: true,
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -60,64 +70,61 @@ function isApiError(value: unknown): value is ApiError {
   );
 }
 
-function isHomepageSnapshot(value: unknown): value is TourHomepageSnapshot {
-  if (!isRecord(value)) return false;
-  const catalog = value.catalog;
-  const featured = value.featured;
-  if (!isRecord(catalog) || !isRecord(featured)) return false;
-
-  const catalogPlaces = catalog.places;
-  const featuredPlaces = featured.places;
-  if (!Array.isArray(catalogPlaces) || !Array.isArray(featuredPlaces)) return false;
+function isHomepagePlacesSnapshot(
+  value: unknown,
+): value is HomepagePlacesSnapshot {
+  if (!isRecord(value) || !isRecord(value.official) || !isRecord(value.layers)) {
+    return false;
+  }
+  if (!Array.isArray(value.markers) || !Array.isArray(value.cards)) return false;
   if (
-    typeof catalog.totalCount !== "number" ||
-    typeof catalog.page !== "number" ||
-    typeof catalog.pageSize !== "number" ||
-    !isRecord(catalog.source) ||
-    !["ready", "partial", "empty", "unavailable"].includes(
-      String(featured.state),
-    ) ||
-    typeof featured.assessedCount !== "number" ||
-    typeof featured.failedCount !== "number"
+    typeof value.official.totalCount !== "number" ||
+    typeof value.official.markerCount !== "number" ||
+    typeof value.official.omittedCoordinateCount !== "number" ||
+    !Array.isArray(value.official.categoryCounts) ||
+    typeof value.official.retrievedAt !== "string"
   ) {
     return false;
   }
-
-  const isSummary = (summary: unknown) =>
-    isRecord(summary) &&
-    typeof summary.contentId === "string" &&
-    (typeof summary.title === "string" || summary.title === null) &&
-    typeof summary.category === "string" &&
-    isRecord(summary.source);
-
-  if (!catalogPlaces.every(isSummary)) return false;
-  return featuredPlaces.every(
-    (place) =>
-      isRecord(place) &&
-      isSummary(place.summary) &&
-      isRecord(place.assessment) &&
-      ["allowed", "conditional", "not_allowed", "unknown"].includes(
-        String(place.assessment.verdict),
-      ) &&
-      [
-        "complete",
-        "partial",
-        "insufficient_evidence",
-        "unavailable",
-        "not_applicable",
-      ].includes(String(place.assessment.evaluationState)) &&
-      isRecord(place.source),
+  for (const layer of HOMEPAGE_PLACE_LAYERS) {
+    const entry = value.layers[layer];
+    if (
+      !isRecord(entry) ||
+      !["ready", "empty", "unavailable"].includes(String(entry.state)) ||
+      !(typeof entry.count === "number" || entry.count === null) ||
+      !(typeof entry.markerCount === "number" || entry.markerCount === null) ||
+      typeof entry.enabledByDefault !== "boolean"
+    ) {
+      return false;
+    }
+  }
+  return value.markers.every(
+    (marker) =>
+      isRecord(marker) &&
+      typeof marker.id === "string" &&
+      HOMEPAGE_PLACE_LAYERS.includes(marker.layer as HomepagePlaceLayer) &&
+      typeof marker.name === "string" &&
+      isRecord(marker.coordinates) &&
+      typeof marker.coordinates.latitude === "number" &&
+      typeof marker.coordinates.longitude === "number",
+  ) && value.cards.every(
+    (card) =>
+      isRecord(card) &&
+      typeof card.id === "string" &&
+      HOMEPAGE_PLACE_LAYERS.includes(card.layer as HomepagePlaceLayer) &&
+      typeof card.name === "string" &&
+      typeof card.sourceLabel === "string",
   );
 }
 
 function parseHomepageResult(
   value: unknown,
-): ApiResult<TourHomepageSnapshot> | null {
+): ApiResult<HomepagePlacesSnapshot> | null {
   if (!isRecord(value) || typeof value.ok !== "boolean") return null;
   const requestId =
     typeof value.requestId === "string" ? value.requestId : "homepage";
   if (value.ok) {
-    return isHomepageSnapshot(value.data)
+    return isHomepagePlacesSnapshot(value.data)
       ? { ok: true, data: value.data, requestId }
       : null;
   }
@@ -126,16 +133,10 @@ function parseHomepageResult(
     : null;
 }
 
-const GENERIC_ERROR: ApiError = {
-  code: "UPSTREAM_ERROR",
-  message: "공식 관광 정보를 불러오지 못했습니다.",
-  retryable: true,
-};
-
 async function requestHomepageSnapshot(): Promise<
-  ApiResult<TourHomepageSnapshot>
+  ApiResult<HomepagePlacesSnapshot>
 > {
-  const response = await fetch("/api/tour/homepage", {
+  const response = await fetch("/api/homepage/places", {
     cache: "no-store",
     headers: { Accept: "application/json" },
   });
@@ -146,43 +147,23 @@ async function requestHomepageSnapshot(): Promise<
     return { ok: false, error: GENERIC_ERROR, requestId: "homepage" };
   }
   const body = parseHomepageResult(value);
-  if (!body) {
+  if (!body || (!response.ok && body.ok)) {
     return { ok: false, error: GENERIC_ERROR, requestId: "homepage" };
   }
-  if (!response.ok && body.ok) {
-    return {
-      ok: false,
-      error: GENERIC_ERROR,
-      requestId: body.requestId,
-    };
-  }
   return body;
-}
-
-function detailHref(summary: TourPlaceSummary): string {
-  const contentTypeQuery = summary.contentTypeId
-    ? `?contentTypeId=${encodeURIComponent(summary.contentTypeId)}`
-    : "";
-  return `/places/${encodeURIComponent(summary.contentId)}${contentTypeQuery}`;
 }
 
 function HomepageLiveSkeleton() {
   return (
     <div className="homepage-live-loading" aria-live="polite" aria-busy="true">
-      <section className="homepage-map-loading" aria-label="공식 관광 지도 불러오는 중">
-        <div className="homepage-loading-copy">
-          <span />
-          <span />
-          <span />
-        </div>
-        <p>한국관광공사 장소 정보를 불러오고 있어요.</p>
+      <section className="homepage-map-loading" aria-label="부산 장소 지도 불러오는 중">
+        <div className="homepage-loading-copy"><span /><span /><span /></div>
+        <p>공식 관광 정보와 저장된 장소 카탈로그를 불러오고 있어요.</p>
       </section>
-      <section className="homepage-carousel-loading" aria-label="동반 가능 장소 불러오는 중">
+      <section className="homepage-carousel-loading" aria-label="장소 카드 불러오는 중">
         <div className="homepage-loading-heading" />
         <div className="homepage-loading-cards" aria-hidden="true">
-          {Array.from({ length: 5 }, (_, index) => (
-            <span key={index} />
-          ))}
+          {Array.from({ length: 5 }, (_, index) => <span key={index} />)}
         </div>
       </section>
     </div>
@@ -198,9 +179,7 @@ function HomepageLiveError({
 }) {
   return (
     <section className="homepage-live-error" role="alert">
-      <span className="homepage-error-icon">
-        <MapIcon size={24} aria-hidden="true" />
-      </span>
+      <span className="homepage-error-icon"><MapIcon size={24} aria-hidden="true" /></span>
       <div>
         <p className="homepage-kicker">OFFICIAL DATA UNAVAILABLE</p>
         <h2>공식 관광 정보를 지금 불러올 수 없어요</h2>
@@ -211,53 +190,60 @@ function HomepageLiveError({
       </div>
       {error.retryable ? (
         <button type="button" onClick={onRetry} className="homepage-retry-button">
-          <RefreshCw size={16} aria-hidden="true" />
-          다시 시도
+          <RefreshCw size={16} aria-hidden="true" /> 다시 시도
         </button>
       ) : null}
     </section>
   );
 }
 
+function SelectedPlaceholder({ layer }: { layer: HomepagePlaceLayer }) {
+  const Icon = layer === "veterinary" ? HeartPulse : layer === "pet_shop" ? ShoppingBag : PawPrint;
+  return <span className={`homepage-selected-placeholder homepage-selected-placeholder--${layer}`}><Icon size={24} aria-hidden="true" /></span>;
+}
+
 export function HomepageLiveExperience() {
-  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
-    "loading",
-  );
-  const [snapshot, setSnapshot] = useState<TourHomepageSnapshot | null>(null);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [snapshot, setSnapshot] = useState<HomepagePlacesSnapshot | null>(null);
   const [error, setError] = useState<ApiError>(GENERIC_ERROR);
   const [retryToken, setRetryToken] = useState(0);
-  const [requestedSelectionId, setRequestedSelectionId] = useState<string | null>(
-    null,
-  );
-  const requestRef = useRef<Promise<ApiResult<TourHomepageSnapshot>> | null>(
-    null,
-  );
+  const [requestedSelectionId, setRequestedSelectionId] = useState<string | null>(null);
+  const [visibleLayers, setVisibleLayers] = useState<Record<HomepagePlaceLayer, boolean>>({
+    official: true,
+    kakao_candidate: true,
+    veterinary: false,
+    pet_shop: false,
+  });
+  const requestRef = useRef<Promise<ApiResult<HomepagePlacesSnapshot>> | null>(null);
 
   useEffect(() => {
     let active = true;
     const request = requestRef.current ?? requestHomepageSnapshot();
     requestRef.current = request;
-    void request
-      .then((result) => {
-        if (!active) return;
-        if (!result.ok) {
-          setSnapshot(null);
-          setError(result.error);
-          setLoadState("error");
-          return;
-        }
-        setSnapshot(result.data);
-        setLoadState("ready");
-      })
-      .catch(() => {
-        if (!active) return;
+    void request.then((result) => {
+      if (!active) return;
+      if (!result.ok) {
         setSnapshot(null);
-        setError(GENERIC_ERROR);
+        setError(result.error);
         setLoadState("error");
-      });
-    return () => {
-      active = false;
-    };
+        return;
+      }
+      setSnapshot(result.data);
+      setVisibleLayers(Object.fromEntries(
+        HOMEPAGE_PLACE_LAYERS.map((layer) => [
+          layer,
+          result.data.layers[layer].state !== "unavailable" &&
+            result.data.layers[layer].enabledByDefault,
+        ]),
+      ) as Record<HomepagePlaceLayer, boolean>);
+      setLoadState("ready");
+    }).catch(() => {
+      if (!active) return;
+      setSnapshot(null);
+      setError(GENERIC_ERROR);
+      setLoadState("error");
+    });
+    return () => { active = false; };
   }, [retryToken]);
 
   const retry = () => {
@@ -268,188 +254,165 @@ export function HomepageLiveExperience() {
     setRetryToken((current) => current + 1);
   };
 
+  const visibleMarkers = useMemo(
+    () => snapshot?.markers.filter((marker) => visibleLayers[marker.layer]) ?? [],
+    [snapshot, visibleLayers],
+  );
   const locations = useMemo(
-    () =>
-      snapshot
-        ? createOfficialTourMapLocations(snapshot.catalog.places)
-        : [],
+    () => createHomepageMapLocations(visibleMarkers),
+    [visibleMarkers],
+  );
+  const markerById = useMemo(
+    () => new Map((snapshot?.markers ?? []).map((marker) => [marker.id, marker] as const)),
     [snapshot],
   );
-  const locationIds = useMemo(
-    () => new Set(locations.map(({ id }) => id)),
-    [locations],
-  );
-  const featuredById = useMemo(
-    () =>
-      new Map(
-        (snapshot?.featured.places ?? []).map(
-          (place) => [place.summary.contentId, place] as const,
-        ),
-      ),
-    [snapshot],
-  );
-  const catalogById = useMemo(
-    () =>
-      new Map(
-        (snapshot?.catalog.places ?? []).map(
-          (place) => [place.contentId, place] as const,
-        ),
-      ),
-    [snapshot],
-  );
+  const visibleIds = useMemo(() => new Set(locations.map(({ id }) => id)), [locations]);
   const defaultSelectionId =
-    snapshot?.featured.places.find(({ summary }) =>
-      locationIds.has(summary.contentId),
-    )?.summary.contentId ?? locations[0]?.id ?? null;
+    visibleMarkers.find((marker) => marker.layer === "official" && marker.isAllowed)?.id ??
+    visibleMarkers.find((marker) => marker.layer === "official")?.id ??
+    visibleMarkers[0]?.id ?? null;
   const selectedLocationId =
-    requestedSelectionId && locationIds.has(requestedSelectionId)
+    requestedSelectionId && visibleIds.has(requestedSelectionId)
       ? requestedSelectionId
       : defaultSelectionId;
-  const selectedFeatured: HomepageFeaturedPlace | null = selectedLocationId
-    ? featuredById.get(selectedLocationId) ?? null
+  const selectedMarker: HomepageMapMarker | null = selectedLocationId
+    ? markerById.get(selectedLocationId) ?? null
     : null;
-  const selectedIsAllowed = Boolean(
-    selectedFeatured?.assessment.verdict === "allowed" &&
-      selectedFeatured.assessment.evaluationState === "complete",
-  );
-  const selectedSummary = selectedLocationId
-    ? selectedFeatured?.summary ?? catalogById.get(selectedLocationId) ?? null
-    : null;
-
-  const categoryCounts = useMemo(() => {
-    const counts = new Map<TourPlaceCategory, number>();
-    for (const place of snapshot?.catalog.places ?? []) {
-      counts.set(place.category, (counts.get(place.category) ?? 0) + 1);
-    }
-    return CATEGORY_ORDER.flatMap((category) => {
-      const count = counts.get(category) ?? 0;
-      return count > 0 ? [{ category, count }] : [];
-    });
-  }, [snapshot]);
 
   if (loadState === "loading") return <HomepageLiveSkeleton />;
   if (loadState === "error" || !snapshot) {
     return <HomepageLiveError error={error} onRetry={retry} />;
   }
 
-  const omittedCoordinateCount = Math.max(
-    0,
-    snapshot.catalog.places.length - locations.length,
+  const layerControls: MapLayerControl[] = LAYER_UI.map((layer) => {
+    const status = snapshot.layers[layer.id];
+    return {
+      ...layer,
+      count: status.count,
+      visible: visibleLayers[layer.id],
+      disabled: status.state === "unavailable",
+      description:
+        status.state === "unavailable"
+          ? "카카오 장소 데이터 준비 중"
+          : `${layer.label} 레이어 ${visibleLayers[layer.id] ? "숨기기" : "보기"}`,
+    };
+  });
+  const publicUnavailable = LAYER_UI.slice(1).some(
+    ({ id }) => snapshot.layers[id].state === "unavailable",
   );
-  const selectedTitle = selectedSummary?.title ?? "이름 미확인";
-  const selectedDistrict = selectedSummary
-    ? deriveRegionLabel({
-        regionCode: selectedSummary.legalRegionCode,
-        districtCode: selectedSummary.legalDistrictCode,
-        roadAddress: selectedSummary.address,
-      })
-    : null;
 
   return (
     <div className="homepage-live-ready">
       <section className="homepage-map-section" aria-labelledby="homepage-map-title">
         <div className="homepage-map-shell">
           <div className="homepage-area-summary">
-            <p className="homepage-kicker">BUSAN OFFICIAL MAP</p>
+            <p className="homepage-kicker">BUSAN PLACE MAP</p>
             <h2 id="homepage-map-title">
               부산 공식 관광 장소
-              <strong>{snapshot.catalog.totalCount}곳</strong>
+              <strong>{snapshot.official.totalCount}곳</strong>
             </h2>
             <p>
-              한국관광공사가 현재 공개한 기본 카탈로그 기준이며, 동반 가능
-              장소 수를 뜻하지 않습니다.
+              공식 관광 정보와 카카오 검색 후보를 출처별로 구분합니다. 공식 수치는
+              동반 가능 장소 수를 뜻하지 않습니다.
             </p>
-            {categoryCounts.length > 0 ? (
+            {snapshot.official.categoryCounts.length > 0 ? (
               <dl>
-                {categoryCounts.map(({ category, count }) => (
-                  <div key={category}>
-                    <dt>{TOUR_CATEGORY_LABELS[category]}</dt>
-                    <dd>{count}</dd>
-                  </div>
+                {snapshot.official.categoryCounts.map(({ label, count }) => (
+                  <div key={label}><dt>{label}</dt><dd>{count}</dd></div>
                 ))}
               </dl>
             ) : null}
             <p className="homepage-map-count-note">
-              지도 표시 {locations.length}곳
-              {omittedCoordinateCount > 0
-                ? ` · 좌표 미확인 ${omittedCoordinateCount}곳 제외`
+              공식 지도 표시 {snapshot.official.markerCount}곳
+              {snapshot.official.omittedCoordinateCount > 0
+                ? ` · 좌표 미확인 또는 중복 위치 ${snapshot.official.omittedCoordinateCount}곳 제외`
                 : ""}
             </p>
+            {publicUnavailable ? (
+              <p className="homepage-map-provider-status" role="status">
+                카카오 장소 데이터 준비 중
+              </p>
+            ) : null}
           </div>
 
           <Link href="/results?tab=catalog" className="homepage-map-open-link">
-            지도 크게 보기
-            <ArrowUpRight size={15} aria-hidden="true" />
+            지도 크게 보기 <ArrowUpRight size={15} aria-hidden="true" />
           </Link>
 
           <div className="homepage-map-canvas-wrap">
             <MapPanel
-              title="부산 공식 관광 장소 지도"
+              title="부산 공식·카카오 장소 지도"
               locationLabel="부산 전체"
               locations={locations}
               routeCoordinates={EMPTY_ROUTE_COORDINATES}
               selectedLocationId={selectedLocationId}
-              onLocationSelect={(id) => {
-                setRequestedSelectionId(id ?? defaultSelectionId);
+              onLocationSelect={(id) => setRequestedSelectionId(id ?? defaultSelectionId)}
+              viewportKey="homepage:busan:mixed-source"
+              layerControls={layerControls}
+              onLayerToggle={(id, visible) => {
+                if (!HOMEPAGE_PLACE_LAYERS.includes(id as HomepagePlaceLayer)) return;
+                const layer = id as HomepagePlaceLayer;
+                if (snapshot.layers[layer].state === "unavailable") return;
+                setVisibleLayers((current) => ({ ...current, [layer]: visible }));
               }}
-              viewportKey="homepage:busan:official"
               showLocationLabel={false}
               showSelectionInfo={false}
-              emptyMessage="현재 지도에 표시할 공식 장소 좌표가 없습니다."
+              emptyMessage="선택한 레이어에 지도에 표시할 장소가 없습니다."
             />
           </div>
 
-          {selectedSummary ? (
-            <article
-              className="homepage-selected-place"
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              <PlaceImage
-                imageUrl={
-                  selectedSummary.thumbnailUrl ?? selectedSummary.imageUrl
-                }
-                title={selectedTitle}
-                className="homepage-selected-image"
-                sizes="92px"
-              />
+          {selectedMarker ? (
+            <article className="homepage-selected-place" aria-live="polite" aria-atomic="true">
+              {selectedMarker.layer === "official" ? (
+                <PlaceImage
+                  imageUrl={selectedMarker.imageUrl}
+                  title={selectedMarker.name}
+                  className="homepage-selected-image"
+                  sizes="92px"
+                />
+              ) : <SelectedPlaceholder layer={selectedMarker.layer} />}
               <div className="homepage-selected-body">
                 <div className="homepage-selected-meta">
-                  <span>{TOUR_CATEGORY_LABELS[selectedSummary.category]}</span>
-                  {selectedIsAllowed ? (
-                    <span className="homepage-allowed-badge">
-                      <ShieldCheck size={12} aria-hidden="true" />
-                      동반 가능
-                    </span>
+                  <span>{selectedMarker.categoryLabel}</span>
+                  {selectedMarker.isAllowed ? (
+                    <span className="homepage-allowed-badge"><ShieldCheck size={12} aria-hidden="true" />동반 가능</span>
                   ) : (
-                    <span className="homepage-confirm-badge">조건 확인 필요</span>
+                    <span className="homepage-confirm-badge">{selectedMarker.statusLabel}</span>
                   )}
                 </div>
-                <h3>{selectedTitle}</h3>
-                <p>
-                  <MapPin size={12} aria-hidden="true" />
-                  {selectedDistrict}
-                </p>
-                <span className="homepage-selected-source">한국관광공사</span>
+                <h3>{selectedMarker.name}</h3>
+                <p><MapPin size={12} aria-hidden="true" />{selectedMarker.district ?? selectedMarker.address}</p>
+                <span className={`homepage-selected-source homepage-selected-source--${selectedMarker.layer}`}>
+                  {selectedMarker.sourceLabel}
+                </span>
               </div>
-              <Link
-                href={detailHref(selectedSummary)}
-                className="homepage-selected-link"
-                aria-label={`${selectedTitle} 상세 보기`}
-              >
-                <ArrowUpRight size={16} aria-hidden="true" />
-              </Link>
+              {selectedMarker.href ? (
+                selectedMarker.external ? (
+                  <a
+                    href={selectedMarker.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="homepage-selected-link"
+                    aria-label={`${selectedMarker.name} 카카오 장소 정보 새 창에서 보기`}
+                  ><ArrowUpRight size={16} aria-hidden="true" /></a>
+                ) : (
+                  <Link
+                    href={selectedMarker.href}
+                    className="homepage-selected-link"
+                    aria-label={`${selectedMarker.name} 상세 보기`}
+                  ><ArrowUpRight size={16} aria-hidden="true" /></Link>
+                )
+              ) : null}
             </article>
           ) : null}
         </div>
       </section>
 
-      <OfficialPlaceCarousel
-        key={`${snapshot.catalog.source.retrievedAt}:${snapshot.featured.assessedCount}:${snapshot.featured.places
-          .map(({ summary }) => summary.contentId)
-          .join(",")}`}
-        places={snapshot.featured.places}
-        state={snapshot.featured.state}
+      <HomepagePlaceCarousel
+        key={`${snapshot.official.retrievedAt}:${snapshot.cards.map(({ id }) => id).join(",")}`}
+        places={snapshot.cards}
+        layers={snapshot.layers}
+        featuredState={snapshot.official.featuredState}
       />
     </div>
   );

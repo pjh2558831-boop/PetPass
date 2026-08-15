@@ -1,36 +1,44 @@
 import { expect, test } from "@playwright/test";
 
-const BASE_REQUEST = {
-  departure: {
-    label: "부산역",
-    latitude: 35.115,
-    longitude: 129.04,
-    source: "kakao_place_search",
-  },
-  trip: {
-    regionId: "busan",
-    districtId: null,
-    date: "2026-08-15",
-    startTime: "10:00",
-    tripType: "day_trip",
-    tripPace: "relaxed",
-    selectedCategories: ["attraction", "food", "leisure"],
-    roundTrip: false,
-  },
-  pet: {
-    name: "보리",
-    species: "DOG",
-    size: "SMALL",
-    availableEquipment: { carrier: true, leash: true, muzzle: false },
-    acceptsOutdoorOnlyPlaces: true,
-  },
-};
+function futureTripDate(): string {
+  return new Date(Date.now() + 7 * 24 * 60 * 60 * 1_000)
+    .toISOString()
+    .slice(0, 10);
+}
+
+function baseRequest() {
+  return {
+    departure: {
+      label: "부산역",
+      latitude: 35.115,
+      longitude: 129.04,
+      source: "kakao_place_search",
+    },
+    trip: {
+      regionId: "busan",
+      districtId: null,
+      date: futureTripDate(),
+      startTime: "10:00",
+      tripType: "day_trip",
+      tripPace: "relaxed",
+      selectedCategories: ["attraction", "food", "leisure"],
+      roundTrip: false,
+    },
+    pet: {
+      name: "보리",
+      species: "DOG",
+      size: "SMALL",
+      availableEquipment: { carrier: true, leash: true, muzzle: false },
+      acceptsOutdoorOnlyPlaces: true,
+    },
+  };
+}
 
 test("runs the canonical Stage 2 → 3 → 4 boundary and returns only a validated strict-Tourism route", async ({
   request,
 }) => {
   const response = await request.post("/api/itineraries/generate", {
-    data: BASE_REQUEST,
+    data: baseRequest(),
     headers: { "x-forwarded-for": "stage5-product-route" },
   });
   const body = await response.json();
@@ -68,15 +76,15 @@ test("rejects legacy parameters, arbitrary provider URLs, and client-owned limit
 }) => {
   for (const body of [
     {
-      ...BASE_REQUEST,
+      ...baseRequest(),
       planning: { desiredStopCount: 5 },
     },
     {
-      ...BASE_REQUEST,
+      ...baseRequest(),
       providerUrl: "https://example.invalid/upstream",
     },
     {
-      ...BASE_REQUEST,
+      ...baseRequest(),
       maxCandidates: 999,
     },
   ]) {

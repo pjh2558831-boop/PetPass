@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
     localPatterns: [
       { pathname: "/og.png", search: "" },
       { pathname: "/og.png", search: "?weekendog-cta=1" },
+      { pathname: "/images/home/hero/**", search: "" },
+      { pathname: "/brand/partners/**", search: "" },
     ],
     remotePatterns: [
       { protocol: "http", hostname: "tong.visitkorea.or.kr" },

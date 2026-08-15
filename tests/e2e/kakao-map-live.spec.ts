@@ -231,14 +231,23 @@ test("localhost renders current Kakao maps without a fixed demo itinerary", asyn
     await page.locator(".kakao-map-canvas").getAttribute("data-location-count"),
   );
   expect(officialMapCount).toBeGreaterThanOrEqual(13);
+  const layerControls = page.locator("fieldset").filter({
+    has: page.getByText("지도 레이어", { exact: true }),
+  });
+  await expect(layerControls).toBeVisible();
   await expect(
-    page
-      .getByLabel("관광 장소 표시 개수")
-      .getByText(/^제공자 전체 \d+곳$/u),
+    layerControls.getByRole("button", { name: /^관광공사 \d+$/u }),
   ).toBeVisible();
-  await expect(page.getByText("현재 목록 1–12곳", { exact: true })).toBeVisible();
   await expect(
-    page.getByText(`DB 지도 ${officialMapCount}곳 표시`, { exact: true }),
+    page.getByRole("heading", {
+      name: `장소 ${officialMapCount}곳`,
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("카드는 페이지당 12개 · 지도는 전체 결과", {
+      exact: true,
+    }),
   ).toBeVisible();
   await expect(page.locator(".kakao-map-marker--tourism-official").first()).toBeAttached();
   await expect

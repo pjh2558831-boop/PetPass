@@ -298,3 +298,128 @@ logic, route optimizer, or map loader.
 - Live provider or Kakao configuration failures remain honest unavailable
   states and are never replaced by fixtures.
 - Do not deploy as part of this implementation.
+
+## Homepage Fine Revision — Photo Hero and Mixed-Source Catalog
+
+This revision supersedes the homepage-only hero, map-height, provider-layer,
+featured-card, and partner-mark rules above. Planner, recommendation, Tourism
+assessment, storage, SDK-loader, and detail-page contracts remain unchanged.
+
+### 1. Header separation
+
+- The sticky header uses `#EDF4EF`, a `#D5E2D9` lower border, and a restrained
+  `#0B503A` 3px top rule. Foreground is `#102019`.
+- Desktop height is 72px and compact/mobile height is 64px. Existing real and
+  future navigation semantics, mobile focus return, Escape handling, and
+  preparation labels remain unchanged.
+
+### 2. Photography-led hero
+
+- The eleven supplied original dog photographs are the only hero media. They
+  appear in attachment order through a typed manifest with Korean alternative
+  text and per-breakpoint object positions. Screenshots, generated replacements,
+  remote stock, and the legacy PetPass illustration are not hero sources.
+- Desktop uses approximately 44% copy and 56% photography within a 500px media
+  field. A warm-ivory-to-transparent horizontal gradient keeps the split soft
+  without placing copy over complex photography.
+- Tablet and mobile stack content. Mobile order is badge, heading, description,
+  primary planner action/launcher, then photograph. The photograph uses a
+  vertical warm-ivory gradient at its top edge.
+- The first image is the sole eager/high-priority LCP image. Later images are
+  mounted lazily as they become active; the current and outgoing frame overlap
+  only during a 760ms crossfade so the carousel does not eagerly download all
+  eleven assets.
+- Autoplay advances every six seconds. It pauses while hover or keyboard focus
+  is within the carousel and while the document is hidden. Previous/next
+  controls, labelled dots, Left/Right/Home/End keyboard controls, and a quiet
+  visual current-slide status are provided. Reduced motion disables autoplay
+  and crossfade animation.
+
+### 3. Revised vertical hierarchy
+
+- Desktop hero media height: 500px. Tablet: 440px. Mobile: 330px.
+- Desktop map height: 560px. Tablet: 460px. Mobile: 340px. The map is the
+  strongest product/data surface directly after the hero.
+- Launcher overlap must not obscure hero copy, carousel controls, or the map.
+
+### 4. Provider-neutral homepage data
+
+The homepage client reads one provider-neutral snapshot from
+`GET /api/homepage/places`. The Route Handler composes the current Tourism
+homepage catalog with the existing sanitized public Supabase RPC catalog. It
+does not call Kakao Local, directions, itinerary generation, licensing,
+recommendation, raw Supabase tables, or fixtures.
+
+The snapshot contains only compact public markers, compact cards, dynamic
+counts, and layer availability. Official Tourism failure remains the existing
+typed homepage failure. A public-catalog failure is isolated: official map and
+cards remain usable and the Kakao-backed layers display `카카오 장소 데이터
+준비 중`. An unavailable layer has `count: null`; it must never be rendered as
+zero.
+
+Identical stored-public RPC reads share a 60-second server single-flight cache.
+Only successful pages are retained; a rejection is evicted immediately so a
+temporary catalog failure cannot poison later homepage requests. The browser
+still receives one uncached provider-neutral snapshot per mount.
+
+### 5. Map layers and claims
+
+| Layer | Default | Marker | Source/status wording |
+| --- | --- | --- | --- |
+| Official Tourism | on | dark-green pin, `공` | `한국관광공사`; canonical assessment only |
+| Kakao candidate | on | yellow pin, `K` | `카카오 검색 후보`; confirmation warning |
+| Veterinary | off | red medical circle, `+` | `동물병원`; no 24-hour inference |
+| Pet shop | off | purple square, `샵` | `펫샵·용품점` |
+
+- Source remains explicit through icon/shape, Korean text, accessible labels,
+  selected-place copy, and a compact legend; color is never the only cue.
+- Each layer shows its own dynamic count. Coordinate omissions are disclosed
+  separately. Stable provider-prefixed IDs are preserved and duplicate/invalid
+  coordinates are filtered before clustering.
+- The existing singleton Kakao SDK loader with `services,clusterer` is reused.
+  The homepage renders no route polyline and makes no discovery/directions call.
+- Only official records with canonical `allowed/complete` assessment may show
+  `동반 가능`. Kakao candidates, hospitals, and shops never receive it.
+
+### 6. Mixed-source place carousel
+
+- Compact filters are exactly `전체`, `공식 장소`, `카카오 후보`, `동물병원`,
+  and `펫샵`.
+- `전체` contains official eligible cards plus Kakao travel candidates.
+  Veterinary and pet-shop records appear only under their explicit filters.
+- Official cards may use the provider image or the existing neutral fallback
+  and link to the typed Tourism detail route. Kakao-backed records never use a
+  scraped image; they use local category placeholders and an external Kakao
+  place link when present.
+- Candidate cards show their actual name, district/address, normalized category,
+  candidate warning, and `카카오 검색 후보`. Hospital/shop cards show address,
+  district, phone when present, and their accurate facility label. No rating,
+  review, popularity, 24-hour, or pet-access claim is invented.
+- Five cards are visible on desktop, about three on tablet, and 78–84vw on
+  mobile. Native overflow, scroll snap, previous/next, and
+  Left/Right/Home/End focus movement remain.
+
+### 7. Public-data partner marks
+
+- Partner artwork may be stored locally only when an official provider page
+  offers a downloadable mark and its usage is sufficiently clear. Source URL,
+  retrieval date, format, and usage note are recorded in
+  `docs/partner-brand-assets.md`.
+- When an official downloadable asset or usage permission is unclear, the
+  existing neutral icon plus provider text remains. Unofficial logo files,
+  hotlinked images, and improvised wordmarks are prohibited.
+- Korea Tourism Organization, Kakao Maps/Mobility, and the Ministry of the
+  Interior and Safety remain three equal cards with accurate role descriptions.
+
+### 8. Responsive, accessibility, and performance acceptance
+
+- Verify 1440, 768, 390, and 320 widths with no document or map-canvas overflow.
+- All controls retain 44px targets, visible focus, Korean labels, logical
+  headings, source text, and non-noisy live regions. Carousel controls expose
+  the current position without announcing every autoplay change.
+- Normal homepage mount makes one `/api/homepage/places` request, one canonical
+  Kakao SDK request, and no generation, direction, discovery, live collection,
+  remote-logo, or direct Supabase browser request.
+- Performance checks cover HTML, snapshot response, LCP image, initially
+  downloaded carousel images, map initialization/clustering, duplicate
+  requests, and local image weights.

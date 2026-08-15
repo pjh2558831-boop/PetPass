@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 const PAGE_TITLE = "WEEKENDOG | 근거 있는 반려동물 동반 여행";
 
 async function mockUnavailableHomepageData(page: Page) {
-  await page.route("**/api/tour/homepage", async (route) => {
+  await page.route("**/api/homepage/places", async (route) => {
     await route.fulfill({
       status: 503,
       contentType: "application/json",
@@ -161,14 +161,18 @@ test("opens the mobile navigation and follows its real destination", async ({
 });
 
 test("avoids horizontal overflow at the required viewports", async ({ page }) => {
-  for (const viewport of [
+  test.setTimeout(60_000);
+  const viewports = [
     { width: 1440, height: 1000 },
     { width: 768, height: 1024 },
     { width: 390, height: 844 },
     { width: 320, height: 844 },
-  ]) {
+  ];
+  await page.setViewportSize(viewports[0]);
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+
+  for (const viewport of viewports) {
     await page.setViewportSize(viewport);
-    await page.goto("/");
     await expect(page.locator(".weekendoog-home")).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
 

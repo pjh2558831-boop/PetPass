@@ -54,8 +54,8 @@ function FutureNavigationButton({
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-50 border-b border-[var(--line)] bg-[var(--background)]">
-      <div className="site-shell flex min-h-[72px] items-center justify-between gap-3">
+    <header className="sticky top-0 z-50 border-b border-t-[3px] border-b-[#D5E2D9] border-t-[#0B503A] bg-[#EDF4EF] text-[#102019]">
+      <div className="site-shell flex min-h-[61px] items-center justify-between gap-3 lg:min-h-[69px]">
         <Link
           href="/"
           className="flex min-h-11 shrink-0 items-center gap-2.5 text-lg font-black tracking-[-0.04em] text-[var(--foreground)] xl:text-xl"

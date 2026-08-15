@@ -188,3 +188,28 @@ must not describe the business as illegal or unlicensed.
 Missing configuration returns 503 and never falls back to demo data. Invalid
 input returns 400. Invalid or failing upstream responses return 502 with a
 retryable flag. Requests over a Route Handler's small local limit return 429.
+
+## `GET /api/homepage/places`
+
+This fixed, queryless homepage read returns one `ApiResult<HomepagePlacesSnapshot>`
+with compact official and stored-public markers, cards, layer counts, and layer
+availability. It composes the current Busan Tourism homepage snapshot with the
+sanitized `get_public_map_catalog_v1` RPC. It never invokes Kakao Local live
+search, directions, licensing, itinerary generation, recommendation, fixtures,
+or direct browser-side Supabase access.
+
+Tourism failure remains a typed provider failure because official counts and
+assessments cannot be replaced. Stored Kakao catalog failures are isolated per
+layer: official markers/cards remain, affected counts are `null`, and the layer
+state is `unavailable` rather than a fabricated zero. Candidate, veterinary,
+and pet-shop records expose only public names, categories, district/address,
+coordinates, optional phone, Kakao place URL, and safe source/status wording.
+Raw review state, evidence JSON, ingest metadata, and credentials are absent.
+
+Responses use `Cache-Control: no-store`, reject query-driven provider controls
+by accepting no query fields, and share the homepage's local
+30-request/minute client rate limit. The server-side public-RPC adapter uses a
+60-second in-process single-flight cache: concurrent identical reads share one
+promise, successful pages may be reused briefly, and failures are evicted for
+the next request. The HTTP response itself remains uncached so provider status
+and the Tourism snapshot are re-evaluated normally.

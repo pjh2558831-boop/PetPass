@@ -1,3 +1,4 @@
+import Image from "next/image";
 import {
   Building2,
   Landmark,
@@ -16,6 +17,11 @@ const SOURCE_ICONS: Record<PublicDataSourceIcon, LucideIcon> = {
   administration: Building2,
 };
 
+const PARTNER_ASSETS: Partial<Record<PublicDataSourceIcon, string>> = {
+  map: "/brand/partners/kakaomap-horizontal-ko.png",
+  administration: "/brand/partners/mois-horizontal-ko.jpg",
+};
+
 export function PublicDataTrustCard() {
   return (
     <article className="weekendoog-public-data-card rounded-[24px] border border-[var(--line)] bg-white p-5 shadow-[var(--shadow-card)] sm:p-7">
@@ -31,9 +37,24 @@ export function PublicDataTrustCard() {
       <ul className="mt-5 grid gap-3 sm:grid-cols-3">
         {WEEKENDOG_PUBLIC_DATA_SOURCES.map((source) => {
           const Icon = SOURCE_ICONS[source.icon];
+          const partnerAsset = PARTNER_ASSETS[source.icon];
           return (
             <li key={source.name} className="rounded-[18px] bg-[var(--surface-muted)] p-4">
-              <Icon className="text-[var(--brand)]" size={20} aria-hidden="true" />
+              <div className="weekendoog-partner-mark">
+                {partnerAsset ? (
+                  <Image
+                    src={partnerAsset}
+                    alt={`${source.name} 공식 로고`}
+                    width={150}
+                    height={40}
+                    sizes="150px"
+                  />
+                ) : (
+                  <span className="weekendoog-partner-mark-fallback">
+                    <Icon className="text-[var(--brand)]" size={23} aria-hidden="true" />
+                  </span>
+                )}
+              </div>
               <p className="mt-3 text-sm font-black text-[var(--foreground)]">
                 {source.name}
               </p>

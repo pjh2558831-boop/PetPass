@@ -1,25 +1,70 @@
 import { mkdir, readdir, rm } from "node:fs/promises";
 import path from "node:path";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 
 const CAPTURE_EVIDENCE = process.env.CAPTURE_WEEKENDOG_EVIDENCE === "1";
 const USE_LIVE_KAKAO = process.env.RUN_LIVE_KAKAO_E2E === "1";
-const HOMEPAGE_API = "**/api/tour/homepage";
+const HOMEPAGE_API = "**/api/homepage/places";
 const EVIDENCE_DIRECTORY = path.resolve(
   process.cwd(),
   "verification-evidence",
-  "weekendog-homepage-2026-08-14",
+  "weekendog-homepage-fine-ui-2026-08-15",
 );
 const EVIDENCE_FILES = [
   "homepage-1440-full.png",
-  "homepage-1440-hero-map.png",
-  "homepage-1440-places-process.png",
-  "homepage-1440-lower.png",
-  "homepage-768-full.png",
-  "homepage-390-full.png",
-  "homepage-provider-loading.png",
-  "homepage-provider-error.png",
+  "header-photo-hero.png",
+  "hero-second-slide.png",
+  "mixed-source-map.png",
+  "map-facilities-enabled.png",
+  "places-official-candidate.png",
+  "places-veterinary-shop.png",
+  "official-partner-logos.png",
+  "homepage-768-tablet.png",
+  "homepage-390-mobile.png",
+  "hero-reduced-motion-manual.png",
+  "kakao-catalog-unavailable.png",
 ] as const;
+
+const SNAPSHOT = {
+  official: {
+    totalCount: 37,
+    markerCount: 2,
+    omittedCoordinateCount: 1,
+    categoryCounts: [
+      { label: "관광지", count: 30 },
+      { label: "문화시설", count: 7 },
+    ],
+    featuredState: "ready",
+    retrievedAt: "2026-08-15T02:00:00.000Z",
+  },
+  layers: {
+    official: { state: "ready", count: 37, markerCount: 2, enabledByDefault: true },
+    kakao_candidate: { state: "ready", count: 120, markerCount: 1, enabledByDefault: true },
+    veterinary: { state: "ready", count: 42, markerCount: 1, enabledByDefault: false },
+    pet_shop: { state: "ready", count: 18, markerCount: 1, enabledByDefault: false },
+  },
+  markers: [
+    { id: "tour:101", layer: "official", name: "해운대 달맞이 산책로", categoryLabel: "관광지", district: "해운대구", address: "부산광역시 해운대구", coordinates: { latitude: 35.1587, longitude: 129.16 }, sourceLabel: "한국관광공사", statusLabel: "동반 가능", warning: null, isAllowed: true, href: "/places/101?contentTypeId=12", external: false, imageUrl: null, phone: null },
+    { id: "tour:102", layer: "official", name: "부산 시민공원 산책길", categoryLabel: "관광지", district: "부산진구", address: "부산광역시 부산진구", coordinates: { latitude: 35.1686, longitude: 129.0572 }, sourceLabel: "한국관광공사", statusLabel: "상세에서 동반 조건 확인", warning: null, isAllowed: false, href: "/places/102?contentTypeId=12", external: false, imageUrl: null, phone: null },
+    { id: "kakao:201", layer: "kakao_candidate", name: "광안리 반려견 검색 후보", categoryLabel: "카페", district: "수영구", address: "부산광역시 수영구", coordinates: { latitude: 35.1532, longitude: 129.1187 }, sourceLabel: "카카오 검색 후보", statusLabel: "동반 여부 확인 필요", warning: "카카오 검색 후보입니다. 방문 전 반려동물 동반 가능 여부를 확인해 주세요.", isAllowed: false, href: "https://place.map.kakao.com/201", external: true, imageUrl: null, phone: null },
+    { id: "kakao:202", layer: "veterinary", name: "부산 반려동물 동물병원", categoryLabel: "동물병원", district: "해운대구", address: "부산광역시 해운대구", coordinates: { latitude: 35.17, longitude: 129.18 }, sourceLabel: "동물병원", statusLabel: "진료 시간 확인 필요", warning: "운영 시간과 진료 가능 여부를 방문 전 확인해 주세요.", isAllowed: false, href: "https://place.map.kakao.com/202", external: true, imageUrl: null, phone: "051-123-4567" },
+    { id: "kakao:203", layer: "pet_shop", name: "부산 반려동물 용품점", categoryLabel: "반려동물 용품", district: "수영구", address: "부산광역시 수영구", coordinates: { latitude: 35.18, longitude: 129.19 }, sourceLabel: "펫샵·용품점", statusLabel: "운영 정보 확인 필요", warning: "취급 품목과 운영 시간은 방문 전 확인해 주세요.", isAllowed: false, href: "https://place.map.kakao.com/203", external: true, imageUrl: null, phone: "051-987-6543" },
+  ],
+  cards: [] as Array<Record<string, unknown>>,
+};
+
+SNAPSHOT.cards = SNAPSHOT.markers.map(({ coordinates, ...card }) => {
+  void coordinates;
+  return card;
+});
+
+async function fulfillSnapshot(route: Route, data: unknown = SNAPSHOT) {
+  await route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ ok: true, data, requestId: "weekendog-evidence" }),
+  });
+}
 
 function evidencePath(fileName: (typeof EVIDENCE_FILES)[number]) {
   return path.join(EVIDENCE_DIRECTORY, fileName);
@@ -224,13 +269,12 @@ test.describe("WEEKENDOG homepage visual evidence", () => {
   );
   test.skip(({ isMobile }) => Boolean(isMobile), "Capture once in desktop Chromium.");
 
-  test("writes the eight approved evidence views", async ({ context, page }) => {
+  test("writes the twelve fine UI evidence views", async ({ context, page }) => {
     test.setTimeout(120_000);
     await rm(EVIDENCE_DIRECTORY, { recursive: true, force: true });
     await mkdir(EVIDENCE_DIRECTORY, { recursive: true });
 
-    // Normal evidence uses the configured E2E server/upstream mock directly.
-    // It intentionally does not browser-intercept /api/tour/homepage.
+    await page.route(HOMEPAGE_API, (route) => fulfillSnapshot(route));
     if (!USE_LIVE_KAKAO) await installFakeKakaoMap(page);
     await page.setViewportSize({ width: 1_440, height: 900 });
     await page.goto("/");
@@ -258,69 +302,61 @@ test.describe("WEEKENDOG homepage visual evidence", () => {
     }
 
     await captureFullPage(page, "homepage-1440-full.png");
-    await captureRange(
-      page,
-      null,
-      ".homepage-map-shell",
-      "homepage-1440-hero-map.png",
-    );
-    await captureRange(
-      page,
-      ".homepage-places-section",
-      ".recommendation-process-section",
-      "homepage-1440-places-process.png",
-    );
-    await captureRange(
-      page,
-      ".weekendoog-lower-section",
-      ".weekendoog-trust-section",
-      "homepage-1440-lower.png",
-    );
+    await captureRange(page, null, ".weekendoog-hero", "header-photo-hero.png");
+
+    const hero = page.getByRole("region", { name: "부산 반려견 여행 사진" });
+    await hero.getByRole("button", { name: "다음 여행 사진" }).click();
+    await expect(hero.locator(".weekendoog-hero-slide-status")).toHaveText("02 / 11");
+    await captureRange(page, null, ".weekendoog-hero", "hero-second-slide.png");
+
+    await captureRange(page, ".homepage-map-section", ".homepage-map-section", "mixed-source-map.png");
+    await page.getByRole("button", { name: /동물병원\s*42/u }).click();
+    await page.getByRole("button", { name: /펫샵·용품점\s*18/u }).click();
+    await captureRange(page, ".homepage-map-section", ".homepage-map-section", "map-facilities-enabled.png");
+
+    await captureRange(page, ".homepage-places-section", ".homepage-places-section", "places-official-candidate.png");
+    const filters = page.getByRole("group", { name: "장소 출처 필터" });
+    await filters.getByRole("button", { name: "동물병원" }).click();
+    await captureRange(page, ".homepage-places-section", ".homepage-places-section", "places-veterinary-shop.png");
+    await captureRange(page, ".weekendoog-trust-section", ".weekendoog-trust-section", "official-partner-logos.png");
+    await filters.getByRole("button", { name: "전체", exact: true }).click();
 
     await page.setViewportSize({ width: 768, height: 1_024 });
-    await captureFullPage(page, "homepage-768-full.png");
+    await captureFullPage(page, "homepage-768-tablet.png");
     await page.setViewportSize({ width: 390, height: 844 });
-    await captureFullPage(page, "homepage-390-full.png");
+    await captureFullPage(page, "homepage-390-mobile.png");
 
-    const loadingPage = await context.newPage();
-    await loadingPage.setViewportSize({ width: 1_440, height: 900 });
-    let releaseLoading!: () => void;
-    const loadingGate = new Promise<void>((resolve) => {
-      releaseLoading = resolve;
-    });
-    await loadingPage.route(HOMEPAGE_API, async (route) => {
-      await loadingGate;
-      await route.abort("aborted");
-    });
-    await loadingPage.goto("/");
-    await expect(
-      loadingPage.getByLabel("공식 관광 지도 불러오는 중"),
-    ).toBeVisible();
-    await captureFullPage(loadingPage, "homepage-provider-loading.png");
-    releaseLoading();
-    await loadingPage.close();
+    const reducedPage = await context.newPage();
+    await reducedPage.emulateMedia({ reducedMotion: "reduce" });
+    await reducedPage.setViewportSize({ width: 1_440, height: 900 });
+    await reducedPage.route(HOMEPAGE_API, (route) => fulfillSnapshot(route));
+    if (!USE_LIVE_KAKAO) await installFakeKakaoMap(reducedPage);
+    await reducedPage.goto("/");
+    const reducedHero = reducedPage.getByRole("region", { name: "부산 반려견 여행 사진" });
+    await reducedHero.getByRole("button", { name: "다음 여행 사진" }).click();
+    await expect(reducedHero.locator(".weekendoog-hero-slide-status")).toHaveText("02 / 11");
+    await captureRange(reducedPage, null, ".weekendoog-hero", "hero-reduced-motion-manual.png");
+    await reducedPage.close();
 
-    const errorPage = await context.newPage();
-    await errorPage.setViewportSize({ width: 1_440, height: 900 });
-    await errorPage.route(HOMEPAGE_API, async (route) => {
-      await route.fulfill({
-        status: 503,
-        contentType: "application/json",
-        body: JSON.stringify({
-          ok: false,
-          error: {
-            code: "UPSTREAM_ERROR",
-            message: "한국관광공사 응답을 지금 확인할 수 없습니다.",
-            retryable: true,
-          },
-          requestId: "weekendog-evidence-error",
-        }),
-      });
-    });
-    await errorPage.goto("/");
-    await expect(errorPage.locator(".homepage-live-error")).toBeVisible();
-    await captureFullPage(errorPage, "homepage-provider-error.png");
-    await errorPage.close();
+    const unavailablePage = await context.newPage();
+    await unavailablePage.setViewportSize({ width: 1_440, height: 900 });
+    const unavailableSnapshot = {
+      ...SNAPSHOT,
+      layers: {
+        ...SNAPSHOT.layers,
+        kakao_candidate: { state: "unavailable", count: null, markerCount: null, enabledByDefault: true },
+        veterinary: { state: "unavailable", count: null, markerCount: null, enabledByDefault: false },
+        pet_shop: { state: "unavailable", count: null, markerCount: null, enabledByDefault: false },
+      },
+      markers: SNAPSHOT.markers.filter(({ layer }) => layer === "official"),
+      cards: SNAPSHOT.cards.filter((card) => card.layer === "official"),
+    };
+    await unavailablePage.route(HOMEPAGE_API, (route) => fulfillSnapshot(route, unavailableSnapshot));
+    if (!USE_LIVE_KAKAO) await installFakeKakaoMap(unavailablePage);
+    await unavailablePage.goto("/");
+    await expect(unavailablePage.getByText("카카오 장소 데이터 준비 중").first()).toBeVisible();
+    await captureRange(unavailablePage, ".homepage-map-section", ".homepage-places-section", "kakao-catalog-unavailable.png");
+    await unavailablePage.close();
 
     const pngFiles = (await readdir(EVIDENCE_DIRECTORY))
       .filter((fileName) => fileName.endsWith(".png"))
