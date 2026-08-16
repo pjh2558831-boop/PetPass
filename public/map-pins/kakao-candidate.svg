@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="58" viewBox="0 0 48 58" fill="none">
+  <title>카카오 검색 후보</title>
+  <path d="M24 1.5C11.02 1.5 2.5 10.76 2.5 22.68c0 15.65 16.31 29.41 21.5 33.32 5.19-3.91 21.5-17.67 21.5-33.32C45.5 10.76 36.98 1.5 24 1.5Z" fill="#F4C84A" stroke="#fff" stroke-width="3"/>
+  <circle cx="24" cy="22" r="13" fill="#fff"/>
+  <path d="M24 13.5a7.5 7.5 0 0 0-7.5 7.5c0 5.42 5.74 10.26 7.5 11.62 1.76-1.36 7.5-6.2 7.5-11.62a7.5 7.5 0 0 0-7.5-7.5Z" fill="#6B4918"/>
+  <circle cx="24" cy="21" r="2.8" fill="#fff"/>
+</svg>

@@ -165,14 +165,14 @@ describe("versioned information trust", () => {
 });
 
 describe("optional shopping and review preparation", () => {
-  it("limits a 614-place shopping layer to 12 interactive DOM markers", () => {
+  it("keeps every valid map place available instead of silently capping markers", () => {
     const places = Array.from({ length: 614 }, (_, index) => ({
       contentId: String(index + 1),
     })) as TourPlaceSummary[];
     const page = getPaginatedPlaces(places, 1);
 
     expect(page).toHaveLength(12);
-    expect(getInteractiveMapPlaceIds(places, page).size).toBe(12);
+    expect(getInteractiveMapPlaceIds(places, page).size).toBe(614);
   });
 
   it("keeps an approved report separate from pet-access verdict creation", () => {

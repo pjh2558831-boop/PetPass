@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { LocateFixed, MapPinned, ScanSearch } from "lucide-react";
 import {
   createKakaoMapController,
   isValidMapCoordinates,
   type KakaoMapController,
   type KakaoMapLocation,
+  type KakaoViewportIdleCause,
 } from "@/lib/kakao/maps";
 import {
   getKakaoMapJavaScriptKey,
@@ -38,13 +40,30 @@ export interface MapPanelProps {
   selectedLocationId?: string | null;
   onLocationSelect?: (id: string | null) => void;
   onCurrentMapSearch?: (viewport: KakaoCurrentMapSearch) => void;
-  onViewportIdle?: (viewport: KakaoCurrentMapSearch) => void;
+  onViewportIdle?: (
+    viewport: KakaoCurrentMapSearch,
+    cause: KakaoViewportIdleCause,
+  ) => void;
   viewportKey?: string;
   layerControls?: MapLayerControl[];
   onLayerToggle?: (id: string, visible: boolean) => void;
   showLocationLabel?: boolean;
   showSelectionInfo?: boolean;
+  currentMapSearchLabel?: string;
+  showCurrentMapSearch?: boolean;
   emptyMessage?: string;
+}
+
+const EMPTY_ROUTE_COORDINATES: Coordinates[] = [];
+
+function getLayerMarkerAsset(
+  kind: KakaoMapLocation["markerKind"],
+): string | null {
+  if (kind === "tourism-official" || kind === "catalog") return "/map-pins/tourism-official.svg";
+  if (kind === "kakao-candidate" || kind === "search") return "/map-pins/kakao-candidate.svg";
+  if (kind === "veterinary") return "/map-pins/veterinary.svg";
+  if (kind === "pet-shop") return "/map-pins/pet-shop.svg";
+  return null;
 }
 
 export function MapPanel({
@@ -52,7 +71,7 @@ export function MapPanel({
   title = "부산 장소 지도",
   locationLabel,
   locations,
-  routeCoordinates = [],
+  routeCoordinates = EMPTY_ROUTE_COORDINATES,
   selectedLocationId = null,
   onLocationSelect,
   onCurrentMapSearch,
@@ -62,6 +81,8 @@ export function MapPanel({
   onLayerToggle,
   showLocationLabel = true,
   showSelectionInfo = true,
+  currentMapSearchLabel = "이 지역 검색 다시하기",
+  showCurrentMapSearch = true,
   emptyMessage = "표시할 장소가 없습니다.",
 }: MapPanelProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -94,7 +115,7 @@ export function MapPanel({
         locations: latest.locations,
         routeCoordinates: latest.routeCoordinates,
         onLocationSelect: (id) => selectRef.current?.(id),
-        onViewportIdle: (viewport) => viewportIdleRef.current?.(viewport),
+        onViewportIdle: (viewport, cause) => viewportIdleRef.current?.(viewport, cause),
         showSelectionInfo,
       });
       controllerRef.current.selectLocation(latest.selectedLocationId);
@@ -130,9 +151,12 @@ export function MapPanel({
     if (!controller) return;
     const fitBounds = viewportKeyRef.current !== viewportKey;
     controller.updateData(locations, routeCoordinates, { fitBounds });
-    controller.selectLocation(selectedLocationId);
     viewportKeyRef.current = viewportKey;
-  }, [locations, routeCoordinates, selectedLocationId, viewportKey]);
+  }, [locations, routeCoordinates, viewportKey]);
+
+  useEffect(() => {
+    controllerRef.current?.selectLocation(selectedLocationId);
+  }, [selectedLocationId]);
 
   useEffect(() => { controllerRef.current?.setShowSelectionInfo(showSelectionInfo); }, [showSelectionInfo]);
 
@@ -172,11 +196,11 @@ export function MapPanel({
         {missingCoordinateCount > 0 ? <p className="absolute inset-x-4 bottom-16 z-10 rounded-xl bg-[#fff8f1]/95 p-3 text-xs font-bold text-[#7a4b2f]">좌표를 확인할 수 없는 장소 {missingCoordinateCount}곳은 지도에서 제외했습니다.</p> : null}
         <div className="map-watermark">Kakao Maps · 실제 장소 및 경로</div>
         {showLocationLabel ? <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3 py-2 text-xs font-bold text-[#314b3f] shadow-sm"><MapPinned size={15} aria-hidden="true" />{resolvedLocationLabel}</div> : null}
-        {legendLayers.length > 0 ? <div className="absolute right-3 top-3 z-10 flex max-w-[calc(100%-7rem)] flex-wrap justify-end gap-1.5 rounded-xl border border-white/90 bg-white/95 p-2 text-[10px] font-extrabold shadow-sm" aria-label="지도 마커 범례">{legendLayers.map((layer) => <span key={layer.id} className="inline-flex items-center gap-1.5"><span className={`map-legend-marker map-legend-marker--${layer.markerKind}`} aria-hidden="true" />{layer.label}<span className="font-semibold text-[#748078]">{layer.count ?? "—"}</span></span>)}</div> : null}
+        {legendLayers.length > 0 ? <div className="absolute right-3 top-3 z-10 flex max-w-[calc(100%-7rem)] flex-wrap justify-end gap-1.5 rounded-xl border border-white/90 bg-white/95 p-2 text-[10px] font-extrabold shadow-sm" aria-label="지도 마커 범례">{legendLayers.map((layer) => { const asset = getLayerMarkerAsset(layer.markerKind); return <span key={layer.id} className="inline-flex items-center gap-1.5">{asset ? <Image src={asset} width={18} height={22} alt="" aria-hidden="true" /> : <span className={`map-legend-marker map-legend-marker--${layer.markerKind}`} aria-hidden="true" />}{layer.label}<span className="font-semibold text-[#748078]">{layer.count ?? "—"}</span></span>; })}</div> : null}
         <button type="button" onClick={() => controllerRef.current?.fitBounds()} disabled={loadState !== "ready"} className="absolute bottom-4 left-4 z-10 grid size-10 place-items-center rounded-full border border-white/80 bg-white/90 text-[#236148] shadow-sm disabled:opacity-50" aria-label="표시된 장소에 지도 위치 맞추기"><LocateFixed size={18} aria-hidden="true" /></button>
-        {onCurrentMapSearch ? <button type="button" onClick={() => { const viewport = controllerRef.current?.getSearchViewport(); if (viewport) currentSearchRef.current?.(viewport); }} disabled={loadState !== "ready"} className="absolute bottom-4 right-4 z-10 inline-flex min-h-10 items-center gap-2 rounded-full border border-white/80 bg-white/95 px-3 text-xs font-extrabold text-[#236148] shadow-sm disabled:opacity-50" aria-label="현재 지도에서 검색"><ScanSearch size={16} aria-hidden="true" />현재 지도에서 검색</button> : null}
+        {onCurrentMapSearch && showCurrentMapSearch ? <button type="button" onClick={() => { const viewport = controllerRef.current?.getSearchViewport(); if (viewport) currentSearchRef.current?.(viewport); }} disabled={loadState !== "ready"} className="absolute bottom-4 right-4 z-10 inline-flex min-h-11 items-center gap-2 rounded-full border border-white/80 bg-white/95 px-4 text-xs font-extrabold text-[#236148] shadow-sm disabled:opacity-50" aria-label={currentMapSearchLabel}><ScanSearch size={16} aria-hidden="true" />{currentMapSearchLabel}</button> : null}
       </div>
-      {layerControls.length > 0 ? <fieldset className="mt-3 rounded-2xl border border-[#d8e2dc] bg-white p-3"><legend className="px-1 text-xs font-black text-[#344a40]">지도 레이어</legend><div className="mt-1 flex flex-wrap gap-2">{layerControls.map((layer) => <button key={layer.id} type="button" aria-pressed={layer.visible} disabled={layer.disabled} title={layer.description} onClick={() => onLayerToggle?.(layer.id, !layer.visible)} className={`inline-flex min-h-9 items-center gap-2 rounded-full border px-3 text-xs font-extrabold transition disabled:opacity-45 ${layer.visible ? "border-[#8caf9d] bg-[#edf8f2] text-[#285c45]" : "border-[#d7e0da] bg-white text-[#68776f]"}`}><span className={`map-legend-marker map-legend-marker--${layer.markerKind ?? "catalog"}`} aria-hidden="true" /><span>{layer.label}</span><span className="font-semibold text-[#748078]">{layer.count ?? "—"}</span></button>)}</div><p className="mt-2 text-[11px] leading-5 text-[#748078]">레이어 수량은 표시 여부를 적용하기 전의 필터 결과이며, —는 현재 불러올 수 없음을 뜻합니다.</p></fieldset> : null}
+      {layerControls.length > 0 ? <fieldset className="mt-3 rounded-2xl border border-[#d8e2dc] bg-white p-3"><legend className="px-1 text-xs font-black text-[#344a40]">지도 레이어</legend><div className="mt-1 flex flex-wrap gap-2">{layerControls.map((layer) => { const asset = getLayerMarkerAsset(layer.markerKind); return <button key={layer.id} type="button" aria-pressed={layer.visible} disabled={layer.disabled} title={layer.description} onClick={() => onLayerToggle?.(layer.id, !layer.visible)} className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-3 text-xs font-extrabold transition disabled:opacity-45 ${layer.visible ? "border-[#8caf9d] bg-[#edf8f2] text-[#285c45]" : "border-[#d7e0da] bg-white text-[#68776f]"}`}>{asset ? <Image src={asset} width={18} height={22} alt="" aria-hidden="true" /> : <span className={`map-legend-marker map-legend-marker--${layer.markerKind ?? "catalog"}`} aria-hidden="true" />}<span>{layer.label}</span><span className="font-semibold text-[#748078]">{layer.count ?? "—"}</span></button>; })}</div><p className="mt-2 text-[11px] leading-5 text-[#748078]">레이어 수량은 표시 여부를 적용하기 전의 필터 결과이며, —는 현재 불러올 수 없음을 뜻합니다.</p></fieldset> : null}
     </section>
   );
 }

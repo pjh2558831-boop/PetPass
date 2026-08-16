@@ -1,6 +1,10 @@
 import { ConfigurationRequiredError } from "@/lib/shared/errors";
 import { BUSAN_REGION_CONFIG } from "@/lib/regions/config";
 import { KAKAO_CURRENT_MAP_MAX_RADIUS_METERS } from "@/lib/kakao/search-area";
+import {
+  getSourceMarkerAsset,
+  type SourceMarkerSource,
+} from "@/lib/kakao/marker-assets";
 import type { KakaoCurrentMapSearch } from "@/types/kakao";
 import type { Coordinates } from "@/types/place";
 
@@ -35,10 +39,11 @@ interface KakaoMarkerImage {
   readonly __kakaoMarkerImage?: never;
 }
 
-interface KakaoMarker {
+export interface KakaoMarker {
   setImage(image: KakaoMarkerImage): void;
   setMap(map: KakaoMapInstance | null): void;
   setPosition(position: KakaoLatLng): void;
+  setTitle?(title: string): void;
   setZIndex(zIndex: number): void;
 }
 
@@ -50,6 +55,7 @@ interface KakaoCluster {
 interface KakaoMarkerClusterer {
   addMarkers(markers: KakaoMarker[]): void;
   clear(): void;
+  redraw?(): void;
 }
 
 interface KakaoMapsEvent {
@@ -162,6 +168,17 @@ export interface KakaoMapController {
     routeCoordinates: Coordinates[],
     options?: { fitBounds?: boolean },
   ): void;
+}
+
+export type KakaoViewportIdleCause = "initial" | "programmatic" | "user";
+
+export interface SourceMarkerRecord {
+  placeId: string;
+  source: SourceMarkerSource;
+  marker: KakaoMarker;
+  normalImage: KakaoMarkerImage;
+  selectedImage: KakaoMarkerImage;
+  listenerCleanup: () => void;
 }
 
 function distanceMeters(from: Coordinates, to: Coordinates): number {
@@ -284,16 +301,16 @@ export function createKakaoCoordinatePicker(
   };
 }
 
-const TRANSPARENT_MARKER_SVG =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E";
-
 export function createKakaoMapController(
   container: HTMLElement,
   options: {
     locations: KakaoMapLocation[];
     routeCoordinates?: Coordinates[];
     onLocationSelect?: (id: string | null) => void;
-    onViewportIdle?: (viewport: KakaoCurrentMapSearch) => void;
+    onViewportIdle?: (
+      viewport: KakaoCurrentMapSearch,
+      cause: KakaoViewportIdleCause,
+    ) => void;
     showSelectionInfo?: boolean;
   },
 ): KakaoMapController {
@@ -313,17 +330,13 @@ export function createKakaoMapController(
       "카카오 지도 SDK를 불러오지 못했습니다.",
     );
   }
+  const CustomOverlayConstructor = maps.CustomOverlay;
 
   const defaultCenter = new maps.LatLng(
     BUSAN_REGION_CONFIG.defaultMapCenter.latitude,
     BUSAN_REGION_CONFIG.defaultMapCenter.longitude,
   );
   const map = new maps.Map(container, { center: defaultCenter, level: 8 });
-  const transparentMarkerImage = new maps.MarkerImage(
-    TRANSPARENT_MARKER_SVG,
-    new maps.Size(1, 1),
-    { offset: new maps.Point(0, 0) },
-  );
   const nativeMarkerImages = new Map<KakaoMapMarkerKind, KakaoMarkerImage>();
   const nativeMarkerVisual = (kind: KakaoMapMarkerKind) => {
     const visuals: Record<KakaoMapMarkerKind, { color: string; label: string; textColor?: string; shape: "pin" | "diamond" | "circle" | "square" }> = {
@@ -363,6 +376,35 @@ export function createKakaoMapController(
     nativeMarkerImages.set(kind, image);
     return image;
   };
+  const sourceMarkerImages = new Map<
+    SourceMarkerSource,
+    { normal: KakaoMarkerImage; selected: KakaoMarkerImage }
+  >();
+  const getSourceMarkerImages = (source: SourceMarkerSource) => {
+    const existing = sourceMarkerImages.get(source);
+    if (existing) return existing;
+    const asset = getSourceMarkerAsset(source);
+    const createImage = (size: typeof asset.normal) => new maps.MarkerImage(
+      asset.path,
+      new maps.Size(size.width, size.height),
+      { offset: new maps.Point(size.anchorX, size.anchorY) },
+    );
+    const images = {
+      normal: createImage(asset.normal),
+      selected: createImage(asset.selected),
+    };
+    sourceMarkerImages.set(source, images);
+    return images;
+  };
+  const getSourceForKind = (
+    kind: KakaoMapMarkerKind,
+  ): SourceMarkerSource | null => {
+    if (kind === "tourism-official" || kind === "catalog") return "tourism";
+    if (kind === "kakao-candidate" || kind === "search") return "kakao_candidate";
+    if (kind === "veterinary") return "veterinary";
+    if (kind === "pet-shop") return "pet_shop";
+    return null;
+  };
   const clusterer = maps.MarkerClusterer
     ? new maps.MarkerClusterer({
         map,
@@ -391,64 +433,59 @@ export function createKakaoMapController(
         ],
       })
     : null;
-  const markerOverlays: KakaoCustomOverlay[] = [];
-  const standaloneMarkers: KakaoMarker[] = [];
-  const markerCleanups: Array<() => void> = [];
-  const catalogButtonByMarker = new Map<KakaoMarker, HTMLButtonElement>();
+  const sourceMarkerRegistry = new Map<string, SourceMarkerRecord & {
+    location: KakaoMapLocation;
+    position: KakaoLatLng;
+    clusterable: boolean;
+  }>();
+  const legacyMarkerOverlays: KakaoCustomOverlay[] = [];
+  const legacyNativeMarkers: KakaoMarker[] = [];
+  const legacyMarkerCleanups: Array<() => void> = [];
   const locationPositions = new Map<
     string,
     {
-      button: HTMLButtonElement;
+      button: HTMLButtonElement | null;
       location: KakaoMapLocation;
       position: KakaoLatLng;
+      sourceMarker: SourceMarkerRecord | null;
     }
   >();
-  let catalogMarkers: KakaoMarker[] = [];
   let visiblePoints: KakaoLatLng[] = [];
   let infoOverlay: KakaoCustomOverlay | null = null;
-  let selectionOverlay: KakaoCustomOverlay | null = null;
   let routeLine: KakaoPolyline | null = null;
   let selectedId: string | null = null;
   let shouldShowSelectionInfo = options.showSelectionInfo !== false;
   let destroyed = false;
-  let markerRenderFrame: number | null = null;
+  let pendingProgrammaticViewport = false;
+  let clustererResetCount = 0;
+  let createdSourceMarkerCount = 0;
 
   container.dataset.kakaoMapInitialized = "true";
   container.dataset.clustererReady = clusterer ? "true" : "false";
   container.dataset.clusterCount = "0";
   container.dataset.catalogMarkerCount = "0";
   container.dataset.interactiveMarkerCount = "0";
-
-  const setCatalogMarkerClustered = (
-    button: HTMLButtonElement,
-    clustered: boolean,
-  ) => {
-    button.classList.toggle("is-clustered", clustered);
-    if (clustered) {
-      button.setAttribute("aria-hidden", "true");
-      button.tabIndex = -1;
-    } else {
-      button.removeAttribute("aria-hidden");
-      button.tabIndex = 0;
-    }
-
-    const overlayRoot = button.parentElement;
-    if (overlayRoot) {
-      overlayRoot.style.pointerEvents = clustered ? "none" : "";
-      overlayRoot.style.visibility = clustered ? "hidden" : "";
-    }
-  };
+  container.dataset.markerRegistrySize = "0";
+  container.dataset.activeMarkerCount = "0";
+  container.dataset.customOverlayMarkerCount = "0";
+  container.dataset.clustererInstanceCount = clusterer ? "1" : "0";
+  container.dataset.clustererResetCount = "0";
+  container.dataset.createdSourceMarkerCount = "0";
 
   const resetSelectionVisuals = () => {
     if (selectedId) {
-      const selectedButton = locationPositions.get(selectedId)?.button;
+      const selected = locationPositions.get(selectedId);
+      const selectedButton = selected?.button;
       selectedButton?.classList.remove("is-selected");
       selectedButton?.setAttribute("aria-pressed", "false");
+      if (selected?.sourceMarker) {
+        selected.sourceMarker.marker.setImage(selected.sourceMarker.normalImage);
+        selected.sourceMarker.marker.setZIndex(4);
+      }
     }
     infoOverlay?.setMap(null);
-    selectionOverlay?.setMap(null);
     infoOverlay = null;
-    selectionOverlay = null;
+    container.dataset.infoOverlayCount = "0";
     selectedId = null;
   };
 
@@ -510,47 +547,46 @@ export function createKakaoMapController(
   };
   const viewportIdleHandler = () => {
     const viewport = readSearchViewport();
-    if (viewport) options.onViewportIdle?.(viewport);
+    if (!viewport) return;
+    const cause: KakaoViewportIdleCause = pendingProgrammaticViewport
+      ? "programmatic"
+      : "user";
+    pendingProgrammaticViewport = false;
+    options.onViewportIdle?.(viewport, cause);
   };
   maps.event.addListener(map, "idle", viewportIdleHandler);
-  viewportIdleHandler();
+  const initialViewport = readSearchViewport();
+  if (initialViewport) options.onViewportIdle?.(initialViewport, "initial");
 
   const syncClusteredCatalogOverlays = (clustersValue: unknown) => {
     if (destroyed) return;
-    for (const button of catalogButtonByMarker.values()) {
-      setCatalogMarkerClustered(button, false);
-    }
     const clusters = Array.isArray(clustersValue)
       ? (clustersValue as KakaoCluster[])
       : [];
-    let visibleClusterCount = 0;
-    for (const cluster of clusters) {
-      if (cluster.getSize() < 2) continue;
-      visibleClusterCount += 1;
-      for (const marker of cluster.getMarkers()) {
-        const button = catalogButtonByMarker.get(marker);
-        if (!button) continue;
-        setCatalogMarkerClustered(button, true);
-      }
-    }
-    container.dataset.clusterCount = String(visibleClusterCount);
+    container.dataset.clusterCount = String(
+      clusters.filter((cluster) => cluster.getSize() >= 2).length,
+    );
   };
   if (clusterer) {
     maps.event.addListener(clusterer, "clustered", syncClusteredCatalogOverlays);
   }
 
+  const clearLegacyLayers = () => {
+    legacyMarkerCleanups.splice(0).forEach((cleanup) => cleanup());
+    legacyMarkerOverlays.splice(0).forEach((overlay) => overlay.setMap(null));
+    legacyNativeMarkers.splice(0).forEach((marker) => marker.setMap(null));
+    container.dataset.customOverlayMarkerCount = "0";
+  };
+
   const clearLayers = () => {
-    if (markerRenderFrame !== null) {
-      window.cancelAnimationFrame(markerRenderFrame);
-      markerRenderFrame = null;
-    }
     resetSelectionVisuals();
-    catalogButtonByMarker.clear();
     clusterer?.clear();
-    catalogMarkers = [];
-    markerCleanups.splice(0).forEach((cleanup) => cleanup());
-    markerOverlays.splice(0).forEach((overlay) => overlay.setMap(null));
-    standaloneMarkers.splice(0).forEach((marker) => marker.setMap(null));
+    for (const record of sourceMarkerRegistry.values()) {
+      record.listenerCleanup();
+      record.marker.setMap(null);
+    }
+    sourceMarkerRegistry.clear();
+    clearLegacyLayers();
     routeLine?.setMap(null);
     routeLine = null;
     locationPositions.clear();
@@ -558,6 +594,8 @@ export function createKakaoMapController(
     container.dataset.clusterCount = "0";
     container.dataset.catalogMarkerCount = "0";
     container.dataset.interactiveMarkerCount = "0";
+    container.dataset.markerRegistrySize = "0";
+    container.dataset.activeMarkerCount = "0";
   };
 
   const controller: KakaoMapController = {
@@ -582,11 +620,13 @@ export function createKakaoMapController(
     fitBounds() {
       if (visiblePoints.length === 0) return;
       if (visiblePoints.length === 1) {
+        pendingProgrammaticViewport = true;
         map.panTo(visiblePoints[0]);
         return;
       }
       const bounds = new maps.LatLngBounds();
       visiblePoints.forEach((point) => bounds.extend(point));
+      pendingProgrammaticViewport = true;
       map.setBounds(bounds, 48);
     },
 
@@ -601,11 +641,22 @@ export function createKakaoMapController(
     setShowSelectionInfo(show) {
       if (shouldShowSelectionInfo === show) return;
       shouldShowSelectionInfo = show;
-      const currentSelection = selectedId;
-      if (currentSelection) controller.selectLocation(currentSelection);
+      if (!selectedId) return;
+      infoOverlay?.setMap(null);
+      infoOverlay = null;
+      if (!show) {
+        container.dataset.infoOverlayCount = "0";
+        return;
+      }
+      const selected = locationPositions.get(selectedId);
+      if (selected) renderSelectionInfo(selected);
     },
 
     selectLocation(id, notify = false) {
+      if (id && selectedId === id) {
+        if (notify) options.onLocationSelect?.(id);
+        return;
+      }
       resetSelectionVisuals();
       if (!id) {
         if (notify) options.onLocationSelect?.(null);
@@ -615,54 +666,32 @@ export function createKakaoMapController(
       const selected = locationPositions.get(id);
       if (!selected) return;
       selectedId = id;
-      selected.button.classList.add("is-selected");
-      selected.button.setAttribute("aria-pressed", "true");
-
-      const selection = document.createElement("div");
-      selection.className = "kakao-map-selection";
-      selection.setAttribute("aria-hidden", "true");
-      selectionOverlay = new maps.CustomOverlay({
-        map,
-        position: selected.position,
-        content: selection,
-        xAnchor: 0.5,
-        yAnchor: 0.5,
-        zIndex: 7,
-      });
-
-      if (shouldShowSelectionInfo) {
-        const content = document.createElement("div");
-        content.className = "kakao-map-info";
-        const name = document.createElement("strong");
-        name.textContent = selected.location.name;
-        const address = document.createElement("span");
-        address.textContent = selected.location.address;
-        content.append(name, address);
-        if (selected.location.sourceLabel) {
-          const source = document.createElement("small");
-          source.textContent = selected.location.sourceLabel;
-          content.append(source);
-        }
-
-        infoOverlay = new maps.CustomOverlay({
-          map,
-          position: selected.position,
-          content,
-          xAnchor: 0.5,
-          yAnchor: 1.75,
-          zIndex: 10,
-        });
+      selected.button?.classList.add("is-selected");
+      selected.button?.setAttribute("aria-pressed", "true");
+      if (selected.sourceMarker) {
+        selected.sourceMarker.marker.setImage(selected.sourceMarker.selectedImage);
+        selected.sourceMarker.marker.setZIndex(9);
       }
+      if (shouldShowSelectionInfo) renderSelectionInfo(selected);
+      pendingProgrammaticViewport = true;
       map.panTo(selected.position);
       if (notify) options.onLocationSelect?.(id);
     },
 
     updateData(locations, routeCoordinates, updateOptions = {}) {
+      const updateStartedAt = performance.now();
       const previousSelection = selectedId;
-      clearLayers();
+      resetSelectionVisuals();
+      clearLegacyLayers();
+      routeLine?.setMap(null);
+      routeLine = null;
       const seenLocationIds = new Set<string>();
-      let catalogMarkerCount = 0;
       let interactiveMarkerCount = 0;
+      const desiredSourceIds = new Set<string>();
+      const activeClusterMarkers: KakaoMarker[] = [];
+      const activeStandaloneMarkers: KakaoMarker[] = [];
+      visiblePoints = [];
+      locationPositions.clear();
 
       const renderLocation = (location: KakaoMapLocation) => {
         if (
@@ -683,7 +712,69 @@ export function createKakaoMapController(
         const interactive = location.interactive !== false;
         const clusterable =
           location.clusterable ?? !["itinerary", "departure"].includes(kind);
-        let markerButton: HTMLButtonElement | null = null;
+        const source = getSourceForKind(kind);
+        if (source) {
+          desiredSourceIds.add(location.id);
+          const images = getSourceMarkerImages(source);
+          let record = sourceMarkerRegistry.get(location.id);
+          if (!record) {
+            const marker = new maps.Marker({
+              clickable: interactive,
+              image: images.normal,
+              position,
+              title: `${location.name} · ${getSourceMarkerAsset(source).accessibleLabel}`,
+            });
+            const mutableRecord: SourceMarkerRecord & {
+              location: KakaoMapLocation;
+              position: KakaoLatLng;
+              clusterable: boolean;
+            } = {
+              placeId: location.id,
+              source,
+              marker,
+              normalImage: images.normal,
+              selectedImage: images.selected,
+              listenerCleanup: () => undefined,
+              location,
+              position,
+              clusterable,
+            };
+            const clickHandler = () => {
+              if (mutableRecord.location.interactive === false) return;
+              controller.selectLocation(mutableRecord.placeId, true);
+            };
+            maps.event.addListener(marker, "click", clickHandler);
+            mutableRecord.listenerCleanup = () => maps.event.removeListener(
+              marker,
+              "click",
+              clickHandler,
+            );
+            record = mutableRecord;
+            sourceMarkerRegistry.set(location.id, record);
+            createdSourceMarkerCount += 1;
+          } else {
+            record.source = source;
+            record.normalImage = images.normal;
+            record.selectedImage = images.selected;
+            record.location = location;
+            record.position = position;
+            record.clusterable = clusterable;
+            record.marker.setPosition(position);
+            record.marker.setImage(images.normal);
+            record.marker.setTitle?.(`${location.name} · ${getSourceMarkerAsset(source).accessibleLabel}`);
+          }
+          record.marker.setZIndex(4);
+          if (clusterable) activeClusterMarkers.push(record.marker);
+          else activeStandaloneMarkers.push(record.marker);
+          if (interactive) interactiveMarkerCount += 1;
+          locationPositions.set(location.id, {
+            button: null,
+            location,
+            position,
+            sourceMarker: record,
+          });
+          return;
+        }
         if (interactive) {
           interactiveMarkerCount += 1;
           const marker = document.createElement("button");
@@ -706,7 +797,7 @@ export function createKakaoMapController(
             controller.selectLocation(location.id, true);
           };
           marker.addEventListener("click", clickHandler);
-          markerCleanups.push(() => marker.removeEventListener("click", clickHandler));
+          legacyMarkerCleanups.push(() => marker.removeEventListener("click", clickHandler));
 
           const overlay = new maps.CustomOverlay({
             map,
@@ -716,33 +807,46 @@ export function createKakaoMapController(
             yAnchor: 1,
             zIndex: kind === "departure" ? 7 : kind === "itinerary" ? 6 : 4,
           });
-          markerOverlays.push(overlay);
+          legacyMarkerOverlays.push(overlay);
           locationPositions.set(location.id, {
             button: marker,
             location,
             position,
+            sourceMarker: null,
           });
-          markerButton = marker;
         }
-
-        if (clusterable) {
-          catalogMarkerCount += 1;
-        }
-        if (clusterable) {
-          const proxyMarker = new maps.Marker({
+        if (!interactive) {
+          const marker = new maps.Marker({
             clickable: false,
-            ...(interactive
-              ? { image: transparentMarkerImage }
-              : { image: getNativeMarkerImage(kind), title: location.name }),
+            image: getNativeMarkerImage(kind),
+            map,
             position,
-            ...(!clusterer && !interactive ? { map } : {}),
+            title: location.name,
           });
-          proxyMarker.setZIndex(0);
-          if (clusterer) catalogMarkers.push(proxyMarker);
-          else if (!interactive) standaloneMarkers.push(proxyMarker);
-          if (markerButton) catalogButtonByMarker.set(proxyMarker, markerButton);
+          marker.setZIndex(4);
+          legacyNativeMarkers.push(marker);
         }
       };
+
+      locations.forEach(renderLocation);
+      for (const [placeId, record] of sourceMarkerRegistry) {
+        if (desiredSourceIds.has(placeId)) continue;
+        record.listenerCleanup();
+        record.marker.setMap(null);
+        sourceMarkerRegistry.delete(placeId);
+      }
+      const clusterUpdateStartedAt = performance.now();
+      if (clusterer) {
+        clusterer.clear();
+        clustererResetCount += 1;
+      }
+      if (clusterer && activeClusterMarkers.length > 0) {
+        clusterer.addMarkers(activeClusterMarkers);
+        clusterer.redraw?.();
+      } else {
+        activeClusterMarkers.forEach((marker) => marker.setMap(map));
+      }
+      activeStandaloneMarkers.forEach((marker) => marker.setMap(map));
 
       const routePath = getRenderableRouteCoordinates(routeCoordinates)
         .map(({ latitude, longitude }) => new maps.LatLng(latitude, longitude));
@@ -758,29 +862,52 @@ export function createKakaoMapController(
         });
       }
 
-      const finishMarkers = () => {
-        markerRenderFrame = null;
-        container.dataset.catalogMarkerCount = String(catalogMarkerCount);
-        container.dataset.interactiveMarkerCount = String(interactiveMarkerCount);
-        if (clusterer && catalogMarkers.length > 0) clusterer.addMarkers(catalogMarkers);
-        if (updateOptions.fitBounds !== false) controller.fitBounds();
-        if (previousSelection && locationPositions.has(previousSelection)) controller.selectLocation(previousSelection);
-      };
-      const batchSize = 100;
-      let offset = 0;
-      const renderBatch = () => {
-        if (destroyed) return;
-        const end = Math.min(offset + batchSize, locations.length);
-        for (; offset < end; offset += 1) renderLocation(locations[offset]);
-        container.dataset.catalogMarkerCount = String(catalogMarkerCount);
-        container.dataset.interactiveMarkerCount = String(interactiveMarkerCount);
-        if (offset < locations.length) markerRenderFrame = window.requestAnimationFrame(renderBatch);
-        else finishMarkers();
-      };
-      if (locations.length > batchSize) markerRenderFrame = window.requestAnimationFrame(renderBatch);
-      else { locations.forEach(renderLocation); finishMarkers(); }
+      container.dataset.catalogMarkerCount = String(sourceMarkerRegistry.size);
+      container.dataset.interactiveMarkerCount = String(interactiveMarkerCount);
+      container.dataset.markerRegistrySize = String(sourceMarkerRegistry.size);
+      container.dataset.activeMarkerCount = String(
+        activeClusterMarkers.length + activeStandaloneMarkers.length,
+      );
+      container.dataset.customOverlayMarkerCount = String(legacyMarkerOverlays.length);
+      container.dataset.clustererResetCount = String(clustererResetCount);
+      container.dataset.createdSourceMarkerCount = String(createdSourceMarkerCount);
+      container.dataset.clusterUpdateMs = (performance.now() - clusterUpdateStartedAt).toFixed(2);
+      container.dataset.markerUpdateMs = (performance.now() - updateStartedAt).toFixed(2);
+      if (updateOptions.fitBounds !== false) controller.fitBounds();
+      if (previousSelection && locationPositions.has(previousSelection)) {
+        controller.selectLocation(previousSelection);
+      }
     },
   };
+
+  function renderSelectionInfo(
+    selected: {
+      location: KakaoMapLocation;
+      position: KakaoLatLng;
+    },
+  ) {
+    const content = document.createElement("div");
+    content.className = "kakao-map-info";
+    const name = document.createElement("strong");
+    name.textContent = selected.location.name;
+    const address = document.createElement("span");
+    address.textContent = selected.location.address;
+    content.append(name, address);
+    if (selected.location.sourceLabel) {
+      const source = document.createElement("small");
+      source.textContent = selected.location.sourceLabel;
+      content.append(source);
+    }
+    infoOverlay = new CustomOverlayConstructor({
+      map,
+      position: selected.position,
+      content,
+      xAnchor: 0.5,
+      yAnchor: 1.75,
+      zIndex: 10,
+    });
+    container.dataset.infoOverlayCount = "1";
+  }
 
   controller.updateData(options.locations, options.routeCoordinates ?? []);
   return controller;

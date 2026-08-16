@@ -201,11 +201,32 @@ describe("Kakao integration boundaries", () => {
       relayout = vi.fn();
       setBounds = vi.fn();
     }
-    class FakeMarkerImage {}
+    class FakeMarkerImage {
+      constructor(
+        readonly source: string,
+        readonly size: unknown,
+        readonly options: unknown,
+      ) {}
+    }
+    const markers: FakeMarker[] = [];
     class FakeMarker {
-      setImage = vi.fn();
+      readonly options: {
+        image?: FakeMarkerImage;
+        map?: FakeMap;
+        position: FakeLatLng;
+        title?: string;
+      };
+      setImage = vi.fn((image: FakeMarkerImage) => {
+        this.options.image = image;
+      });
       setMap = vi.fn();
+      setPosition = vi.fn();
+      setTitle = vi.fn();
       setZIndex = vi.fn();
+      constructor(options: FakeMarker["options"]) {
+        this.options = options;
+        markers.push(this);
+      }
     }
     const overlays: Array<{
       content: HTMLElement;
@@ -238,6 +259,7 @@ describe("Kakao integration boundaries", () => {
       clear = vi.fn(() => {
         this.markers = [];
       });
+      redraw = vi.fn();
       constructor(options: { styles?: Array<Record<string, string>> }) {
         this.options = options;
         clusterers.push(this);
@@ -336,34 +358,29 @@ describe("Kakao integration boundaries", () => {
       },
     });
 
-    const markerButton = overlays.find(({ content }) =>
-      content.matches('[data-location-id="one"]'),
-    )?.content as HTMLButtonElement;
     const departureMarkerButton = overlays.find(({ content }) =>
       content.matches('[data-location-id="departure"]'),
-    )?.content as HTMLButtonElement;
-    const kakaoMarkerButton = overlays.find(({ content }) =>
-      content.matches('[data-location-id="kakao"]'),
     )?.content as HTMLButtonElement;
     const itineraryMarkerButton = overlays.find(({ content }) =>
       content.matches('[data-location-id="route-one"]'),
     )?.content as HTMLButtonElement;
-    expect(markerButton.classList.contains("kakao-map-marker--tourism-official")).toBe(true);
+    const officialMarker = markers.find((marker) => marker.options.title?.includes("첫 장소"));
+    const kakaoMarker = markers.find((marker) => marker.options.title?.includes("카카오 장소"));
+    expect(officialMarker?.options.image?.source).toBe("/map-pins/tourism-official.svg");
+    expect(kakaoMarker?.options.image?.source).toBe("/map-pins/kakao-candidate.svg");
+    expect(container.dataset.markerRegistrySize).toBe("2");
+    expect(container.dataset.customOverlayMarkerCount).toBe("2");
     expect(departureMarkerButton.classList.contains("kakao-map-marker--departure")).toBe(true);
     expect(departureMarkerButton.textContent).toBe("출");
-    expect(markerButton.getAttribute("aria-label")).toBe(
-      "첫 장소 · 한국관광공사 제공 장소 지도 마커",
-    );
-    expect(kakaoMarkerButton.classList.contains("kakao-map-marker--kakao-candidate")).toBe(true);
-    expect(kakaoMarkerButton.textContent).toBe("K");
-    expect(kakaoMarkerButton.getAttribute("aria-label")).toBe(
-      "카카오 장소 · 카카오 검색 장소 · 반려동물 동반 여부 확인 필요 지도 마커",
-    );
     expect(itineraryMarkerButton.classList.contains("kakao-map-marker--itinerary")).toBe(true);
     expect(itineraryMarkerButton.textContent).toBe("1");
-    markerButton.click();
+    expect(officialMarker).toBeDefined();
+    emit(officialMarker!, "click");
     expect(onLocationSelect).toHaveBeenCalledWith("one");
-    expect(markerButton.classList.contains("is-selected")).toBe(true);
+    expect(officialMarker?.setImage).toHaveBeenCalledWith(
+      expect.objectContaining({ source: "/map-pins/tourism-official.svg" }),
+    );
+    expect(overlays.some(({ content }) => content.matches(".kakao-map-selection"))).toBe(false);
     expect(overlays.some(({ content }) => content.matches(".kakao-map-info"))).toBe(
       true,
     );
@@ -398,10 +415,29 @@ describe("Kakao integration boundaries", () => {
     expect(clusterers).toHaveLength(1);
     expect(clusterers[0].clear).toHaveBeenCalled();
     expect(clusterers[0].addMarkers).toHaveBeenCalledTimes(2);
+    expect(clusterers[0].redraw).toHaveBeenCalledTimes(2);
     expect(mapInstances[0].setBounds).toHaveBeenCalledTimes(1);
 
+    const retainedMarker = clusterers[0].markers[0];
+    controller.updateData(
+      [{
+        id: "two",
+        name: "둘째 장소 갱신",
+        address: "부산",
+        coordinates: { latitude: 35.19, longitude: 129.19 },
+        markerKind: "kakao-candidate",
+      }],
+      [],
+      { fitBounds: false },
+    );
+    expect(clusterers[0].markers[0]).toBe(retainedMarker);
+    expect(retainedMarker.options.image?.source).toBe("/map-pins/kakao-candidate.svg");
+    const clearCountBeforeZoom = clusterers[0].clear.mock.calls.length;
+    emit(mapInstances[0], "zoom_changed");
+    expect(clusterers[0].clear).toHaveBeenCalledTimes(clearCountBeforeZoom);
+
     controller.destroy();
-    expect(clusterers[0].clear).toHaveBeenCalledTimes(3);
+    expect(clusterers[0].clear).toHaveBeenCalledTimes(4);
     expect(removeListener).toHaveBeenCalledWith(
       clusterers[0],
       "clustered",
@@ -411,7 +447,7 @@ describe("Kakao integration boundaries", () => {
 
     delete (window.kakao?.maps as unknown as Record<string, unknown>)
       .MarkerClusterer;
-    const fallbackOverlayStart = overlays.length;
+    const fallbackMarkerStart = markers.length;
     const fallbackContainer = document.createElement("div");
     const fallbackController = createKakaoMapController(fallbackContainer, {
       locations: [
@@ -427,11 +463,9 @@ describe("Kakao integration boundaries", () => {
 
     expect(fallbackContainer.dataset.clustererReady).toBe("false");
     expect(fallbackContainer.dataset.catalogMarkerCount).toBe("1");
-    expect(
-      overlays.slice(fallbackOverlayStart).some(({ content }) =>
-        content.matches('[data-location-id="fallback"]'),
-      ),
-    ).toBe(true);
+    expect(markers.slice(fallbackMarkerStart)).toHaveLength(1);
+    expect(markers.at(-1)?.options.image?.source).toBe("/map-pins/tourism-official.svg");
+    expect(markers.at(-1)?.setMap).toHaveBeenCalledWith(mapInstances.at(-1));
     fallbackController.destroy();
   });
 });

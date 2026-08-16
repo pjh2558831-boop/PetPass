@@ -59,6 +59,11 @@ test("hides licensing for non-food details and makes no licensing request", asyn
 test("preserves the existing Kakao marker-to-detail interaction", async ({ page }) => {
   await installDetailMock(page, "matched_high", "general_restaurants");
   await page.goto("/results");
+  if ((page.viewportSize()?.width ?? 1_024) < 1_024) {
+    const listMode = page.getByRole("button", { name: "목록", exact: true });
+    await expect(listMode).toBeVisible();
+    await listMode.click();
+  }
   const detailLink = page.getByRole("link", {
     name: /부산 반려동물 식당 원문 상세 보기/,
   });

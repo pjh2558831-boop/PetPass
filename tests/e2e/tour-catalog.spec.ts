@@ -41,6 +41,20 @@ async function mockKakaoCatalog(page: Page) {
   });
 }
 
+async function showListMode(page: Page) {
+  if ((page.viewportSize()?.width ?? 1_024) >= 1_024) return;
+  const listMode = page.getByRole("button", { name: "목록", exact: true });
+  await expect(listMode).toBeVisible();
+  await listMode.click();
+}
+
+async function openCatalogFilters(page: Page) {
+  const details = page.locator(".explorer-filter-menu");
+  if (!await details.evaluate((element) => (element as HTMLDetailsElement).open)) {
+    await details.locator("summary").click();
+  }
+}
+
 test.beforeEach(async ({ page }, testInfo) => {
   await page.setExtraHTTPHeaders({ "x-forwarded-for": `petpass-e2e-${testInfo.project.name}-${testInfo.workerIndex}` });
   await mockKakaoCatalog(page);
@@ -59,6 +73,7 @@ test("loads all four public catalog layers with honest candidate labels", async 
   await expect(page.getByRole("button", { name: /동물병원 1/ })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: /펫샵 1/ })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: /관광공사/ }).click();
+  await showListMode(page);
   await expect(page.getByText(/카카오 검색 후보입니다. 방문 전/u).first()).toBeVisible();
   await expect(page.getByText("동반 가능", { exact: true })).toHaveCount(0);
 });
@@ -67,6 +82,8 @@ test("changes both authoritative providers by district without Kakao discovery",
   const discoveryRequests: string[] = [];
   page.on("request", (request) => { if (request.url().includes("/api/places/discovery")) discoveryRequests.push(request.url()); });
   await page.goto("/results");
+  await showListMode(page);
+  await openCatalogFilters(page);
   const tourResponse = page.waitForResponse((response) => response.url().includes("districtCode=500"));
   const kakaoResponse = page.waitForResponse((response) => response.url().includes("/api/map/places?") && response.url().includes("district=500"));
   await page.getByLabel("부산 세부 지역").selectOption("500");
@@ -78,14 +95,16 @@ test("changes both authoritative providers by district without Kakao discovery",
 
 test("paginates cards by 12 while keeping all filtered places on the map", async ({ page }) => {
   await page.goto("/results");
+  await showListMode(page);
   await expect(page.locator('[id^="place-card-"]')).toHaveCount(12);
   const mapCount = await page.locator(".map-canvas").getAttribute("data-location-count");
   expect(Number(mapCount)).toBeGreaterThan(12);
-  await page.getByRole("button", { name: "다음" }).click();
+  await page.getByRole("button", { name: "다음 페이지" }).click();
   await expect(page.locator('[id^="place-card-"]')).not.toHaveCount(12);
 
+  await openCatalogFilters(page);
   await page.getByLabel("여행 장소 유형").selectOption("cafe");
-  await expect(page.getByRole("heading", { name: /장소 3곳/u })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "총 3곳" })).toBeVisible();
   await expect(page.getByText("광안 동물병원")).toBeVisible();
   await expect(page.getByText("광안 펫샵")).toBeVisible();
   await expect(page).toHaveURL(/category=cafe/u);

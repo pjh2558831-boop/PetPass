@@ -58,4 +58,20 @@ describe("public catalog normalization", () => {
     expect(result.warning).toContain("방문 전");
     expect(result.publicLabel).not.toBe("동반 가능");
   });
+
+  it("labels veterinary and pet-shop records as facilities without access or 24-hour claims", () => {
+    const base = {
+      id: "kakao:2", providerPlaceId: "2", name: "지역 동물 시설", category: null,
+      district: { code: "500", name: "수영구" }, address: "부산광역시 수영구", coordinates: { latitude: 35.1, longitude: 129.1 },
+      phone: null, placeUrl: "https://place.map.kakao.com/2", source: "kakao_search_candidate",
+      reviewStatus: "unreviewed", publicLabel: "provider label",
+    } as const;
+    const veterinary = normalizeKakaoCatalogPlace({ ...base, kind: "veterinary" });
+    const shop = normalizeKakaoCatalogPlace({ ...base, id: "kakao:3", providerPlaceId: "3", kind: "pet_shop" });
+
+    expect(veterinary).toMatchObject({ sourceLabel: "동물병원", publicLabel: "반려동물 편의시설", warning: null });
+    expect(shop).toMatchObject({ sourceLabel: "펫샵·용품점", publicLabel: "반려동물 편의시설", warning: null });
+    expect(JSON.stringify([veterinary, shop])).not.toContain("24시간");
+    expect(JSON.stringify([veterinary, shop])).not.toContain("동반 가능");
+  });
 });

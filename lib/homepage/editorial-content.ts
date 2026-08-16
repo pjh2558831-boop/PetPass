@@ -83,12 +83,12 @@ export interface PublicDataSourceItem {
 export const WEEKENDOG_PUBLIC_DATA_SOURCES = [
   {
     name: "한국관광공사 Tour API",
-    detail: "관광 장소와 반려동물 동반 원문",
+    detail: "관광 장소와 반려동물 동반 정보",
     icon: "tourism",
   },
   {
     name: "Kakao Maps / Kakao Mobility",
-    detail: "지도 표시와 자동차 이동시간",
+    detail: "지도 표시와 실제 이동시간",
     icon: "map",
   },
   {

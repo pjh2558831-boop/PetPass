@@ -154,10 +154,7 @@ test("opens the mobile navigation and follows its real destination", async ({
   await mobileNavigation.getByRole("link", { name: "장소 찾기" }).click();
 
   await expect(page).toHaveURL(/\/results\?tab=catalog$/u);
-  await expect(page.getByRole("tab", { name: "전체 장소" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
+  await expect(page.getByRole("tabpanel", { name: "장소 찾기" })).toBeVisible();
 });
 
 test("avoids horizontal overflow at the required viewports", async ({ page }) => {

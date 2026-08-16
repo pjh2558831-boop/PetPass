@@ -13,7 +13,7 @@ export default defineConfig({
   webServer: {
     command: "node node_modules/next/dist/bin/next dev",
     url: "http://localhost:3000",
-    reuseExistingServer: false,
+    reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: {
       ...process.env,

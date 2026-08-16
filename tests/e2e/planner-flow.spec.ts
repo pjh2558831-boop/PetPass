@@ -10,6 +10,7 @@ import {
 const browserErrors = new WeakMap<Page, string[]>();
 
 test.beforeEach(async ({ page }) => {
+  await installFakeCoordinatePicker(page);
   const errors: string[] = [];
   browserErrors.set(page, errors);
   page.on("console", (message) => {
@@ -115,7 +116,6 @@ async function expectPlannerStep(page: Page, label: string) {
 }
 
 async function open(page: Page, testInfo: TestInfo) {
-  await installFakeCoordinatePicker(page);
   await openPetPlanner(page, testInfo, "unified-planner");
   await expectPlannerStep(page, "정보 입력");
 }

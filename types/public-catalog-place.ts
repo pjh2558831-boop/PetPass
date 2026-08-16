@@ -14,9 +14,10 @@ export interface PublicCatalogPlace {
   address: string;
   coordinates: { latitude: number; longitude: number } | null;
   phone: string | null;
+  imageUrl: string | null;
   placeUrl: string | null;
   publicLabel: string;
-  sourceLabel: "한국관광공사" | "카카오 검색 후보";
+  sourceLabel: "한국관광공사" | "카카오 검색 후보" | "동물병원" | "펫샵·용품점";
   warning: string | null;
   tourPlace: TourPlaceSummary | null;
 }
@@ -40,6 +41,7 @@ export function normalizeTourCatalogPlace(place: TourPlaceSummary): PublicCatalo
       ? { latitude: place.latitude, longitude: place.longitude }
       : null,
     phone: place.phone?.trim() || null,
+    imageUrl: place.thumbnailUrl ?? place.imageUrl,
     placeUrl: `/places/${place.contentId}${place.contentTypeId ? `?contentTypeId=${place.contentTypeId}` : ""}`,
     publicLabel: "동반 정보 확인 필요",
     sourceLabel: "한국관광공사",
@@ -60,10 +62,17 @@ export function normalizeKakaoCatalogPlace(place: PublicMapPlaceDTO): PublicCata
     address: place.address,
     coordinates: place.coordinates,
     phone: place.phone,
+    imageUrl: null,
     placeUrl: place.placeUrl,
-    publicLabel: place.publicLabel,
-    sourceLabel: "카카오 검색 후보",
-    warning: "카카오 검색 후보입니다. 방문 전 반려동물 동반 가능 여부를 확인해 주세요.",
+    publicLabel: place.kind === "pet_travel_candidate" ? "동반 여부 확인 필요" : "반려동물 편의시설",
+    sourceLabel: place.kind === "pet_travel_candidate"
+      ? "카카오 검색 후보"
+      : place.kind === "veterinary"
+        ? "동물병원"
+        : "펫샵·용품점",
+    warning: place.kind === "pet_travel_candidate"
+      ? "카카오 검색 후보입니다. 방문 전 반려동물 동반 가능 여부를 확인해 주세요."
+      : null,
     tourPlace: null,
   };
 }

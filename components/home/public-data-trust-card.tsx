@@ -1,25 +1,32 @@
 import Image from "next/image";
-import {
-  Building2,
-  Landmark,
-  MapPinned,
-  ShieldCheck,
-  type LucideIcon,
-} from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import {
   WEEKENDOG_PUBLIC_DATA_SOURCES,
   type PublicDataSourceIcon,
 } from "@/lib/homepage/editorial-content";
 
-const SOURCE_ICONS: Record<PublicDataSourceIcon, LucideIcon> = {
-  tourism: Landmark,
-  map: MapPinned,
-  administration: Building2,
-};
+interface PartnerAsset {
+  src: string;
+  width: number;
+  height: number;
+}
 
-const PARTNER_ASSETS: Partial<Record<PublicDataSourceIcon, string>> = {
-  map: "/brand/partners/kakaomap-horizontal-ko.png",
-  administration: "/brand/partners/mois-horizontal-ko.jpg",
+const PARTNER_ASSETS: Record<PublicDataSourceIcon, PartnerAsset> = {
+  tourism: {
+    src: "/brand/partners/kto-horizontal-ko-transparent.png",
+    width: 710,
+    height: 242,
+  },
+  map: {
+    src: "/brand/partners/kakaomap-horizontal-ko.png",
+    width: 1434,
+    height: 504,
+  },
+  administration: {
+    src: "/brand/partners/mois-horizontal-ko-transparent.png",
+    width: 942,
+    height: 228,
+  },
 };
 
 export function PublicDataTrustCard() {
@@ -36,29 +43,26 @@ export function PublicDataTrustCard() {
 
       <ul className="mt-5 grid gap-3 sm:grid-cols-3">
         {WEEKENDOG_PUBLIC_DATA_SOURCES.map((source) => {
-          const Icon = SOURCE_ICONS[source.icon];
           const partnerAsset = PARTNER_ASSETS[source.icon];
           return (
-            <li key={source.name} className="rounded-[18px] bg-[var(--surface-muted)] p-4">
+            <li
+              key={source.name}
+              className="weekendoog-partner-card rounded-[18px] bg-[var(--surface-muted)] p-4"
+              data-partner={source.icon}
+            >
               <div className="weekendoog-partner-mark">
-                {partnerAsset ? (
-                  <Image
-                    src={partnerAsset}
-                    alt={`${source.name} 공식 로고`}
-                    width={150}
-                    height={40}
-                    sizes="150px"
-                  />
-                ) : (
-                  <span className="weekendoog-partner-mark-fallback">
-                    <Icon className="text-[var(--brand)]" size={23} aria-hidden="true" />
-                  </span>
-                )}
+                <Image
+                  src={partnerAsset.src}
+                  alt={`${source.name} 공식 로고`}
+                  width={partnerAsset.width}
+                  height={partnerAsset.height}
+                  sizes="(max-width: 767px) 150px, 180px"
+                />
               </div>
-              <p className="mt-3 text-sm font-black text-[var(--foreground)]">
+              <p className="weekendoog-partner-title text-sm font-black text-[var(--foreground)]">
                 {source.name}
               </p>
-              <p className="mt-1 text-xs font-medium leading-5 text-[var(--muted)]">
+              <p className="weekendoog-partner-description text-xs font-medium leading-5 text-[var(--muted)]">
                 {source.detail}
               </p>
             </li>

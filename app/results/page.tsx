@@ -4,7 +4,7 @@ import { ResultsExplorer } from "@/components/places/results-explorer";
 import { parsePublicCatalogUrlState } from "@/lib/map-places/catalog-url";
 
 export const metadata: Metadata = {
-  title: "추천 경로 비교",
+  title: "부산 장소 찾기",
 };
 
 export default async function ResultsPage({
@@ -15,14 +15,12 @@ export default async function ResultsPage({
   const params = await searchParams;
   const initialCatalogState = parsePublicCatalogUrlState(params);
   return (
-    <div className="page-shell py-8 sm:py-12 lg:py-14">
-      <PlannerProgress current={2} />
-      <div className="mt-8 sm:mt-10">
-        <ResultsExplorer
-          initialTab={params.tab === "recommendations" ? "recommendations" : "catalog"}
-          initialCatalogState={initialCatalogState}
-        />
-      </div>
+    <div className="results-route-shell">
+      <div className="results-route-progress"><PlannerProgress current={2} /></div>
+      <ResultsExplorer
+        initialTab={params.tab === "recommendations" ? "recommendations" : "catalog"}
+        initialCatalogState={initialCatalogState}
+      />
     </div>
   );
 }

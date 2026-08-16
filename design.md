@@ -423,3 +423,173 @@ still receives one uncached provider-neutral snapshot per mount.
 - Performance checks cover HTML, snapshot response, LCP image, initially
   downloaded carousel images, map initialization/clustering, duplicate
   requests, and local image weights.
+
+## Homepage Fine Tune — Hero Balance and Official Partner Logos
+
+This focused refinement supersedes only the hero-copy/framing and public-data
+partner-mark presentation above. The page hierarchy, carousel behavior, map
+data, planner, discovery, and recommendation boundaries remain unchanged.
+
+### 1. Hero copy and proportions
+
+- Supporting copy is exactly `공식 반려동물 동반 정보와 이동 동선을 바탕으로`
+  followed by `가장 자연스러운 하루 일정을 제안해드려요.`. It should read as
+  two compact lines on desktop and wrap naturally on smaller screens.
+- Desktop uses a 45% copy field and 55% photo field. The headline retains its
+  existing size and visual priority; reclaimed copy height creates breathing
+  room above the planner launcher.
+- The photo remains `object-fit: cover`, but the narrower photo field and
+  per-slide positions show slightly more surrounding scenery and reduce the
+  perceived dog scale without letterboxing, distortion, or face cropping.
+- The photo blend is a gradual warm-ivory overlay with multiple low-opacity
+  transition stops. It must reach transparent softly, keep the photograph
+  saturated, and avoid a visible white haze band or sharp vertical edge.
+- Autoplay, crossfade timing, previous/next controls, indicators, hover/focus
+  pause, page-visibility pause, lazy loading, and reduced-motion behavior do
+  not change.
+
+### 2. Official partner marks
+
+- The user-provided Korea Tourism Organization and Ministry of the Interior
+  and Safety horizontal signatures are stored locally as alpha PNGs. Only the
+  white background is removed; the official artwork, typography, colors,
+  dimensions, aspect ratio, and spacing remain unchanged.
+  The existing approved local Kakao Map asset remains.
+- Every card reserves the same 42px desktop logo area and a compact 36px mobile
+  area. Artwork uses `object-fit: contain`, left alignment, original aspect
+  ratio, and provider-specific maximum widths only to equalize visual weight.
+- Cards have equal height, consistent padding, a fixed logo row, unified title
+  and supporting-copy typography, and aligned whitespace.
+- Final copy is `한국관광공사 Tour API` / `관광 장소와 반려동물 동반 정보`,
+  `Kakao Maps / Kakao Mobility` / `지도 표시와 실제 이동시간`, and
+  `행정안전부 공공데이터` / `확인 가능한 업종의 인허가 보조 정보`.
+- Logos are local assets with no runtime hotlink. Their supplied provenance and
+  repository filenames are recorded in `docs/partner-brand-assets.md`.
+
+### 3. Responsive acceptance
+
+- At 1440px the headline, two-line copy, launcher, and 55% photo field remain
+  visually balanced with no overlap.
+- At 768px, 390px, and 320px the existing stacked order remains; the top-edge
+  photo blend replaces the desktop horizontal blend and the dog face stays in
+  frame.
+- Trust cards stack cleanly below the desktop three-column layout, keep logos
+  legible, and introduce no horizontal overflow or layout shift.
+
+## Full Map Explorer and Source-Aware Marker System
+
+This section is the authoritative contract for the canonical full place
+explorer at `/results?tab=catalog`. It supersedes earlier shared catalog-marker
+visuals while preserving the homepage, Tourism evidence, planner,
+recommendation, route-order marker, provider, and SDK-loader boundaries.
+
+### 1. Full explorer layout
+
+- Desktop uses the viewport below the 72px WEEKENDOG header and compact
+  progress/toolbar area. The map occupies approximately 70–74% and the result
+  panel 26–30%, with the panel constrained to roughly 360–460px. The map stays
+  fixed inside the explorer; cards scroll internally and pagination remains in
+  a stable footer.
+- Tablet uses a map/list mode when a 60–65% map and 35–40% panel would make the
+  result panel narrower than a readable card.
+- Mobile never compresses map and cards side by side. It exposes labelled map
+  and list modes, uses a map height of approximately 52–60dvh, keeps filters and
+  controls reachable, and introduces no horizontal overflow at 390px or 320px.
+- `지도 크게 보기` and equivalent catalog actions use the existing canonical
+  `/results?tab=catalog` route. No competing map route is added.
+
+### 2. Collection and viewport contract
+
+The explorer derives three named collections:
+
+```text
+filteredPlaces = every unique, public, coordinate-valid place that passes the
+                 district, category, source, and committed search-scope rules
+mapPlaces      = all places from filteredPlaces rendered on the map
+pagedPlaces    = the current 12-place sidebar slice
+```
+
+Changing a page never changes `mapPlaces`. A real district, category, source,
+or committed-bounds change updates map and cards together. Invalid coordinates
+and duplicate stable provider IDs create neither a card nor a marker. Counts
+are dynamic and disclose `카드는 페이지당 12개 · 지도는 현재 필터의 전체 결과`.
+
+Map movement is provisional. The first settled viewport establishes a
+baseline. Later user zoom or pan sets `viewportDirty` and reveals `이 지역 검색
+다시하기`, but keeps the active dataset, cards, markers, and selection. Only
+that explicit action commits the latest rectangle, resets the sidebar to page
+1, and recalculates the three collections. Programmatic fit/pan operations and
+meaningfully unchanged rectangles do not dirty the scope or create requests.
+Resetting district/category filters intentionally clears a committed rectangle.
+
+### 3. Four local source pins
+
+All shared catalog maps use four transparent, equal-geometry local SVG assets:
+
+| Source | Asset | Color | Inner meaning | Accessible wording |
+| --- | --- | --- | --- | --- |
+| Tourism official | `/map-pins/tourism-official.svg` | deep green | official medal/badge | 한국관광공사 장소 |
+| Kakao candidate | `/map-pins/kakao-candidate.svg` | warm yellow | neutral location pin | 카카오 검색 후보 |
+| Veterinary | `/map-pins/veterinary.svg` | coral red | medical cross and paw | 동물병원 |
+| Pet shop | `/map-pins/pet-shop.svg` | deep purple | storefront and paw | 펫샵·용품점 |
+
+The pins contain no emoji, remote URL, or Kakao corporate logo. Shape, icon,
+Korean source text, and control labels communicate identity in addition to
+color. Homepage and full explorer share the assets. Itinerary results retain
+numbered route-order markers because route sequence has priority there.
+
+### 4. Canonical marker and cluster lifecycle
+
+- One map instance owns exactly one `MarkerClusterer` and one
+  `Map<string, SourceMarkerRecord>`.
+- One stable place ID owns exactly one visible `kakao.maps.Marker`. That same
+  object is the clusterer member and the selected marker.
+- Selection swaps the marker's source-preserving `MarkerImage` to an image
+  approximately 10% larger and raises its z-index. It never adds a halo, pulse,
+  radar ring, concentric circle, or second marker.
+- A `CustomOverlay` may show selected-place information, but it is not a pin
+  and is never clustered. Existing non-clustered itinerary controls may remain
+  custom overlays.
+- On data/filter replacement, diff the registry, detach obsolete listeners and
+  markers, create or update required records, then call `clusterer.clear()`,
+  `addMarkers(activeMarkers)`, and `redraw()`. Reuse the same map, clusterer, and
+  unchanged marker objects.
+- `zoom_changed`, `bounds_changed`, `dragend`, and `idle` never clear the
+  registry or mutate `mapPlaces`. Kakao's clusterer alone decomposes neutral
+  numbered clusters into the four visible source pins.
+- Clusters are neutral dark gray-green circles with centered numbers. They use
+  no provider glyph, source color, medal, halo, pulse, radar, or concentric
+  ring.
+
+### 5. Explorer controls and result truth
+
+- The compact source toolbar is `전체`, `관광공사`, `Kakao 여행 후보`,
+  `동물병원`, `펫샵`; all four layers are enabled on first visit. Every control
+  includes its source icon, label, and `aria-pressed` state.
+- The sidebar shows a dynamic `총 X곳`, a sort selector, an accessible filter
+  control, any active-filter summary, 12 readable cards, and stable pagination.
+- Tourism cards show the provider image or neutral fallback, source, actual
+  available assessment wording, title, address, category, and typed detail
+  action. Only a canonical `allowed/complete` assessment may say `동반 가능`.
+- Kakao travel records say `카카오 검색 후보` and `동반 여부 확인 필요`.
+  Veterinary and pet-shop records say respectively `동물병원` or
+  `펫샵·용품점`, plus `반려동물 편의시설`; neither implies pet access or
+  24-hour operation.
+- Selecting a card selects the same marker and pans only when required.
+  Selecting a marker moves to its sidebar page, scrolls the card into view, and
+  updates the information overlay without a selection loop.
+
+### 6. Performance, accessibility, and regression rules
+
+- Render all coordinate-valid filtered records as compact SDK markers; do not
+  silently cap the map. Render only 12 DOM cards at once.
+- Reuse markers and the single clusterer across page changes, selection,
+  rerenders, pan, and zoom. Full provider collection, recommendation generation,
+  Kakao discovery, and directions are outside the explorer render path.
+- Source controls, map/list modes, pagination, cards, and filters retain visible
+  focus and approximately 44px targets. Map state and errors use concise Korean
+  live-region wording without noisy movement announcements.
+- The singleton Kakao SDK URL remains the only loader and retains
+  `services,clusterer`. Server-only provider and Supabase secrets never enter
+  client code or public DTOs. Homepage shared pins and itinerary numbered
+  markers remain regression requirements.

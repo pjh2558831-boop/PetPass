@@ -17,12 +17,10 @@ export function WeekendoogHero() {
               <br />
               어디로 떠나볼까요?
             </h1>
-            <p className="mt-5 max-w-[520px] text-[15px] font-medium leading-[1.75] text-[var(--muted)] sm:text-[17px]">
-              공식 반려동물 동반 정보를 확인하고,
+            <p className="mt-5 max-w-[540px] text-[15px] font-medium leading-[1.75] text-[var(--muted)] sm:text-[17px]">
+              공식 반려동물 동반 정보와 이동 동선을 바탕으로
               <br />
-              이동시간과 여행 조건을 고려해
-              <br />
-              가장 자연스러운 하루를 만들어드려요.
+              가장 자연스러운 하루 일정을 제안해드려요.
             </p>
             <ButtonLink
               href="/planner/pet"

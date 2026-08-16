@@ -136,6 +136,9 @@ async function installFakeMap(page: Page) {
       targetListeners.set(name, values);
       listeners.set(target, targetListeners);
     };
+    const emit = (target: object, name: string, ...args: unknown[]) => {
+      listeners.get(target)?.get(name)?.forEach((handler) => handler(...args));
+    };
     class LatLng {
       constructor(private latitude: number, private longitude: number) {}
       getLat() { return this.latitude; }
@@ -159,9 +162,20 @@ async function installFakeMap(page: Page) {
       setBounds() {}
     }
     class Marker {
+      private readonly element = document.createElement("button");
+      constructor(options: { title?: string }) {
+        this.element.type = "button";
+        this.element.className = "fake-kakao-native-marker";
+        this.element.setAttribute("aria-label", options.title ?? "지도 마커");
+        this.element.addEventListener("click", () => emit(this, "click"));
+      }
       setImage() {}
-      setMap() {}
+      setMap(map: FakeMap | null) {
+        if (map) map.container.append(this.element);
+        else this.element.remove();
+      }
       setPosition() {}
+      setTitle(title: string) { this.element.setAttribute("aria-label", title); }
       setZIndex() {}
     }
     class Overlay {
@@ -171,7 +185,16 @@ async function installFakeMap(page: Page) {
       setMap(map: FakeMap | null) { if (!map) this.options.content.remove(); }
     }
     class Polyline { setMap() {} }
-    class Clusterer { addMarkers() {} clear() {} }
+    class Clusterer {
+      private markers: Marker[] = [];
+      constructor(private options: { map: FakeMap }) {}
+      addMarkers(markers: Marker[]) {
+        this.markers = markers;
+        markers.forEach((marker) => marker.setMap(this.options.map));
+      }
+      clear() { this.markers.forEach((marker) => marker.setMap(null)); this.markers = []; }
+      redraw() {}
+    }
     window.kakao = { maps: {
       load: (callback: () => void) => callback(),
       event: { addListener, removeListener(target: object, name: string, handler: Listener) { listeners.get(target)?.get(name)?.delete(handler); } },
@@ -229,13 +252,13 @@ test("uses one eager hero image, lazy later slides, manual controls, and six-sec
   await expect(first).toHaveAttribute("fetchpriority", "high");
   await expect.poll(() => requestedHeroImages.size).toBe(1);
 
-  await page.clock.fastForward(6_100);
+  await page.clock.runFor(6_100);
   await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("02 / 11");
   await expect(carousel.locator(".weekendoog-hero-slide.is-active img")).toHaveAttribute("loading", "lazy");
   await expect.poll(() => requestedHeroImages.size).toBe(2);
 
   await carousel.hover();
-  await page.clock.fastForward(12_100);
+  await page.clock.runFor(12_100);
   await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("02 / 11");
   await carousel.getByRole("button", { name: "이전 여행 사진" }).click();
   await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("01 / 11");
@@ -243,6 +266,35 @@ test("uses one eager hero image, lazy later slides, manual controls, and six-sec
   await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("11 / 11");
   await carousel.press("Home");
   await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("01 / 11");
+});
+
+test("uses compact hero copy and three local official partner marks", async ({ page }) => {
+  await mockHomepage(page);
+  await page.goto("/");
+
+  const hero = page.locator(".weekendoog-hero");
+  await expect(hero).toContainText(
+    "공식 반려동물 동반 정보와 이동 동선을 바탕으로",
+  );
+  await expect(hero).toContainText(
+    "가장 자연스러운 하루 일정을 제안해드려요.",
+  );
+
+  const trust = page.locator(".weekendoog-public-data-card");
+  const marks = trust.locator(".weekendoog-partner-mark img");
+  await expect(marks).toHaveCount(3);
+  const sources = await marks.evaluateAll((images) =>
+    images.map((image) => decodeURIComponent(image.getAttribute("src") ?? "")),
+  );
+  expect(sources[0]).toContain(
+    "/brand/partners/kto-horizontal-ko-transparent.png",
+  );
+  expect(sources[1]).toContain("/brand/partners/kakaomap-horizontal-ko.png");
+  expect(sources[2]).toContain(
+    "/brand/partners/mois-horizontal-ko-transparent.png",
+  );
+  await expect(trust.getByText("관광 장소와 반려동물 동반 정보", { exact: true })).toBeVisible();
+  await expect(trust.getByText("지도 표시와 실제 이동시간", { exact: true })).toBeVisible();
 });
 
 test("disables hero autoplay and transition under reduced motion", async ({ page }) => {
@@ -294,8 +346,8 @@ test("renders mixed source markers, dynamic counts, truthful selection, and faci
   await expect(page.getByRole("button", { name: /동물병원\s*42/u })).toHaveAttribute("aria-pressed", "false");
   await page.getByRole("button", { name: /동물병원\s*42/u }).click();
   await expect(mapCanvas).toHaveAttribute("data-location-count", "4");
-  const hospitalMarker = page.getByRole("button", { name: /부산 반려동물 동물병원 · 동물병원 지도 마커/u });
-  await hospitalMarker.click();
+  const hospitalMarker = page.getByRole("button", { name: /부산 반려동물 동물병원 · 동물병원$/u });
+  await hospitalMarker.evaluate((element) => (element as HTMLButtonElement).click());
   const selected = page.locator(".homepage-selected-place");
   await expect(selected).toContainText("동물병원");
   await expect(selected).not.toContainText("동반 가능");
