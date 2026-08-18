@@ -37,12 +37,6 @@ export const HERO_PHOTOS = [
     objectPositionMobile: "50% 64%",
   },
   {
-    src: "/images/home/hero/06-golden-retriever-beach-sunrise.png",
-    alt: "해가 떠오르는 부산 바닷가에 앉아 있는 골든리트리버",
-    objectPositionDesktop: "50% 66%",
-    objectPositionMobile: "50% 68%",
-  },
-  {
     src: "/images/home/hero/07-poodle-wooden-trail.png",
     alt: "푸른 언덕 옆 나무 산책로에 앉아 웃는 갈색 푸들",
     objectPositionDesktop: "47% 62%",
