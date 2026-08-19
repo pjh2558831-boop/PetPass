@@ -14,6 +14,7 @@ export const PET_TRAVEL_CANDIDATE_CATEGORIES = [
   "park_walk",
   "leisure",
   "camping",
+  "shopping",
   "other",
 ] as const;
 

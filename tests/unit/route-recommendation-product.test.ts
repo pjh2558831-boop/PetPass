@@ -130,7 +130,11 @@ const READY: RouteRecommendationReadyResponseV1 = {
 
 class MemoryStorage implements StorageLike {
   readonly values = new Map<string, string>();
-  getItem(key: string) { return this.values.get(key) ?? null; }
+  getItemCalls = 0;
+  getItem(key: string) {
+    this.getItemCalls += 1;
+    return this.values.get(key) ?? null;
+  }
   setItem(key: string, value: string) { this.values.set(key, value); }
   removeItem(key: string) { this.values.delete(key); }
 }
@@ -297,6 +301,47 @@ describe("Stage 5 recommendation product contract", () => {
     expect(serialized).not.toContain("serviceKey");
     expect(serialized).not.toContain("geometry");
     expect(serialized).not.toContain("35.115");
+  });
+
+  it("reads and parses one saved snapshot only once for the same storage hydration", () => {
+    const seed = new MemoryStorage();
+    expect(saveRouteRecommendation(READY, READY.route, seed)).toBe(true);
+    const storage = new MemoryStorage();
+    storage.values.set(
+      "petpass:saved-route-recommendation",
+      seed.values.get("petpass:saved-route-recommendation")!,
+    );
+
+    expect(loadSavedRouteRecommendation(storage)?.route.id).toBe(READY.route.id);
+    expect(loadSavedRouteRecommendation(storage)?.route.id).toBe(READY.route.id);
+    expect(storage.getItemCalls).toBe(1);
+  });
+
+  it.each([
+    ["corrupt JSON", "{broken"],
+    [
+      "unsupported future version",
+      JSON.stringify({ version: 99, data: { route: READY.route } }),
+    ],
+    [
+      "schema-invalid data",
+      JSON.stringify({ version: 1, data: { route: { id: "incomplete" } } }),
+    ],
+  ])("clears only the saved recommendation key for %s", (_label, raw) => {
+    const storage = new MemoryStorage();
+    storage.setItem("petpass:saved-route-recommendation", raw);
+    storage.setItem("petpass:pet-profile", "unrelated-profile");
+
+    expect(loadSavedRouteRecommendation(storage)).toBeNull();
+    expect(storage.values.has("petpass:saved-route-recommendation")).toBe(false);
+    expect(storage.values.get("petpass:pet-profile")).toBe("unrelated-profile");
+  });
+
+  it("returns null without mutating storage when no saved recommendation exists", () => {
+    const storage = new MemoryStorage();
+
+    expect(loadSavedRouteRecommendation(storage)).toBeNull();
+    expect(storage.values.size).toBe(0);
   });
 
   it("returns a non-blocking false result when browser persistence fails", () => {

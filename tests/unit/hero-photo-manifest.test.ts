@@ -8,9 +8,10 @@ import {
 } from "@/lib/homepage/hero-photo-manifest";
 
 describe("homepage hero photo manifest", () => {
-  it("keeps all eleven supplied originals in stable order with meaningful responsive metadata", async () => {
-    expect(HERO_PHOTOS).toHaveLength(11);
-    expect(new Set(HERO_PHOTOS.map(({ src }) => src)).size).toBe(11);
+  it("keeps the ten approved originals after image 06 removal with meaningful responsive metadata", async () => {
+    expect(HERO_PHOTOS).toHaveLength(10);
+    expect(new Set(HERO_PHOTOS.map(({ src }) => src)).size).toBe(10);
+    expect(HERO_PHOTOS.some(({ src }) => src.includes("/06-"))).toBe(false);
     expect(HERO_PHOTOS[0].src).toBe("/images/home/hero/01-corgi-tulips.png");
     expect(HERO_PHOTOS.at(-1)?.src).toBe("/images/home/hero/11-poodle-yellow-field.png");
     for (const photo of HERO_PHOTOS) {

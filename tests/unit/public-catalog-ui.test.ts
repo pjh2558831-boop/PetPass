@@ -8,20 +8,21 @@ describe("public catalog URL state", () => {
   it("restores allowlisted filters", () => {
     expect(parsePublicCatalogUrlState({
       district: "500",
-      category: "cafe",
+      categories: "cafe,shopping",
       layers: "tourism,kakao,veterinary,pet_shop",
       page: "3",
     })).toEqual({
       district: "500",
-      category: "cafe",
+      categories: ["cafe", "shopping"],
       layers: [...PUBLIC_CATALOG_LAYERS],
       page: 3,
+      sort: "recommendation",
     });
   });
 
   it("fails invalid values to safe defaults", () => {
-    expect(parsePublicCatalogUrlState({ district: "seoul", category: "shopping", layers: "tourism,raw", page: "-1" }))
-      .toEqual({ district: "all", category: "all", layers: [...PUBLIC_CATALOG_LAYERS], page: 1 });
+    expect(parsePublicCatalogUrlState({ district: "seoul", categories: "invalid", layers: "tourism,raw", page: "-1" }))
+      .toEqual({ district: "all", categories: ["attraction", "food", "cafe", "accommodation"], layers: [...PUBLIC_CATALOG_LAYERS], page: 1, sort: "recommendation" });
   });
 
   it("restores an explicit all-layers-off state", () => {
@@ -40,9 +41,9 @@ describe("public catalog normalization", () => {
     source: { provider: "Korea Tourism Organization", operation: "areaBasedList2", retrievedAt: "2026-08-15T00:00:00Z" },
   } satisfies TourPlaceSummary;
 
-  it("normalizes shopping and unknown Tourism content to other without claiming access", () => {
+  it("normalizes Tourism shopping canonically without claiming access", () => {
     expect(normalizeTourCatalogPlace(tourPlace)).toMatchObject({
-      id: "tour:tour-1", layer: "tourism", category: "other",
+      id: "tour:tour-1", layer: "tourism", category: "shopping",
       publicLabel: "동반 정보 확인 필요", warning: null,
     });
   });

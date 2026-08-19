@@ -12,15 +12,19 @@ import {
   type PublicMapPlaceKind,
   type PublicMapPlacePage,
 } from "@/types/public-map-place";
+import { normalizeKakaoCatalogMarker } from "@/types/public-catalog-place";
 
 const CACHE_HEADERS = { "Cache-Control": "private, no-store" } as const;
-const ALLOWED_PARAMETERS = new Set(["district", "kinds", "category", "page", "pageSize"]);
+const ALLOWED_PARAMETERS = new Set(["district", "kinds", "category", "categories", "page", "pageSize", "afterId", "view"]);
 const rawQuerySchema = z.object({
   district: z.string().trim().optional(),
   kinds: z.string().trim().optional(),
   category: z.string().trim().optional(),
+  categories: z.string().trim().optional(),
   page: z.coerce.number().int().min(1).max(100).default(1),
   pageSize: z.coerce.number().int().min(1).max(200).default(200),
+  afterId: z.coerce.number().int().positive().optional(),
+  view: z.enum(["cards", "markers"]).default("cards"),
 });
 
 function parseKinds(value: string | undefined): PublicMapPlaceKind[] | null | undefined {
@@ -46,13 +50,23 @@ function parseMapQuery(request: Request): PublicMapCatalogQuery | null {
     category &&
     !PUBLIC_MAP_PLACE_CATEGORIES.includes(category as PublicMapPlaceCategory)
   ) return null;
-  return {
+  const categories = parsed.data.categories
+    ? [...new Set(parsed.data.categories.split(",").map((value) => value.trim()).filter(Boolean))]
+    : undefined;
+  if (category && categories) return null;
+  if (categories && (categories.length === 0 || categories.some(
+    (value) => !PUBLIC_MAP_PLACE_CATEGORIES.includes(value as PublicMapPlaceCategory),
+  ))) return null;
+  const query: PublicMapCatalogQuery = {
     districtCodes: parsed.data.district ? [parsed.data.district] : undefined,
     kinds,
     category: category as PublicMapPlaceCategory | undefined,
     page: parsed.data.page,
     pageSize: parsed.data.pageSize,
   };
+  if (categories) query.categories = categories as PublicMapPlaceCategory[];
+  if (parsed.data.afterId !== undefined) query.afterId = parsed.data.afterId;
+  return query;
 }
 
 export interface MapPlacesRouteDependencies {
@@ -70,11 +84,10 @@ export function createMapPlacesHandler(dependencies: MapPlacesRouteDependencies 
       );
     }
     try {
-      return apiSuccess(
-        await (dependencies.query ?? queryPublicMapCatalog)(input),
-        200,
-        CACHE_HEADERS,
-      );
+      const page = await (dependencies.query ?? queryPublicMapCatalog)(input);
+      return apiSuccess(new URL(request.url).searchParams.get("view") !== "markers"
+        ? page
+        : { ...page, items: page.items.map(normalizeKakaoCatalogMarker) }, 200, CACHE_HEADERS);
     } catch {
       return apiFailure(
         { code: "UPSTREAM_ERROR", message: "지도 장소를 불러오지 못했습니다.", retryable: true },

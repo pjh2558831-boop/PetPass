@@ -29,6 +29,10 @@ const publicCatalogRowSchema = z.object({
   review_status: z.enum(PUBLIC_MAP_REVIEW_STATUSES),
   public_label: z.string().min(1),
   source: z.literal("kakao_search_candidate"),
+  category_group_code: z.string().nullable(),
+  last_seen_at: z.string().min(1),
+  matched_query_count: z.number().int().nonnegative(),
+  category_query_agreement_count: z.number().int().nonnegative(),
   total_count: z.number().int().nonnegative(),
   has_more: z.boolean(),
 });
@@ -37,8 +41,10 @@ export interface PublicMapCatalogQuery {
   districtCodes?: string[];
   kinds?: PublicMapPlaceKind[];
   category?: PublicMapPlaceCategory;
+  categories?: PublicMapPlaceCategory[];
   page: number;
   pageSize: number;
+  afterId?: number;
 }
 
 type RpcPage = Awaited<ReturnType<typeof queryRpcPage>>;
@@ -48,9 +54,9 @@ async function queryRpcPage(
   afterId: number | null,
 ) {
   const supabase = createMapSupabaseClient();
-  const { data, error } = await supabase.rpc("get_public_map_catalog_v1", {
+  const { data, error } = await supabase.rpc("get_public_map_catalog_v2", {
     p_candidate_kinds: input.kinds,
-    p_normalized_categories: input.category ? [input.category] : undefined,
+    p_normalized_categories: input.categories ?? (input.category ? [input.category] : undefined),
     p_district_codes: input.districtCodes,
     p_after_id: afterId ?? undefined,
     p_result_limit: input.pageSize,
@@ -84,7 +90,31 @@ function toDto(row: z.infer<typeof publicCatalogRowSchema>): PublicMapPlaceDTO {
     source: row.source,
     reviewStatus: row.review_status,
     publicLabel: row.public_label,
+    categoryGroupCode: row.category_group_code,
+    lastSeenAt: row.last_seen_at,
+    matchedQueryCount: row.matched_query_count,
+    categoryQueryAgreementCount: row.category_query_agreement_count,
   });
+}
+
+const locationRowSchema = z.object({
+  provider_place_id: z.string().min(1),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+});
+
+export async function findPublicMapPlaceLocation(
+  providerPlaceId: string,
+): Promise<{ latitude: number; longitude: number } | null> {
+  const supabase = createMapSupabaseClient();
+  const { data, error } = await supabase.rpc("get_public_map_place_location_v1", {
+    p_provider_place_id: providerPlaceId,
+  });
+  if (error) throw new Error("공개 지도 장소 위치를 조회하지 못했습니다.");
+  const parsed = locationRowSchema.array().parse(data ?? []);
+  return parsed[0]
+    ? { latitude: parsed[0].latitude, longitude: parsed[0].longitude }
+    : null;
 }
 
 export async function queryPublicMapCatalog(
@@ -92,12 +122,13 @@ export async function queryPublicMapCatalog(
   dependencies: PublicCatalogRepositoryDependencies = {},
 ): Promise<PublicMapPlacePage> {
   const queryPage = dependencies.queryPage ?? queryRpcPage;
-  let afterId: number | null = null;
+  let afterId: number | null = input.afterId ?? null;
   let rows: RpcPage = [];
 
-  for (let currentPage = 1; currentPage <= input.page; currentPage += 1) {
+  const pagesToWalk = input.afterId === undefined ? input.page : 1;
+  for (let currentPage = 1; currentPage <= pagesToWalk; currentPage += 1) {
     rows = await queryPage(input, afterId);
-    if (currentPage === input.page || rows.length === 0) break;
+    if (currentPage === pagesToWalk || rows.length === 0) break;
     afterId = rows.at(-1)?.id ?? null;
   }
 
@@ -108,5 +139,6 @@ export async function queryPublicMapCatalog(
     pageSize: input.pageSize,
     totalCount,
     hasNext: rows.length > 0 && rows[0].has_more,
+    nextCursor: rows.at(-1)?.id ?? null,
   };
 }

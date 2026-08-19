@@ -4,6 +4,7 @@ export default defineConfig({
   testDir: "./tests/e2e",
   testIgnore: "**/*-live.spec.ts",
   fullyParallel: true,
+  workers: 2,
   retries: process.env.CI ? 2 : 0,
   reporter: "list",
   use: {
@@ -20,6 +21,7 @@ export default defineConfig({
       PETPASS_E2E_UPSTREAM_MOCK: "1",
       NEXT_PUBLIC_KAKAO_MAP_JS_KEY: "e2e-test-key",
       KAKAO_REST_API_KEY: "e2e-test-key",
+      KAKAO_STATIC_MAP_THUMBNAILS_ENABLED: "false",
       TOUR_API_SERVICE_KEY: "e2e-test-key",
       TOUR_API_BASE_URL:
         "https://apis.data.go.kr/B551011/KorPetTourService2",

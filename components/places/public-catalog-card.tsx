@@ -2,30 +2,31 @@
 
 import Link from "next/link";
 import { ExternalLink, LocateFixed, MapPin } from "lucide-react";
-import { PlaceImage } from "@/components/places/place-image";
+import { PlaceCardMedia } from "@/components/places/place-card-media";
+import { mapCatalogPlaceToCategory, PLACE_CATEGORY_LABELS } from "@/lib/map-places/place-categories";
+import { resolvePlaceCardImage } from "@/lib/map-places/place-card-image";
 import type { PublicCatalogPlace } from "@/types/public-catalog-place";
-
-const CATEGORY_LABELS = {
-  cafe: "카페", food: "음식점", accommodation: "숙박", attraction: "관광·문화",
-  park_walk: "공원·산책", leisure: "레저", camping: "캠핑", other: "기타",
-} as const;
 
 export function PublicCatalogCard({
   place,
   selected,
   onSelect,
+  staticMapEnabled,
 }: {
   place: PublicCatalogPlace;
   selected: boolean;
   onSelect: () => void;
+  staticMapEnabled: boolean;
 }) {
   const isExternal = place.placeUrl?.startsWith("http") ?? false;
+  const category = mapCatalogPlaceToCategory(place);
+  const image = resolvePlaceCardImage(place, { staticMapEnabled });
   return (
     <article
       id={`place-card-${place.id.replace(":", "-")}`}
       className={`catalog-result-card ${selected ? "is-selected" : ""}`}
     >
-      <PlaceImage imageUrl={place.imageUrl} title={place.name} sizes="132px" className="catalog-result-card__image !min-h-0 !rounded-xl" />
+      <PlaceCardMedia image={image} fallbackCategory={category} className="catalog-result-card__image rounded-xl" />
       <div className="catalog-result-card__body">
         <div className="catalog-result-card__badges">
           <span>{place.sourceLabel}</span>
@@ -33,7 +34,7 @@ export function PublicCatalogCard({
         </div>
         <h3>{place.name}</h3>
         <p><MapPin size={13} aria-hidden="true" />{place.address}</p>
-        <small>{CATEGORY_LABELS[place.category]}</small>
+        <small>{PLACE_CATEGORY_LABELS[category]}</small>
         {place.warning ? <p className="catalog-result-card__warning">{place.warning}</p> : null}
         <div className="catalog-result-card__actions">
           <button type="button" onClick={onSelect} aria-label={`${place.name} 지도에서 보기`}><LocateFixed size={14} aria-hidden="true" />지도</button>

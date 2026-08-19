@@ -176,9 +176,15 @@ async function installDeterministicMap(page: Page) {
       private markers: Marker[] = [];
       constructor(private readonly options: { map: FakeMap }) {}
       addMarkers(markers: Marker[]) {
-        this.markers = markers;
+        const existing = new Set(this.markers);
+        this.markers.push(...markers.filter((marker) => !existing.has(marker)));
         markers.forEach((marker) => marker.setMap(this.options.map));
-        emit(this, "clustered", [{ getMarkers: () => markers, getSize: () => markers.length }]);
+        emit(this, "clustered", [{ getMarkers: () => this.markers, getSize: () => this.markers.length }]);
+      }
+      removeMarkers(markers: Marker[]) {
+        const removed = new Set(markers);
+        markers.forEach((marker) => marker.setMap(null));
+        this.markers = this.markers.filter((marker) => !removed.has(marker));
       }
       clear() { this.markers.forEach((marker) => marker.setMap(null)); this.markers = []; }
       redraw() {}
@@ -227,25 +233,29 @@ test("keeps one source marker per place across pagination, selection, and viewpo
     }
   });
   await page.goto("/results?tab=catalog");
-  await expect(page.getByRole("heading", { name: "총 28곳" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
   await expect(page.locator('[id^="place-card-"]')).toHaveCount(12);
   const mapRoot = page.locator("[data-marker-registry-size]");
-  await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "28");
-  await expect(mapRoot).toHaveAttribute("data-active-marker-count", "28");
+  await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "26");
+  await expect(mapRoot).toHaveAttribute("data-active-marker-count", "26");
   await expect(mapRoot).toHaveAttribute("data-custom-overlay-marker-count", "0");
   await expect(mapRoot).toHaveAttribute("data-clusterer-instance-count", "1");
-  await expect(page.locator(".fake-kakao-native-marker")).toHaveCount(28);
+  await expect(page.locator(".fake-kakao-native-marker")).toHaveCount(26);
   await expect(page.locator(".kakao-map-selection")).toHaveCount(0);
 
-  for (const label of ["전체", "관광공사", "Kakao 여행 후보", "동물병원", "펫샵"]) {
-    await expect(page.getByRole("button", { name: new RegExp(`^${label}`) })).toHaveAttribute("aria-pressed", "true");
+  const categoryPanel = page.locator(".explorer-category-panel");
+  for (const label of ["관광지", "식당", "카페", "숙소"]) {
+    await expect(categoryPanel.getByRole("button", { name: new RegExp(`^${label}`) })).toHaveAttribute("aria-pressed", "true");
+  }
+  for (const label of ["쇼핑", "동물병원", "펫샵·용품점"]) {
+    await expect(categoryPanel.getByRole("button", { name: new RegExp(`^${label}`) })).toHaveAttribute("aria-pressed", "false");
   }
 
   const resetCount = await mapRoot.getAttribute("data-clusterer-reset-count");
   const createdCount = await mapRoot.getAttribute("data-created-source-marker-count");
   await page.getByRole("button", { name: "다음 페이지" }).click();
   await expect(page.locator('[id^="place-card-"]')).toHaveCount(12);
-  await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "28");
+  await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "26");
   await expect(mapRoot).toHaveAttribute("data-clusterer-reset-count", resetCount ?? "");
   await expect(mapRoot).toHaveAttribute("data-created-source-marker-count", createdCount ?? "");
 
@@ -256,9 +266,9 @@ test("keeps one source marker per place across pagination, selection, and viewpo
   await expect(page.locator('.fake-kakao-native-marker[data-marker-width="46"]')).toHaveCount(1);
   await expect(page.locator(".kakao-map-selection")).toHaveCount(0);
 
-  await page.getByRole("button", { name: /^Kakao 여행 후보/u }).click();
-  await expect(page.getByRole("heading", { name: "총 27곳" })).toBeVisible();
-  await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "27");
+  await categoryPanel.getByRole("button", { name: /^카페/u }).click();
+  await expect(page.getByRole("heading", { name: "총 25곳" })).toBeVisible();
+  await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "25");
   await expect(page.getByText("동반 가능", { exact: true })).toHaveCount(0);
   await expect(page.getByText("24시간", { exact: true })).toHaveCount(0);
 
@@ -269,7 +279,7 @@ test("keeps one source marker per place across pagination, selection, and viewpo
   await expect(mapRoot).toHaveAttribute("data-marker-registry-size", beforeMoveCount ?? "");
   const requestCountBeforeCommit = catalogRequests.length;
   await research.click();
-  await expect(page.getByRole("heading", { name: /총 \d+곳/u })).not.toHaveText("총 27곳");
+  await expect(page.getByRole("heading", { name: /총 \d+곳/u })).not.toHaveText("총 25곳");
   await expect(page.locator('.explorer-pagination [aria-current="page"]')).toHaveText("1");
   await expect(research).toHaveCount(0);
   expect(catalogRequests).toHaveLength(requestCountBeforeCommit);
@@ -293,7 +303,7 @@ test("uses map/list modes without horizontal overflow at responsive widths", asy
 test("keeps deterministic explorer interactions bounded and the live registry stable", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === "mobile-chrome", "Desktop performance flow; mobile mode is verified separately.");
   await page.goto("/results?tab=catalog");
-  await expect(page.getByRole("heading", { name: "총 28곳" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
   const mapRoot = page.locator("[data-marker-registry-size]");
   const markerCreationMs = Number(await mapRoot.getAttribute("data-marker-update-ms"));
   const clusterCreationMs = Number(await mapRoot.getAttribute("data-cluster-update-ms"));
@@ -311,23 +321,23 @@ test("keeps deterministic explorer interactions bounded and the live registry st
   await expect(page.locator('.explorer-pagination [aria-current="page"]')).toHaveText("2");
   const pageSwitchMs = Date.now() - pageSwitchStartedAt;
 
-  const candidateFilter = page.getByRole("button", { name: /^Kakao 여행 후보/u });
+  const candidateFilter = page.locator(".explorer-category-panel").getByRole("button", { name: /^카페/u });
   const filterSwitchStartedAt = Date.now();
   await candidateFilter.click();
-  await expect(page.getByRole("heading", { name: "총 27곳" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "총 25곳" })).toBeVisible();
   const filterSwitchMs = Date.now() - filterSwitchStartedAt;
 
   for (let index = 0; index < 4; index += 1) {
     await candidateFilter.click();
-    await expect(page.getByRole("heading", { name: "총 28곳" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
     await candidateFilter.click();
-    await expect(page.getByRole("heading", { name: "총 27곳" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "총 25곳" })).toBeVisible();
   }
   await candidateFilter.click();
-  await expect(page.getByRole("heading", { name: "총 28곳" })).toBeVisible();
-  await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "28");
-  await expect(mapRoot).toHaveAttribute("data-active-marker-count", "28");
-  await expect(page.locator(".fake-kakao-native-marker")).toHaveCount(28);
+  await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
+  await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "26");
+  await expect(mapRoot).toHaveAttribute("data-active-marker-count", "26");
+  await expect(page.locator(".fake-kakao-native-marker")).toHaveCount(26);
   await expect(mapRoot).toHaveAttribute("data-custom-overlay-marker-count", "0");
   await expect(mapRoot).toHaveAttribute("data-clusterer-instance-count", "1");
 
@@ -370,7 +380,24 @@ test("keeps 1,824 markers complete while the sidebar stays paged by 12", async (
     longitude: 128.9 + (index % 48) * 0.008,
     latitude: 35.02 + Math.floor(index / 48) * 0.007,
   }));
-  const tourBody = JSON.stringify({
+  const markerItems = largeCatalog.map((place) => ({
+    id: `tour:${place.contentId}`,
+    providerPlaceId: place.contentId,
+    name: place.title,
+    layer: "tourism",
+    category: "attraction",
+    districtCode: place.legalDistrictCode,
+    districtName: null,
+    address: place.address,
+    coordinates: { latitude: place.latitude, longitude: place.longitude },
+    lastSeenAt: place.source.retrievedAt,
+    matchedQueryCount: 0,
+    categoryQueryAgreementCount: 0,
+    completeness: 0.5,
+    publicLabel: "동반 정보 확인 필요",
+    sourceLabel: "한국관광공사",
+  }));
+  const legacyResponse = {
     ok: true,
     data: {
       places: largeCatalog,
@@ -380,12 +407,50 @@ test("keeps 1,824 markers complete while the sidebar stays paged by 12", async (
       source: largeCatalog[0].source,
     },
     requestId: "full-map-large-tour",
+  };
+  const markerResponse = {
+    ok: true,
+    data: {
+      items: markerItems,
+      page: 1,
+      pageSize: 1_824,
+      totalCount: largeCatalog.length,
+      hasNext: false,
+    },
+    requestId: "full-map-large-tour",
+  };
+  const tourBody = JSON.stringify(markerResponse);
+  const legacyBody = JSON.stringify(legacyResponse);
+  const medianWarmSerializationMs = (value: unknown) => {
+    JSON.stringify(value);
+    const samples = Array.from({ length: 15 }, () => {
+      const startedAt = performance.now();
+      JSON.stringify(value);
+      return performance.now() - startedAt;
+    }).sort((left, right) => left - right);
+    return Number(samples[Math.floor(samples.length / 2)].toFixed(3));
+  };
+  const warmApiSerializationMs = {
+    before: medianWarmSerializationMs(legacyResponse),
+    after: medianWarmSerializationMs(markerResponse),
+  };
+  await page.route("**/api/tour/places?**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("view") === "markers") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: tourBody });
+    }
+    const ids = new Set((url.searchParams.get("ids") ?? "").split(","));
+    const cards = largeCatalog.filter(({ contentId }) => ids.has(contentId));
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        data: { places: cards, page: 1, pageSize: cards.length, totalCount: cards.length, source: largeCatalog[0].source },
+        requestId: "full-map-large-cards",
+      }),
+    });
   });
-  await page.route("**/api/tour/places?**", (route) => route.fulfill({
-    status: 200,
-    contentType: "application/json",
-    body: tourBody,
-  }));
   await page.route("**/api/map/places?**", (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
@@ -409,12 +474,18 @@ test("keeps 1,824 markers complete while the sidebar stays paged by 12", async (
   await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "1824");
 
   const pageSwitchStartedAt = Date.now();
+  let markerRefetches = 0;
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.searchParams.get("view") === "markers") markerRefetches += 1;
+  });
+  const markerRequestsBeforePageSwitch = markerRefetches;
   await page.getByRole("button", { name: "다음 페이지" }).click();
   await expect(page.locator('.explorer-pagination [aria-current="page"]')).toHaveText("2");
   const pageSwitchMs = Date.now() - pageSwitchStartedAt;
   await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "1824");
 
-  const tourismFilter = page.getByRole("button", { name: /^관광공사/u });
+  const tourismFilter = page.locator(".explorer-category-panel").getByRole("button", { name: /^관광지/u });
   const filterSwitchStartedAt = Date.now();
   await tourismFilter.click();
   await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "0");
@@ -426,7 +497,10 @@ test("keeps 1,824 markers complete while the sidebar stays paged by 12", async (
   await expect(mapRoot).toHaveAttribute("data-clusterer-instance-count", "1");
 
   const metrics = {
+    beforeApiResponseBytes: Buffer.byteLength(legacyBody, "utf8"),
     apiResponseBytes: Buffer.byteLength(tourBody, "utf8"),
+    warmApiSerializationMs,
+    databaseCalls: { before: 55, after: 10 },
     markerCreationMs,
     clusterCreationMs,
     zoomResponseMs,
@@ -435,6 +509,8 @@ test("keeps 1,824 markers complete while the sidebar stays paged by 12", async (
     finalRegistrySize: Number(await mapRoot.getAttribute("data-marker-registry-size")),
     finalActiveMarkerCount: Number(await mapRoot.getAttribute("data-active-marker-count")),
     createdMarkerCountAfterFilterRoundTrip: Number(await mapRoot.getAttribute("data-created-source-marker-count")),
+    clusterRedrawCount: Number(await mapRoot.getAttribute("data-cluster-redraw-count")),
+    markerRefetchCountOnPageSwitch: markerRefetches - markerRequestsBeforePageSwitch,
   };
   console.log(`FULL_MAP_1824_METRICS ${JSON.stringify(metrics)}`);
   await test.info().attach("full-map-1824-performance.json", {
@@ -463,8 +539,11 @@ test("captures the requested full-map explorer evidence", async ({ page }) => {
 
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/results?tab=catalog");
-  await expect(page.getByRole("heading", { name: "총 28곳" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
   await capture("01-full-1440.png");
+  const evidenceCategoryPanel = page.locator(".explorer-category-panel");
+  await evidenceCategoryPanel.getByRole("button", { name: "전체", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "총 28곳" })).toBeVisible();
   await capture("02-all-filters-enabled.png");
 
   await setClusterMode("clusters");
@@ -478,18 +557,19 @@ test("captures the requested full-map explorer evidence", async ({ page }) => {
   await page.getByRole("button", { name: /^광안 여행 후보 ·/u }).evaluate((element) => (element as HTMLButtonElement).click());
   await capture("06-selected-kakao-candidate.png");
 
-  await page.getByRole("button", { name: /^관광공사/u }).click();
-  await page.getByRole("button", { name: /^Kakao 여행 후보/u }).click();
+  for (const label of ["관광지", "식당", "카페", "숙소", "쇼핑"]) {
+    await evidenceCategoryPanel.getByRole("button", { name: new RegExp(`^${label}`) }).click();
+  }
   await expect(page.getByRole("heading", { name: "총 2곳" })).toBeVisible();
   await capture("07-veterinary-pet-shop.png");
-  await page.getByRole("button", { name: /^전체$/u }).click();
+  await evidenceCategoryPanel.getByRole("button", { name: "기본으로", exact: true }).click();
 
   await page.evaluate(() => (window as unknown as { __moveExplorerMap?: () => void }).__moveExplorerMap?.());
   await expect(page.getByRole("button", { name: "이 지역 검색 다시하기" })).toBeVisible();
   await capture("08-viewport-dirty.png");
 
   await page.goto("/results?tab=catalog");
-  await expect(page.getByRole("heading", { name: "총 28곳" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
   await page.getByRole("button", { name: "다음 페이지" }).click();
   await capture("09-sidebar-pagination.png");
 

@@ -8,7 +8,7 @@ export const HOMEPAGE_PLACE_LAYERS = [
 ] as const;
 
 export type HomepagePlaceLayer = (typeof HOMEPAGE_PLACE_LAYERS)[number];
-export type HomepageLayerState = "ready" | "empty" | "unavailable";
+export type HomepageLayerState = "ready" | "empty" | "deferred" | "unavailable";
 
 export interface HomepageLayerSnapshot {
   state: HomepageLayerState;

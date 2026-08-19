@@ -560,6 +560,63 @@ export type Database = {
           total_count: number
         }[]
       }
+      get_public_map_catalog_v2: {
+        Args: {
+          p_after_id?: number
+          p_candidate_kinds?: string[]
+          p_district_codes?: string[]
+          p_east?: number
+          p_normalized_categories?: string[]
+          p_north?: number
+          p_result_limit?: number
+          p_south?: number
+          p_west?: number
+        }
+        Returns: {
+          address: string
+          candidate_kind: string
+          category_group_code: string | null
+          category_query_agreement_count: number
+          district_code: string
+          district_name: string
+          has_more: boolean
+          id: number
+          last_seen_at: string
+          latitude: number
+          longitude: number
+          matched_query_count: number
+          name: string
+          normalized_category: string
+          phone: string | null
+          place_url: string
+          provider_place_id: string
+          public_label: string
+          review_status: string
+          source: string
+          total_count: number
+        }[]
+      }
+      get_public_map_place_location_v1: {
+        Args: { p_provider_place_id: string }
+        Returns: {
+          latitude: number
+          longitude: number
+          provider_place_id: string
+        }[]
+      }
+      start_kakao_catalog_delta_run_v2: {
+        Args: {
+          p_collector_version: string
+          p_is_full_catalog_run?: boolean
+          p_queries: Json
+          p_registry_version: string
+          p_started_at?: string
+        }
+        Returns: {
+          planned_query_count: number
+          run_id: number
+        }[]
+      }
       start_kakao_catalog_run_v1: {
         Args: {
           p_collector_version: string

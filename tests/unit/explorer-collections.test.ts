@@ -28,10 +28,15 @@ function place(index: number, layer: PublicCatalogLayer = "tourism"): PublicCata
 }
 
 describe("full explorer collections", () => {
+  const common = {
+    categories: ["attraction", "food", "cafe", "accommodation", "shopping", "veterinary", "pet_shop"] as const,
+    rankingAsOf: "2026-08-19T00:00:00.000Z",
+    sort: "recommendation" as const,
+  };
   it("keeps all filtered places on the map while cards page by 12", () => {
     const places = Array.from({ length: 25 }, (_, index) => place(index + 1));
-    const first = getExplorerCollections({ places, district: "all", category: "all", layers: [...PUBLIC_CATALOG_LAYERS], activeBounds: null, page: 1, sort: "source" });
-    const second = getExplorerCollections({ places, district: "all", category: "all", layers: [...PUBLIC_CATALOG_LAYERS], activeBounds: null, page: 2, sort: "source" });
+    const first = getExplorerCollections({ places, district: "all", layers: [...PUBLIC_CATALOG_LAYERS], activeBounds: null, page: 1, ...common, categories: [...common.categories] });
+    const second = getExplorerCollections({ places, district: "all", layers: [...PUBLIC_CATALOG_LAYERS], activeBounds: null, page: 2, ...common, categories: [...common.categories] });
 
     expect(first.filteredPlaces).toHaveLength(25);
     expect(first.mapPlaces).toHaveLength(25);
@@ -47,11 +52,12 @@ describe("full explorer collections", () => {
     const result = getExplorerCollections({
       places,
       district: "all",
-      category: "all",
+      categories: [...common.categories],
       layers: ["tourism", "kakao"],
       activeBounds: { west: 129.09, south: 35.09, east: 129.103, north: 35.103 },
       page: 1,
-      sort: "source",
+      sort: "recommendation",
+      rankingAsOf: common.rankingAsOf,
     });
 
     expect(result.filteredPlaces.map(({ id }) => id)).toEqual(["tourism:1", "kakao:2"]);

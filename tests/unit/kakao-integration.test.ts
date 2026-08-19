@@ -248,13 +248,17 @@ describe("Kakao integration boundaries", () => {
       markers: FakeMarker[] = [];
       options: { styles?: Array<Record<string, string>> };
       addMarkers = vi.fn((markers: FakeMarker[]) => {
-        this.markers = markers;
+        this.markers.push(...markers.filter((marker) => !this.markers.includes(marker)));
         emit(this, "clustered", [
           {
             getMarkers: () => markers,
             getSize: () => markers.length,
           },
         ]);
+      });
+      removeMarkers = vi.fn((markers: FakeMarker[]) => {
+        const removed = new Set(markers);
+        this.markers = this.markers.filter((marker) => !removed.has(marker));
       });
       clear = vi.fn(() => {
         this.markers = [];
@@ -413,7 +417,8 @@ describe("Kakao integration boundaries", () => {
       { fitBounds: false },
     );
     expect(clusterers).toHaveLength(1);
-    expect(clusterers[0].clear).toHaveBeenCalled();
+    expect(clusterers[0].clear).not.toHaveBeenCalled();
+    expect(clusterers[0].removeMarkers).toHaveBeenCalledTimes(1);
     expect(clusterers[0].addMarkers).toHaveBeenCalledTimes(2);
     expect(clusterers[0].redraw).toHaveBeenCalledTimes(2);
     expect(mapInstances[0].setBounds).toHaveBeenCalledTimes(1);
@@ -437,7 +442,7 @@ describe("Kakao integration boundaries", () => {
     expect(clusterers[0].clear).toHaveBeenCalledTimes(clearCountBeforeZoom);
 
     controller.destroy();
-    expect(clusterers[0].clear).toHaveBeenCalledTimes(4);
+    expect(clusterers[0].clear).toHaveBeenCalledTimes(1);
     expect(removeListener).toHaveBeenCalledWith(
       clusterers[0],
       "clustered",
@@ -466,6 +471,8 @@ describe("Kakao integration boundaries", () => {
     expect(markers.slice(fallbackMarkerStart)).toHaveLength(1);
     expect(markers.at(-1)?.options.image?.source).toBe("/map-pins/tourism-official.svg");
     expect(markers.at(-1)?.setMap).toHaveBeenCalledWith(mapInstances.at(-1));
+    fallbackController.updateData([], [], { fitBounds: false });
+    expect(markers.at(-1)?.setMap).toHaveBeenLastCalledWith(null);
     fallbackController.destroy();
   });
 });

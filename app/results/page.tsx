@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PlannerProgress } from "@/components/layout/planner-progress";
 import { ResultsExplorer } from "@/components/places/results-explorer";
 import { parsePublicCatalogUrlState } from "@/lib/map-places/catalog-url";
+import { staticMapThumbnailsEnabled } from "@/lib/kakao/static-map";
 
 export const metadata: Metadata = {
   title: "부산 장소 찾기",
@@ -20,6 +21,7 @@ export default async function ResultsPage({
       <ResultsExplorer
         initialTab={params.tab === "recommendations" ? "recommendations" : "catalog"}
         initialCatalogState={initialCatalogState}
+        staticMapEnabled={staticMapThumbnailsEnabled()}
       />
     </div>
   );

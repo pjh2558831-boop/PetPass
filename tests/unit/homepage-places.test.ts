@@ -140,6 +140,7 @@ describe("provider-neutral homepage place snapshot", () => {
       service,
       collectOfficial: async () => officialSnapshot(),
       queryPublicCatalog,
+      includeOptional: true,
     });
 
     expect(queryPublicCatalog).toHaveBeenCalledTimes(3);
@@ -169,19 +170,22 @@ describe("provider-neutral homepage place snapshot", () => {
   });
 
   it("keeps official places usable and reports null instead of fake zero when stored layers fail", async () => {
+    const queryPublicCatalog = vi.fn(async () => { throw new Error("Supabase unavailable"); });
     const result = await collectHomepagePlacesSnapshot({
       service,
       collectOfficial: async () => officialSnapshot(),
-      queryPublicCatalog: async () => { throw new Error("Supabase unavailable"); },
+      queryPublicCatalog,
     });
 
+    expect(queryPublicCatalog).toHaveBeenCalledTimes(1);
+    expect(queryPublicCatalog).toHaveBeenCalledWith(expect.objectContaining({ kinds: ["pet_travel_candidate"] }));
     expect(result.markers.filter(({ layer }) => layer === "official")).toHaveLength(2);
-    for (const layer of ["kakao_candidate", "veterinary", "pet_shop"] as const) {
+    expect(result.layers.kakao_candidate).toEqual({
+      state: "unavailable", count: null, markerCount: null, enabledByDefault: true,
+    });
+    for (const layer of ["veterinary", "pet_shop"] as const) {
       expect(result.layers[layer]).toEqual({
-        state: "unavailable",
-        count: null,
-        markerCount: null,
-        enabledByDefault: layer === "kakao_candidate",
+        state: "deferred", count: null, markerCount: null, enabledByDefault: false,
       });
     }
   });

@@ -46,7 +46,8 @@ const PUBLIC_CATEGORY_LABELS = {
   attraction: "관광·문화",
   park_walk: "공원·산책",
   leisure: "레저",
-  camping: "캠핑",
+    camping: "캠핑",
+    shopping: "쇼핑",
   other: "기타",
 } as const;
 
@@ -96,6 +97,7 @@ export interface HomepagePlacesDependencies {
     now?: () => Date;
   }) => Promise<TourHomepageSnapshot>;
   queryPublicCatalog?: PublicCatalogLoader;
+  includeOptional?: boolean;
 }
 
 function hasCoordinates(place: TourPlaceSummary): place is TourPlaceSummary & {
@@ -211,14 +213,20 @@ function unavailableLayer(enabledByDefault: boolean): HomepageLayerSnapshot {
   };
 }
 
+function deferredLayer(): HomepageLayerSnapshot {
+  return { state: "deferred", count: null, markerCount: null, enabledByDefault: false };
+}
+
 export async function collectHomepagePlacesSnapshot({
   service,
   now,
   collectOfficial = collectTourHomepageSnapshot,
   queryPublicCatalog = queryCachedHomepagePublicCatalog,
+  includeOptional = false,
 }: HomepagePlacesDependencies): Promise<HomepagePlacesSnapshot> {
+  const requestedKinds = includeOptional ? PUBLIC_LAYER_KINDS : PUBLIC_LAYER_KINDS.slice(0, 1);
   const publicResultsPromise = Promise.allSettled(
-    PUBLIC_LAYER_KINDS.map(async (kind) => ({
+    requestedKinds.map(async (kind) => ({
       kind,
       page: await queryPublicCatalog({
         kinds: [kind],
@@ -264,8 +272,8 @@ export async function collectHomepagePlacesSnapshot({
       true,
     ),
     kakao_candidate: unavailableLayer(true),
-    veterinary: unavailableLayer(false),
-    pet_shop: unavailableLayer(false),
+    veterinary: includeOptional ? unavailableLayer(false) : deferredLayer(),
+    pet_shop: includeOptional ? unavailableLayer(false) : deferredLayer(),
   };
   const publicMarkers: HomepageMapMarker[] = [];
   const publicCards: HomepagePlaceCard[] = [];

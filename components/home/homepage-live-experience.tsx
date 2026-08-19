@@ -90,7 +90,7 @@ function isHomepagePlacesSnapshot(
     const entry = value.layers[layer];
     if (
       !isRecord(entry) ||
-      !["ready", "empty", "unavailable"].includes(String(entry.state)) ||
+      !["ready", "empty", "deferred", "unavailable"].includes(String(entry.state)) ||
       !(typeof entry.count === "number" || entry.count === null) ||
       !(typeof entry.markerCount === "number" || entry.markerCount === null) ||
       typeof entry.enabledByDefault !== "boolean"
@@ -133,10 +133,10 @@ function parseHomepageResult(
     : null;
 }
 
-async function requestHomepageSnapshot(): Promise<
+async function requestHomepageSnapshot(includeOptional = false): Promise<
   ApiResult<HomepagePlacesSnapshot>
 > {
-  const response = await fetch("/api/homepage/places", {
+  const response = await fetch(`/api/homepage/places${includeOptional ? "?includeOptional=true" : ""}`, {
     cache: "no-store",
     headers: { Accept: "application/json" },
   });
@@ -215,6 +215,7 @@ export function HomepageLiveExperience() {
     pet_shop: false,
   });
   const requestRef = useRef<Promise<ApiResult<HomepagePlacesSnapshot>> | null>(null);
+  const optionalRequestRef = useRef<Promise<ApiResult<HomepagePlacesSnapshot>> | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -248,6 +249,7 @@ export function HomepageLiveExperience() {
 
   const retry = () => {
     requestRef.current = null;
+    optionalRequestRef.current = null;
     setSnapshot(null);
     setRequestedSelectionId(null);
     setLoadState("loading");
@@ -294,6 +296,8 @@ export function HomepageLiveExperience() {
       description:
         status.state === "unavailable"
           ? "카카오 장소 데이터 준비 중"
+          : status.state === "deferred"
+            ? `${layer.label} 레이어를 선택하면 불러옵니다.`
           : `${layer.label} 레이어 ${visibleLayers[layer.id] ? "숨기기" : "보기"}`,
     };
   });
@@ -353,6 +357,21 @@ export function HomepageLiveExperience() {
                 if (!HOMEPAGE_PLACE_LAYERS.includes(id as HomepagePlaceLayer)) return;
                 const layer = id as HomepagePlaceLayer;
                 if (snapshot.layers[layer].state === "unavailable") return;
+                if (visible && snapshot.layers[layer].state === "deferred") {
+                  const request = optionalRequestRef.current ?? requestHomepageSnapshot(true);
+                  optionalRequestRef.current = request;
+                  void request.then((result) => {
+                    if (!result.ok) {
+                      optionalRequestRef.current = null;
+                      return;
+                    }
+                    setSnapshot(result.data);
+                    setVisibleLayers((current) => ({ ...current, [layer]: true }));
+                  }).catch(() => {
+                    optionalRequestRef.current = null;
+                  });
+                  return;
+                }
                 setVisibleLayers((current) => ({ ...current, [layer]: visible }));
               }}
               showLocationLabel={false}

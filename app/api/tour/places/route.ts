@@ -11,12 +11,14 @@ import {
   isBusanDistrictCode,
   type BusanDistrictCode,
 } from "@/lib/tour-api/catalog";
-import { listTourCatalog } from "@/lib/tour-api/catalog-service";
+import { collectTourCatalog, listTourCatalog } from "@/lib/tour-api/catalog-service";
 import {
   getDefaultTourService,
   type TourPlaceService,
 } from "@/lib/tour-api/service";
 import { TOUR_CONTENT_TYPE_IDS } from "@/types/place";
+import { normalizeTourCatalogMarker } from "@/types/public-catalog-place";
+import { mapTourSummaryToPlaceCategory, PLACE_CATEGORIES } from "@/lib/map-places/place-categories";
 
 const codeSchema = z.string().regex(/^\d{1,10}$/);
 const querySchema = z.object({
@@ -30,6 +32,11 @@ const querySchema = z.object({
   // A complete Busan catalog is returned to the client once per real filter.
   // Card pagination is intentionally a client-side presentation concern.
   pageSize: z.coerce.number().int().min(1).max(1_000).default(20),
+  view: z.enum(["cards", "markers"]).default("cards"),
+  ids: z.string().regex(/^\d+(?:,\d+){0,11}$/).transform((value) => [...new Set(value.split(","))]).optional(),
+  categories: z.string().transform((value) => [...new Set(value.split(","))]).refine(
+    (values) => values.length > 0 && values.every((value) => PLACE_CATEGORIES.includes(value as (typeof PLACE_CATEGORIES)[number])),
+  ).optional(),
 });
 
 export function createTourPlacesHandler(service: TourPlaceService) {
@@ -58,6 +65,9 @@ export function createTourPlacesHandler(service: TourPlaceService) {
       contentTypeId: params.get("contentTypeId") ?? undefined,
       page: params.get("page") ?? undefined,
       pageSize: params.get("pageSize") ?? undefined,
+      view: params.get("view") ?? undefined,
+      ids: params.get("ids") ?? undefined,
+      categories: params.get("categories") ?? undefined,
     });
     if (!parsed.success) {
       return apiFailure(
@@ -71,8 +81,22 @@ export function createTourPlacesHandler(service: TourPlaceService) {
     }
 
     try {
-      const data = await listTourCatalog(service, parsed.data);
-      return apiSuccess(data, 200, {
+      const data = parsed.data.ids
+        ? await collectTourCatalog(service, parsed.data).then((collection) => {
+            const places = collection.places.filter(({ contentId }) => parsed.data.ids?.includes(contentId));
+            return { ...collection, places, page: 1, pageSize: places.length, totalCount: places.length };
+          })
+        : await listTourCatalog(service, parsed.data);
+      const filteredPlaces = parsed.data.categories
+        ? data.places.filter((place) => parsed.data.categories?.includes(mapTourSummaryToPlaceCategory(place)))
+        : data.places;
+      return apiSuccess(parsed.data.view === "markers" ? {
+        items: filteredPlaces.map(normalizeTourCatalogMarker),
+        page: data.page,
+        pageSize: data.pageSize,
+        totalCount: data.totalCount,
+        hasNext: data.page * data.pageSize < data.totalCount,
+      } : { ...data, places: filteredPlaces, totalCount: filteredPlaces.length }, 200, {
         "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60",
       });
     } catch (error) {

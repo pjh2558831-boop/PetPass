@@ -14,6 +14,10 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmedTripSummary } from "@/components/itinerary/confirmed-trip-summary";
 import { RouteStopCard } from "@/components/itinerary/route-stop-card";
+import {
+  LegacyItineraryView,
+  SavedRecommendationView,
+} from "@/components/itinerary/saved-itinerary-view";
 import { MapPanel } from "@/components/map/map-panel";
 import { usePlannerState } from "@/components/planner/planner-state";
 import { Button } from "@/components/ui/button";
@@ -27,6 +31,11 @@ import {
   formatRouteDuration,
 } from "@/lib/kakao/directions-client";
 import type { KakaoMapLocation } from "@/lib/kakao/maps";
+import {
+  loadStoredItineraryRestoration,
+  selectItineraryRestoration,
+  type ItineraryRestoration,
+} from "@/lib/storage/itinerary-restoration";
 
 function ItineraryEmptyState() {
   return (
@@ -58,6 +67,18 @@ function ItineraryEmptyState() {
   );
 }
 
+function ItineraryRestoreLoadingState() {
+  return (
+    <section className="surface-panel mx-auto max-w-3xl p-7 text-center sm:p-10" aria-live="polite" aria-busy="true">
+      <span className="mx-auto grid size-12 place-items-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]">
+        <Route size={23} aria-hidden="true" />
+      </span>
+      <p className="eyebrow mt-4">상세 일정</p>
+      <h1 className="mt-2 text-2xl font-black tracking-[-0.04em] sm:text-3xl">저장된 일정을 확인하고 있어요.</h1>
+    </section>
+  );
+}
+
 export function ItineraryEditor() {
   const router = useRouter();
   const {
@@ -69,6 +90,7 @@ export function ItineraryEditor() {
     selectedItinerary,
   } = usePlannerState();
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const restorationAttemptedRef = useRef(false);
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(
     () => selectedItinerary?.stops[0]?.stableIdentity ?? null,
   );
@@ -83,6 +105,15 @@ export function ItineraryEditor() {
         : null,
     [generation, selectedItinerary],
   );
+  const hasCurrentItinerary = Boolean(
+    profileConfirmed &&
+      preferencesConfirmed &&
+      generation &&
+      selectedItinerary &&
+      presentation,
+  );
+  const [storedRestoration, setStoredRestoration] =
+    useState<ItineraryRestoration | null>(null);
   const routeLocations = useMemo<KakaoMapLocation[]>(
     () =>
       selectedItinerary?.stops.map((stop) => ({
@@ -106,6 +137,12 @@ export function ItineraryEditor() {
     if (selectedItinerary) headingRef.current?.focus();
   }, [selectedItinerary]);
 
+  useEffect(() => {
+    if (hasCurrentItinerary || restorationAttemptedRef.current) return;
+    restorationAttemptedRef.current = true;
+    setStoredRestoration(loadStoredItineraryRestoration());
+  }, [hasCurrentItinerary]);
+
   const chooseMapLocation = useCallback((locationId: string | null) => {
     setSelectedLocationId(locationId);
     if (!locationId) return;
@@ -120,16 +157,30 @@ export function ItineraryEditor() {
     });
   }, []);
 
-  if (
-    !profileConfirmed ||
-    !preferencesConfirmed ||
-    !generation ||
-    !selectedItinerary ||
-    !presentation
-  ) {
+  const restoration = selectItineraryRestoration(
+    hasCurrentItinerary ? selectedItinerary : null,
+    storedRestoration?.source === "saved_recommendation"
+      ? storedRestoration.snapshot
+      : null,
+    storedRestoration?.source === "legacy_itinerary"
+      ? storedRestoration.itinerary
+      : null,
+  );
+
+  if (restoration.source === "saved_recommendation") {
+    return <SavedRecommendationView snapshot={restoration.snapshot} />;
+  }
+  if (restoration.source === "legacy_itinerary") {
+    return <LegacyItineraryView itinerary={restoration.itinerary} />;
+  }
+  if (restoration.source === "empty") {
+    return storedRestoration ? <ItineraryEmptyState /> : <ItineraryRestoreLoadingState />;
+  }
+  if (!generation || !presentation) {
     return <ItineraryEmptyState />;
   }
 
+  const currentItinerary = restoration.itinerary;
   const routeDate = generation.request.travelDate;
   const routeStart = generation.request.startTime;
 
@@ -143,7 +194,7 @@ export function ItineraryEditor() {
             tabIndex={-1}
             className="balance mt-2 break-words text-3xl font-black tracking-[-0.045em] outline-none [overflow-wrap:anywhere] sm:text-4xl lg:text-[42px]"
           >
-            {profile.name}와 함께하는 {selectedItinerary.title}
+            {profile.name}와 함께하는 {currentItinerary.title}
           </h1>
           <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-bold text-[var(--muted)]">
             <span className="inline-flex items-center gap-1.5"><CalendarDays size={16} aria-hidden="true" /> {routeDate}</span>
@@ -176,7 +227,7 @@ export function ItineraryEditor() {
               도착·출발 시각과 각 이동 구간은 반환된 일정 순서를 그대로 표시합니다.
             </p>
           </div>
-          <ol className="space-y-5" aria-label={`${selectedItinerary.title} 상세 방문 순서`}>
+          <ol className="space-y-5" aria-label={`${currentItinerary.title} 상세 방문 순서`}>
             {presentation.stops.map((stopPresentation, index) => (
               <RouteStopCard
                 key={stopPresentation.stop.stableIdentity}
@@ -185,7 +236,7 @@ export function ItineraryEditor() {
                 previousLabel={
                   index === 0
                     ? generation.request.start.label ?? "출발지"
-                    : selectedItinerary.stops[index - 1]?.title ?? "이전 장소"
+                    : currentItinerary.stops[index - 1]?.title ?? "이전 장소"
                 }
                 selected={selectedLocationId === stopPresentation.stop.stableIdentity}
                 onSelect={() => chooseMapLocation(stopPresentation.stop.stableIdentity)}
@@ -201,7 +252,7 @@ export function ItineraryEditor() {
           <section className="surface-card p-4 sm:p-5" aria-labelledby="route-summary-heading">
             <p className="eyebrow">경로 요약</p>
             <h2 id="route-summary-heading" className="mt-1 break-words text-xl font-black tracking-[-0.03em] [overflow-wrap:anywhere]">
-              {selectedItinerary.title}
+              {currentItinerary.title}
             </h2>
             <dl className="mt-4 grid grid-cols-2 gap-2">
               <div className="rounded-xl bg-[#f3f6f2] p-3"><dt className="text-[11px] font-bold text-[var(--muted)]">총 이동 거리</dt><dd className="mt-1 font-black">{formatRouteDistance(presentation.metrics.totalDistanceMeters)}</dd></div>
@@ -231,9 +282,9 @@ export function ItineraryEditor() {
               routeCoordinates={presentation.geometry}
               selectedLocationId={selectedLocationId}
               onLocationSelect={chooseMapLocation}
-              viewportKey={`itinerary:${selectedItinerary.id}`}
-              title={`${selectedItinerary.title} 상세 일정 지도`}
-              locationLabel={`${selectedItinerary.stops.length}곳 방문 순서`}
+              viewportKey={`itinerary:${currentItinerary.id}`}
+              title={`${currentItinerary.title} 상세 일정 지도`}
+              locationLabel={`${currentItinerary.stops.length}곳 방문 순서`}
               emptyMessage="유효한 장소 좌표가 없습니다. 왼쪽의 텍스트 일정을 이용해 주세요."
             />
           </div>

@@ -593,3 +593,129 @@ numbered route-order markers because route sequence has priority there.
   `services,clusterer`. Server-only provider and Supabase secrets never enter
   client code or public DTOs. Homepage shared pins and itinerary numbered
   markers remain regression requirements.
+
+## Category-First Explorer, Optional Facilities, Ranking, and Image Fallbacks
+
+This section supersedes the source-first controls and source-order sorting in
+the full catalog explorer. It does not alter Tourism-only automatic itinerary
+eligibility or the Stage 1–5 route engine.
+
+### 1. Canonical category contract
+
+One provider-neutral mapper owns the seven visible categories used by URL
+state, controls, counts, cards, maps, ranking, and image placeholders:
+
+| Key | Label | Canonical inputs |
+| --- | --- | --- |
+| `attraction` | 관광지 | Tourism 12/14/15/28; Kakao attraction, park/walk, leisure, camping |
+| `food` | 식당 | Tourism 39 unless canonical metadata explicitly identifies a café; Kakao food |
+| `cafe` | 카페 | Kakao café; only explicitly identified Tourism cafés |
+| `accommodation` | 숙소 | Tourism 32; Kakao accommodation |
+| `shopping` | 쇼핑 | Tourism 38; ordinary Kakao shopping records |
+| `veterinary` | 동물병원 | canonical veterinary records only |
+| `pet_shop` | 펫샵·용품점 | canonical pet-shop records only |
+
+Title guessing never turns a Tourism restaurant into a café. `pet_shop` is
+never merged into ordinary shopping. Records outside the initial view remain
+stored, public, reviewable, and immediately available to filters.
+
+### 2. Category-first state and controls
+
+- A fresh explorer enables exactly 관광지, 식당, 카페, 숙소. 쇼핑,
+  동물병원, and 펫샵·용품점 remain available but start disabled.
+- The primary controls are grouped under `여행 장소` and `추가로 보기`.
+  Every toggle has a label, check state, count where space permits,
+  `aria-pressed`, and a 44px target. State is restored through the catalog URL.
+- `전체` enables all seven categories. `기본으로` restores the initial four;
+  initial state is therefore not the same as all.
+- The map indicator reads `부산 반려동물 장소` and `현재 표시 X곳`. The
+  count reflects active categories, district, enabled source rules, and the
+  committed map rectangle. Pagination alone never changes it.
+- Category changes update `filteredPlaces`, all coordinate-valid
+  `mapPlaces`, the 12-card page, counts, and selection together. They never
+  mutate remote visibility, review state, stale state, or stored records.
+- Source identity remains informational through green Tourism, yellow Kakao,
+  red veterinary, and purple pet-shop pins, card badges, overlays, and a
+  compact labelled legend. Source is not a primary filter task or ranking key.
+
+### 3. Kakao compact-query delta
+
+- Registry `kakao-busan-query-registry-v2` preserves V1 and contains only the
+  missing compact variants `부산 {구군} 반려동물동반 카페` (`CE7`) and
+  `부산 {구군} 반려동물동반 식당` (`FD6`) for the 16 Busan districts: at
+  most 32 unique queries.
+- The V2 operation is always an append/update delta. It validates address and
+  coordinates, upserts by Kakao place ID, accumulates query-hit provenance,
+  and preserves confirmation, rejection, reviewer, and note fields. It never
+  performs absent-record reconciliation, makes unrelated rows stale, deletes
+  records, or admits candidates to automatic routes.
+- Collection uses pages of 15 from page 1 until `is_end`, at most three pages,
+  concurrency 2–3, bounded retry/backoff, and a strict physical cap just above
+  the 96-request normal maximum. Apply requires the existing ignored NDJSON
+  backup and SHA-256 manifest, followed by plan, dry run, inspection, delta
+  apply, and a repeat-run idempotency check.
+
+### 4. Discovery sorting
+
+The selector exposes exactly `추천순` and `인기도순`; recommendation is the
+default. `catalog-recommendation-v1` returns a deterministic integer 0–1000:
+
+```text
+0.30 categoryAndFilterFit
++ 0.25 petEvidenceConfidence
++ 0.15 proximity
++ 0.10 dataCompleteness
++ 0.10 freshness
++ 0.10 discoveryStrength
+```
+
+Every component is bounded to `[0,1]`. The score is discovery ordering only
+and never changes the displayed access verdict. Kakao candidates retain low,
+unverified evidence; facilities gain category relevance only while enabled.
+Proximity uses selected location, then committed map center, then district
+center. Completeness rewards only real metadata and an actual provider or
+approved image. Freshness uses provider/collection/review timestamps. Kakao
+discovery strength uses bounded distinct query hits and query/category
+agreement; other sources use a documented neutral prior.
+
+Recommendation ties resolve by score descending, evidence descending,
+distance ascending when known, normalized Korean name, then stable provider
+place ID. `인기도순` uses first-party `popularity-v1` only: sufficient rows
+first by popularity then recommendation; insufficient rows remain in
+recommendation order. If every visible row is insufficient, show `이용 데이터가
+쌓이는 동안 추천순을 함께 반영합니다.` and never invent a popularity badge or
+external review signal.
+
+### 5. Typed image truth
+
+Cards consume an explicit `PlaceCardImage`: provider photo, approved upload,
+static map, or category placeholder. They never infer provenance from URL text.
+
+1. A valid canonical Tourism image is a provider photo; load failure advances
+   to the next truthful fallback.
+2. An approved upload is used only with recorded administrator, owner, or
+   licensed-asset provenance. Arbitrary database URLs are not approval.
+3. A Kakao location preview is optional, server generated for a known place ID,
+   labelled `위치 미리보기`, and controlled only by the server flag
+   `KAKAO_STATIC_MAP_THUMBNAILS_ENABLED`. It may be enabled only after a
+   bounded official API/configuration test. Failure falls through safely.
+4. A local polished category illustration is the universal fallback and says
+   `장소 사진 준비 중`; it is not a broken-image panel or venue photograph.
+
+No implementation scrapes or hotlinks Kakao place pages, galleries, Naver,
+blogs, or search results. A future thumbnail handler, when enabled, accepts a
+known ID rather than arbitrary URLs or coordinates, fixes dimensions and one
+marker, rate-limits requests, keeps credentials server-side, and uses
+`max-age=86400, s-maxage=604800, stale-while-revalidate=2592000`.
+
+### 6. Responsive and regression acceptance
+
+- Desktop keeps the category summary over the map and the scrollable 12-card
+  panel. Tablet/mobile move dense controls outside the canvas and provide
+  map/list modes without horizontal overflow at 390px or 320px.
+- Sort and pagination never rebuild or reduce `mapPlaces`; selected places are
+  preserved whenever still visible. Marker/card synchronization, the single
+  clusterer, and the singleton Kakao `services,clusterer` loader remain intact.
+- Normal tests use deterministic fixtures only. Browser verification covers
+  all/default category actions, every optional category, both sort modes,
+  truthful image fallbacks, source labels, pagination, and responsive layouts.

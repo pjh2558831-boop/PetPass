@@ -1,6 +1,18 @@
 # API contracts
 
-All Route Handlers use an envelope:
+## GET `/api/places/[placeId]/location-thumbnail`
+
+- Server-only, feature-flagged Kakao Static Map proxy for a known public Kakao
+  place ID such as `kakao:123`.
+- Browser-provided coordinates and arbitrary upstream URLs are rejected.
+- Fixed 360×220 image, one marker, preserved Kakao CI, bounded response size,
+  client rate limit, and cache
+  `max-age=86400, s-maxage=604800, stale-while-revalidate=2592000`.
+- When disabled, unknown, or upstream-unavailable, cards fall back to their
+  local category placeholder.
+
+All JSON Route Handlers use an envelope; the documented image thumbnail route
+returns validated image binary on success:
 
 ```ts
 type ApiResult<T> =

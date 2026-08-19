@@ -63,18 +63,26 @@ test.beforeEach(async ({ page }, testInfo) => {
   });
 });
 
-test("loads all four public catalog layers with honest candidate labels", async ({ page }) => {
+test("starts category-first and keeps optional facility records available", async ({ page }) => {
   await page.goto("/results");
   const district = page.getByLabel("부산 세부 지역");
   await expect(district).toHaveValue("all");
   await expect(district.locator("option")).toHaveCount(17);
-  await expect(page.getByRole("button", { name: /관광공사/ })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: /Kakao 여행 후보 1/ })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: /동물병원 1/ })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: /펫샵 1/ })).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: /관광공사/ }).click();
+  const categoryPanel = page.locator(".explorer-category-panel");
+  for (const label of ["관광지", "식당", "카페", "숙소"]) {
+    await expect(categoryPanel.getByRole("button", { name: new RegExp(`^${label}`) })).toHaveAttribute("aria-pressed", "true");
+  }
+  for (const label of ["쇼핑", "동물병원", "펫샵·용품점"]) {
+    await expect(categoryPanel.getByRole("button", { name: new RegExp(`^${label}`) })).toHaveAttribute("aria-pressed", "false");
+  }
+  await expect(page.getByLabel("장소 출처 범례")).toContainText("한국관광공사");
+  await expect(page.getByLabel("장소 출처 범례")).toContainText("카카오 검색 후보");
+  await categoryPanel.getByRole("button", { name: /^동물병원/ }).click();
+  await categoryPanel.getByRole("button", { name: /^펫샵·용품점/ }).click();
   await showListMode(page);
-  await expect(page.getByText(/카카오 검색 후보입니다. 방문 전/u).first()).toBeVisible();
+  await expect(page.getByText("광안 동물병원", { exact: true })).toBeVisible();
+  await expect(page.getByText("광안 펫샵", { exact: true })).toBeVisible();
+  await expect(page.getByText("반려동물 편의시설", { exact: true })).toHaveCount(2);
   await expect(page.getByText("동반 가능", { exact: true })).toHaveCount(0);
 });
 
@@ -103,11 +111,33 @@ test("paginates cards by 12 while keeping all filtered places on the map", async
   await expect(page.locator('[id^="place-card-"]')).not.toHaveCount(12);
 
   await openCatalogFilters(page);
-  await page.getByLabel("여행 장소 유형").selectOption("cafe");
-  await expect(page.getByRole("heading", { name: "총 3곳" })).toBeVisible();
+  const filterMenu = page.locator(".explorer-filter-menu");
+  await filterMenu.getByRole("button", { name: /^관광지/ }).click();
+  await filterMenu.getByRole("button", { name: /^식당/ }).click();
+  await filterMenu.getByRole("button", { name: /^숙소/ }).click();
+  await expect(page).toHaveURL(/categories=cafe/u);
+  await expect(page.getByRole("heading", { name: /총 \d+곳/ })).toBeVisible();
+  await expect(page.getByText("광안 반려 카페", { exact: true })).toBeVisible();
+  await expect(page.getByText("광안 동물병원")).toHaveCount(0);
+  await filterMenu.getByRole("button", { name: /^동물병원/ }).click();
   await expect(page.getByText("광안 동물병원")).toBeVisible();
+  await filterMenu.getByRole("button", { name: /^펫샵·용품점/ }).click();
   await expect(page.getByText("광안 펫샵")).toBeVisible();
-  await expect(page).toHaveURL(/category=cafe/u);
+});
+
+test("supports all, default reset, recommendation, and popularity fallback", async ({ page }) => {
+  await page.goto("/results");
+  const panel = page.locator(".explorer-category-panel");
+  await panel.getByRole("button", { name: "전체", exact: true }).click();
+  await expect(page).toHaveURL(/categories=attraction%2Cfood%2Ccafe%2Caccommodation%2Cshopping%2Cveterinary%2Cpet_shop/u);
+  await panel.getByRole("button", { name: "기본으로", exact: true }).click();
+  await expect(page).not.toHaveURL(/categories=/u);
+  await showListMode(page);
+  const sort = page.getByLabel("정렬");
+  await expect(sort).toHaveValue("recommendation");
+  await sort.selectOption("popularity");
+  await expect(page.getByText("이용 데이터가 쌓이는 동안 추천순을 함께 반영합니다.")).toBeVisible();
+  await expect(page.getByText(/인기 배지/u)).toHaveCount(0);
 });
 
 test("labels a non-Haeundae live detail from its address", async ({ page }) => {

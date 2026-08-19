@@ -89,6 +89,8 @@ export function MapPanel({
   const controllerRef = useRef<KakaoMapController | null>(null);
   const initializingRef = useRef(false);
   const viewportKeyRef = useRef(viewportKey);
+  const currentViewportKeyRef = useRef(viewportKey);
+  const showSelectionInfoRef = useRef(showSelectionInfo);
   const latestRef = useRef({ locations, routeCoordinates, selectedLocationId });
   const selectRef = useRef(onLocationSelect);
   const viewportIdleRef = useRef(onViewportIdle);
@@ -102,7 +104,9 @@ export function MapPanel({
     selectRef.current = onLocationSelect;
     viewportIdleRef.current = onViewportIdle;
     currentSearchRef.current = onCurrentMapSearch;
-  }, [locations, onCurrentMapSearch, onLocationSelect, onViewportIdle, routeCoordinates, selectedLocationId]);
+    currentViewportKeyRef.current = viewportKey;
+    showSelectionInfoRef.current = showSelectionInfo;
+  }, [locations, onCurrentMapSearch, onLocationSelect, onViewportIdle, routeCoordinates, selectedLocationId, showSelectionInfo, viewportKey]);
 
   const initializeMap = useCallback(() => {
     const container = mapContainerRef.current;
@@ -116,10 +120,10 @@ export function MapPanel({
         routeCoordinates: latest.routeCoordinates,
         onLocationSelect: (id) => selectRef.current?.(id),
         onViewportIdle: (viewport, cause) => viewportIdleRef.current?.(viewport, cause),
-        showSelectionInfo,
+        showSelectionInfo: showSelectionInfoRef.current,
       });
       controllerRef.current.selectLocation(latest.selectedLocationId);
-      viewportKeyRef.current = viewportKey;
+      viewportKeyRef.current = currentViewportKeyRef.current;
       setLoadState("ready");
       setLoadError("");
       setMapVersion((value) => value + 1);
@@ -128,7 +132,7 @@ export function MapPanel({
       setLoadState("error");
       setLoadError(error instanceof Error ? error.message : "지도를 초기화하지 못했습니다.");
     }
-  }, [showSelectionInfo, viewportKey]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

@@ -246,26 +246,26 @@ test("uses one eager hero image, lazy later slides, manual controls, and six-sec
   await mockHomepage(page);
   await page.goto("/");
   const carousel = page.getByRole("region", { name: "부산 반려견 여행 사진" });
-  await expect(carousel.getByRole("button", { name: /번 여행 사진 보기/u })).toHaveCount(11);
+  await expect(carousel.getByRole("button", { name: /번 여행 사진 보기/u })).toHaveCount(10);
   const first = carousel.locator("img").first();
   await expect(first).toHaveAttribute("alt", /노란 튤립밭/u);
   await expect(first).toHaveAttribute("fetchpriority", "high");
   await expect.poll(() => requestedHeroImages.size).toBe(1);
 
   await page.clock.runFor(6_100);
-  await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("02 / 11");
+  await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("02 / 10");
   await expect(carousel.locator(".weekendoog-hero-slide.is-active img")).toHaveAttribute("loading", "lazy");
   await expect.poll(() => requestedHeroImages.size).toBe(2);
 
   await carousel.hover();
   await page.clock.runFor(12_100);
-  await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("02 / 11");
+  await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("02 / 10");
   await carousel.getByRole("button", { name: "이전 여행 사진" }).click();
-  await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("01 / 11");
+  await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("01 / 10");
   await carousel.press("End");
-  await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("11 / 11");
+  await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("10 / 10");
   await carousel.press("Home");
-  await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("01 / 11");
+  await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("01 / 10");
 });
 
 test("uses compact hero copy and three local official partner marks", async ({ page }) => {
@@ -304,9 +304,9 @@ test("disables hero autoplay and transition under reduced motion", async ({ page
   await page.goto("/");
   const carousel = page.getByRole("region", { name: "부산 반려견 여행 사진" });
   await page.clock.fastForward(12_100);
-  await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("01 / 11");
+  await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("01 / 10");
   await carousel.getByRole("button", { name: "다음 여행 사진" }).click();
-  await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("02 / 11");
+  await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("02 / 10");
   await expect(carousel.locator(".weekendoog-hero-slide.is-outgoing")).toHaveCount(0);
 });
 

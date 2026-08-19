@@ -1,30 +1,27 @@
 import { isValidMapCoordinates } from "@/lib/kakao/maps";
 import { PUBLIC_CATALOG_PAGE_SIZE } from "@/lib/map-places/catalog-url";
+import { rankCatalogPlaces, type CatalogRankingCenter, type CatalogPopularityResult } from "@/lib/map-places/catalog-ranking";
+import { mapCatalogPlaceToCategory, type PlaceCategory } from "@/lib/map-places/place-categories";
 import type { KakaoCurrentMapSearch } from "@/types/kakao";
-import type { PublicCatalogLayer, PublicCatalogPlace } from "@/types/public-catalog-place";
-import type { PublicMapPlaceCategory } from "@/types/public-map-place";
+import type { PublicCatalogLayer, PublicCatalogMarker } from "@/types/public-catalog-place";
 
-export type ExplorerSort = "source" | "name";
+export type ExplorerSort = "recommendation" | "popularity";
 
 export interface ExplorerCollectionInput {
-  places: PublicCatalogPlace[];
+  places: PublicCatalogMarker[];
   district: string | "all";
-  category: PublicMapPlaceCategory | "all";
+  categories: PlaceCategory[];
   layers: PublicCatalogLayer[];
   activeBounds: KakaoCurrentMapSearch["rectangle"] | null;
   page: number;
   sort: ExplorerSort;
+  rankingAsOf: string;
+  rankingCenter?: CatalogRankingCenter | null;
+  popularity?: ReadonlyMap<string, CatalogPopularityResult>;
 }
 
-const SOURCE_ORDER: Record<PublicCatalogLayer, number> = {
-  tourism: 0,
-  kakao: 1,
-  veterinary: 2,
-  pet_shop: 3,
-};
-
 export function isInsideExplorerBounds(
-  place: PublicCatalogPlace,
+  place: PublicCatalogMarker,
   bounds: KakaoCurrentMapSearch["rectangle"],
 ): boolean {
   if (!isValidMapCoordinates(place.coordinates)) return false;
@@ -35,27 +32,33 @@ export function isInsideExplorerBounds(
 }
 
 export function getExplorerCollections(input: ExplorerCollectionInput): {
-  filteredPlaces: PublicCatalogPlace[];
-  mapPlaces: PublicCatalogPlace[];
-  pagedPlaces: PublicCatalogPlace[];
+  filteredPlaces: PublicCatalogMarker[];
+  mapPlaces: PublicCatalogMarker[];
+  pagedPlaces: PublicCatalogMarker[];
   currentPage: number;
   totalPages: number;
 } {
-  const unique = new Map<string, PublicCatalogPlace>();
+  const unique = new Map<string, PublicCatalogMarker>();
   for (const place of input.places) {
     if (!unique.has(place.id) && isValidMapCoordinates(place.coordinates)) {
       unique.set(place.id, place);
     }
   }
   const layerSet = new Set(input.layers);
-  const filteredPlaces = [...unique.values()]
+  const categorySet = new Set(input.categories);
+  const matchedPlaces = [...unique.values()]
     .filter((place) => input.district === "all" || place.districtCode === input.district)
-    .filter((place) => input.category === "all" || place.layer === "veterinary" || place.layer === "pet_shop" || place.category === input.category)
+    .filter((place) => categorySet.has(mapCatalogPlaceToCategory(place)))
     .filter((place) => layerSet.has(place.layer))
-    .filter((place) => !input.activeBounds || isInsideExplorerBounds(place, input.activeBounds))
-    .sort((left, right) => input.sort === "name"
-      ? left.name.localeCompare(right.name, "ko")
-      : SOURCE_ORDER[left.layer] - SOURCE_ORDER[right.layer] || left.name.localeCompare(right.name, "ko"));
+    .filter((place) => !input.activeBounds || isInsideExplorerBounds(place, input.activeBounds));
+  const filteredPlaces = rankCatalogPlaces(matchedPlaces, {
+    activeCategories: input.categories,
+    districtSelected: input.district !== "all",
+    committedBoundsSelected: Boolean(input.activeBounds),
+    center: input.rankingCenter ?? null,
+    asOf: input.rankingAsOf,
+    popularity: input.popularity,
+  }, input.sort).map((result) => result.place);
   const mapPlaces = filteredPlaces;
   const totalPages = Math.max(1, Math.ceil(filteredPlaces.length / PUBLIC_CATALOG_PAGE_SIZE));
   const currentPage = Math.min(Math.max(1, input.page), totalPages);

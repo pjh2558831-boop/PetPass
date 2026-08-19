@@ -11,6 +11,10 @@ import type {
 
 const STORAGE_VERSION = 1;
 const STORAGE_KEY = "petpass:saved-route-recommendation";
+const readCache = new WeakMap<
+  StorageLike,
+  SavedRouteRecommendationSnapshotV1 | null
+>();
 const storedRouteSchema = z.object({
   id: z.string().min(1),
   kind: z.enum(["optimized", "manual"]),
@@ -89,10 +93,22 @@ const savedRouteSchema: z.ZodType<SavedRouteRecommendationSnapshotV1> = z.object
 export function loadSavedRouteRecommendation(
   storage?: StorageLike | null,
 ): SavedRouteRecommendationSnapshotV1 | null {
-  return readVersionedValue(STORAGE_KEY, savedRouteSchema, {
+  const resolvedStorage =
+    storage === undefined
+      ? typeof window === "undefined"
+        ? null
+        : window.localStorage
+      : storage;
+  if (!resolvedStorage) return null;
+  if (readCache.has(resolvedStorage)) {
+    return readCache.get(resolvedStorage) ?? null;
+  }
+  const value = readVersionedValue(STORAGE_KEY, savedRouteSchema, {
     version: STORAGE_VERSION,
-    storage,
+    storage: resolvedStorage,
   });
+  readCache.set(resolvedStorage, value);
+  return value;
 }
 
 export function saveRouteRecommendation(
@@ -128,8 +144,17 @@ export function saveRouteRecommendation(
     manuallyModified: route.kind === "manual",
     savedAt: now.toISOString(),
   };
-  return writeVersionedValue(STORAGE_KEY, value, savedRouteSchema, {
+  const resolvedStorage =
+    storage === undefined
+      ? typeof window === "undefined"
+        ? null
+        : window.localStorage
+      : storage;
+  if (!resolvedStorage) return false;
+  const saved = writeVersionedValue(STORAGE_KEY, value, savedRouteSchema, {
     version: STORAGE_VERSION,
-    storage,
+    storage: resolvedStorage,
   });
+  if (saved) readCache.set(resolvedStorage, value);
+  return saved;
 }

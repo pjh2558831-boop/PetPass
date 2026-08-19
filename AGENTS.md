@@ -1,5 +1,12 @@
 # PetPass repository instructions
 
+## Codex Skills
+
+Repository-specific workflows live in `.agents/skills/`. Start with
+`petpass-project-context`, then load the matching provider, domain, UI,
+deployment, or regression Skill for the task. The rules below remain binding.
+Use `regression-check` after meaningful browser-facing or interactive changes.
+
 ## Purpose
 
 PetPass reduces failed pet-travel visits by comparing a pet profile with the

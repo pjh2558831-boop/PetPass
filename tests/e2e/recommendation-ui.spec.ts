@@ -2,6 +2,7 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import {
   chooseConfirmedDeparture,
   continueToTrip,
+  DEPARTURE_PATH,
   expectNoHorizontalOverflow,
   GENERATE_PATH,
   openPetPlanner,
@@ -290,6 +291,127 @@ test("revalidates manual order, labels it honestly, and restores the original", 
   await page.getByRole("button", { name: "원래 추천 일정 복원" }).click();
   await expect(page.getByText("WEEKENDOG 추천 일정", { exact: true })).toBeVisible();
   await expect(page.getByText(/9\.6km · 약 45분/u)).toBeVisible();
+});
+
+test("restores a saved recommendation directly and after refresh without provider requests", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "The explicit saved-route viewport matrix runs once.");
+  const browserErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") browserErrors.push(message.text());
+  });
+  page.on("pageerror", (error) => browserErrors.push(error.message));
+  await page.route(`**${DEPARTURE_PATH}?**`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        data: [
+          {
+            id: "address:0:35.179600:129.075600",
+            kind: "address",
+            label: "부산광역시 연제구 중앙대로 1001",
+            address: "부산광역시청 지번 1000",
+            coordinates: { latitude: 35.1796, longitude: 129.0756 },
+          },
+        ],
+      }),
+    });
+  });
+  await page.addInitScript(() => {
+    const originalGetItem = Storage.prototype.getItem;
+    const originalParse = JSON.parse;
+    const metrics = { reads: 0, parses: 0, parseDurationMs: 0 };
+    Object.defineProperty(window, "__savedRouteStorageMetrics", {
+      value: metrics,
+      configurable: true,
+    });
+    Storage.prototype.getItem = function (key: string) {
+      if (key === "petpass:saved-route-recommendation") metrics.reads += 1;
+      return originalGetItem.call(this, key);
+    };
+    JSON.parse = function (text: string, reviver?: (this: unknown, key: string, value: unknown) => unknown) {
+      const measured = text.includes("petpass-route-engine-v1");
+      const startedAt = performance.now();
+      const value = originalParse.call(JSON, text, reviver);
+      if (measured) {
+        metrics.parses += 1;
+        metrics.parseDurationMs += performance.now() - startedAt;
+      }
+      return value;
+    } as typeof JSON.parse;
+  });
+  await generate(page, testInfo);
+  await page.getByRole("button", { name: "일정 저장" }).click();
+  await expect(page.getByRole("status")).toContainText("현재 일정을 이 브라우저에 저장했습니다");
+  const storageBytes = await page.evaluate(() =>
+    new TextEncoder().encode(localStorage.getItem("petpass:saved-route-recommendation") ?? "").byteLength,
+  );
+  expect(storageBytes).toBeGreaterThan(0);
+
+  const providerRequests: string[] = [];
+  page.on("request", (request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (pathname.startsWith("/api/") || pathname.includes("KorPetTourService2")) {
+      providerRequests.push(pathname);
+    }
+  });
+  await page.goto("/planner/pet");
+  await expect(page.getByRole("heading", { name: "여행 정보 입력" })).toBeVisible();
+  await page.goto("/itinerary");
+  await expect(page.getByText("저장된 일정", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "추천 일정" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "저장된 일정 방문 순서" }).locator(":scope > li")).toHaveCount(2);
+  await expect(page.getByText("해운대 공식 공원")).toBeVisible();
+  await expect(page.getByText("광안 공식 식당")).toBeVisible();
+  await expect(page.getByText(/9\.6km/u)).toBeVisible();
+  await expect(page.getByText(/45분/u)).toBeVisible();
+  await expect(page.getByText(/저장 당시 확인된 경로 정보/u)).toBeVisible();
+  expect(providerRequests).toEqual([]);
+
+  const firstMetrics = await page.evaluate(() =>
+    (window as unknown as { __savedRouteStorageMetrics: { reads: number; parses: number; parseDurationMs: number } }).__savedRouteStorageMetrics,
+  );
+  expect(firstMetrics.reads).toBe(1);
+  expect(firstMetrics.parses).toBe(1);
+
+  await page.reload();
+  await expect(page.getByText("저장된 일정", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "추천 일정" })).toBeVisible();
+  const refreshMetrics = await page.evaluate(() =>
+    (window as unknown as { __savedRouteStorageMetrics: { reads: number; parses: number; parseDurationMs: number } }).__savedRouteStorageMetrics,
+  );
+  expect(refreshMetrics.reads).toBe(1);
+  expect(refreshMetrics.parses).toBe(1);
+  expect(providerRequests).toEqual([]);
+
+  for (const viewport of [
+    { width: 1440, height: 1000 },
+    { width: 768, height: 1024 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expectNoHorizontalOverflow(page);
+    await expect(page.getByText("저장된 일정", { exact: true })).toBeVisible();
+    await expect(page.getByRole("list", { name: "저장된 일정 방문 순서" })).toBeVisible();
+  }
+  expect(browserErrors).toEqual([]);
+  await expect(page.locator("[data-nextjs-error-overlay], [data-nextjs-dialog]")).toHaveCount(0);
+  console.log(`SAVED_ROUTE_METRICS ${JSON.stringify({ storageBytes, firstMetrics, refreshMetrics, providerRequests: providerRequests.length })}`);
+});
+
+test("clears only a corrupt saved recommendation and keeps the neutral itinerary state", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("petpass:saved-route-recommendation", "{broken");
+    localStorage.setItem("petpass:pet-profile", "unrelated-profile");
+  });
+  await page.goto("/itinerary");
+  await expect(page.getByRole("heading", { name: "선택된 추천 경로가 없습니다." })).toBeVisible();
+  const values = await page.evaluate(() => ({
+    saved: localStorage.getItem("petpass:saved-route-recommendation"),
+    profile: localStorage.getItem("petpass:pet-profile"),
+  }));
+  expect(values).toEqual({ saved: null, profile: "unrelated-profile" });
 });
 
 test("keeps a rejected manual edit visible and allows restoration", async ({ page }, testInfo) => {

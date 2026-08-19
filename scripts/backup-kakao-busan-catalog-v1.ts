@@ -68,7 +68,7 @@ export async function runKakaoCatalogBackup(): Promise<void> {
         .order("id", { ascending: true })
         .range(offset, offset + PAGE_SIZE - 1);
       if (error || !Array.isArray(data) || typeof count !== "number") {
-        throw new BackupReadError();
+        throw new BackupReadError(`${tableName}:${error?.code ?? "invalid_response"}`);
       }
       if (expectedCount === null) expectedCount = count;
       if (count !== expectedCount) throw new BackupReadError();
@@ -142,7 +142,11 @@ async function main(): Promise<void> {
           : error instanceof Error && error.message === "invalid_supabase_project"
             ? "backup_project_mismatch"
             : "backup_failed";
-    console.error(JSON.stringify({ ok: false, code }));
+    console.error(JSON.stringify({
+      ok: false,
+      code,
+      ...(error instanceof BackupReadError ? { reason: error.message } : {}),
+    }));
     process.exitCode = 1;
   }
 }

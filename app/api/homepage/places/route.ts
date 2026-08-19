@@ -47,7 +47,11 @@ export function createHomepagePlacesHandler({
         { ...NO_STORE_HEADERS, ...rateLimitHeaders(limit) },
       );
     }
-    if ([...new URL(request.url).searchParams.keys()].length > 0) {
+    const params = new URL(request.url).searchParams;
+    const includeOptional = params.get("includeOptional") === "true";
+    if ([...params.keys()].some((key) => key !== "includeOptional") ||
+      params.getAll("includeOptional").length > 1 ||
+      (params.has("includeOptional") && !includeOptional)) {
       return apiFailure(
         {
           code: "INVALID_REQUEST",
@@ -61,7 +65,7 @@ export function createHomepagePlacesHandler({
 
     try {
       return apiSuccess(
-        await loadSnapshot({ service, now }),
+        await loadSnapshot({ service, now, includeOptional }),
         200,
         NO_STORE_HEADERS,
       );

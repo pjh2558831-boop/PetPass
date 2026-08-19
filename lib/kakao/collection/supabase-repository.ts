@@ -126,8 +126,11 @@ export function createSupabaseKakaoCollectionRepository(): KakaoCollectionReposi
       normalized_category: query.categoryHint ?? null,
       category_group_code: query.categoryGroupCode ?? null,
     }));
+    const startFunction = input.registryVersion === "kakao-busan-query-registry-v2"
+      ? "start_kakao_catalog_delta_run_v2"
+      : "start_kakao_catalog_run_v1";
     const { data, error } = await supabase.rpc(
-      "start_kakao_catalog_run_v1",
+      startFunction,
       {
         p_registry_version: input.registryVersion,
         p_collector_version: KAKAO_BUSAN_COLLECTOR_VERSION,

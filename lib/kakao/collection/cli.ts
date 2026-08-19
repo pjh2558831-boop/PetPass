@@ -7,6 +7,7 @@ import {
   assertCollectionPlanWithinCap,
   plannedMaximumProviderCalls,
 } from "@/lib/kakao/collection/runner";
+import type { KakaoCollectionLimits } from "@/lib/kakao/collection/runner";
 
 export type KakaoCollectionCliMode = "plan" | "dry-run" | "apply" | "resume";
 
@@ -188,18 +189,20 @@ export function createKakaoCollectionPlanReport(input: {
   mode: KakaoCollectionCliMode;
   registryVersion: string;
   queries: readonly KakaoBusanCollectionQuery[];
+  limits?: KakaoCollectionLimits;
 }): KakaoCollectionPlanReport {
-  assertCollectionPlanWithinCap(input.queries.length);
+  const limits = input.limits ?? KAKAO_COLLECTION_LIMITS;
+  assertCollectionPlanWithinCap(input.queries.length, limits);
   return {
     mode: input.mode,
     registryVersion: input.registryVersion,
     queryCount: input.queries.length,
-    theoreticalMaxProviderCalls: plannedMaximumProviderCalls(input.queries.length),
-    physicalRequestCap: KAKAO_COLLECTION_LIMITS.requestCap,
-    concurrency: KAKAO_COLLECTION_LIMITS.concurrency,
-    pageSize: KAKAO_COLLECTION_LIMITS.pageSize,
-    maxRetriesPerRequest: KAKAO_COLLECTION_LIMITS.maxRetries,
-    requestTimeoutMs: KAKAO_COLLECTION_LIMITS.requestTimeoutMs,
+    theoreticalMaxProviderCalls: plannedMaximumProviderCalls(input.queries.length, limits),
+    physicalRequestCap: limits.requestCap,
+    concurrency: limits.concurrency,
+    pageSize: limits.pageSize,
+    maxRetriesPerRequest: limits.maxRetries,
+    requestTimeoutMs: limits.requestTimeoutMs,
     candidateKindQueryCounts: countBy(
       input.queries,
       (query) => query.candidateKind,

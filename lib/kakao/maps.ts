@@ -53,7 +53,8 @@ interface KakaoCluster {
 }
 
 interface KakaoMarkerClusterer {
-  addMarkers(markers: KakaoMarker[]): void;
+  addMarkers(markers: KakaoMarker[], nodraw?: boolean): void;
+  removeMarkers(markers: KakaoMarker[], nodraw?: boolean): void;
   clear(): void;
   redraw?(): void;
 }
@@ -457,8 +458,11 @@ export function createKakaoMapController(
   let shouldShowSelectionInfo = options.showSelectionInfo !== false;
   let destroyed = false;
   let pendingProgrammaticViewport = false;
-  let clustererResetCount = 0;
+  const clustererResetCount = 0;
+  let clusterRedrawCount = 0;
   let createdSourceMarkerCount = 0;
+  let activeClusterSourceIds = new Set<string>();
+  let activeStandaloneSourceIds = new Set<string>();
 
   container.dataset.kakaoMapInitialized = "true";
   container.dataset.clustererReady = clusterer ? "true" : "false";
@@ -470,6 +474,7 @@ export function createKakaoMapController(
   container.dataset.customOverlayMarkerCount = "0";
   container.dataset.clustererInstanceCount = clusterer ? "1" : "0";
   container.dataset.clustererResetCount = "0";
+  container.dataset.clusterRedrawCount = "0";
   container.dataset.createdSourceMarkerCount = "0";
 
   const resetSelectionVisuals = () => {
@@ -586,6 +591,8 @@ export function createKakaoMapController(
       record.marker.setMap(null);
     }
     sourceMarkerRegistry.clear();
+    activeClusterSourceIds.clear();
+    activeStandaloneSourceIds.clear();
     clearLegacyLayers();
     routeLine?.setMap(null);
     routeLine = null;
@@ -688,8 +695,11 @@ export function createKakaoMapController(
       const seenLocationIds = new Set<string>();
       let interactiveMarkerCount = 0;
       const desiredSourceIds = new Set<string>();
+      const nextClusterSourceIds = new Set<string>();
+      const nextStandaloneSourceIds = new Set<string>();
       const activeClusterMarkers: KakaoMarker[] = [];
       const activeStandaloneMarkers: KakaoMarker[] = [];
+      let clusterGeometryChanged = false;
       visiblePoints = [];
       locationPositions.clear();
 
@@ -724,6 +734,7 @@ export function createKakaoMapController(
               position,
               title: `${location.name} · ${getSourceMarkerAsset(source).accessibleLabel}`,
             });
+            marker.setZIndex(4);
             const mutableRecord: SourceMarkerRecord & {
               location: KakaoMapLocation;
               position: KakaoLatLng;
@@ -753,19 +764,35 @@ export function createKakaoMapController(
             sourceMarkerRegistry.set(location.id, record);
             createdSourceMarkerCount += 1;
           } else {
+            const positionChanged = record.position.getLat() !== position.getLat() ||
+              record.position.getLng() !== position.getLng();
+            const sourceChanged = record.source !== source;
+            const titleChanged = record.location.name !== location.name;
+            if (
+              activeClusterSourceIds.has(location.id) &&
+              positionChanged
+            ) {
+              clusterGeometryChanged = true;
+            }
             record.source = source;
             record.normalImage = images.normal;
             record.selectedImage = images.selected;
             record.location = location;
             record.position = position;
             record.clusterable = clusterable;
-            record.marker.setPosition(position);
-            record.marker.setImage(images.normal);
-            record.marker.setTitle?.(`${location.name} · ${getSourceMarkerAsset(source).accessibleLabel}`);
+            if (positionChanged) record.marker.setPosition(position);
+            if (sourceChanged) record.marker.setImage(images.normal);
+            if (sourceChanged || titleChanged) {
+              record.marker.setTitle?.(`${location.name} · ${getSourceMarkerAsset(source).accessibleLabel}`);
+            }
           }
-          record.marker.setZIndex(4);
-          if (clusterable) activeClusterMarkers.push(record.marker);
-          else activeStandaloneMarkers.push(record.marker);
+          if (clusterable) {
+            nextClusterSourceIds.add(location.id);
+            activeClusterMarkers.push(record.marker);
+          } else {
+            nextStandaloneSourceIds.add(location.id);
+            activeStandaloneMarkers.push(record.marker);
+          }
           if (interactive) interactiveMarkerCount += 1;
           locationPositions.set(location.id, {
             button: null,
@@ -831,22 +858,36 @@ export function createKakaoMapController(
       locations.forEach(renderLocation);
       for (const [placeId, record] of sourceMarkerRegistry) {
         if (desiredSourceIds.has(placeId)) continue;
-        record.listenerCleanup();
-        record.marker.setMap(null);
-        sourceMarkerRegistry.delete(placeId);
+        if (
+          activeStandaloneSourceIds.has(placeId) ||
+          (!clusterer && activeClusterSourceIds.has(placeId))
+        ) record.marker.setMap(null);
       }
       const clusterUpdateStartedAt = performance.now();
-      if (clusterer) {
-        clusterer.clear();
-        clustererResetCount += 1;
+      for (const id of activeStandaloneSourceIds) {
+        if (!nextStandaloneSourceIds.has(id)) sourceMarkerRegistry.get(id)?.marker.setMap(null);
       }
-      if (clusterer && activeClusterMarkers.length > 0) {
-        clusterer.addMarkers(activeClusterMarkers);
-        clusterer.redraw?.();
+      if (clusterer) {
+        const removed = [...activeClusterSourceIds]
+          .filter((id) => !nextClusterSourceIds.has(id))
+          .flatMap((id) => sourceMarkerRegistry.get(id)?.marker ?? []);
+        const added = [...nextClusterSourceIds]
+          .filter((id) => !activeClusterSourceIds.has(id))
+          .flatMap((id) => sourceMarkerRegistry.get(id)?.marker ?? []);
+        if (removed.length > 0) clusterer.removeMarkers(removed, true);
+        if (added.length > 0) clusterer.addMarkers(added, true);
+        if (removed.length > 0 || added.length > 0 || clusterGeometryChanged) {
+          clusterer.redraw?.();
+          clusterRedrawCount += 1;
+        }
       } else {
         activeClusterMarkers.forEach((marker) => marker.setMap(map));
       }
-      activeStandaloneMarkers.forEach((marker) => marker.setMap(map));
+      for (const id of nextStandaloneSourceIds) {
+        if (!activeStandaloneSourceIds.has(id)) sourceMarkerRegistry.get(id)?.marker.setMap(map);
+      }
+      activeClusterSourceIds = nextClusterSourceIds;
+      activeStandaloneSourceIds = nextStandaloneSourceIds;
 
       const routePath = getRenderableRouteCoordinates(routeCoordinates)
         .map(({ latitude, longitude }) => new maps.LatLng(latitude, longitude));
@@ -862,14 +903,16 @@ export function createKakaoMapController(
         });
       }
 
-      container.dataset.catalogMarkerCount = String(sourceMarkerRegistry.size);
+      container.dataset.catalogMarkerCount = String(desiredSourceIds.size);
       container.dataset.interactiveMarkerCount = String(interactiveMarkerCount);
-      container.dataset.markerRegistrySize = String(sourceMarkerRegistry.size);
+      container.dataset.markerRegistrySize = String(desiredSourceIds.size);
+      container.dataset.markerCacheSize = String(sourceMarkerRegistry.size);
       container.dataset.activeMarkerCount = String(
         activeClusterMarkers.length + activeStandaloneMarkers.length,
       );
       container.dataset.customOverlayMarkerCount = String(legacyMarkerOverlays.length);
       container.dataset.clustererResetCount = String(clustererResetCount);
+      container.dataset.clusterRedrawCount = String(clusterRedrawCount);
       container.dataset.createdSourceMarkerCount = String(createdSourceMarkerCount);
       container.dataset.clusterUpdateMs = (performance.now() - clusterUpdateStartedAt).toFixed(2);
       container.dataset.markerUpdateMs = (performance.now() - updateStartedAt).toFixed(2);

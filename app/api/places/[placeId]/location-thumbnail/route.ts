@@ -1,0 +1,70 @@
+import { fetchKakaoStaticMap, staticMapThumbnailsEnabled } from "@/lib/kakao/static-map";
+import { findPublicMapPlaceLocation } from "@/lib/map-places/public-catalog";
+import { consumeRateLimit, getRequestClientId, rateLimitHeaders, type RateLimitDecision } from "@/lib/shared/rate-limit";
+
+const SUCCESS_CACHE = "public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000";
+
+export interface LocationThumbnailDependencies {
+  enabled?: () => boolean;
+  findLocation?: typeof findPublicMapPlaceLocation;
+  fetchMap?: typeof fetchKakaoStaticMap;
+  rateLimit?: (request: Request) => RateLimitDecision;
+}
+
+export function createLocationThumbnailHandler(dependencies: LocationThumbnailDependencies = {}) {
+  return async function GET(
+    request: Request,
+    context: { params: Promise<{ placeId: string }> },
+  ): Promise<Response> {
+    const limit = dependencies.rateLimit?.(request) ?? consumeRateLimit(
+      "location-thumbnail",
+      getRequestClientId(request),
+      { limit: 60, windowMs: 60_000 },
+    );
+    if (!limit.allowed) {
+      return Response.json({ error: "요청이 너무 많습니다." }, {
+        status: 429,
+        headers: { "Cache-Control": "no-store", ...rateLimitHeaders(limit) },
+      });
+    }
+    if (!(dependencies.enabled ?? staticMapThumbnailsEnabled)()) {
+      return Response.json({ error: "위치 미리보기가 비활성화되어 있습니다." }, {
+        status: 404,
+        headers: { "Cache-Control": "no-store", ...rateLimitHeaders(limit) },
+      });
+    }
+    const { placeId } = await context.params;
+    const match = /^kakao:(\d{1,128})$/u.exec(placeId);
+    if (!match?.[1]) {
+      return Response.json({ error: "알려진 장소 ID가 아닙니다." }, {
+        status: 400,
+        headers: { "Cache-Control": "no-store", ...rateLimitHeaders(limit) },
+      });
+    }
+    try {
+      const location = await (dependencies.findLocation ?? findPublicMapPlaceLocation)(match[1]);
+      if (!location) {
+        return Response.json({ error: "공개된 장소를 찾지 못했습니다." }, {
+          status: 404,
+          headers: { "Cache-Control": "no-store", ...rateLimitHeaders(limit) },
+        });
+      }
+      const image = await (dependencies.fetchMap ?? fetchKakaoStaticMap)(location);
+      return new Response(image.body, {
+        headers: {
+          "Content-Type": image.contentType,
+          "Cache-Control": SUCCESS_CACHE,
+          "X-Content-Type-Options": "nosniff",
+          ...rateLimitHeaders(limit),
+        },
+      });
+    } catch {
+      return Response.json({ error: "위치 미리보기를 불러오지 못했습니다." }, {
+        status: 502,
+        headers: { "Cache-Control": "no-store", ...rateLimitHeaders(limit) },
+      });
+    }
+  };
+}
+
+export const GET = createLocationThumbnailHandler();
