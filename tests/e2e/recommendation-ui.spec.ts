@@ -181,7 +181,7 @@ async function generate(page: Page, testInfo: TestInfo, response = READY) {
   await continueToTrip(page);
   await chooseConfirmedDeparture(page);
   await page.getByRole("button", { name: "여행 추천 받기" }).click();
-  await expect(page).toHaveURL(/\/results\?tab=recommendations$/u);
+  await expect(page).toHaveURL(/\/results\?tab=recommendations&region=busan$/u);
 }
 
 test("shows a deliberate empty recommendation state without a request", async ({ page }) => {
@@ -203,7 +203,7 @@ test("submits the strict combined contract once and renders the exact provider-b
   await continueToTrip(page);
   await chooseConfirmedDeparture(page);
   await page.getByRole("button", { name: "여행 추천 받기" }).evaluate((node) => { (node as HTMLButtonElement).click(); (node as HTMLButtonElement).click(); });
-  await expect(page).toHaveURL(/\/results\?tab=recommendations$/u);
+  await expect(page).toHaveURL(/\/results\?tab=recommendations&region=busan$/u);
   await expect(page.getByRole("heading", { name: /에서 시작하는 2곳 일정/u })).toBeVisible();
   expect(bodies).toHaveLength(1);
   expect(bodies[0]).toMatchObject({
@@ -444,7 +444,7 @@ test("shows truthful staged loading labels without fake percentages", async ({ p
   await continueToTrip(page);
   await chooseConfirmedDeparture(page);
   await page.getByRole("button", { name: "여행 추천 받기" }).click();
-  await expect(page).toHaveURL(/\/results\?tab=recommendations$/u);
+  await expect(page).toHaveURL(/\/results\?tab=recommendations&region=busan$/u);
   await expect(page.getByText("방문 가능한 공식 장소를 확인하고 있어요")).toBeVisible();
   await expect(page.getByText("최종 이동 경로를 확인하고 있어요")).toBeVisible();
   await expect(page.getByText(/\d+%/u)).toHaveCount(0);

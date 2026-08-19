@@ -23,9 +23,9 @@ const COMPACT_DELTA_TEMPLATES = [
 export const KAKAO_BUSAN_DELTA_QUERIES: readonly KakaoBusanCollectionQuery[] =
   BUSAN_REGION_CONFIG.districts.flatMap((district) =>
     COMPACT_DELTA_TEMPLATES.map((template, templateIndex) => ({
-      key: `${KAKAO_BUSAN_DELTA_QUERY_KEY_PREFIX}:${district.code}:${template.family}:0`,
+      key: `${KAKAO_BUSAN_DELTA_QUERY_KEY_PREFIX}:${district.legalDongDistrictCode}:${template.family}:0`,
       registryVersion: KAKAO_BUSAN_DELTA_QUERY_REGISTRY_VERSION,
-      districtCode: district.code,
+      districtCode: district.legalDongDistrictCode,
       districtName: district.name,
       family: template.family,
       templateIndex,

@@ -18,7 +18,7 @@ describe("Kakao Busan query registry V1", () => {
 
     for (const district of BUSAN_REGION_CONFIG.districts) {
       const queries = getKakaoBusanCollectionQueries({
-        districtCode: district.code,
+        districtCode: district.legalDongDistrictCode,
       });
       expect(queries).toHaveLength(31);
       expect(new Set(queries.map(({ districtName }) => districtName))).toEqual(

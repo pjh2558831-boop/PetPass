@@ -253,7 +253,7 @@ test("completes one bounded real-provider journey across all three strategies", 
     ).size,
   ).toBe(3);
 
-  await expect(page).toHaveURL(/\/results\?tab=recommendations$/u);
+  await expect(page).toHaveURL(/\/results\?tab=recommendations&region=busan$/u);
   await expect
     .poll(
       () =>
@@ -332,7 +332,7 @@ test("completes one bounded real-provider journey across all three strategies", 
         .getByRole("button", { name: "경로 비교로 돌아가기" })
         .first()
         .click();
-      await expect(page).toHaveURL(/\/results\?tab=recommendations$/u);
+      await expect(page).toHaveURL(/\/results\?tab=recommendations&region=busan$/u);
     }
   }
 

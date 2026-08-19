@@ -3,7 +3,10 @@ import "server-only";
 import { z } from "zod";
 import {
   BUSAN_REGION_CONFIG,
+  REGION_IDS,
+  getRegionConfig,
   getRegionDistrict,
+  type RegionConfig,
 } from "@/lib/regions/config";
 import { getTripPaceConfig } from "@/lib/itinerary/trip-pace";
 import type { NormalizedItineraryRequest } from "@/types/route-generation";
@@ -19,11 +22,16 @@ const categories = z.enum([
   "food",
   "shopping",
 ]);
-const districtIds = BUSAN_REGION_CONFIG.districts.map(({ code }) => code) as [
-  string,
-  ...string[],
-];
+const recommendationRegionProbeSchema = z.object({
+  trip: z.object({ regionId: z.string() }),
+});
 
+export function getRequestedRecommendationRegion(
+  input: unknown,
+): RegionConfig | null {
+  const parsed = recommendationRegionProbeSchema.safeParse(input);
+  return parsed.success ? getRegionConfig(parsed.data.trip.regionId) : null;
+}
 export const routeRecommendationRequestSchema = z
   .object({
     departure: z
@@ -40,8 +48,8 @@ export const routeRecommendationRequestSchema = z
       .strict(),
     trip: z
       .object({
-        regionId: z.literal(BUSAN_REGION_CONFIG.id),
-        districtId: z.enum(districtIds).nullable(),
+        regionId: z.enum(REGION_IDS),
+        districtId: z.string().trim().min(1).max(20).nullable(),
         date: z.string().date(),
         startTime: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/u),
         tripType: z.enum(["day_trip", "overnight"]),
@@ -57,6 +65,17 @@ export const routeRecommendationRequestSchema = z
       })
       .strict()
       .superRefine((trip, context) => {
+        const region = getRegionConfig(trip.regionId);
+        if (
+          trip.districtId !== null &&
+          (!region || !getRegionDistrict(region, trip.districtId))
+        ) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["districtId"],
+            message: "districtId must belong to regionId.",
+          });
+        }
         if (trip.tripType === "overnight" && !trip.selectedCategories.includes("accommodation")) {
           context.addIssue({
             code: z.ZodIssueCode.custom,
@@ -86,6 +105,13 @@ export const routeRecommendationRequestSchema = z
 export function normalizeRecommendationRequest(
   input: RouteRecommendationRequest,
 ): NormalizedItineraryRequest {
+  const requestedRegion = getRegionConfig(input.trip.regionId);
+  if (
+    requestedRegion.id !== BUSAN_REGION_CONFIG.id ||
+    !requestedRegion.itineraryEnabled
+  ) {
+    throw new TypeError("REGION_NOT_SUPPORTED_FOR_ITINERARY");
+  }
   const pace = getTripPaceConfig(input.trip.tripPace);
   const district = getRegionDistrict(
     BUSAN_REGION_CONFIG,
@@ -95,14 +121,18 @@ export function normalizeRecommendationRequest(
     scope: district
       ? {
           type: "district",
-          regionCode: "26",
+          regionCode:
+            BUSAN_REGION_CONFIG.providerCodes.korPetTourService2
+              .legalDongRegionCode,
           regionName: BUSAN_REGION_CONFIG.displayName,
-          districtCode: district.code,
+          districtCode: district.legalDongDistrictCode,
           districtName: district.name,
         }
       : {
           type: "busan",
-          regionCode: "26",
+          regionCode:
+            BUSAN_REGION_CONFIG.providerCodes.korPetTourService2
+              .legalDongRegionCode,
           regionName: "부산 전체",
         },
     start: {

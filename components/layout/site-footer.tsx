@@ -18,7 +18,7 @@ export function SiteFooter() {
             여행 만들기
           </Link>
           <Link
-            href="/results?tab=catalog"
+            href="/results?tab=catalog&region=busan"
             className="inline-flex min-h-11 items-center font-semibold hover:text-[var(--brand)]"
           >
             장소 찾기

@@ -1,5 +1,9 @@
 import "server-only";
 
+import {
+  BUSAN_REGION_CONFIG,
+  coordinatesInRegion,
+} from "@/lib/regions/config";
 import type { KakaoDiscoveryCandidate } from "@/types/kakao";
 import type { TourPlaceSummary } from "@/types/place";
 import type {
@@ -9,13 +13,6 @@ import type {
   TravelSuitabilityEvidence,
   TravelSuitabilityExclusionReason,
 } from "@/types/route-generation";
-
-const BUSAN_BOUNDS = {
-  west: 128.75,
-  south: 34.95,
-  east: 129.4,
-  north: 35.5,
-} as const;
 
 const ROLE_RULES: ReadonlyArray<{
   role: TravelRole;
@@ -119,12 +116,7 @@ function roleFromText(
 }
 
 function coordinatesInBusan(latitude: number, longitude: number): boolean {
-  return (
-    latitude >= BUSAN_BOUNDS.south &&
-    latitude <= BUSAN_BOUNDS.north &&
-    longitude >= BUSAN_BOUNDS.west &&
-    longitude <= BUSAN_BOUNDS.east
-  );
+  return coordinatesInRegion(BUSAN_REGION_CONFIG, { latitude, longitude });
 }
 
 function excludedAssessment(

@@ -55,6 +55,8 @@ export function recommendationActions(status: RecommendationStatus): string[] {
       return ["잠시 뒤 다시 시도하기", "입력한 여행 조건 확인하기"];
     case "route_engine_disabled":
       return ["방문 가능한 장소 둘러보기"];
+    case "region_not_supported_for_itinerary":
+      return ["부산 여행으로 변경하기", "방문 가능한 장소 둘러보기"];
     case "invalid_request":
       return ["여행 조건 수정하기"];
     case "ready":

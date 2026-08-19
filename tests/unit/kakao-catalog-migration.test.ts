@@ -234,7 +234,9 @@ describe("Kakao Busan catalog migration", () => {
     expect(startRpc).toContain("v_validated_full_query_count <> 496");
     expect(KAKAO_BUSAN_QUERY_COUNT).toBe(496);
     for (const district of BUSAN_REGION_CONFIG.districts) {
-      expect(startRpc).toContain(`('${district.code}', '${district.name}')`);
+      expect(startRpc).toContain(
+        `('${district.legalDongDistrictCode}', '${district.name}')`,
+      );
     }
     for (const [family, templates] of Object.entries(
       KAKAO_BUSAN_QUERY_TEMPLATES,

@@ -9,6 +9,7 @@ import type { PublicCatalogLayer, PublicCatalogPlace } from "@/types/public-cata
 function place(index: number, layer: PublicCatalogLayer = "tourism"): PublicCatalogPlace {
   return {
     id: `${layer}:${index}`,
+    regionId: "busan",
     providerPlaceId: String(index),
     name: `장소 ${String(index).padStart(2, "0")}`,
     layer,
@@ -29,6 +30,7 @@ function place(index: number, layer: PublicCatalogLayer = "tourism"): PublicCata
 
 describe("full explorer collections", () => {
   const common = {
+    regionId: "busan" as const,
     categories: ["attraction", "food", "cafe", "accommodation", "shopping", "veterinary", "pet_shop"] as const,
     rankingAsOf: "2026-08-19T00:00:00.000Z",
     sort: "recommendation" as const,
@@ -51,6 +53,7 @@ describe("full explorer collections", () => {
     const places = [duplicate, { ...duplicate, name: "중복" }, place(2, "kakao"), place(3, "veterinary"), invalid];
     const result = getExplorerCollections({
       places,
+      regionId: "busan",
       district: "all",
       categories: [...common.categories],
       layers: ["tourism", "kakao"],
@@ -62,6 +65,32 @@ describe("full explorer collections", () => {
 
     expect(result.filteredPlaces.map(({ id }) => id)).toEqual(["tourism:1", "kakao:2"]);
     expect(result.mapPlaces).toEqual(result.filteredPlaces);
+  });
+
+  it("never mixes identical district codes across regions", () => {
+    const busan = { ...place(110), districtCode: "110", districtName: "중구" };
+    const jeju = {
+      ...place(110),
+      id: "tour:jeju-110",
+      regionId: "jeju" as const,
+      districtCode: "110",
+      districtName: "제주시",
+      address: "제주특별자치도 제주시",
+      coordinates: { latitude: 33.5, longitude: 126.53 },
+    };
+    const result = getExplorerCollections({
+      places: [busan, jeju],
+      regionId: "jeju",
+      district: "110",
+      categories: [...common.categories],
+      layers: [...PUBLIC_CATALOG_LAYERS],
+      activeBounds: null,
+      page: 1,
+      sort: "recommendation",
+      rankingAsOf: common.rankingAsOf,
+    });
+
+    expect(result.filteredPlaces).toEqual([jeju]);
   });
 
   it("treats immaterial viewport drift as the same committed search scope", () => {

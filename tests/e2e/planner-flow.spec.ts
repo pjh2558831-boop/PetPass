@@ -201,7 +201,7 @@ test("searches a departure by place name and generates exactly once", async ({
     status: "ready",
     route: { kind: "optimized" },
   });
-  await expect(page).toHaveURL(/\/results\?tab=recommendations$/u);
+  await expect(page).toHaveURL(/\/results\?tab=recommendations&region=busan$/u);
   await expect.poll(() => requests.length).toBe(1);
   expect(requests[0]).toMatchObject({
     departure: {

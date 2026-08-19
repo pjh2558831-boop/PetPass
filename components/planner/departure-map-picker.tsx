@@ -12,6 +12,7 @@ import {
   isKakaoBaseMapsReady,
   loadKakaoMapsSdk,
 } from "@/lib/kakao/sdk-loader";
+import { BUSAN_REGION_CONFIG } from "@/lib/regions/config";
 import type { Coordinates } from "@/types/place";
 import type { ResolvedDeparture } from "@/types/pet";
 
@@ -56,6 +57,7 @@ export function DepartureMapPicker({
     if (!container || !isKakaoBaseMapsReady() || controllerRef.current) return;
     try {
       controllerRef.current = createKakaoCoordinatePicker(container, {
+        defaultCenter: BUSAN_REGION_CONFIG.defaultMapCenter,
         initialCoordinates:
           selectedLatitude !== undefined && selectedLongitude !== undefined
             ? { latitude: selectedLatitude, longitude: selectedLongitude }

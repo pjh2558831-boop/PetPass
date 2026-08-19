@@ -1,6 +1,7 @@
 import {
   REGION_CONFIGS,
   getRegionConfig,
+  getRegionConfigByService2LegalDongCode,
   getRegionDistrict,
   type RegionConfig,
 } from "@/lib/regions/config";
@@ -66,7 +67,8 @@ function parseAddress(address: string | null | undefined): {
 
 export function deriveRegionLabel(input: RegionLabelInput): string {
   const normalizedFieldRegion =
-    getRegionConfig(input.regionCode) ?? regionFromCity(input.city);
+    getRegionConfigByService2LegalDongCode(input.regionCode) ??
+    regionFromCity(input.city);
   if (normalizedFieldRegion) {
     const districtName =
       getRegionDistrict(normalizedFieldRegion, input.districtCode)?.name ??

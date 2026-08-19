@@ -7,6 +7,10 @@ type Scenario = {
   petResponse?: "empty" | "unavailable";
   unknownHours?: boolean;
   imageUrl?: string;
+  legalRegionCode?: "26" | "50";
+  districtCode?: string;
+  latitude?: number;
+  longitude?: number;
 };
 
 type CatalogScenario = {
@@ -151,6 +155,20 @@ const catalogScenarios: CatalogScenario[] = [
 ];
 
 const scenarios: Record<string, Scenario> = {
+  "5010001": {
+    title: "제주 UI 검증 상세 장소",
+    address: "제주특별자치도 제주시 검증로 1",
+    contentTypeId: "12",
+    petPolicy: {
+      acmpyPsblCpam: "반려동물 동반 가능",
+      acmpyNeedMtr: "목줄 착용 필수",
+    },
+    imageUrl: "https://tong.visitkorea.or.kr/cms/resource/fixture-jeju-01.jpg",
+    legalRegionCode: "50",
+    districtCode: "110",
+    latitude: 33.44,
+    longitude: 126.25,
+  },
   "1005": {
     title: "부산 반려동물 식당",
     address: "부산광역시 해운대구 달맞이길 20",
@@ -441,11 +459,12 @@ function tourismResponse(url: URL): Response {
         contenttypeid: scenario.contentTypeId,
         title: scenario.title,
         addr1: scenario.address,
-        mapx: "129.16",
-        mapy: "35.16",
+        mapx: String(scenario.longitude ?? 129.16),
+        mapy: String(scenario.latitude ?? 35.16),
         overview: "한국관광공사 숙박 상세 소개입니다.",
         firstimage: scenario.imageUrl,
-        lDongRegnCd: "26",
+        lDongRegnCd: scenario.legalRegionCode ?? "26",
+        lDongSignguCd: scenario.districtCode,
         modifiedtime: "20260805000000",
       },
     ]);

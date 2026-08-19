@@ -624,4 +624,94 @@ describe("Korea Tourism Organization provider", () => {
     });
     await expect(failing.listPlaces(query)).rejects.toMatchObject({ code: "UPSTREAM" });
   });
+
+  it("keeps authoritative collection identity on Service2 legal-dong fields only", async () => {
+    const request = vi.fn(async () => parsed([{
+      contentid: "5001",
+      contenttypeid: "12",
+      lDongRegnCd: null,
+      lDongSignguCd: null,
+      areacode: "39",
+      sigungucode: "4",
+    }]));
+    const service = new KoreaTourismService({ request }, new TourRequestCache());
+    const result = await service.listCollectionPlaces({
+      regionCode: "50",
+      districtCode: "110",
+      page: 1,
+      pageSize: 500,
+    });
+
+    expect(request).toHaveBeenCalledWith("areaBasedList2", {
+      lDongRegnCd: "50",
+      lDongSignguCd: "110",
+      pageNo: "1",
+      numOfRows: "500",
+      arrange: "A",
+    });
+    expect(result.records[0]).toMatchObject({
+      authoritativeLegalRegionCode: null,
+      authoritativeLegalDistrictCode: null,
+    });
+  });
+
+  it("collects common, intro, and pet detail without a visibility-list scan", async () => {
+    const request = vi.fn(async (operation: string) => {
+      if (operation === "detailCommon2") {
+        return parsed([{
+          contentid: "5001",
+          contenttypeid: "12",
+          lDongRegnCd: "50",
+          lDongSignguCd: "110",
+          title: "제주 관광지",
+          mapx: "126.53",
+          mapy: "33.50",
+        }]);
+      }
+      if (operation === "detailIntro2") {
+        return parsed([{ contentid: "5001", contenttypeid: "12", chkpet: "동반 가능" }]);
+      }
+      if (operation === "detailPetTour2") {
+        return parsed([{ contentid: "5001", acmpyTypeCd: "전구역 동반가능" }]);
+      }
+      throw new Error(`unexpected operation ${operation}`);
+    });
+    const service = new KoreaTourismService({ request }, new TourRequestCache());
+    const result = await service.getCollectionPlaceDetail("5001", "12");
+
+    expect(result.summary.providerVisibility).toBeUndefined();
+    expect(result.petPolicyEvidence?.fields.acmpyTypeCd).toBe("전구역 동반가능");
+    expect(request.mock.calls.map(([operation]) => operation)).toEqual([
+      "detailCommon2",
+      "detailIntro2",
+      "detailPetTour2",
+    ]);
+  });
+
+  it.each(["detailIntro2", "detailPetTour2"])(
+    "propagates %s failures for all-or-nothing catalog collection",
+    async (failedOperation) => {
+      const request = vi.fn(async (operation: string) => {
+        if (operation === "detailCommon2") {
+          return parsed([{
+            contentid: "5001",
+            contenttypeid: "12",
+            lDongRegnCd: "50",
+            lDongSignguCd: "110",
+            title: "제주 관광지",
+            mapx: "126.53",
+            mapy: "33.50",
+          }]);
+        }
+        if (operation === failedOperation) {
+          throw new TourProviderError("UPSTREAM", "failed", { operation });
+        }
+        return parsed([]);
+      });
+      const service = new KoreaTourismService({ request }, new TourRequestCache());
+
+      await expect(service.getCollectionPlaceDetail("5001", "12"))
+        .rejects.toMatchObject({ code: "UPSTREAM", operation: failedOperation });
+    },
+  );
 });

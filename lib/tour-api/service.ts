@@ -96,6 +96,19 @@ export interface TourPlaceScheduleDetail {
   source: TourPlaceDetail["source"];
 }
 
+export interface TourCollectionListRecord {
+  summary: TourPlaceList["places"][number] | null;
+  authoritativeLegalRegionCode: string | null;
+  authoritativeLegalDistrictCode: string | null;
+}
+
+export interface TourCollectionListPage {
+  records: TourCollectionListRecord[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
+
 export interface TourClientLike {
   request(
     operation: TourOperationName,
@@ -119,6 +132,11 @@ export interface TourPlaceService {
   ): Promise<TourPlaceScheduleDetail>;
   completePlaceDetail?(
     schedule: TourPlaceScheduleDetail,
+    observe?: TourRequestObserver,
+  ): Promise<TourPlaceDetail>;
+  getCollectionPlaceDetail?(
+    contentId: string,
+    contentTypeId?: TourContentTypeId,
     observe?: TourRequestObserver,
   ): Promise<TourPlaceDetail>;
   getPlaceDetail(
@@ -258,6 +276,45 @@ export class KoreaTourismService implements TourPlaceService {
         operation: "areaBasedList2",
         retrievedAt,
       },
+    };
+  }
+
+  async listCollectionPlaces(
+    query: TourPlacesQuery,
+    observe?: TourRequestObserver,
+  ): Promise<TourCollectionListPage> {
+    const params: Record<string, string> = {
+      lDongRegnCd: query.regionCode,
+      pageNo: String(query.page),
+      numOfRows: String(query.pageSize),
+      arrange: "A",
+    };
+    if (query.districtCode) params.lDongSignguCd = query.districtCode;
+    if (query.contentTypeId) params.contentTypeId = query.contentTypeId;
+
+    const response = await this.requestCached(
+      "areaBasedList2",
+      params,
+      LIST_CACHE_TTL_MS,
+      observe,
+    );
+    const retrievedAt = this.now().toISOString();
+    return {
+      records: response.items.map((item) => ({
+        summary: normalizeTourPlaceSummary(item, {
+          operation: "areaBasedList2",
+          retrievedAt,
+          fallbackContentTypeId: query.contentTypeId,
+        }),
+        // Collection identity must never fall back to legacy areaCode/sigunguCode.
+        authoritativeLegalRegionCode:
+          rawValue(item, "lDongRegnCd") ?? rawValue(item, "ldongregncd"),
+        authoritativeLegalDistrictCode:
+          rawValue(item, "lDongSignguCd") ?? rawValue(item, "ldongsigngucd"),
+      })),
+      page: response.pageNo || query.page,
+      pageSize: response.numOfRows || query.pageSize,
+      totalCount: response.totalCount,
     };
   }
 
@@ -409,10 +466,17 @@ export class KoreaTourismService implements TourPlaceService {
     return evidence;
   }
 
-  async getPlaceScheduleDetail(
+  private async loadPlaceScheduleDetail(
     contentId: string,
     requestedContentTypeId?: TourContentTypeId,
     observe?: TourRequestObserver,
+    options: {
+      requireProviderVisibility: boolean;
+      allowUnavailableIntro: boolean;
+    } = {
+      requireProviderVisibility: true,
+      allowUnavailableIntro: true,
+    },
   ): Promise<TourPlaceScheduleDetail> {
     const commonItem = await this.getCommon(contentId, observe);
     if (!commonItem) {
@@ -454,20 +518,22 @@ export class KoreaTourismService implements TourPlaceService {
       );
     }
 
-    const providerVisibility = await this.resolveProviderVisibility(
-      contentId,
-      regionCode,
-      resolvedContentTypeId,
-      observe,
-    );
-    if (providerVisibility.status === "not_exposed") {
+    const providerVisibility = options.requireProviderVisibility
+      ? await this.resolveProviderVisibility(
+          contentId,
+          regionCode,
+          resolvedContentTypeId,
+          observe,
+        )
+      : undefined;
+    if (providerVisibility?.status === "not_exposed") {
       throw new TourProviderError(
         "NOT_FOUND",
         "관광지 상세 정보를 찾지 못했습니다.",
         { operation: "petTourSyncList2" },
       );
     }
-    if (providerVisibility.status !== "exposed") {
+    if (providerVisibility && providerVisibility.status !== "exposed") {
       throw new TourProviderError(
         "INVALID_RESPONSE",
         "관광지 공개 상태를 확인하지 못했습니다.",
@@ -475,12 +541,17 @@ export class KoreaTourismService implements TourPlaceService {
       );
     }
 
-    const introResult = await Promise.resolve(
-      this.getIntro(contentId, resolvedContentTypeId, observe),
-    ).then(
-      (value) => ({ status: "fulfilled" as const, value }),
-      () => ({ status: "rejected" as const }),
-    );
+    const introResult = options.allowUnavailableIntro
+      ? await Promise.resolve(
+          this.getIntro(contentId, resolvedContentTypeId, observe),
+        ).then(
+          (value) => ({ status: "fulfilled" as const, value }),
+          () => ({ status: "rejected" as const }),
+        )
+      : {
+          status: "fulfilled" as const,
+          value: await this.getIntro(contentId, resolvedContentTypeId, observe),
+        };
     const introItem = introResult.status === "fulfilled" ? introResult.value : null;
 
     const retrievedAt = this.now().toISOString();
@@ -516,7 +587,7 @@ export class KoreaTourismService implements TourPlaceService {
       null;
 
     return {
-      summary: { ...summary, providerVisibility },
+      summary: providerVisibility ? { ...summary, providerVisibility } : summary,
       overview: sanitizeProviderText(rawValue(commonItem, "overview")),
       homepageUrl: extractSafeHomepageUrl(rawValue(commonItem, "homepage")),
       ...intro,
@@ -538,15 +609,43 @@ export class KoreaTourismService implements TourPlaceService {
     };
   }
 
+  async getPlaceScheduleDetail(
+    contentId: string,
+    requestedContentTypeId?: TourContentTypeId,
+    observe?: TourRequestObserver,
+  ): Promise<TourPlaceScheduleDetail> {
+    return this.loadPlaceScheduleDetail(
+      contentId,
+      requestedContentTypeId,
+      observe,
+      { requireProviderVisibility: true, allowUnavailableIntro: true },
+    );
+  }
+
   async completePlaceDetail(
     schedule: TourPlaceScheduleDetail,
     observe?: TourRequestObserver,
   ): Promise<TourPlaceDetail> {
+    return this.completePlaceDetailWithMode(schedule, observe, {
+      allowUnavailablePet: true,
+    });
+  }
+
+  private async completePlaceDetailWithMode(
+    schedule: TourPlaceScheduleDetail,
+    observe: TourRequestObserver | undefined,
+    options: { allowUnavailablePet: boolean },
+  ): Promise<TourPlaceDetail> {
     const contentId = schedule.summary.contentId;
-    const petResult = await Promise.resolve(this.getPet(contentId, observe)).then(
-      (value) => ({ status: "fulfilled" as const, value }),
-      () => ({ status: "rejected" as const }),
-    );
+    const petResult = options.allowUnavailablePet
+      ? await Promise.resolve(this.getPet(contentId, observe)).then(
+          (value) => ({ status: "fulfilled" as const, value }),
+          () => ({ status: "rejected" as const }),
+        )
+      : {
+          status: "fulfilled" as const,
+          value: await this.getPet(contentId, observe),
+        };
     const petItem = petResult.status === "fulfilled" ? petResult.value : null;
     const retrievedAt = this.now().toISOString();
     const petPolicyEvidence = normalizePetPolicyEvidence(petItem, {
@@ -585,6 +684,22 @@ export class KoreaTourismService implements TourPlaceService {
       observe,
     );
     return this.completePlaceDetail(schedule, observe);
+  }
+
+  async getCollectionPlaceDetail(
+    contentId: string,
+    requestedContentTypeId?: TourContentTypeId,
+    observe?: TourRequestObserver,
+  ): Promise<TourPlaceDetail> {
+    const schedule = await this.loadPlaceScheduleDetail(
+      contentId,
+      requestedContentTypeId,
+      observe,
+      { requireProviderVisibility: false, allowUnavailableIntro: false },
+    );
+    return this.completePlaceDetailWithMode(schedule, observe, {
+      allowUnavailablePet: false,
+    });
   }
 }
 

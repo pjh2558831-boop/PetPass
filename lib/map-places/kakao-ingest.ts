@@ -4,11 +4,10 @@ import type { KakaoDiscoveryCandidate, KakaoDiscoveryCategory } from "@/types/ka
 
 export type MapPlaceInsert = TablesInsert<"map_places">;
 
-function districtNameFor(address: string): string | null {
+function districtFor(address: string) {
   return (
-    BUSAN_REGION_CONFIG.districts.find(({ name }) =>
-      address.includes(name),
-    )?.name ?? null
+    BUSAN_REGION_CONFIG.districts.find(({ name }) => address.includes(name)) ??
+    null
   );
 }
 
@@ -17,7 +16,9 @@ export function normalizeKakaoMapPlace(
   category: KakaoDiscoveryCategory,
   retrievedAt: string,
 ): MapPlaceInsert {
+  const district = districtFor(candidate.address);
   return {
+    region_id: BUSAN_REGION_CONFIG.id,
     provider: "kakao",
     provider_place_id: candidate.id,
     name: candidate.name,
@@ -26,7 +27,8 @@ export function normalizeKakaoMapPlace(
     content_type_id: null,
     road_address: candidate.address || null,
     lot_address: candidate.address || null,
-    district_name: districtNameFor(candidate.address),
+    district_code: district?.legalDongDistrictCode ?? null,
+    district_name: district?.name ?? null,
     location: `POINT(${candidate.coordinates.longitude} ${candidate.coordinates.latitude})`,
     phone: candidate.phone ?? null,
     image_url: null,

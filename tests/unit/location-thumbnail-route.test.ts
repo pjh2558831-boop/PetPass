@@ -12,19 +12,19 @@ describe("location thumbnail route", () => {
       findLocation,
       fetchMap,
       rateLimit: () => allowed,
-    })(new Request("http://localhost/api/places/kakao:123/location-thumbnail"), {
+    })(new Request("http://localhost/api/places/kakao:123/location-thumbnail?region=busan"), {
       params: Promise.resolve({ placeId: "kakao:123" }),
     });
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("image/png");
     expect(response.headers.get("cache-control")).toContain("s-maxage=604800");
-    expect(findLocation).toHaveBeenCalledWith("123");
+    expect(findLocation).toHaveBeenCalledWith("busan", "123");
   });
 
   it("rejects arbitrary URLs and browser-provided coordinates before lookup", async () => {
     const findLocation = vi.fn();
     const handler = createLocationThumbnailHandler({ enabled: () => true, findLocation, rateLimit: () => allowed });
-    const response = await handler(new Request("http://localhost/api/places/x/location-thumbnail?latitude=35&url=https://evil.test"), {
+    const response = await handler(new Request("http://localhost/api/places/x/location-thumbnail?region=busan&latitude=35&url=https://evil.test"), {
       params: Promise.resolve({ placeId: "https://evil.test" }),
     });
     expect(response.status).toBe(400);
@@ -37,7 +37,7 @@ describe("location thumbnail route", () => {
       enabled: () => false,
       fetchMap,
       rateLimit: () => allowed,
-    })(new Request("http://localhost/api/places/kakao:123/location-thumbnail"), {
+    })(new Request("http://localhost/api/places/kakao:123/location-thumbnail?region=busan"), {
       params: Promise.resolve({ placeId: "kakao:123" }),
     });
     expect(response.status).toBe(404);

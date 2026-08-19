@@ -18,8 +18,10 @@ import {
   loadKakaoMapsSdk,
 } from "@/lib/kakao/sdk-loader";
 import { deriveRegionLabel } from "@/lib/regions/label";
+import { getRegionConfig } from "@/lib/regions/config";
 import type { KakaoCurrentMapSearch } from "@/types/kakao";
 import type { Coordinates } from "@/types/place";
+import type { RegionId } from "@/types/region";
 
 export interface MapLayerControl {
   id: string;
@@ -32,6 +34,7 @@ export interface MapLayerControl {
 }
 
 export interface MapPanelProps {
+  regionId: RegionId;
   compact?: boolean;
   title?: string;
   locationLabel?: string;
@@ -67,8 +70,9 @@ function getLayerMarkerAsset(
 }
 
 export function MapPanel({
+  regionId,
   compact = false,
-  title = "부산 장소 지도",
+  title,
   locationLabel,
   locations,
   routeCoordinates = EMPTY_ROUTE_COORDINATES,
@@ -85,10 +89,13 @@ export function MapPanel({
   showCurrentMapSearch = true,
   emptyMessage = "표시할 장소가 없습니다.",
 }: MapPanelProps) {
+  const region = getRegionConfig(regionId);
+  const resolvedTitle = title ?? `${region.displayName} 장소 지도`;
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<KakaoMapController | null>(null);
   const initializingRef = useRef(false);
   const viewportKeyRef = useRef(viewportKey);
+  const locationCountRef = useRef(locations.length);
   const currentViewportKeyRef = useRef(viewportKey);
   const showSelectionInfoRef = useRef(showSelectionInfo);
   const latestRef = useRef({ locations, routeCoordinates, selectedLocationId });
@@ -116,6 +123,8 @@ export function MapPanel({
       const latest = latestRef.current;
       controllerRef.current?.destroy();
       controllerRef.current = createKakaoMapController(container, {
+        defaultCenter: region.defaultMapCenter,
+        defaultBounds: region.mapBounds,
         locations: latest.locations,
         routeCoordinates: latest.routeCoordinates,
         onLocationSelect: (id) => selectRef.current?.(id),
@@ -128,11 +137,12 @@ export function MapPanel({
       setLoadError("");
       setMapVersion((value) => value + 1);
     } catch (error) {
-      initializingRef.current = false;
       setLoadState("error");
       setLoadError(error instanceof Error ? error.message : "지도를 초기화하지 못했습니다.");
+    } finally {
+      initializingRef.current = false;
     }
-  }, []);
+  }, [region.defaultMapCenter, region.mapBounds]);
 
   useEffect(() => {
     let cancelled = false;
@@ -153,9 +163,11 @@ export function MapPanel({
   useEffect(() => {
     const controller = controllerRef.current;
     if (!controller) return;
-    const fitBounds = viewportKeyRef.current !== viewportKey;
+    const fitBounds = viewportKeyRef.current !== viewportKey ||
+      (locationCountRef.current === 0 && locations.length > 0);
     controller.updateData(locations, routeCoordinates, { fitBounds });
     viewportKeyRef.current = viewportKey;
+    locationCountRef.current = locations.length;
   }, [locations, routeCoordinates, viewportKey]);
 
   useEffect(() => {
@@ -182,7 +194,7 @@ export function MapPanel({
   try {
     getKakaoMapJavaScriptKey();
   } catch (error) {
-    return <section aria-label={title}><div role="alert" className={`map-canvas grid place-items-center p-8 text-center ${compact ? "!min-h-[300px]" : ""}`}><p className="rounded-2xl bg-white/90 p-4 text-sm font-bold text-[#8d3838]">Kakao 지도 설정 오류: {error instanceof Error ? error.message : "설정을 확인해 주세요."}</p></div></section>;
+    return <section aria-label={resolvedTitle}><div role="alert" className={`map-canvas grid place-items-center p-8 text-center ${compact ? "!min-h-[300px]" : ""}`}><p className="rounded-2xl bg-white/90 p-4 text-sm font-bold text-[#8d3838]">Kakao 지도 설정 오류: {error instanceof Error ? error.message : "설정을 확인해 주세요."}</p></div></section>;
   }
 
   const missingCoordinateCount = locations.filter((location) => !isValidMapCoordinates(location.coordinates)).length;
@@ -191,7 +203,7 @@ export function MapPanel({
   const legendLayers = layerControls.filter((layer) => layer.id !== "all");
 
   return (
-    <section className="relative" aria-label={title}>
+    <section className="relative" aria-label={resolvedTitle}>
       <div className={`map-canvas kakao-map-canvas ${compact ? "!min-h-[300px]" : ""}`} data-location-count={validLocationCount} data-map-version={mapVersion} data-route-point-count={routeCoordinates.length}>
         <div ref={mapContainerRef} className="absolute inset-0" role="group" aria-label="지도 장소 마커" />
         {loadState === "loading" ? <p className="absolute inset-x-4 top-20 z-10 rounded-2xl bg-white/95 p-4 text-center text-sm font-bold">Kakao 지도를 불러오는 중입니다…</p> : null}

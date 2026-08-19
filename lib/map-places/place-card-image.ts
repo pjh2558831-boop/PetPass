@@ -3,7 +3,7 @@ import type { PlaceCardImage } from "@/types/place-card-image";
 import type { PublicCatalogPlace } from "@/types/public-catalog-place";
 
 export function resolvePlaceCardImage(
-  place: Pick<PublicCatalogPlace, "id" | "name" | "layer" | "category" | "categoryGroupCode" | "imageUrl" | "approvedImageUrl" | "coordinates">,
+  place: Pick<PublicCatalogPlace, "id" | "regionId" | "name" | "layer" | "category" | "categoryGroupCode" | "imageUrl" | "approvedImageUrl" | "coordinates">,
   options: { staticMapEnabled: boolean },
 ): PlaceCardImage {
   if (place.layer === "tourism" && place.imageUrl) {
@@ -15,7 +15,7 @@ export function resolvePlaceCardImage(
   if (options.staticMapEnabled && place.layer !== "tourism" && place.coordinates) {
     return {
       kind: "static_map",
-      src: `/api/places/${encodeURIComponent(place.id)}/location-thumbnail`,
+      src: `/api/places/${encodeURIComponent(place.id)}/location-thumbnail?region=${place.regionId}`,
       alt: "장소 위치 미리보기",
     };
   }

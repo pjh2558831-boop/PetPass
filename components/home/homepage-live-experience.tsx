@@ -339,12 +339,13 @@ export function HomepageLiveExperience() {
             ) : null}
           </div>
 
-          <Link href="/results?tab=catalog" className="homepage-map-open-link">
+          <Link href="/results?tab=catalog&region=busan" className="homepage-map-open-link">
             지도 크게 보기 <ArrowUpRight size={15} aria-hidden="true" />
           </Link>
 
           <div className="homepage-map-canvas-wrap">
             <MapPanel
+              regionId="busan"
               title="부산 공식·카카오 장소 지도"
               locationLabel="부산 전체"
               locations={locations}

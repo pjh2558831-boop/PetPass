@@ -152,7 +152,7 @@ function parseInput(request: Request): KakaoDiscoveryInput | null {
     category: data.category as KakaoDiscoveryCategory,
     mode,
     rectangle,
-    ...(district ? { district: { code: district.code, name: district.name } } : {}),
+    ...(district ? { district: { code: district.legalDongDistrictCode, name: district.name } } : {}),
     ...(center ? { center } : {}),
   };
 }

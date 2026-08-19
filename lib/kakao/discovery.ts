@@ -9,6 +9,7 @@ import { KAKAO_DISTRICT_RADIUS_METERS } from "@/lib/kakao/search-area";
 import { createKakaoSourceRecord, createTourismSourceRecord } from "@/lib/places/source-records";
 import { findBestProviderLink } from "@/lib/places/source-linking";
 import { deriveRegionLabel } from "@/lib/regions/label";
+import { BUSAN_REGION_CONFIG } from "@/lib/regions/config";
 import { BUSAN_REGION } from "@/lib/tour-api/catalog";
 import { collectTourCatalog } from "@/lib/tour-api/catalog-service";
 import { getDefaultTourService } from "@/lib/tour-api/service";
@@ -40,12 +41,8 @@ export const KAKAO_DISCOVERY_LIMITS = {
   maximumViewportDiagonalMeters: 20_000,
 } as const;
 
-export const BUSAN_DISCOVERY_BOUNDS = {
-  west: 128.75,
-  south: 34.95,
-  east: 129.4,
-  north: 35.5,
-} as const satisfies KakaoDiscoveryRectangle;
+export const BUSAN_DISCOVERY_BOUNDS =
+  BUSAN_REGION_CONFIG.mapBounds satisfies KakaoDiscoveryRectangle;
 
 const CATEGORY_GROUP_CODES = {
   attraction: ["AT4"],

@@ -120,7 +120,7 @@ export function HomepagePlaceCarousel({
           <p>공식 동반 가능 장소와 확인이 필요한 카카오 후보를 구분해 보여드려요.</p>
         </div>
         <div className="homepage-heading-actions">
-          <Link href="/results?tab=catalog" className="homepage-text-link">
+          <Link href="/results?tab=catalog&region=busan" className="homepage-text-link">
             전체 보기
             <ChevronRight size={16} aria-hidden="true" />
           </Link>

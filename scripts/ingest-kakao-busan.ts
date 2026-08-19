@@ -44,6 +44,7 @@ async function run() {
   const { data: runRow, error: runError } = await supabase
     .from("map_ingest_runs")
     .insert({
+      region_id: BUSAN_REGION_CONFIG.id,
       provider: "kakao",
       status: "running",
       collector_version: COLLECTOR_VERSION,
@@ -65,7 +66,10 @@ async function run() {
           category: category as KakaoDiscoveryCategory,
           mode: "district",
           rectangle: rectangleFromCenter(district.searchCenter),
-          district: { code: district.code, name: district.name },
+          district: {
+            code: district.legalDongDistrictCode,
+            name: district.name,
+          },
           center: district.searchCenter,
         });
         attemptedQueryCount += response.metadata.externalCallCount;
@@ -84,6 +88,7 @@ async function run() {
     const { data: existing, error: existingError } = await supabase
       .from("map_places")
       .select("provider_place_id")
+      .eq("region_id", BUSAN_REGION_CONFIG.id)
       .eq("provider", "kakao");
     if (existingError) throw new Error("기존 카카오 장소 식별자를 조회하지 못했습니다.");
     const existingIds = new Set(
@@ -106,6 +111,7 @@ async function run() {
       const { data: deactivated, error: deactivateError } = await supabase
         .from("map_places")
         .update({ is_active: false, updated_at: completedAt })
+        .eq("region_id", BUSAN_REGION_CONFIG.id)
         .eq("provider", "kakao")
         .eq("is_active", true)
         .lt("fetched_at", startedAt)
@@ -127,6 +133,7 @@ async function run() {
         deactivated_row_count: deactivatedRowCount,
         saturated_query_count: saturatedQueryCount,
       })
+      .eq("region_id", BUSAN_REGION_CONFIG.id)
       .eq("id", runRow.id);
     if (completionError) throw new Error("수집 완료 기록을 저장하지 못했습니다.");
 
@@ -150,6 +157,7 @@ async function run() {
         sanitized_error_summary:
           error instanceof Error ? error.message.slice(0, 300) : "수집 실패",
       })
+      .eq("region_id", BUSAN_REGION_CONFIG.id)
       .eq("id", runRow.id);
     throw error;
   }

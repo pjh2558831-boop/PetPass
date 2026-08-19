@@ -7,11 +7,13 @@ import type { TourPlaceSummary } from "@/types/place";
 describe("public catalog URL state", () => {
   it("restores allowlisted filters", () => {
     expect(parsePublicCatalogUrlState({
+      region: "busan",
       district: "500",
       categories: "cafe,shopping",
       layers: "tourism,kakao,veterinary,pet_shop",
       page: "3",
     })).toEqual({
+      region: "busan",
       district: "500",
       categories: ["cafe", "shopping"],
       layers: [...PUBLIC_CATALOG_LAYERS],
@@ -22,7 +24,16 @@ describe("public catalog URL state", () => {
 
   it("fails invalid values to safe defaults", () => {
     expect(parsePublicCatalogUrlState({ district: "seoul", categories: "invalid", layers: "tourism,raw", page: "-1" }))
-      .toEqual({ district: "all", categories: ["attraction", "food", "cafe", "accommodation"], layers: [...PUBLIC_CATALOG_LAYERS], page: 1, sort: "recommendation" });
+      .toEqual({ region: "busan", district: "all", categories: ["attraction", "food", "cafe", "accommodation"], layers: [...PUBLIC_CATALOG_LAYERS], page: 1, sort: "recommendation" });
+  });
+
+  it("resolves district 110 within the selected region", () => {
+    expect(parsePublicCatalogUrlState({ region: "busan", district: "110" }))
+      .toMatchObject({ region: "busan", district: "110" });
+    expect(parsePublicCatalogUrlState({ region: "jeju", district: "110" }))
+      .toMatchObject({ region: "jeju", district: "110" });
+    expect(parsePublicCatalogUrlState({ region: "jeju", district: "500", page: "3" }))
+      .toMatchObject({ region: "jeju", district: "all", page: 3 });
   });
 
   it("restores an explicit all-layers-off state", () => {

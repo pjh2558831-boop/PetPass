@@ -5,6 +5,7 @@ import type { PublicCatalogPlace } from "@/types/public-catalog-place";
 function place(id: string, overrides: Partial<PublicCatalogPlace> = {}): PublicCatalogPlace {
   return {
     id: `kakao:${id}`,
+    regionId: "busan",
     providerPlaceId: id,
     name: `장소 ${id}`,
     layer: "kakao",

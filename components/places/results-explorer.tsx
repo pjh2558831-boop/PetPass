@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Check, ChevronLeft, ChevronRight, List, Map as MapIcon, RefreshCw, Route, Rows3, SlidersHorizontal } from "lucide-react";
@@ -29,7 +29,11 @@ import {
   type PlaceCategory,
 } from "@/lib/map-places/place-categories";
 import type { KakaoMapLocation, KakaoViewportIdleCause } from "@/lib/kakao/maps";
-import { BUSAN_DISTRICTS, BUSAN_REGION } from "@/lib/tour-api/catalog";
+import {
+  BUSAN_REGION_CONFIG,
+  getMapEnabledRegionConfigs,
+  getRegionConfig,
+} from "@/lib/regions/config";
 import type { ApiResult } from "@/types/api";
 import type { KakaoCurrentMapSearch } from "@/types/kakao";
 import {
@@ -44,6 +48,7 @@ import {
 } from "@/types/public-catalog-place";
 import type { PublicMapPlacePage } from "@/types/public-map-place";
 import type { TourPlaceList } from "@/types/place";
+import type { RegionId } from "@/types/region";
 
 type ExplorerTab = "catalog" | "recommendations";
 type ProviderState = "loading" | "ready" | "error";
@@ -65,7 +70,9 @@ const LAYER_META: Record<PublicCatalogLayer, {
   pet_shop: { label: "펫샵·용품점", markerKind: "pet-shop", color: "purple" },
 };
 
-async function fetchAllTourPlaces(
+const MAP_ENABLED_REGIONS = getMapEnabledRegionConfigs();
+
+async function fetchAllBusanTourPlaces(
   district: string,
   signal: AbortSignal,
   categories: readonly PlaceCategory[],
@@ -74,7 +81,13 @@ async function fetchAllTourPlaces(
   let page = 1;
   let totalCount = Number.POSITIVE_INFINITY;
   while (places.length < totalCount) {
-    const params = new URLSearchParams({ regionCode: BUSAN_REGION.code, page: String(page), pageSize: "1000", view: "markers", categories: categories.join(",") });
+    const params = new URLSearchParams({
+      regionCode: BUSAN_REGION_CONFIG.providerCodes.korPetTourService2.legalDongRegionCode,
+      page: String(page),
+      pageSize: "1000",
+      view: "markers",
+      categories: categories.join(","),
+    });
     if (district !== "all") params.set("districtCode", district);
     const response = await fetch(`/api/tour/places?${params}`, { signal, headers: { Accept: "application/json" } });
     const body = await response.json() as ApiResult<PublicCatalogMarkerPage | TourPlaceList>;
@@ -92,9 +105,11 @@ async function fetchAllTourPlaces(
 
 const DEFAULT_KAKAO_CATEGORIES = ["attraction", "park_walk", "leisure", "camping", "food", "cafe", "accommodation"] as const;
 
-async function fetchKakaoMarkerPages(
+async function fetchMapMarkerPages(
+  regionId: RegionId,
   district: string,
   signal: AbortSignal,
+  providers: "tour" | "kakao",
   kinds: string,
   categories?: readonly string[],
 ): Promise<PublicCatalogMarker[]> {
@@ -103,7 +118,14 @@ async function fetchKakaoMarkerPages(
   let hasNext = true;
   let afterId: number | null = null;
   while (hasNext) {
-    const params = new URLSearchParams({ page: String(page), pageSize: "200", view: "markers", kinds });
+    const params = new URLSearchParams({
+      region: regionId,
+      providers,
+      page: String(page),
+      pageSize: "200",
+      view: "markers",
+      kinds,
+    });
     if (categories) params.set("categories", categories.join(","));
     if (afterId !== null) params.set("afterId", String(afterId));
     if (district !== "all") params.set("district", district);
@@ -112,11 +134,11 @@ async function fetchKakaoMarkerPages(
     if (!response.ok || !body.ok) throw new Error(!body.ok ? body.error.message : "Kakao 장소를 불러오지 못했습니다.");
     places.push(...body.data.items.map((place) => "layer" in place
       ? place
-      : normalizeKakaoCatalogMarker(place)));
+      : normalizeKakaoCatalogMarker(place, regionId)));
     hasNext = body.data.hasNext;
     afterId = body.data.nextCursor ?? null;
     if (hasNext && afterId === null) {
-      throw new Error("Kakao 장소 페이지 커서를 확인하지 못했습니다.");
+      throw new Error("지도 장소 페이지 커서를 확인하지 못했습니다.");
     }
     page += 1;
   }
@@ -124,17 +146,31 @@ async function fetchKakaoMarkerPages(
 }
 
 async function fetchAllKakaoPlaces(
+  regionId: RegionId,
   district: string,
   signal: AbortSignal,
   scope: "default" | "optional",
 ): Promise<PublicCatalogMarker[]> {
   const groups = scope === "default"
-    ? [fetchKakaoMarkerPages(district, signal, "pet_travel_candidate", DEFAULT_KAKAO_CATEGORIES)]
+    ? [fetchMapMarkerPages(regionId, district, signal, "kakao", "pet_travel_candidate", DEFAULT_KAKAO_CATEGORIES)]
     : [
-        fetchKakaoMarkerPages(district, signal, "pet_travel_candidate", ["shopping"]),
-        fetchKakaoMarkerPages(district, signal, "veterinary,pet_shop"),
+        fetchMapMarkerPages(regionId, district, signal, "kakao", "pet_travel_candidate", ["shopping"]),
+        fetchMapMarkerPages(regionId, district, signal, "kakao", "veterinary,pet_shop"),
       ];
   return (await Promise.all(groups)).flat();
+}
+
+function fetchAllJejuOfficialPlaces(
+  district: string,
+  signal: AbortSignal,
+): Promise<PublicCatalogMarker[]> {
+  return fetchMapMarkerPages(
+    "jeju",
+    district,
+    signal,
+    "tour",
+    "tourism_place",
+  );
 }
 
 function getVisiblePageNumbers(currentPage: number, totalPages: number): number[] {
@@ -182,7 +218,12 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
 }) {
   const router = useRouter();
   const { generationRequested, consumeGenerationRequest } = usePlannerState();
-  const [activeTab, setActiveTab] = useState<ExplorerTab>(initialTab);
+  const [region, setRegion] = useState<RegionId>(initialCatalogState.region);
+  const regionConfig = getRegionConfig(region);
+  const [activeTab, setActiveTab] = useState<ExplorerTab>(() =>
+    initialTab === "recommendations" && !regionConfig.itineraryEnabled
+      ? "catalog"
+      : initialTab);
   const [district, setDistrict] = useState(initialCatalogState.district);
   const [categories, setCategories] = useState<PlaceCategory[]>(initialCatalogState.categories);
   const [page, setPage] = useState(initialCatalogState.page);
@@ -194,7 +235,8 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const [optionalKakaoPlaces, setOptionalKakaoPlaces] = useState<PublicCatalogMarker[]>([]);
   const [optionalLoadedFor, setOptionalLoadedFor] = useState<string | null>(null);
   const [tourState, setTourState] = useState<ProviderState>("loading");
-  const [kakaoState, setKakaoState] = useState<ProviderState>("loading");
+  const [kakaoState, setKakaoState] = useState<ProviderState>(() =>
+    regionConfig.kakaoDiscoveryEnabled ? "loading" : "ready");
   const [tourError, setTourError] = useState("");
   const [kakaoError, setKakaoError] = useState("");
   const [tourCardsById, setTourCardsById] = useState<Map<string, PublicCatalogPlace>>(() => new Map());
@@ -210,23 +252,30 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   useEffect(() => {
     if (activeTab !== "catalog") return;
     const controller = new AbortController();
-    void fetchAllTourPlaces(district, controller.signal, DEFAULT_PLACE_CATEGORIES)
+    const tourRequest = region === "jeju"
+      ? fetchAllJejuOfficialPlaces(district, controller.signal)
+      : fetchAllBusanTourPlaces(district, controller.signal, DEFAULT_PLACE_CATEGORIES);
+    void tourRequest
       .then((places) => { setTourPlaces(places); setTourState("ready"); setTourError(""); })
       .catch((error: unknown) => { if (!controller.signal.aborted) { setTourState("error"); setTourError(error instanceof Error ? error.message : "관광공사 오류"); } });
-    void fetchAllKakaoPlaces(district, controller.signal, "default")
+    const kakaoRequest = regionConfig.kakaoDiscoveryEnabled
+      ? fetchAllKakaoPlaces(region, district, controller.signal, "default")
+      : Promise.resolve<PublicCatalogMarker[]>([]);
+    void kakaoRequest
       .then((places) => { setKakaoPlaces(places); setKakaoState("ready"); setKakaoError(""); })
       .catch((error: unknown) => { if (!controller.signal.aborted) { setKakaoState("error"); setKakaoError(error instanceof Error ? error.message : "Kakao 오류"); } });
     return () => controller.abort();
-  }, [activeTab, district, retry]);
+  }, [activeTab, district, region, regionConfig.kakaoDiscoveryEnabled, retry]);
 
-  const needsOptionalPlaces = categories.some((category) => OPTIONAL_PLACE_CATEGORIES.includes(category));
+  const needsOptionalPlaces = regionConfig.kakaoDiscoveryEnabled &&
+    categories.some((category) => OPTIONAL_PLACE_CATEGORIES.includes(category));
   useEffect(() => {
-    const scopeKey = `${district}:${retry}`;
+    const scopeKey = `${region}:${district}:${retry}`;
     if (activeTab !== "catalog" || !needsOptionalPlaces || optionalLoadedFor === scopeKey) return;
     const controller = new AbortController();
     void Promise.all([
-      fetchAllTourPlaces(district, controller.signal, ["shopping"]),
-      fetchAllKakaoPlaces(district, controller.signal, "optional"),
+      fetchAllBusanTourPlaces(district, controller.signal, ["shopping"]),
+      fetchAllKakaoPlaces(region, district, controller.signal, "optional"),
     ]).then(([tour, kakao]) => {
       setOptionalTourPlaces(tour);
       setOptionalKakaoPlaces(kakao);
@@ -235,11 +284,12 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       if (!controller.signal.aborted) setKakaoError(error instanceof Error ? error.message : "추가 장소 오류");
     });
     return () => controller.abort();
-  }, [activeTab, district, needsOptionalPlaces, optionalLoadedFor, retry]);
+  }, [activeTab, district, needsOptionalPlaces, optionalLoadedFor, region, retry]);
 
   useEffect(() => {
     const params = new URLSearchParams();
     params.set("tab", activeTab);
+    params.set("region", region);
     if (activeTab === "catalog") {
       if (district !== "all") params.set("district", district);
       const categoryState = serializePublicCatalogCategories(categories);
@@ -248,16 +298,18 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       params.set("page", String(page));
     }
     router.replace(`/results?${params}`, { scroll: false });
-  }, [activeTab, categories, district, page, router, sort]);
+  }, [activeTab, categories, district, page, region, router, sort]);
 
   const allPlaces = useMemo(() => {
     const unique = new Map<string, PublicCatalogMarker>();
-    const optionalPlaces = optionalLoadedFor === `${district}:${retry}`
+    const optionalPlaces = optionalLoadedFor === `${region}:${district}:${retry}`
       ? [...optionalTourPlaces, ...optionalKakaoPlaces]
       : [];
-    for (const place of [...tourPlaces, ...kakaoPlaces, ...optionalPlaces]) if (!unique.has(place.id)) unique.set(place.id, place);
+    for (const place of [...tourPlaces, ...kakaoPlaces, ...optionalPlaces]) {
+      if (place.regionId === region && !unique.has(place.id)) unique.set(place.id, place);
+    }
     return [...unique.values()];
-  }, [district, kakaoPlaces, optionalKakaoPlaces, optionalLoadedFor, optionalTourPlaces, retry, tourPlaces]);
+  }, [district, kakaoPlaces, optionalKakaoPlaces, optionalLoadedFor, optionalTourPlaces, region, retry, tourPlaces]);
 
   const rankingCenter = useMemo(() => activeBounds ? ({
     latitude: (activeBounds.south + activeBounds.north) / 2,
@@ -265,6 +317,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   }) : null, [activeBounds]);
   const scopedCollections = useMemo(() => getExplorerCollections({
     places: allPlaces,
+    regionId: region,
     district,
     categories: [...PLACE_CATEGORIES],
     layers: [...PUBLIC_CATALOG_LAYERS],
@@ -273,7 +326,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     sort,
     rankingAsOf,
     rankingCenter,
-  }), [activeBounds, allPlaces, district, rankingAsOf, rankingCenter, sort]);
+  }), [activeBounds, allPlaces, district, rankingAsOf, rankingCenter, region, sort]);
   const categoryCounts = useMemo(() => Object.fromEntries(
     PLACE_CATEGORIES.map((category) => [
       category,
@@ -283,13 +336,14 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const displayedCategoryCounts = useMemo(() => Object.fromEntries(
     PLACE_CATEGORIES.map((category) => [
       category,
-      OPTIONAL_PLACE_CATEGORIES.includes(category) && optionalLoadedFor !== `${district}:${retry}`
+      OPTIONAL_PLACE_CATEGORIES.includes(category) && optionalLoadedFor !== `${region}:${district}:${retry}`
         ? null
         : categoryCounts[category],
     ]),
-  ) as Record<PlaceCategory, number | null>, [categoryCounts, district, optionalLoadedFor, retry]);
+  ) as Record<PlaceCategory, number | null>, [categoryCounts, district, optionalLoadedFor, region, retry]);
   const filteredCollections = useMemo(() => getExplorerCollections({
     places: allPlaces,
+    regionId: region,
     district,
     categories,
     layers: [...PUBLIC_CATALOG_LAYERS],
@@ -298,7 +352,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     sort,
     rankingAsOf,
     rankingCenter,
-  }), [activeBounds, allPlaces, categories, district, rankingAsOf, rankingCenter, sort]);
+  }), [activeBounds, allPlaces, categories, district, rankingAsOf, rankingCenter, region, sort]);
   const { filteredPlaces, mapPlaces, totalPages } = filteredCollections;
   const currentPage = Math.min(Math.max(1, page), totalPages);
   const pagedMarkers = useMemo(() => {
@@ -310,13 +364,14 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   ), [pagedMarkers, tourCardsById]);
 
   useEffect(() => {
+    if (region !== "busan") return;
     const missingIds = pagedMarkers
       .filter(({ layer, id }) => layer === "tourism" && !tourCardsById.has(id))
       .map(({ providerPlaceId }) => providerPlaceId);
     if (missingIds.length === 0) return;
     const controller = new AbortController();
     const params = new URLSearchParams({
-      regionCode: BUSAN_REGION.code,
+      regionCode: BUSAN_REGION_CONFIG.providerCodes.korPetTourService2.legalDongRegionCode,
       ids: missingIds.join(","),
       page: "1",
       pageSize: String(missingIds.length),
@@ -342,7 +397,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       });
     }).catch(() => undefined);
     return () => controller.abort();
-  }, [district, pagedMarkers, tourCardsById]);
+  }, [district, pagedMarkers, region, tourCardsById]);
   const mapLocations = useMemo<KakaoMapLocation[]>(() => mapPlaces.map((place) => ({
     id: place.id,
     name: place.name,
@@ -354,38 +409,70 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     clusterable: true,
   })), [mapPlaces]);
   const placeIndex = useMemo(() => new Map(filteredPlaces.map((place, index) => [place.id, index])), [filteredPlaces]);
-  const districtName = district === "all" ? "부산 전체" : getPublicCatalogDistrictName(district);
-  const anyReady = tourState === "ready" || kakaoState === "ready";
+  const districtName = getPublicCatalogDistrictName(region, district);
+  const anyReady = region === "jeju"
+    ? tourState === "ready"
+    : tourState === "ready" || kakaoState === "ready";
   const isDefaultCategoryState = DEFAULT_PLACE_CATEGORIES.length === categories.length &&
     DEFAULT_PLACE_CATEGORIES.every((category) => categories.includes(category));
   const activeFilterCount = Number(district !== "all") + Number(!isDefaultCategoryState) + Number(Boolean(activeBounds));
   const allPopularityInsufficient = filteredPlaces.length > 0;
+  const visibleDefaultCategories = region === "jeju" && tourState === "ready"
+    ? DEFAULT_PLACE_CATEGORIES.filter((category) => categoryCounts[category] > 0)
+    : DEFAULT_PLACE_CATEGORIES;
+  const visibleOptionalCategories = region === "jeju"
+    ? []
+    : OPTIONAL_PLACE_CATEGORIES;
+  const visibleLayers = region === "jeju"
+    ? (["tourism"] as const)
+    : PUBLIC_CATALOG_LAYERS;
 
-  const resetViewportScope = useCallback(() => {
+  const resetViewportScope = () => {
     activeBoundsRef.current = null;
     viewportBaselineRef.current = null;
     latestViewportRef.current = null;
     setActiveBounds(null);
     setViewportDirty(false);
-  }, []);
-  const changeFilter = useCallback((update: () => void) => {
+  };
+  const changeRegion = (nextRegion: RegionId) => {
+    if (nextRegion === region) return;
+    const nextConfig = getRegionConfig(nextRegion);
+    setRegion(nextRegion);
+    setActiveTab("catalog");
+    setDistrict("all");
+    setCategories([...DEFAULT_PLACE_CATEGORIES]);
+    setPage(1);
+    setSelectedId(null);
+    setTourPlaces([]);
+    setKakaoPlaces([]);
+    setOptionalTourPlaces([]);
+    setOptionalKakaoPlaces([]);
+    setOptionalLoadedFor(null);
+    setTourCardsById(new Map());
+    setTourError("");
+    setKakaoError("");
+    setTourState("loading");
+    setKakaoState(nextConfig.kakaoDiscoveryEnabled ? "loading" : "ready");
+    resetViewportScope();
+  };
+  const changeFilter = (update: () => void) => {
     update(); setPage(1); setSelectedId(null); resetViewportScope();
-  }, [resetViewportScope]);
-  const toggleCategory = useCallback((category: PlaceCategory) => {
+  };
+  const toggleCategory = (category: PlaceCategory) => {
     setCategories((current) => current.includes(category)
       ? current.filter((value) => value !== category)
       : PLACE_CATEGORIES.filter((value) => value === category || current.includes(value)));
     setPage(1);
     setSelectedId(null);
-  }, []);
-  const selectPlace = useCallback((id: string | null) => {
+  };
+  const selectPlace = (id: string | null) => {
     setSelectedId(id);
     if (!id) return;
     const index = placeIndex.get(id);
     if (index !== undefined) setPage(Math.floor(index / PUBLIC_CATALOG_PAGE_SIZE) + 1);
     requestAnimationFrame(() => document.getElementById(`place-card-${id.replace(":", "-")}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
-  }, [placeIndex]);
-  const handleViewportIdle = useCallback((viewport: KakaoCurrentMapSearch, cause: KakaoViewportIdleCause) => {
+  };
+  const handleViewportIdle = (viewport: KakaoCurrentMapSearch, cause: KakaoViewportIdleCause) => {
     latestViewportRef.current = viewport;
     if (!viewportBaselineRef.current || cause === "initial") {
       viewportBaselineRef.current = viewport.rectangle;
@@ -395,8 +482,8 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     if (cause === "programmatic") return;
     const comparisonBounds = activeBoundsRef.current ?? viewportBaselineRef.current;
     setViewportDirty(!explorerBoundsAreEquivalent(comparisonBounds, viewport.rectangle));
-  }, []);
-  const commitCurrentViewport = useCallback((viewport: KakaoCurrentMapSearch) => {
+  };
+  const commitCurrentViewport = (viewport: KakaoCurrentMapSearch) => {
     latestViewportRef.current = viewport;
     if (explorerBoundsAreEquivalent(activeBoundsRef.current, viewport.rectangle)) { setViewportDirty(false); return; }
     activeBoundsRef.current = viewport.rectangle;
@@ -410,7 +497,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       }
     }
     setPage(1);
-  }, [allPlaces, selectedId]);
+  };
 
   if (activeTab === "recommendations") {
     return (
@@ -430,48 +517,68 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       <div className="full-map-explorer__toolbar">
         <div className="inline-flex rounded-xl border border-[#d7e0da] bg-white p-1" role="tablist" aria-label="장소 및 추천 보기">
           <button id="catalog-tab" type="button" role="tab" aria-selected="true" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#236148] px-4 text-sm font-extrabold text-white"><Rows3 size={16} aria-hidden="true" />장소 찾기</button>
-          <button id="recommendations-tab" type="button" role="tab" aria-selected="false" onClick={() => setActiveTab("recommendations")} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-extrabold text-[#52665b]"><Route size={16} aria-hidden="true" />추천 코스</button>
+          {regionConfig.itineraryEnabled ? (
+            <button id="recommendations-tab" type="button" role="tab" aria-selected="false" onClick={() => setActiveTab("recommendations")} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-extrabold text-[#52665b]"><Route size={16} aria-hidden="true" />추천 코스</button>
+          ) : (
+            <button id="recommendations-tab" type="button" role="tab" aria-selected="false" aria-disabled="true" disabled className="inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-extrabold text-[#7a8780]"><Route size={16} aria-hidden="true" />제주 경로 추천은 준비 중입니다.</button>
+          )}
         </div>
+        <fieldset className="explorer-region-selector">
+          <legend className="sr-only">지역 선택</legend>
+          {MAP_ENABLED_REGIONS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              aria-pressed={region === item.id}
+              onClick={() => changeRegion(item.id)}
+            >
+              {item.displayName}
+            </button>
+          ))}
+        </fieldset>
         <div className="full-map-explorer__mobile-switch" role="group" aria-label="지도 또는 목록 보기">
           <button type="button" aria-pressed={mobileMode === "map"} onClick={() => setMobileMode("map")}><MapIcon size={17} aria-hidden="true" />지도</button>
           <button type="button" aria-pressed={mobileMode === "list"} onClick={() => setMobileMode("list")}><List size={17} aria-hidden="true" />목록</button>
         </div>
-        <p className="full-map-explorer__scope"><strong>{districtName}</strong><span>공식 관광 장소와 공개된 지역 후보를 함께 비교합니다.</span></p>
+        <p className="full-map-explorer__scope"><strong>{districtName}</strong><span>{region === "jeju" ? "한국관광공사 공식 장소만 표시합니다." : "공식 관광 장소와 공개된 지역 후보를 함께 비교합니다."}</span></p>
       </div>
 
       <div className="full-map-explorer__main" data-mobile-mode={mobileMode}>
         <section className="full-map-explorer__map" aria-label={`${districtName} 전체 장소 지도`}>
           <div className="explorer-category-panel">
             <div className="explorer-category-panel__heading">
-              <p>BUSAN PET PLACE MAP</p>
-              <h2>부산 반려동물 장소</h2>
+              <p>{region.toUpperCase()} PET PLACE MAP</p>
+              <h2>{regionConfig.displayName} 반려동물 장소</h2>
               <strong>현재 표시 {filteredPlaces.length.toLocaleString("ko-KR")}곳</strong>
             </div>
             <CategoryToggleGroup
               title="여행 장소"
-              categories={DEFAULT_PLACE_CATEGORIES}
+              categories={visibleDefaultCategories}
               active={categories}
               counts={displayedCategoryCounts}
               onToggle={toggleCategory}
             />
-            <CategoryToggleGroup
-              title="추가로 보기"
-              categories={OPTIONAL_PLACE_CATEGORIES}
-              active={categories}
-              counts={displayedCategoryCounts}
-              onToggle={toggleCategory}
-            />
+            {visibleOptionalCategories.length > 0 ? (
+              <CategoryToggleGroup
+                title="추가로 보기"
+                categories={visibleOptionalCategories}
+                active={categories}
+                counts={displayedCategoryCounts}
+                onToggle={toggleCategory}
+              />
+            ) : null}
             <div className="explorer-category-panel__actions">
-              <button type="button" onClick={() => { setCategories([...PLACE_CATEGORIES]); setPage(1); setSelectedId(null); }}>전체</button>
+              <button type="button" onClick={() => { setCategories([...visibleDefaultCategories, ...visibleOptionalCategories]); setPage(1); setSelectedId(null); }}>전체</button>
               <button type="button" onClick={() => { setCategories([...DEFAULT_PLACE_CATEGORIES]); setPage(1); setSelectedId(null); }}>기본으로</button>
             </div>
           </div>
           <div className="explorer-source-legend" aria-label="장소 출처 범례">
-            {PUBLIC_CATALOG_LAYERS.map((layer) => (
+            {visibleLayers.map((layer) => (
               <span key={layer}><i data-color={LAYER_META[layer].color} aria-hidden="true" />{LAYER_META[layer].label}</span>
             ))}
           </div>
           <MapPanel
+            regionId={region}
             locations={mapLocations}
             selectedLocationId={selectedId}
             onLocationSelect={selectPlace}
@@ -479,7 +586,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
             onCurrentMapSearch={commitCurrentViewport}
             showCurrentMapSearch={viewportDirty}
             currentMapSearchLabel="이 지역 검색 다시하기"
-            viewportKey={`catalog:${district}:${categories.join(",")}`}
+            viewportKey={`catalog:${region}:${district}:${categories.join(",")}`}
             showLocationLabel={false}
             title={`${districtName} 장소 지도`}
             locationLabel={districtName}
@@ -494,11 +601,11 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
             <details className="explorer-filter-menu">
               <summary><SlidersHorizontal size={16} aria-hidden="true" />필터{activeFilterCount > 0 ? ` ${activeFilterCount}` : ""}</summary>
               <div>
-                <label>부산 세부 지역<select value={district} onChange={(event) => changeFilter(() => { setDistrict(event.target.value as typeof district); setTourState("loading"); setKakaoState("loading"); setTourPlaces([]); setKakaoPlaces([]); })}><option value="all">부산 전체</option>{BUSAN_DISTRICTS.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select></label>
-                <CategoryToggleGroup title="여행 장소" categories={DEFAULT_PLACE_CATEGORIES} active={categories} counts={displayedCategoryCounts} onToggle={toggleCategory} />
-                <CategoryToggleGroup title="추가로 보기" categories={OPTIONAL_PLACE_CATEGORIES} active={categories} counts={displayedCategoryCounts} onToggle={toggleCategory} />
+                <label>{regionConfig.displayName} 세부 지역<select value={district} onChange={(event) => changeFilter(() => { setDistrict(event.target.value); setTourState("loading"); setKakaoState(regionConfig.kakaoDiscoveryEnabled ? "loading" : "ready"); setTourPlaces([]); setKakaoPlaces([]); setOptionalLoadedFor(null); })}><option value="all">{regionConfig.displayName} 전체</option>{regionConfig.districts.map((item) => <option key={item.legalDongDistrictCode} value={item.legalDongDistrictCode}>{item.name}</option>)}</select></label>
+                <CategoryToggleGroup title="여행 장소" categories={visibleDefaultCategories} active={categories} counts={displayedCategoryCounts} onToggle={toggleCategory} />
+                {visibleOptionalCategories.length > 0 ? <CategoryToggleGroup title="추가로 보기" categories={visibleOptionalCategories} active={categories} counts={displayedCategoryCounts} onToggle={toggleCategory} /> : null}
                 <div className="explorer-filter-menu__category-actions">
-                  <button type="button" onClick={() => { setCategories([...PLACE_CATEGORIES]); setPage(1); setSelectedId(null); }}>전체 카테고리</button>
+                  <button type="button" onClick={() => { setCategories([...visibleDefaultCategories, ...visibleOptionalCategories]); setPage(1); setSelectedId(null); }}>전체 카테고리</button>
                   <button type="button" onClick={() => { setCategories([...DEFAULT_PLACE_CATEGORIES]); setPage(1); setSelectedId(null); }}>기본 카테고리</button>
                 </div>
                 {activeBounds ? <button type="button" onClick={() => { resetViewportScope(); setPage(1); }}>지도 검색 범위 초기화</button> : null}
@@ -514,13 +621,24 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
           {sort === "popularity" && allPopularityInsufficient ? <p className="explorer-popularity-notice" role="status">이용 데이터가 쌓이는 동안 추천순을 함께 반영합니다.</p> : null}
           <div className="explorer-results-status">
             {tourState === "error" ? <div role="alert"><b>관광공사 장소를 불러오지 못했습니다.</b> {tourError}</div> : null}
-            {kakaoState === "error" ? <div role="alert"><b>Kakao 장소를 불러오지 못했습니다.</b> {kakaoError}</div> : null}
-            {tourState === "loading" || kakaoState === "loading" ? <p role="status">장소를 불러오는 중입니다…</p> : null}
-            {!anyReady && tourState === "error" && kakaoState === "error" ? <button type="button" onClick={() => { setTourState("loading"); setKakaoState("loading"); setRetry((value) => value + 1); }}><RefreshCw size={15} aria-hidden="true" />다시 시도</button> : null}
+            {regionConfig.kakaoDiscoveryEnabled && kakaoState === "error" ? <div role="alert"><b>Kakao 장소를 불러오지 못했습니다.</b> {kakaoError}</div> : null}
+            {tourState === "loading" || (regionConfig.kakaoDiscoveryEnabled && kakaoState === "loading") ? <p role="status">장소를 불러오는 중입니다…</p> : null}
+            {!anyReady && tourState === "error" && (!regionConfig.kakaoDiscoveryEnabled || kakaoState === "error") ? <button type="button" onClick={() => { setTourState("loading"); setKakaoState(regionConfig.kakaoDiscoveryEnabled ? "loading" : "ready"); setRetry((value) => value + 1); }}><RefreshCw size={15} aria-hidden="true" />다시 시도</button> : null}
           </div>
           <div className="explorer-results-list">
             {anyReady && pagedPlaces.length === 0 ? <p className="explorer-empty-state">선택한 조건의 장소가 없습니다.</p> : null}
-            {pagedPlaces.map((place) => <PublicCatalogCard key={place.id} place={place} selected={selectedId === place.id} onSelect={() => selectPlace(place.id)} staticMapEnabled={staticMapEnabled} />)}
+            {pagedPlaces.map((place) => (
+              <PublicCatalogCard
+                key={place.id}
+                place={place}
+                selected={selectedId === place.id}
+                onSelect={() => {
+                  selectPlace(place.id);
+                  setMobileMode("map");
+                }}
+                staticMapEnabled={staticMapEnabled}
+              />
+            ))}
           </div>
           <nav className="explorer-pagination" aria-label="장소 목록 페이지">
             <button type="button" disabled={currentPage === 1} onClick={() => { setPage(currentPage - 1); setSelectedId(null); }} aria-label="이전 페이지"><ChevronLeft size={17} aria-hidden="true" /></button>

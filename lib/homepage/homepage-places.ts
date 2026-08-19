@@ -1,6 +1,7 @@
 import "server-only";
 
 import { deriveRegionLabel } from "@/lib/regions/label";
+import { BUSAN_REGION_CONFIG } from "@/lib/regions/config";
 import { TOUR_CATEGORY_LABELS } from "@/lib/shared/format";
 import { collectTourHomepageSnapshot } from "@/lib/tour-api/homepage-catalog";
 import type { PublicMapCatalogQuery } from "@/lib/map-places/public-catalog";
@@ -52,7 +53,7 @@ const PUBLIC_CATEGORY_LABELS = {
 } as const;
 
 const PUBLIC_LAYER_CONFIG: Record<
-  PublicMapPlaceKind,
+  Exclude<PublicMapPlaceKind, "tourism_place">,
   {
     layer: Exclude<HomepagePlaceLayer, "official">;
     sourceLabel: string;
@@ -162,6 +163,9 @@ function publicCategoryLabel(place: PublicMapPlaceDTO): string {
 }
 
 function publicCard(place: PublicMapPlaceDTO): HomepagePlaceCard {
+  if (place.kind === "tourism_place") {
+    throw new Error("The homepage public catalog only supports Kakao layers.");
+  }
   const config = PUBLIC_LAYER_CONFIG[place.kind];
   return {
     id: place.id,
@@ -229,6 +233,7 @@ export async function collectHomepagePlacesSnapshot({
     requestedKinds.map(async (kind) => ({
       kind,
       page: await queryPublicCatalog({
+        regionId: BUSAN_REGION_CONFIG.id,
         kinds: [kind],
         page: 1,
         pageSize: 200,

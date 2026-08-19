@@ -83,11 +83,11 @@ test("keeps real desktop navigation routable and future items non-linking", asyn
   );
   await expect(navigation.getByRole("link", { name: "장소 찾기" })).toHaveAttribute(
     "href",
-    "/results?tab=catalog",
+    "/results?tab=catalog&region=busan",
   );
   await expect(navigation.getByRole("link", { name: "추천 코스" })).toHaveAttribute(
     "href",
-    "/results?tab=recommendations",
+    "/results?tab=recommendations&region=busan",
   );
 
   for (const label of ["커뮤니티", "마이페이지", "로그인", "회원가입"]) {
@@ -106,7 +106,7 @@ test("keeps real desktop navigation routable and future items non-linking", asyn
   );
   await expect(footer.getByRole("link", { name: "장소 찾기" })).toHaveAttribute(
     "href",
-    "/results?tab=catalog",
+    "/results?tab=catalog&region=busan",
   );
   await expect(footer.getByRole("link", { name: "내 일정" })).toHaveAttribute(
     "href",
@@ -115,8 +115,8 @@ test("keeps real desktop navigation routable and future items non-linking", asyn
 
   for (const href of [
     "/",
-    "/results?tab=catalog",
-    "/results?tab=recommendations",
+    "/results?tab=catalog&region=busan",
+    "/results?tab=recommendations&region=busan",
     "/itinerary",
     "/planner/pet",
   ]) {
@@ -153,7 +153,7 @@ test("opens the mobile navigation and follows its real destination", async ({
 
   await mobileNavigation.getByRole("link", { name: "장소 찾기" }).click();
 
-  await expect(page).toHaveURL(/\/results\?tab=catalog$/u);
+  await expect(page).toHaveURL(/\/results\?tab=catalog&region=busan&page=1$/u);
   await expect(page.getByRole("tabpanel", { name: "장소 찾기" })).toBeVisible();
 });
 

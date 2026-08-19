@@ -11,8 +11,14 @@ import { BUSAN_REGION_CONFIG } from "@/lib/regions/config";
 
 const DISTRICT_A = BUSAN_REGION_CONFIG.districts[0];
 const DISTRICT_B = BUSAN_REGION_CONFIG.districts[1];
-const A = { districtCode: DISTRICT_A.code, districtName: DISTRICT_A.name };
-const B = { districtCode: DISTRICT_B.code, districtName: DISTRICT_B.name };
+const A = {
+  districtCode: DISTRICT_A.legalDongDistrictCode,
+  districtName: DISTRICT_A.name,
+};
+const B = {
+  districtCode: DISTRICT_B.legalDongDistrictCode,
+  districtName: DISTRICT_B.name,
+};
 
 function query(input: {
   key: string;
@@ -88,7 +94,7 @@ describe("Kakao collection CLI planning", () => {
 
   it("filters by district code or exact name and produces a secret-free plan", () => {
     const selected = filterKakaoBusanCollectionQueries(QUERIES, {
-      district: DISTRICT_A.code,
+      district: DISTRICT_A.legalDongDistrictCode,
       kind: "veterinary",
     });
     expect(selected.map(({ key }) => key)).toEqual(["a:vet"]);

@@ -1,9 +1,20 @@
 import type { Coordinates } from "@/types/place";
+import type { RegionId } from "@/types/region";
+
+export { REGION_IDS } from "@/types/region";
+export type { RegionId } from "@/types/region";
 
 export interface RegionDistrictConfig {
-  code: string;
+  legalDongDistrictCode: string;
   name: string;
   searchCenter: Coordinates;
+}
+
+export interface RegionBounds {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
 }
 
 export interface RegionSearchCenter {
@@ -14,40 +25,54 @@ export interface RegionSearchCenter {
 }
 
 export interface RegionConfig {
-  id: string;
+  id: RegionId;
   displayName: string;
-  tourismAreaCode: string;
-  enabled: boolean;
+  providerCodes: {
+    korPetTourService2: {
+      legalDongRegionCode: string;
+    };
+    legacyTourismAreaCode: string | null;
+  };
+  mapEnabled: boolean;
+  itineraryEnabled: boolean;
+  kakaoDiscoveryEnabled: boolean;
   defaultMapCenter: Coordinates;
+  mapBounds: RegionBounds;
   districts: readonly RegionDistrictConfig[];
   wideSearchCenters: readonly RegionSearchCenter[];
 }
 
 const BUSAN_DISTRICT_CONFIGS = [
-  { code: "110", name: "중구", searchCenter: { latitude: 35.1063, longitude: 129.0324 } },
-  { code: "140", name: "서구", searchCenter: { latitude: 35.0979, longitude: 129.0242 } },
-  { code: "170", name: "동구", searchCenter: { latitude: 35.1293, longitude: 129.0453 } },
-  { code: "200", name: "영도구", searchCenter: { latitude: 35.0912, longitude: 129.0679 } },
-  { code: "230", name: "부산진구", searchCenter: { latitude: 35.1629, longitude: 129.0532 } },
-  { code: "260", name: "동래구", searchCenter: { latitude: 35.2048, longitude: 129.0838 } },
-  { code: "290", name: "남구", searchCenter: { latitude: 35.1366, longitude: 129.0842 } },
-  { code: "320", name: "북구", searchCenter: { latitude: 35.1972, longitude: 128.9904 } },
-  { code: "350", name: "해운대구", searchCenter: { latitude: 35.1631, longitude: 129.1636 } },
-  { code: "380", name: "사하구", searchCenter: { latitude: 35.1046, longitude: 128.9747 } },
-  { code: "410", name: "금정구", searchCenter: { latitude: 35.243, longitude: 129.0921 } },
-  { code: "440", name: "강서구", searchCenter: { latitude: 35.2122, longitude: 128.9807 } },
-  { code: "470", name: "연제구", searchCenter: { latitude: 35.1762, longitude: 129.0798 } },
-  { code: "500", name: "수영구", searchCenter: { latitude: 35.1456, longitude: 129.1131 } },
-  { code: "530", name: "사상구", searchCenter: { latitude: 35.1526, longitude: 128.9912 } },
-  { code: "710", name: "기장군", searchCenter: { latitude: 35.2446, longitude: 129.2223 } },
+  { legalDongDistrictCode: "110", name: "중구", searchCenter: { latitude: 35.1063, longitude: 129.0324 } },
+  { legalDongDistrictCode: "140", name: "서구", searchCenter: { latitude: 35.0979, longitude: 129.0242 } },
+  { legalDongDistrictCode: "170", name: "동구", searchCenter: { latitude: 35.1293, longitude: 129.0453 } },
+  { legalDongDistrictCode: "200", name: "영도구", searchCenter: { latitude: 35.0912, longitude: 129.0679 } },
+  { legalDongDistrictCode: "230", name: "부산진구", searchCenter: { latitude: 35.1629, longitude: 129.0532 } },
+  { legalDongDistrictCode: "260", name: "동래구", searchCenter: { latitude: 35.2048, longitude: 129.0838 } },
+  { legalDongDistrictCode: "290", name: "남구", searchCenter: { latitude: 35.1366, longitude: 129.0842 } },
+  { legalDongDistrictCode: "320", name: "북구", searchCenter: { latitude: 35.1972, longitude: 128.9904 } },
+  { legalDongDistrictCode: "350", name: "해운대구", searchCenter: { latitude: 35.1631, longitude: 129.1636 } },
+  { legalDongDistrictCode: "380", name: "사하구", searchCenter: { latitude: 35.1046, longitude: 128.9747 } },
+  { legalDongDistrictCode: "410", name: "금정구", searchCenter: { latitude: 35.243, longitude: 129.0921 } },
+  { legalDongDistrictCode: "440", name: "강서구", searchCenter: { latitude: 35.2122, longitude: 128.9807 } },
+  { legalDongDistrictCode: "470", name: "연제구", searchCenter: { latitude: 35.1762, longitude: 129.0798 } },
+  { legalDongDistrictCode: "500", name: "수영구", searchCenter: { latitude: 35.1456, longitude: 129.1131 } },
+  { legalDongDistrictCode: "530", name: "사상구", searchCenter: { latitude: 35.1526, longitude: 128.9912 } },
+  { legalDongDistrictCode: "710", name: "기장군", searchCenter: { latitude: 35.2446, longitude: 129.2223 } },
 ] as const satisfies readonly RegionDistrictConfig[];
 
 export const BUSAN_REGION_CONFIG = {
   id: "busan",
   displayName: "부산",
-  tourismAreaCode: "26",
-  enabled: true,
+  providerCodes: {
+    korPetTourService2: { legalDongRegionCode: "26" },
+    legacyTourismAreaCode: null,
+  },
+  mapEnabled: true,
+  itineraryEnabled: true,
+  kakaoDiscoveryEnabled: true,
   defaultMapCenter: { latitude: 35.1796, longitude: 129.0756 },
+  mapBounds: { west: 128.75, south: 34.95, east: 129.4, north: 35.5 },
   districts: BUSAN_DISTRICT_CONFIGS,
   // A bounded west/central/east plan covers the MVP region without crawling pages.
   wideSearchCenters: [
@@ -72,14 +97,24 @@ export const BUSAN_REGION_CONFIG = {
   ],
 } as const satisfies RegionConfig;
 
-// Kept disabled so the UI and provider routes remain Busan-only in this MVP.
+// Phase 4 enables only the public map. Itinerary generation and Kakao
+// discovery remain separate, explicitly disabled capabilities.
 export const JEJU_REGION_CONFIG = {
   id: "jeju",
   displayName: "제주",
-  tourismAreaCode: "39",
-  enabled: false,
+  providerCodes: {
+    korPetTourService2: { legalDongRegionCode: "50" },
+    legacyTourismAreaCode: "39",
+  },
+  mapEnabled: true,
+  itineraryEnabled: false,
+  kakaoDiscoveryEnabled: false,
   defaultMapCenter: { latitude: 33.4996, longitude: 126.5312 },
-  districts: [],
+  mapBounds: { west: 125.9, south: 33.0, east: 127.1, north: 34.0 },
+  districts: [
+    { legalDongDistrictCode: "110", name: "제주시", searchCenter: { latitude: 33.4996, longitude: 126.5312 } },
+    { legalDongDistrictCode: "130", name: "서귀포시", searchCenter: { latitude: 33.2541, longitude: 126.5601 } },
+  ],
   wideSearchCenters: [],
 } as const satisfies RegionConfig;
 
@@ -89,32 +124,52 @@ export const REGION_CONFIGS = [
 ] as const satisfies readonly RegionConfig[];
 
 export type BusanDistrictCode =
-  (typeof BUSAN_REGION_CONFIG.districts)[number]["code"];
-
-export function getEnabledRegionConfigs(
+  (typeof BUSAN_REGION_CONFIG.districts)[number]["legalDongDistrictCode"];
+export function getMapEnabledRegionConfigs(
   regions: readonly RegionConfig[] = REGION_CONFIGS,
 ): RegionConfig[] {
-  return regions.filter((region) => region.enabled);
+  return regions.filter((region) => region.mapEnabled);
 }
 
+export function getItineraryEnabledRegionConfigs(
+  regions: readonly RegionConfig[] = REGION_CONFIGS,
+): RegionConfig[] {
+  return regions.filter((region) => region.itineraryEnabled);
+}
+
+export function getKakaoDiscoveryEnabledRegionConfigs(
+  regions: readonly RegionConfig[] = REGION_CONFIGS,
+): RegionConfig[] {
+  return regions.filter((region) => region.kakaoDiscoveryEnabled);
+}
+
+export function getRegionConfig(regionId: RegionId): RegionConfig;
 export function getRegionConfig(
-  regionIdOrAreaCode: string | null | undefined,
+  regionId: string | null | undefined,
+): RegionConfig | null;
+export function getRegionConfig(
+  regionId: string | null | undefined,
 ): RegionConfig | null {
-  if (!regionIdOrAreaCode) return null;
-  return (
-    REGION_CONFIGS.find(
-      (region) =>
-        region.id === regionIdOrAreaCode ||
-        region.tourismAreaCode === regionIdOrAreaCode,
-    ) ?? null
-  );
+  if (!regionId) return null;
+  return REGION_CONFIGS.find((region) => region.id === regionId) ?? null;
 }
 
-export function getEnabledRegionConfig(
-  regionIdOrAreaCode: string | null | undefined,
+export function getRegionConfigByService2LegalDongCode(
+  legalDongRegionCode: string | null | undefined,
 ): RegionConfig | null {
-  const region = getRegionConfig(regionIdOrAreaCode);
-  return region?.enabled ? region : null;
+  if (!legalDongRegionCode) return null;
+  return REGION_CONFIGS.find(
+    (region) =>
+      region.providerCodes.korPetTourService2.legalDongRegionCode ===
+      legalDongRegionCode,
+  ) ?? null;
+}
+
+export function getKakaoDiscoveryEnabledRegionConfig(
+  regionId: string | null | undefined,
+): RegionConfig | null {
+  const region = getRegionConfig(regionId);
+  return region?.kakaoDiscoveryEnabled ? region : null;
 }
 
 export function getRegionDistrict(
@@ -122,5 +177,19 @@ export function getRegionDistrict(
   districtCode: string | null | undefined,
 ): RegionDistrictConfig | null {
   if (!districtCode) return null;
-  return region.districts.find(({ code }) => code === districtCode) ?? null;
+  return region.districts.find(
+    ({ legalDongDistrictCode }) => legalDongDistrictCode === districtCode,
+  ) ?? null;
+}
+
+export function coordinatesInRegion(
+  region: RegionConfig,
+  coordinates: Coordinates,
+): boolean {
+  return Number.isFinite(coordinates.latitude) &&
+    Number.isFinite(coordinates.longitude) &&
+    coordinates.latitude >= region.mapBounds.south &&
+    coordinates.latitude <= region.mapBounds.north &&
+    coordinates.longitude >= region.mapBounds.west &&
+    coordinates.longitude <= region.mapBounds.east;
 }

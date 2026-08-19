@@ -39,6 +39,7 @@ export type Database = {
           provider_result_count: number
           query_key: string
           query_text: string
+          region_id: string
           rejected_result_count: number
           sanitized_error_summary: string | null
           saturated: boolean
@@ -72,6 +73,7 @@ export type Database = {
           provider_result_count?: number
           query_key: string
           query_text: string
+          region_id: string
           rejected_result_count?: number
           sanitized_error_summary?: string | null
           saturated?: boolean
@@ -105,6 +107,7 @@ export type Database = {
           provider_result_count?: number
           query_key?: string
           query_text?: string
+          region_id?: string
           rejected_result_count?: number
           sanitized_error_summary?: string | null
           saturated?: boolean
@@ -116,11 +119,25 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "map_ingest_run_queries_collection_run_id_fkey"
-            columns: ["collection_run_id"]
+            foreignKeyName: "map_ingest_run_queries_region_district_fkey"
+            columns: ["region_id", "district_code", "district"]
+            isOneToOne: false
+            referencedRelation: "region_districts"
+            referencedColumns: ["region_id", "district_code", "district_name"]
+          },
+          {
+            foreignKeyName: "map_ingest_run_queries_region_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "regions"
+            referencedColumns: ["region_id"]
+          },
+          {
+            foreignKeyName: "map_ingest_run_queries_region_run_fkey"
+            columns: ["region_id", "collection_run_id"]
             isOneToOne: false
             referencedRelation: "map_ingest_runs"
-            referencedColumns: ["id"]
+            referencedColumns: ["region_id", "id"]
           },
         ]
       }
@@ -150,6 +167,7 @@ export type Database = {
           provider_call_count: number
           provider_error_count: number
           provider_result_count: number
+          region_id: string
           registry_version: string | null
           rejected_result_count: number
           sanitized_error_summary: string | null
@@ -186,6 +204,7 @@ export type Database = {
           provider_call_count?: number
           provider_error_count?: number
           provider_result_count?: number
+          region_id: string
           registry_version?: string | null
           rejected_result_count?: number
           sanitized_error_summary?: string | null
@@ -222,6 +241,7 @@ export type Database = {
           provider_call_count?: number
           provider_error_count?: number
           provider_result_count?: number
+          region_id?: string
           registry_version?: string | null
           rejected_result_count?: number
           sanitized_error_summary?: string | null
@@ -233,7 +253,15 @@ export type Database = {
           updated_row_count?: number
           veterinary_count?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "map_ingest_runs_region_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "regions"
+            referencedColumns: ["region_id"]
+          },
+        ]
       }
       map_place_query_hits: {
         Row: {
@@ -247,6 +275,7 @@ export type Database = {
           page: number
           query_key: string
           query_text: string
+          region_id: string
           result_rank: number
         }
         Insert: {
@@ -260,6 +289,7 @@ export type Database = {
           page: number
           query_key: string
           query_text: string
+          region_id: string
           result_rank: number
         }
         Update: {
@@ -273,22 +303,37 @@ export type Database = {
           page?: number
           query_key?: string
           query_text?: string
+          region_id?: string
           result_rank?: number
         }
         Relationships: [
           {
-            foreignKeyName: "map_place_query_hits_candidate_id_fkey"
-            columns: ["candidate_id"]
+            foreignKeyName: "map_place_query_hits_candidate_region_fkey"
+            columns: ["region_id", "candidate_id"]
             isOneToOne: false
             referencedRelation: "map_places"
-            referencedColumns: ["id"]
+            referencedColumns: ["region_id", "id"]
           },
           {
-            foreignKeyName: "map_place_query_hits_query_fkey"
-            columns: ["collection_run_id", "query_key"]
+            foreignKeyName: "map_place_query_hits_query_region_fkey"
+            columns: ["region_id", "collection_run_id", "query_key"]
             isOneToOne: false
             referencedRelation: "map_ingest_run_queries"
-            referencedColumns: ["collection_run_id", "query_key"]
+            referencedColumns: ["region_id", "collection_run_id", "query_key"]
+          },
+          {
+            foreignKeyName: "map_place_query_hits_region_district_fkey"
+            columns: ["region_id", "district_code", "district"]
+            isOneToOne: false
+            referencedRelation: "region_districts"
+            referencedColumns: ["region_id", "district_code", "district_name"]
+          },
+          {
+            foreignKeyName: "map_place_query_hits_region_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "regions"
+            referencedColumns: ["region_id"]
           },
         ]
       }
@@ -326,6 +371,7 @@ export type Database = {
           provider_place_id: string
           provider_visibility: string
           public_visibility: boolean | null
+          region_id: string
           requires_recheck: boolean | null
           review_note: string | null
           review_status: string | null
@@ -369,6 +415,7 @@ export type Database = {
           provider_place_id: string
           provider_visibility?: string
           public_visibility?: boolean | null
+          region_id: string
           requires_recheck?: boolean | null
           review_note?: string | null
           review_status?: string | null
@@ -412,6 +459,7 @@ export type Database = {
           provider_place_id?: string
           provider_visibility?: string
           public_visibility?: boolean | null
+          region_id?: string
           requires_recheck?: boolean | null
           review_note?: string | null
           review_status?: string | null
@@ -425,19 +473,86 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "map_places_last_seen_run_fkey"
-            columns: ["last_seen_run_id"]
+            columns: ["region_id", "last_seen_run_id"]
             isOneToOne: false
             referencedRelation: "map_ingest_runs"
-            referencedColumns: ["id"]
+            referencedColumns: ["region_id", "id"]
           },
           {
             foreignKeyName: "map_places_pending_publication_run_fkey"
-            columns: ["pending_publication_run_id"]
+            columns: ["region_id", "pending_publication_run_id"]
             isOneToOne: false
             referencedRelation: "map_ingest_runs"
-            referencedColumns: ["id"]
+            referencedColumns: ["region_id", "id"]
+          },
+          {
+            foreignKeyName: "map_places_region_district_fkey"
+            columns: ["region_id", "district_code", "district_name"]
+            isOneToOne: false
+            referencedRelation: "region_districts"
+            referencedColumns: ["region_id", "district_code", "district_name"]
+          },
+          {
+            foreignKeyName: "map_places_region_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "regions"
+            referencedColumns: ["region_id"]
           },
         ]
+      }
+      region_districts: {
+        Row: {
+          created_at: string
+          district_code: string
+          district_name: string
+          region_id: string
+        }
+        Insert: {
+          created_at?: string
+          district_code: string
+          district_name: string
+          region_id: string
+        }
+        Update: {
+          created_at?: string
+          district_code?: string
+          district_name?: string
+          region_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "region_districts_region_id_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "regions"
+            referencedColumns: ["region_id"]
+          },
+        ]
+      }
+      regions: {
+        Row: {
+          created_at: string
+          display_name: string
+          kakao_collection_enabled: boolean
+          legal_dong_code: string
+          region_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          kakao_collection_enabled?: boolean
+          legal_dong_code: string
+          region_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          kakao_collection_enabled?: boolean
+          legal_dong_code?: string
+          region_id?: string
+        }
+        Relationships: []
       }
     }
     Views: {
@@ -596,8 +711,92 @@ export type Database = {
           total_count: number
         }[]
       }
+      get_public_map_catalog_by_region_v1: {
+        Args: {
+          p_after_id?: number
+          p_candidate_kinds?: string[]
+          p_district_codes?: string[]
+          p_east?: number
+          p_normalized_categories?: string[]
+          p_north?: number
+          p_region_id: string
+          p_result_limit?: number
+          p_south?: number
+          p_west?: number
+        }
+        Returns: {
+          address: string
+          candidate_kind: string
+          category_group_code: string | null
+          category_query_agreement_count: number
+          district_code: string
+          district_name: string
+          has_more: boolean
+          id: number
+          last_seen_at: string
+          latitude: number
+          longitude: number
+          matched_query_count: number
+          name: string
+          normalized_category: string
+          phone: string | null
+          place_url: string
+          provider_place_id: string
+          public_label: string
+          review_status: string
+          source: string
+          total_count: number
+        }[]
+      }
+      get_public_map_catalog_by_region_v2: {
+        Args: {
+          p_after_id?: number
+          p_candidate_kinds?: string[]
+          p_district_codes?: string[]
+          p_normalized_categories?: string[]
+          p_providers: string[]
+          p_region_id: string
+          p_result_limit?: number
+        }
+        Returns: {
+          address: string
+          candidate_kind: string
+          category_group_code: string | null
+          category_query_agreement_count: number
+          content_type_id: number | null
+          district_code: string
+          district_name: string
+          has_more: boolean
+          id: number
+          image_url: string | null
+          last_seen_at: string
+          latitude: number
+          longitude: number
+          matched_query_count: number
+          name: string
+          normalized_category: string
+          pet_access_verdict: string
+          pet_evidence_status: string
+          phone: string | null
+          place_url: string | null
+          provider: string
+          provider_place_id: string
+          public_label: string
+          review_status: string
+          source: string
+          total_count: number
+        }[]
+      }
       get_public_map_place_location_v1: {
         Args: { p_provider_place_id: string }
+        Returns: {
+          latitude: number
+          longitude: number
+          provider_place_id: string
+        }[]
+      }
+      get_public_map_place_location_by_region_v1: {
+        Args: { p_provider_place_id: string; p_region_id: string }
         Returns: {
           latitude: number
           longitude: number

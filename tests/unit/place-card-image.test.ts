@@ -4,6 +4,7 @@ import type { PublicCatalogPlace } from "@/types/public-catalog-place";
 
 const base: PublicCatalogPlace = {
   id: "kakao:123",
+  regionId: "busan",
   providerPlaceId: "123",
   name: "광안 후보",
   layer: "kakao",
@@ -35,7 +36,7 @@ describe("place card image hierarchy", () => {
   it("labels enabled previews as maps and otherwise uses a category placeholder", () => {
     expect(resolvePlaceCardImage(base, { staticMapEnabled: true })).toEqual({
       kind: "static_map",
-      src: "/api/places/kakao%3A123/location-thumbnail",
+      src: "/api/places/kakao%3A123/location-thumbnail?region=busan",
       alt: "장소 위치 미리보기",
     });
     expect(resolvePlaceCardImage(base, { staticMapEnabled: false })).toMatchObject({

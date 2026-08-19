@@ -20,17 +20,21 @@ import { SourceTrustPanel } from "@/components/places/source-trust-panel";
 import { InformationReportDraftPanel } from "@/components/places/information-report-draft-panel";
 import { TOUR_CATEGORY_LABELS } from "@/lib/shared/format";
 import { deriveRegionLabel } from "@/lib/regions/label";
+import { getRegionConfig } from "@/lib/regions/config";
 import type { ApiResult } from "@/types/api";
 import type { TourPlaceDetailResponse } from "@/types/place";
+import type { RegionId } from "@/types/region";
 
 type DetailState = "loading" | "ready" | "error";
 
 export function LivePlaceDetail({
   contentId,
   contentTypeId,
+  regionId,
 }: {
   contentId: string;
   contentTypeId?: string;
+  regionId: RegionId;
 }) {
   const [state, setState] = useState<DetailState>("loading");
   const [detail, setDetail] = useState<TourPlaceDetailResponse | null>(null);
@@ -40,12 +44,13 @@ export function LivePlaceDetail({
   useEffect(() => {
     const controller = new AbortController();
     const load = async () => {
-      const query = contentTypeId
-        ? `?contentTypeId=${encodeURIComponent(contentTypeId)}`
-        : "";
+      const query = new URLSearchParams({
+        region: regionId,
+        ...(contentTypeId ? { contentTypeId } : {}),
+      });
       try {
         const response = await fetch(
-          `/api/tour/places/${encodeURIComponent(contentId)}${query}`,
+          `/api/tour/places/${encodeURIComponent(contentId)}?${query}`,
           { signal: controller.signal, headers: { Accept: "application/json" } },
         );
         const body = (await response.json()) as ApiResult<TourPlaceDetailResponse>;
@@ -58,6 +63,13 @@ export function LivePlaceDetail({
                 ? body.error.message
                 : "상세 정보를 불러오지 못했습니다.",
           );
+        }
+        const requestedRegion = getRegionConfig(regionId);
+        if (
+          body.data.summary.legalRegionCode &&
+          body.data.summary.legalRegionCode !== requestedRegion.providerCodes.korPetTourService2.legalDongRegionCode
+        ) {
+          throw new Error("요청한 지역과 상세 장소의 행정 코드가 일치하지 않습니다.");
         }
         setDetail(body.data);
         setError("");
@@ -74,7 +86,7 @@ export function LivePlaceDetail({
     };
     void load();
     return () => controller.abort();
-  }, [contentId, contentTypeId, retryCount]);
+  }, [contentId, contentTypeId, regionId, retryCount]);
 
   if (state === "loading") {
     return (
@@ -128,14 +140,14 @@ export function LivePlaceDetail({
   });
   const informationCards = [
     { icon: MapPin, label: "주소", value: address || "주소 정보 없음" },
-    {
+    ...(regionId === "jeju" && !detail.contactInformation && !detail.summary.phone ? [] : [{
       icon: Phone,
       label: "연락처",
       value:
         detail.contactInformation ??
         detail.summary.phone ??
         "연락처 정보 없음",
-    },
+    }]),
     {
       icon: Clock3,
       label: "운영 정보",
@@ -175,7 +187,7 @@ export function LivePlaceDetail({
   return (
     <div className="page-shell py-8 sm:py-12">
       <Link
-        href="/results"
+        href={`/results?tab=catalog&region=${regionId}`}
         className="inline-flex min-h-10 items-center gap-2 rounded-full text-sm font-bold text-[#52665b] hover:text-[#236148]"
       >
         <ArrowLeft size={17} aria-hidden="true" /> 추천 결과로
@@ -251,6 +263,7 @@ export function LivePlaceDetail({
       {coordinates ? (
         <div className="mt-12">
           <MapPanel
+            regionId={regionId}
             compact
             title={`${title} 위치`}
             locationLabel={regionLabel}

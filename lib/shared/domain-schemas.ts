@@ -174,6 +174,7 @@ export const apiErrorSchema = z.object({
     "UPSTREAM_QUOTA",
     "INVALID_RESPONSE",
     "INVALID_REQUEST",
+    "REGION_NOT_ENABLED_FOR_MAP",
     "RATE_LIMITED",
     "NOT_FOUND",
   ]),

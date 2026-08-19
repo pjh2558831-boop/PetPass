@@ -14,6 +14,7 @@ import type { KakaoCollectionSummary } from "@/lib/kakao/collection/runner";
 
 const PETPASS_SUPABASE_PROJECT_REF = "inucorualcworpzqxjiu";
 const KAKAO_BUSAN_COLLECTOR_VERSION = "kakao-busan-collector-v1";
+const KAKAO_BUSAN_REGION_ID = "busan";
 
 function requiredEnvironmentValue(name: string): string {
   const value = process.env[name]?.trim();
@@ -168,6 +169,7 @@ export function createSupabaseKakaoCollectionRepository(): KakaoCollectionReposi
         "id,provider,status,registry_version,planned_query_count,provider_call_count,provider_429_count,timeout_count,provider_error_count",
       )
       .eq("id", requestedRunId)
+      .eq("region_id", KAKAO_BUSAN_REGION_ID)
       .eq("provider", "kakao")
       .single();
     const row = record(data);
@@ -196,6 +198,7 @@ export function createSupabaseKakaoCollectionRepository(): KakaoCollectionReposi
     const { data: queryData, error: queryError } = await supabase
       .from("map_ingest_run_queries")
       .select("query_key,status")
+      .eq("region_id", KAKAO_BUSAN_REGION_ID)
       .eq("collection_run_id", id);
     if (queryError || !Array.isArray(queryData)) {
       throw new CollectionRepositoryError();
@@ -229,6 +232,7 @@ export function createSupabaseKakaoCollectionRepository(): KakaoCollectionReposi
           sanitized_error_summary: null,
         })
         .eq("id", id)
+        .eq("region_id", KAKAO_BUSAN_REGION_ID)
         .eq("status", row.status);
       if (updateError) throw new CollectionRepositoryError();
     }
@@ -280,6 +284,7 @@ export function createSupabaseKakaoCollectionRepository(): KakaoCollectionReposi
         "completed_query_count,provider_call_count,provider_result_count,accepted_result_count,duplicate_result_count,out_of_district_result_count,invalid_coordinate_result_count,classification_rejection_count,provider_429_count,timeout_count,provider_error_count,inserted_row_count,updated_row_count,deactivated_row_count,preserved_review_row_count,saturated_query_count,unique_place_count,pet_travel_count,veterinary_count,pet_shop_count",
       )
       .eq("id", safeRunId(id))
+      .eq("region_id", KAKAO_BUSAN_REGION_ID)
       .single();
     const run = record(data);
     if (error || !run) throw new CollectionRepositoryError();
@@ -320,6 +325,7 @@ export function createSupabaseKakaoCollectionRepository(): KakaoCollectionReposi
     const { data: queryData, error: queryError } = await supabase
       .from("map_ingest_run_queries")
       .select("candidate_kind,classification_rejection_count")
+      .eq("region_id", KAKAO_BUSAN_REGION_ID)
       .eq("collection_run_id", safeRunId(id))
       .eq("status", "completed");
     if (queryError || !Array.isArray(queryData)) {
@@ -341,6 +347,7 @@ export function createSupabaseKakaoCollectionRepository(): KakaoCollectionReposi
       const { data: placeData, error: placeError } = await supabase
         .from("map_places")
         .select("normalized_category,district_name")
+        .eq("region_id", KAKAO_BUSAN_REGION_ID)
         .eq("provider", "kakao")
         .eq("last_seen_run_id", safeRunId(id))
         .range(from, from + pageSize - 1);

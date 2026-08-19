@@ -9,7 +9,7 @@ import {
   BUSAN_REGION,
   isBusanDistrictCode,
 } from "@/lib/tour-api/catalog";
-import { getEnabledRegionConfigs } from "@/lib/regions/config";
+import { getItineraryEnabledRegionConfigs } from "@/lib/regions/config";
 import { TRIP_PACE_OPTIONS } from "@/lib/itinerary/trip-pace";
 import {
   loadTravelPreferences,
@@ -34,7 +34,7 @@ const categories = [
   { value: "ACCOMMODATION" as const, label: "숙소", icon: BedDouble },
 ];
 
-const ENABLED_REGIONS = getEnabledRegionConfigs();
+const ENABLED_REGIONS = getItineraryEnabledRegionConfigs();
 
 export function TripPreferencesForm() {
   const router = useRouter();
@@ -90,7 +90,7 @@ export function TripPreferencesForm() {
           setError("여행 조건을 이 브라우저에 저장하지 못했어요.");
           return;
         }
-        router.push("/results?tab=recommendations");
+        router.push("/results?tab=recommendations&region=busan");
       }}
     >
       <div className="grid gap-4 sm:grid-cols-2">
@@ -103,13 +103,13 @@ export function TripPreferencesForm() {
             value={preferences.regionCode}
             onChange={(event) => {
               const region = ENABLED_REGIONS.find(
-                ({ tourismAreaCode }) =>
-                  tourismAreaCode === event.target.value,
+                ({ providerCodes }) =>
+                  providerCodes.korPetTourService2.legalDongRegionCode === event.target.value,
               );
               if (!region) return;
               setPreferences((current) => ({
                 ...current,
-                regionCode: region.tourismAreaCode,
+                regionCode: region.providerCodes.korPetTourService2.legalDongRegionCode,
                 regionName: region.displayName,
                 districtCode: undefined,
                 districtName: undefined,
@@ -118,7 +118,7 @@ export function TripPreferencesForm() {
             className="min-h-12 w-full rounded-2xl border border-[#cfd9d3] bg-white px-4 font-semibold"
           >
             {ENABLED_REGIONS.map((region) => (
-              <option key={region.id} value={region.tourismAreaCode}>
+              <option key={region.id} value={region.providerCodes.korPetTourService2.legalDongRegionCode}>
                 {region.displayName}
               </option>
             ))}

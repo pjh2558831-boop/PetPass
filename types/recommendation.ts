@@ -1,5 +1,6 @@
 import type { Coordinates, TourPlaceCategory } from "@/types/place";
 import type { PetSize, PetSpecies, TripPace } from "@/types/pet";
+import type { RegionId } from "@/types/region";
 import type { TourPetAccessConditionType } from "@/types/tour-pet-access";
 
 export const ROUTE_RECOMMENDATION_ENGINE_VERSION =
@@ -20,7 +21,7 @@ export interface RouteRecommendationRequest {
     source: DepartureSource;
   };
   trip: {
-    regionId: string;
+    regionId: RegionId;
     districtId: string | null;
     date: string;
     startTime: string;
@@ -47,6 +48,7 @@ export interface RouteRecommendationRequest {
 export type RecommendationStatus =
   | "ready"
   | "invalid_request"
+  | "region_not_supported_for_itinerary"
   | "insufficient_eligible_places"
   | "insufficient_feasible_route"
   | "tourism_provider_unavailable"

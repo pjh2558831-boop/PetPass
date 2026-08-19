@@ -202,7 +202,7 @@ export function ItineraryEditor() {
             <span className="inline-flex items-center gap-1.5"><MapPinned size={16} aria-hidden="true" /> {generation.request.start.label ?? "출발지"}</span>
           </p>
         </div>
-        <Button type="button" variant="brandSecondary" onClick={() => router.push("/results?tab=recommendations")}>
+        <Button type="button" variant="brandSecondary" onClick={() => router.push("/results?tab=recommendations&region=busan")}>
           <ArrowLeft size={17} aria-hidden="true" /> 경로 비교로 돌아가기
         </Button>
       </header>
@@ -277,6 +277,7 @@ export function ItineraryEditor() {
 
           <div className="mt-4">
             <MapPanel
+              regionId="busan"
               compact
               locations={routeLocations}
               routeCoordinates={presentation.geometry}
@@ -295,7 +296,7 @@ export function ItineraryEditor() {
           </p>
 
           <div className="mt-4 grid gap-2">
-            <Button type="button" variant="brand" className="w-full" onClick={() => router.push("/results?tab=recommendations")}>
+            <Button type="button" variant="brand" className="w-full" onClick={() => router.push("/results?tab=recommendations&region=busan")}>
               <ArrowLeft size={17} aria-hidden="true" /> 경로 비교로 돌아가기
             </Button>
             <Link

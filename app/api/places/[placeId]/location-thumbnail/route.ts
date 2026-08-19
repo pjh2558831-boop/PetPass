@@ -1,5 +1,6 @@
 import { fetchKakaoStaticMap, staticMapThumbnailsEnabled } from "@/lib/kakao/static-map";
 import { findPublicMapPlaceLocation } from "@/lib/map-places/public-catalog";
+import { getRegionConfig } from "@/lib/regions/config";
 import { consumeRateLimit, getRequestClientId, rateLimitHeaders, type RateLimitDecision } from "@/lib/shared/rate-limit";
 
 const SUCCESS_CACHE = "public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000";
@@ -34,15 +35,18 @@ export function createLocationThumbnailHandler(dependencies: LocationThumbnailDe
       });
     }
     const { placeId } = await context.params;
+    const region = getRegionConfig(new URL(request.url).searchParams.get("region"));
     const match = /^kakao:(\d{1,128})$/u.exec(placeId);
-    if (!match?.[1]) {
+    if (!match?.[1] || !region?.mapEnabled || !region.kakaoDiscoveryEnabled) {
       return Response.json({ error: "알려진 장소 ID가 아닙니다." }, {
         status: 400,
         headers: { "Cache-Control": "no-store", ...rateLimitHeaders(limit) },
       });
     }
     try {
-      const location = await (dependencies.findLocation ?? findPublicMapPlaceLocation)(match[1]);
+      const location = await (
+        dependencies.findLocation ?? findPublicMapPlaceLocation
+      )(region.id, match[1]);
       if (!location) {
         return Response.json({ error: "공개된 장소를 찾지 못했습니다." }, {
           status: 404,

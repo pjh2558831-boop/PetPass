@@ -5,7 +5,7 @@ import { parsePublicCatalogUrlState } from "@/lib/map-places/catalog-url";
 import { staticMapThumbnailsEnabled } from "@/lib/kakao/static-map";
 
 export const metadata: Metadata = {
-  title: "부산 장소 찾기",
+  title: "반려동물 장소 찾기",
 };
 
 export default async function ResultsPage({

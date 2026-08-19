@@ -65,6 +65,7 @@ export async function runKakaoCatalogBackup(): Promise<void> {
       const { data, error, count } = await client
         .from(tableName)
         .select("*", { count: "exact" })
+        .eq("region_id", "busan")
         .order("id", { ascending: true })
         .range(offset, offset + PAGE_SIZE - 1);
       if (error || !Array.isArray(data) || typeof count !== "number") {

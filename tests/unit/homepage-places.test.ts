@@ -109,6 +109,7 @@ function officialSnapshot(): TourHomepageSnapshot {
 function publicPage(kind: PublicMapPlaceKind, totalCount = 1): PublicMapPlacePage {
   const providerPlaceId = `${kind}-1`;
   return {
+    region: { id: "busan", displayName: "부산" },
     items: totalCount === 0 ? [] : [{
       id: `kakao:${providerPlaceId}`,
       providerPlaceId,
@@ -144,6 +145,7 @@ describe("provider-neutral homepage place snapshot", () => {
     });
 
     expect(queryPublicCatalog).toHaveBeenCalledTimes(3);
+    expect(queryPublicCatalog).toHaveBeenCalledWith(expect.objectContaining({ regionId: "busan" }));
     expect(result.official).toMatchObject({ totalCount: 3, markerCount: 2, omittedCoordinateCount: 1 });
     expect(result.layers).toMatchObject({
       official: { state: "ready", count: 3, enabledByDefault: true },
@@ -204,7 +206,7 @@ describe("homepage public catalog server cache", () => {
       now: () => currentTime,
       ttlMs: 100,
     });
-    const input = { kinds: ["veterinary"] as PublicMapPlaceKind[], page: 1, pageSize: 200 };
+    const input = { regionId: "busan" as const, kinds: ["veterinary"] as PublicMapPlaceKind[], page: 1, pageSize: 200 };
 
     const [first, concurrent] = await Promise.all([cached(input), cached(input)]);
     expect(first).toBe(concurrent);
@@ -214,6 +216,25 @@ describe("homepage public catalog server cache", () => {
     currentTime = 101;
     await expect(cached(input)).rejects.toThrow("temporary");
     await expect(cached(input)).resolves.toMatchObject({ totalCount: 2 });
+    expect(query).toHaveBeenCalledTimes(3);
+  });
+
+  it("never coalesces or reuses cache entries across regions or cursors", async () => {
+    const query = vi.fn(async (input: Parameters<ReturnType<typeof createHomepagePublicCatalogLoader>>[0]) => ({
+      ...publicPage("pet_travel_candidate"),
+      region: {
+        id: input.regionId,
+        displayName: input.regionId === "busan" ? "부산" : "제주",
+      },
+    }));
+    const cached = createHomepagePublicCatalogLoader({ query });
+
+    const busan = await cached({ regionId: "busan", page: 1, pageSize: 20, afterId: 10 });
+    const jeju = await cached({ regionId: "jeju", page: 1, pageSize: 20, afterId: 10 });
+    await cached({ regionId: "busan", page: 1, pageSize: 20, afterId: 11 });
+
+    expect(busan.region.id).toBe("busan");
+    expect(jeju.region.id).toBe("jeju");
     expect(query).toHaveBeenCalledTimes(3);
   });
 });

@@ -238,6 +238,22 @@ describe("Stage 5 recommendation product contract", () => {
     expect(generate).toHaveBeenCalledTimes(1);
   });
 
+  it("rejects Jeju before recommendation generation or any route-provider work", async () => {
+    const generate = vi.fn(async () => READY);
+    const response = await createRouteRecommendationHandler({ enabled: true, generate })(request({
+      ...VALID_REQUEST,
+      trip: { ...VALID_REQUEST.trip, regionId: "jeju", districtId: "110" },
+    }));
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      status: "region_not_supported_for_itinerary",
+      reasonCodes: ["REGION_NOT_SUPPORTED_FOR_ITINERARY"],
+      retryable: false,
+    });
+    expect(generate).not.toHaveBeenCalled();
+  });
+
   it("coalesces identical in-flight requests without caching personalized results", async () => {
     let release: ((value: RouteRecommendationReadyResponseV1) => void) | undefined;
     const pending = new Promise<RouteRecommendationReadyResponseV1>((resolve) => {

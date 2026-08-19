@@ -110,7 +110,7 @@ export async function generateConfirmedRecommendations(
   const response = await responsePromise;
   expect(response.status()).toBe(200);
   const body = await response.json();
-  await expect(page).toHaveURL(/\/results\?tab=recommendations$/u);
+  await expect(page).toHaveURL(/\/results\?tab=recommendations&region=busan$/u);
   await expect(
     page.getByRole("heading", {
       name: "보리와 함께할 부산 당일 경로를 비교해 보세요.",

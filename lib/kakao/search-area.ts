@@ -1,6 +1,6 @@
 import {
   BUSAN_REGION_CONFIG,
-  getEnabledRegionConfig,
+  getKakaoDiscoveryEnabledRegionConfig,
   getRegionDistrict,
   type RegionConfig,
   type RegionSearchCenter,
@@ -92,7 +92,7 @@ export function createKakaoSearchPlan(
   input: KakaoSearchAreaInput,
 ): KakaoSearchPlan {
   const region =
-    getEnabledRegionConfig(input.regionId) ??
+    getKakaoDiscoveryEnabledRegionConfig(input.regionId) ??
     (input.regionId ? null : BUSAN_REGION_CONFIG);
 
   if (
@@ -121,7 +121,7 @@ export function createKakaoSearchPlan(
         `${region.displayName} · ${district.name} 중심`,
         district.searchCenter,
         KAKAO_DISTRICT_RADIUS_METERS,
-        `${region.id}-${district.code}`,
+        `${region.id}-${district.legalDongDistrictCode}`,
       );
     }
 

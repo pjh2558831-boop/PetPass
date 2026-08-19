@@ -8,7 +8,10 @@ import {
   createKakaoMapController,
 } from "@/lib/kakao/maps";
 import { KAKAO_CURRENT_MAP_MAX_RADIUS_METERS } from "@/lib/kakao/search-area";
-import { BUSAN_REGION_CONFIG } from "@/lib/regions/config";
+import {
+  BUSAN_REGION_CONFIG,
+  JEJU_REGION_CONFIG,
+} from "@/lib/regions/config";
 import {
   getKakaoMapJavaScriptKey,
   getKakaoMapsSdkUrl,
@@ -132,6 +135,7 @@ describe("Kakao integration boundaries", () => {
     );
     expect(() =>
       createKakaoMapController(document.createElement("div"), {
+        defaultCenter: BUSAN_REGION_CONFIG.defaultMapCenter,
         locations: [],
       }),
     ).toThrow("지도 SDK");
@@ -290,6 +294,7 @@ describe("Kakao integration boundaries", () => {
     const onLocationSelect = vi.fn();
     const container = document.createElement("div");
     const controller = createKakaoMapController(container, {
+      defaultCenter: BUSAN_REGION_CONFIG.defaultMapCenter,
       locations: [
         {
           id: "departure",
@@ -455,6 +460,7 @@ describe("Kakao integration boundaries", () => {
     const fallbackMarkerStart = markers.length;
     const fallbackContainer = document.createElement("div");
     const fallbackController = createKakaoMapController(fallbackContainer, {
+      defaultCenter: BUSAN_REGION_CONFIG.defaultMapCenter,
       locations: [
         {
           id: "fallback",
@@ -474,5 +480,19 @@ describe("Kakao integration boundaries", () => {
     fallbackController.updateData([], [], { fitBounds: false });
     expect(markers.at(-1)?.setMap).toHaveBeenLastCalledWith(null);
     fallbackController.destroy();
+
+    const jejuController = createKakaoMapController(
+      document.createElement("div"),
+      {
+        defaultCenter: JEJU_REGION_CONFIG.defaultMapCenter,
+        defaultBounds: JEJU_REGION_CONFIG.mapBounds,
+        locations: [],
+      },
+    );
+    expect(mapInstances.at(-1)?.setBounds).toHaveBeenCalledTimes(1);
+    expect(jejuController.getSearchViewport()).toMatchObject({
+      center: JEJU_REGION_CONFIG.defaultMapCenter,
+    });
+    jejuController.destroy();
   });
 });

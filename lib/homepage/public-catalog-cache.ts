@@ -19,11 +19,14 @@ interface CacheEntry {
 
 function cacheKey(input: PublicMapCatalogQuery): string {
   return JSON.stringify({
+    regionId: input.regionId,
     districtCodes: [...(input.districtCodes ?? [])].sort(),
     kinds: [...(input.kinds ?? [])].sort(),
     category: input.category ?? null,
+    categories: [...(input.categories ?? [])].sort(),
     page: input.page,
     pageSize: input.pageSize,
+    afterId: input.afterId ?? null,
   });
 }
 

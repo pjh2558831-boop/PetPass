@@ -8,7 +8,12 @@ import {
 import {
   BUSAN_REGION_CONFIG,
   JEJU_REGION_CONFIG,
-  getEnabledRegionConfigs,
+  coordinatesInRegion,
+  getItineraryEnabledRegionConfigs,
+  getKakaoDiscoveryEnabledRegionConfigs,
+  getMapEnabledRegionConfigs,
+  getRegionConfig,
+  getRegionConfigByService2LegalDongCode,
 } from "@/lib/regions/config";
 import { UNKNOWN_REGION_LABEL, deriveRegionLabel } from "@/lib/regions/label";
 import type { KakaoPlaceSearchResult } from "@/types/kakao";
@@ -55,12 +60,57 @@ describe("provider-neutral region labels", () => {
 });
 
 describe("region configuration and bounded Kakao search", () => {
-  it("keeps future disabled regions out of enabled UI data", () => {
+  it("separates map, itinerary, and Kakao discovery capabilities", () => {
     expect(
-      getEnabledRegionConfigs([BUSAN_REGION_CONFIG, JEJU_REGION_CONFIG]).map(
+      getMapEnabledRegionConfigs([BUSAN_REGION_CONFIG, JEJU_REGION_CONFIG]).map(
+        ({ id }) => id,
+      ),
+    ).toEqual(["busan", "jeju"]);
+    expect(
+      getItineraryEnabledRegionConfigs([BUSAN_REGION_CONFIG, JEJU_REGION_CONFIG]).map(
         ({ id }) => id,
       ),
     ).toEqual(["busan"]);
+    expect(
+      getKakaoDiscoveryEnabledRegionConfigs([BUSAN_REGION_CONFIG, JEJU_REGION_CONFIG]).map(
+        ({ id }) => id,
+      ),
+    ).toEqual(["busan"]);
+    expect(BUSAN_REGION_CONFIG).toMatchObject({
+      mapEnabled: true,
+      itineraryEnabled: true,
+      kakaoDiscoveryEnabled: true,
+    });
+    expect(JEJU_REGION_CONFIG).toMatchObject({
+      mapEnabled: true,
+      itineraryEnabled: false,
+      kakaoDiscoveryEnabled: false,
+    });
+  });
+
+  it("keeps Service2 legal-dong codes separate from legacy tourism area codes", () => {
+    expect(BUSAN_REGION_CONFIG.providerCodes.korPetTourService2.legalDongRegionCode).toBe("26");
+    expect(JEJU_REGION_CONFIG.providerCodes).toEqual({
+      korPetTourService2: { legalDongRegionCode: "50" },
+      legacyTourismAreaCode: "39",
+    });
+    expect(JEJU_REGION_CONFIG.districts.map(({ legalDongDistrictCode, name }) => ({
+      legalDongDistrictCode,
+      name,
+    }))).toEqual([
+      { legalDongDistrictCode: "110", name: "제주시" },
+      { legalDongDistrictCode: "130", name: "서귀포시" },
+    ]);
+    expect(getRegionConfig("26")).toBeNull();
+    expect(getRegionConfigByService2LegalDongCode("26")?.id).toBe("busan");
+    expect(getRegionConfigByService2LegalDongCode("50")?.id).toBe("jeju");
+  });
+
+  it("validates coordinates against the selected region bounds", () => {
+    expect(coordinatesInRegion(BUSAN_REGION_CONFIG, { latitude: 35.18, longitude: 129.08 })).toBe(true);
+    expect(coordinatesInRegion(BUSAN_REGION_CONFIG, { latitude: 33.5, longitude: 126.53 })).toBe(false);
+    expect(coordinatesInRegion(JEJU_REGION_CONFIG, { latitude: 33.5, longitude: 126.53 })).toBe(true);
+    expect(coordinatesInRegion(JEJU_REGION_CONFIG, { latitude: 35.18, longitude: 129.08 })).toBe(false);
   });
 
   it("changes the search center with the selected district", () => {
@@ -83,7 +133,7 @@ describe("region configuration and bounded Kakao search", () => {
   it("uses the Busan city plan rather than a hidden Haeundae default", () => {
     const plan = createKakaoSearchPlan({ regionId: "busan" });
     const haeundae = BUSAN_REGION_CONFIG.districts.find(
-      ({ code }) => code === "350",
+      ({ legalDongDistrictCode }) => legalDongDistrictCode === "350",
     );
 
     expect(plan.area.mode).toBe("region");

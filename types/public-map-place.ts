@@ -1,9 +1,19 @@
 import { z } from "zod";
+import type { RegionId } from "@/types/region";
 
 export const PUBLIC_MAP_PLACE_KINDS = [
+  "tourism_place",
   "pet_travel_candidate",
   "veterinary",
   "pet_shop",
+] as const;
+
+export const PUBLIC_MAP_PLACE_PROVIDERS = ["tour", "kakao"] as const;
+export const PUBLIC_MAP_PET_ACCESS_VERDICTS = [
+  "allowed",
+  "conditional",
+  "not_allowed",
+  "unknown",
 ] as const;
 
 export const PUBLIC_MAP_PLACE_CATEGORIES = [
@@ -26,9 +36,12 @@ export const PUBLIC_MAP_REVIEW_STATUSES = [
 
 export type PublicMapPlaceKind = (typeof PUBLIC_MAP_PLACE_KINDS)[number];
 export type PublicMapPlaceCategory = (typeof PUBLIC_MAP_PLACE_CATEGORIES)[number];
+export type PublicMapPlaceProvider = (typeof PUBLIC_MAP_PLACE_PROVIDERS)[number];
+export type PublicMapPetAccessVerdict = (typeof PUBLIC_MAP_PET_ACCESS_VERDICTS)[number];
 
 export const publicMapPlaceSchema = z.object({
   id: z.string().min(1),
+  provider: z.enum(PUBLIC_MAP_PLACE_PROVIDERS).default("kakao"),
   providerPlaceId: z.string().min(1),
   name: z.string().min(1),
   kind: z.enum(PUBLIC_MAP_PLACE_KINDS),
@@ -40,8 +53,11 @@ export const publicMapPlaceSchema = z.object({
     longitude: z.number().min(-180).max(180),
   }),
   phone: z.string().min(1).nullable(),
-  placeUrl: z.string().url(),
-  source: z.literal("kakao_search_candidate"),
+  imageUrl: z.string().url().nullable().default(null),
+  contentTypeId: z.string().regex(/^[0-9]+$/u).nullable().default(null),
+  placeUrl: z.union([z.string().url(), z.string().startsWith("/")]),
+  source: z.enum(["kakao_search_candidate", "kto_official"]),
+  petAccessVerdict: z.enum(PUBLIC_MAP_PET_ACCESS_VERDICTS).default("unknown"),
   reviewStatus: z.enum(PUBLIC_MAP_REVIEW_STATUSES),
   publicLabel: z.string().min(1),
   categoryGroupCode: z.string().min(1).nullable().default(null),
@@ -53,6 +69,10 @@ export const publicMapPlaceSchema = z.object({
 export type PublicMapPlaceDTO = z.input<typeof publicMapPlaceSchema>;
 
 export interface PublicMapPlacePage {
+  region: {
+    id: RegionId;
+    displayName: string;
+  };
   items: PublicMapPlaceDTO[];
   page: number;
   pageSize: number;

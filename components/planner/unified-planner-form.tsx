@@ -266,7 +266,7 @@ export function UnifiedPlannerForm() {
         setSubmitting(true);
         setErrors({});
         confirmPlannerAndRequestGeneration(confirmedProfile, preferences);
-        router.push("/results?tab=recommendations");
+        router.push("/results?tab=recommendations&region=busan");
       }}
     >
       <section className="surface-panel p-5 sm:p-7 lg:p-8" aria-labelledby="pet-section-heading">

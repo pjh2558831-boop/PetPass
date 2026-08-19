@@ -90,7 +90,7 @@ export const KAKAO_BUSAN_QUERY_TEMPLATES = {
 export interface KakaoBusanCollectionQuery {
   key: string;
   registryVersion: string;
-  districtCode: (typeof BUSAN_REGION_CONFIG.districts)[number]["code"];
+  districtCode: (typeof BUSAN_REGION_CONFIG.districts)[number]["legalDongDistrictCode"];
   districtName: (typeof BUSAN_REGION_CONFIG.districts)[number]["name"];
   family: KakaoBusanQueryFamily;
   templateIndex: number;
@@ -104,9 +104,9 @@ export const KAKAO_BUSAN_COLLECTION_QUERIES: readonly KakaoBusanCollectionQuery[
   BUSAN_REGION_CONFIG.districts.flatMap((district) =>
     KAKAO_BUSAN_QUERY_FAMILIES.flatMap((family) =>
       KAKAO_BUSAN_QUERY_TEMPLATES[family].map((template, templateIndex) => ({
-        key: `${KAKAO_BUSAN_QUERY_KEY_PREFIX}:${district.code}:${family}:${templateIndex}`,
+        key: `${KAKAO_BUSAN_QUERY_KEY_PREFIX}:${district.legalDongDistrictCode}:${family}:${templateIndex}`,
         registryVersion: KAKAO_BUSAN_QUERY_REGISTRY_VERSION,
-        districtCode: district.code,
+        districtCode: district.legalDongDistrictCode,
         districtName: district.name,
         family,
         templateIndex,

@@ -21,3 +21,14 @@ export function createMapSupabaseClient() {
     },
   );
 }
+
+export function createMapServiceSupabaseClient() {
+  return createClient<Database>(
+    requiredEnvironmentValue("NEXT_PUBLIC_SUPABASE_URL"),
+    requiredEnvironmentValue("SUPABASE_SECRET_KEY"),
+    {
+      auth: { autoRefreshToken: false, persistSession: false },
+      global: { headers: { "X-Client-Info": "petpass-map-region-server" } },
+    },
+  );
+}

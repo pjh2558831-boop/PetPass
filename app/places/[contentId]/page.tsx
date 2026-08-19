@@ -19,7 +19,9 @@ import { DemoBadge } from "@/components/ui/demo-badge";
 import { MissingImage } from "@/components/ui/missing-image";
 import { demoPlaces, getDemoPlace } from "@/fixtures/demo-data";
 import { CATEGORY_LABELS } from "@/lib/shared/format";
+import { getRegionConfig } from "@/lib/regions/config";
 import type { LicenseStatus } from "@/types/license";
+import type { RegionId } from "@/types/region";
 
 const licenseLabels: Record<LicenseStatus, string> = {
   VERIFIED_ACTIVE: "영업 상태 일치",
@@ -46,14 +48,16 @@ export default async function PlaceDetailPage({
   searchParams,
 }: {
   params: Promise<{ contentId: string }>;
-  searchParams: Promise<{ contentTypeId?: string }>;
+  searchParams: Promise<{ contentTypeId?: string; region?: string }>;
 }) {
   const { contentId } = await params;
-  const { contentTypeId } = await searchParams;
-  const place = getDemoPlace(contentId);
+  const { contentTypeId, region: requestedRegion } = await searchParams;
+  const selectedRegion = getRegionConfig(requestedRegion);
+  const regionId: RegionId = selectedRegion?.mapEnabled ? selectedRegion.id : "busan";
+  const place = regionId === "busan" ? getDemoPlace(contentId) : undefined;
   if (!place) {
     return (
-      <LivePlaceDetail contentId={contentId} contentTypeId={contentTypeId} />
+      <LivePlaceDetail contentId={contentId} contentTypeId={contentTypeId} regionId={regionId} />
     );
   }
 
@@ -68,7 +72,7 @@ export default async function PlaceDetailPage({
   return (
     <div className="page-shell py-8 sm:py-12">
       <Link
-        href="/results"
+        href="/results?tab=catalog&region=busan"
         className="inline-flex min-h-10 items-center gap-2 rounded-full text-sm font-bold text-[#52665b] hover:text-[#236148]"
       >
         <ArrowLeft size={17} aria-hidden="true" />
@@ -158,6 +162,7 @@ export default async function PlaceDetailPage({
           </div>
           <div className="mt-4">
             <MapPanel
+              regionId={regionId}
               compact
               title={`${place.name} 주변 데모 지도`}
               locations={[
@@ -184,7 +189,7 @@ export default async function PlaceDetailPage({
               {alternatives.map((alternative) => (
                 <Link
                   key={alternative.contentId}
-                  href={`/places/${alternative.contentId}`}
+                  href={`/places/${alternative.contentId}?region=busan`}
                   className="surface-card block p-5 transition hover:border-[#9bb8a8]"
                 >
                   <div className="flex flex-wrap items-center gap-2">

@@ -1104,7 +1104,10 @@ function discoveryInput(
         category,
         mode: "district",
         rectangle: rectangleFromCenter(district.searchCenter),
-        district: { code: district.code, name: district.name },
+        district: {
+          code: district.legalDongDistrictCode,
+          name: district.name,
+        },
         center: district.searchCenter,
       };
     }

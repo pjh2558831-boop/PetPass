@@ -4,11 +4,13 @@ import { rankCatalogPlaces, type CatalogRankingCenter, type CatalogPopularityRes
 import { mapCatalogPlaceToCategory, type PlaceCategory } from "@/lib/map-places/place-categories";
 import type { KakaoCurrentMapSearch } from "@/types/kakao";
 import type { PublicCatalogLayer, PublicCatalogMarker } from "@/types/public-catalog-place";
+import type { RegionId } from "@/types/region";
 
 export type ExplorerSort = "recommendation" | "popularity";
 
 export interface ExplorerCollectionInput {
   places: PublicCatalogMarker[];
+  regionId: RegionId;
   district: string | "all";
   categories: PlaceCategory[];
   layers: PublicCatalogLayer[];
@@ -47,6 +49,7 @@ export function getExplorerCollections(input: ExplorerCollectionInput): {
   const layerSet = new Set(input.layers);
   const categorySet = new Set(input.categories);
   const matchedPlaces = [...unique.values()]
+    .filter((place) => place.regionId === input.regionId)
     .filter((place) => input.district === "all" || place.districtCode === input.district)
     .filter((place) => categorySet.has(mapCatalogPlaceToCategory(place)))
     .filter((place) => layerSet.has(place.layer))

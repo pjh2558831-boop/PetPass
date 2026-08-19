@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
+import { JEJU_PUBLIC_MAP_UI_FIXTURE } from "@/fixtures/jeju-public-map-ui";
 
 const EVIDENCE_DIRECTORY = path.resolve("verification-evidence/weekendog-full-map-2026-08-16");
 
@@ -34,15 +35,58 @@ const kakaoItems = [
 ];
 
 async function mockCatalogApis(page: Page) {
-  await page.route("**/api/tour/places?**", async (route) => route.fulfill({
+  await page.route("**/api/tour/places?**", async (route) => {
+    expect(new URL(route.request().url()).searchParams.get("regionCode")).toBe("26");
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, data: { places: tourPlaces, page: 1, pageSize: 1000, totalCount: tourPlaces.length, source: tourPlaces[0].source }, requestId: "full-map-tour" }),
+    });
+  });
+  await page.route("**/api/map/places?**", async (route) => {
+    const url = new URL(route.request().url());
+    const region = url.searchParams.get("region");
+    if (region === "jeju") {
+      expect(url.searchParams.get("providers")).toBe("tour");
+      expect(url.searchParams.get("kinds")).toBe("tourism_place");
+      const district = url.searchParams.get("district");
+      const items = district
+        ? JEJU_PUBLIC_MAP_UI_FIXTURE.filter((place) => place.district.code === district)
+        : JEJU_PUBLIC_MAP_UI_FIXTURE;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          data: {
+            region: { id: "jeju", displayName: "제주" },
+            items,
+            page: 1,
+            pageSize: 200,
+            totalCount: items.length,
+            hasNext: false,
+            nextCursor: null,
+          },
+          requestId: "full-map-jeju-kto",
+        }),
+      });
+      return;
+    }
+    expect(region).toBe("busan");
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, data: { region: { id: "busan", displayName: "부산" }, items: kakaoItems, page: 1, pageSize: 200, totalCount: kakaoItems.length, hasNext: false }, requestId: "full-map-kakao" }),
+    });
+  });
+  const transparentPng = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    "base64",
+  );
+  await page.route("**/_next/image?**", async (route) => route.fulfill({
     status: 200,
-    contentType: "application/json",
-    body: JSON.stringify({ ok: true, data: { places: tourPlaces, page: 1, pageSize: 1000, totalCount: tourPlaces.length, source: tourPlaces[0].source }, requestId: "full-map-tour" }),
-  }));
-  await page.route("**/api/map/places?**", async (route) => route.fulfill({
-    status: 200,
-    contentType: "application/json",
-    body: JSON.stringify({ ok: true, data: { items: kakaoItems, page: 1, pageSize: 200, totalCount: kakaoItems.length, hasNext: false }, requestId: "full-map-kakao" }),
+    contentType: "image/png",
+    body: transparentPng,
   }));
 }
 
@@ -65,10 +109,10 @@ async function installDeterministicMap(page: Page) {
       getLng() { return this.longitude; }
     }
     class Bounds {
-      private south = 35;
-      private west = 128.9;
-      private north = 35.3;
-      private east = 129.3;
+      private south = Number.POSITIVE_INFINITY;
+      private west = Number.POSITIVE_INFINITY;
+      private north = Number.NEGATIVE_INFINITY;
+      private east = Number.NEGATIVE_INFINITY;
       constructor(values?: { south: number; west: number; north: number; east: number }) {
         if (values) Object.assign(this, values);
       }
@@ -85,7 +129,7 @@ async function installDeterministicMap(page: Page) {
     class MarkerImage { constructor(readonly source: string, readonly size: Size) {} }
     class FakeMap {
       private center: LatLng;
-      private bounds = new Bounds();
+      private bounds = new Bounds({ south: 35, west: 128.9, north: 35.3, east: 129.3 });
       constructor(readonly container: HTMLElement, options: { center: LatLng }) {
         this.center = options.center;
         container.dataset.fakeMapReady = "true";
@@ -112,6 +156,7 @@ async function installDeterministicMap(page: Page) {
       __moveExplorerMap?: () => void;
       __zoomExplorerMap?: () => void;
       __setExplorerClusterMode?: (mode: "clusters" | "pins") => void;
+      __getExplorerBounds?: () => { south: number; west: number; north: number; east: number } | null;
     };
     class MapConstructor extends FakeMap {
       constructor(container: HTMLElement, options: { center: LatLng }) {
@@ -128,8 +173,9 @@ async function installDeterministicMap(page: Page) {
         this.element.type = "button";
         this.element.className = "fake-kakao-native-marker";
         this.element.style.position = "absolute";
-        this.element.style.left = `${8 + ((options.position.getLng() - 128.9) / 0.4) * 84}%`;
-        this.element.style.top = `${8 + ((35.3 - options.position.getLat()) / 0.3) * 78}%`;
+        const isJeju = options.position.getLng() < 128;
+        this.element.style.left = `${8 + ((options.position.getLng() - (isJeju ? 125.9 : 128.9)) / (isJeju ? 1.2 : 0.4)) * 84}%`;
+        this.element.style.top = `${8 + (((isJeju ? 34 : 35.3) - options.position.getLat()) / (isJeju ? 1 : 0.3)) * 78}%`;
         this.element.style.border = "0";
         this.element.style.background = "transparent";
         this.element.style.transform = "translate(-50%, -100%)";
@@ -162,9 +208,10 @@ async function installDeterministicMap(page: Page) {
     class Overlay {
       constructor(private readonly options: { map?: FakeMap; content: HTMLElement; position?: LatLng }) {
         if (options.position) {
+          const isJeju = options.position.getLng() < 128;
           options.content.style.position = "absolute";
-          options.content.style.left = `${8 + ((options.position.getLng() - 128.9) / 0.4) * 84}%`;
-          options.content.style.top = `${8 + ((35.3 - options.position.getLat()) / 0.3) * 78}%`;
+          options.content.style.left = `${8 + ((options.position.getLng() - (isJeju ? 125.9 : 128.9)) / (isJeju ? 1.2 : 0.4)) * 84}%`;
+          options.content.style.top = `${8 + (((isJeju ? 34 : 35.3) - options.position.getLat()) / (isJeju ? 1 : 0.3)) * 78}%`;
           options.content.style.transform = "translate(-50%, -190%)";
           options.content.style.zIndex = "10";
         }
@@ -193,6 +240,16 @@ async function installDeterministicMap(page: Page) {
 
     testWindow.__moveExplorerMap = () => testWindow.__activeExplorerMap?.moveByUser();
     testWindow.__zoomExplorerMap = () => testWindow.__activeExplorerMap?.zoomByUser();
+    testWindow.__getExplorerBounds = () => {
+      const bounds = testWindow.__activeExplorerMap?.getBounds();
+      if (!bounds) return null;
+      return {
+        south: bounds.getSouthWest().getLat(),
+        west: bounds.getSouthWest().getLng(),
+        north: bounds.getNorthEast().getLat(),
+        east: bounds.getNorthEast().getLng(),
+      };
+    };
     testWindow.__setExplorerClusterMode = (mode) => {
       document.querySelectorAll<HTMLElement>(".fake-kakao-native-marker").forEach((marker) => {
         marker.style.display = mode === "clusters" ? "none" : "block";
@@ -286,6 +343,200 @@ test("keeps one source marker per place across pagination, selection, and viewpo
   await page.evaluate(() => (window as unknown as { __zoomExplorerMap?: () => void }).__zoomExplorerMap?.());
   await expect(research).toHaveCount(0);
   expect(catalogRequests).toHaveLength(requestCountBeforeCommit);
+});
+
+test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === "mobile-chrome", "The Jeju cross-region flow sets all required viewports in desktop Chromium.");
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const requests: string[] = [];
+  let jejuSelected = false;
+  page.on("request", (request) => {
+    if (jejuSelected) requests.push(request.url());
+  });
+
+  await page.goto("/results?tab=catalog");
+  await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
+  await page.waitForLoadState("networkidle");
+
+  const jejuButton = page.getByRole("button", { name: "제주", exact: true });
+  await jejuButton.focus();
+  jejuSelected = true;
+  await jejuButton.press("Enter");
+  await expect(jejuButton).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("heading", { name: "총 54곳" })).toBeVisible();
+  await expect(page).toHaveURL(/region=jeju/u);
+
+  const mapRoot = page.locator("[data-marker-registry-size]");
+  await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "54");
+  await expect(mapRoot).toHaveAttribute("data-active-marker-count", "54");
+  await expect(mapRoot).toHaveAttribute("data-clusterer-instance-count", "1");
+  await expect(page.locator(".fake-kakao-native-marker")).toHaveCount(54);
+  const fittedBounds = await page.evaluate(() =>
+    (window as unknown as {
+      __getExplorerBounds?: () => { south: number; west: number; north: number; east: number } | null;
+    }).__getExplorerBounds?.(),
+  );
+  expect(fittedBounds?.east).toBeLessThan(128);
+
+  await expect(page.getByRole("tab", { name: "제주 경로 추천은 준비 중입니다." })).toBeDisabled();
+  await expect(page.getByText("카카오 검색 후보", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^동물병원/u })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^펫샵·용품점/u })).toHaveCount(0);
+  await expect(page.locator(".catalog-result-card").getByText("한국관광공사", { exact: true })).toHaveCount(12);
+  await expect(page.locator(".catalog-result-card").getByText("동반 조건 확인 필요", { exact: true })).toHaveCount(12);
+  await expect(page.getByText("반려동물 동반 가능", { exact: true })).toHaveCount(0);
+  await expect(page.locator('.catalog-result-card a[href^="tel:"]')).toHaveCount(0);
+  await expect(page.locator('.catalog-result-card [data-image-kind="provider_photo"]')).toHaveCount(12);
+  await expect(page.locator(".catalog-result-card").first().getByRole("link", { name: /원문 상세 보기$/u }))
+    .toHaveAttribute("href", /region=jeju.*contentTypeId=/u);
+  const firstJejuCard = page.locator(".catalog-result-card").first();
+  await firstJejuCard.getByRole("button", { name: /지도에서 보기$/u }).click();
+  await expect(firstJejuCard).toHaveClass(/is-selected/u);
+  await expect(page.locator('.fake-kakao-native-marker[data-marker-width="46"]')).toHaveCount(1);
+
+  await firstJejuCard.getByRole("link", { name: /원문 상세 보기$/u }).click();
+  await expect(page).toHaveURL(/\/places\/5010001\?region=jeju&contentTypeId=12/u);
+  await expect(page.getByRole("heading", { name: "제주 UI 검증 상세 장소" })).toBeVisible();
+  await expect(page.getByText("한국관광공사 원문", { exact: true })).toBeVisible();
+  await expect(page.getByText("조건부 동반 가능", { exact: true })).toBeVisible();
+  await expect(page.getByText("연락처", { exact: true })).toHaveCount(0);
+  await page.getByRole("link", { name: "추천 결과로" }).click();
+  await expect(page).toHaveURL(/\/results\?tab=catalog&region=jeju/u);
+  await expect(page.getByRole("heading", { name: "총 54곳" })).toBeVisible();
+
+  const categoryPanel = page.locator(".explorer-category-panel");
+  await expect(categoryPanel.getByRole("button", { name: /^관광지/u })).toContainText("46");
+  await expect(categoryPanel.getByRole("button", { name: /^식당/u })).toContainText("4");
+  await expect(categoryPanel.getByRole("button", { name: /^숙소/u })).toContainText("4");
+  await expect(categoryPanel.getByRole("button", { name: /^카페/u })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "5", exact: true }).click();
+  await expect(page.locator('.explorer-pagination [aria-current="page"]')).toHaveText("5");
+  await expect(page.locator('.catalog-result-card [data-image-kind="category_placeholder"]')).toHaveCount(6);
+  await expect(page.locator(".catalog-result-card").getByText("동반 정보 확인 필요", { exact: true })).toHaveCount(5);
+
+  const filter = page.locator(".explorer-filter-menu");
+  await filter.locator("summary").click();
+  const districtSelect = filter.getByLabel("제주 세부 지역");
+  await districtSelect.selectOption("110");
+  await expect(page.getByRole("heading", { name: "총 27곳" })).toBeVisible();
+  await expect(page).toHaveURL(/region=jeju.*district=110/u);
+  await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "27");
+  await expect(page.locator(".catalog-result-card").first()).toContainText("제주시");
+  await expect(page.locator(".catalog-result-card").first()).not.toContainText("부산광역시 중구");
+
+  await districtSelect.selectOption("130");
+  await expect(page.getByRole("heading", { name: "총 27곳" })).toBeVisible();
+  await expect(page).toHaveURL(/region=jeju.*district=130/u);
+  await expect(page.locator(".catalog-result-card").first()).toContainText("서귀포시");
+
+  const jejuRequests = requests
+    .map((value) => new URL(value))
+    .filter(({ pathname }) => pathname.startsWith("/api/"));
+  expect(jejuRequests.length).toBeGreaterThan(0);
+  expect(jejuRequests.every(({ pathname, searchParams }) => {
+    if (pathname === "/api/map/places") {
+      return searchParams.get("region") === "jeju" &&
+        searchParams.get("providers") === "tour";
+    }
+    return pathname === "/api/tour/places/5010001" &&
+      searchParams.get("region") === "jeju";
+  })).toBe(true);
+  expect(jejuRequests.some(({ pathname }) => [
+    "/api/tour/places",
+    "/api/itineraries/generate",
+    "/api/itineraries/revalidate",
+    "/api/directions",
+    "/api/kakao/directions",
+  ].includes(pathname))).toBe(false);
+
+  jejuSelected = false;
+  await page.getByRole("button", { name: "부산", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
+  await expect(page).toHaveURL(/region=busan/u);
+  await expect(page).not.toHaveURL(/district=/u);
+  await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "26");
+  await expect(page.getByText("제주시", { exact: true })).toHaveCount(0);
+
+  for (const viewport of [{ width: 768, height: 1024 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport);
+    await page.getByRole("button", { name: "지도", exact: true }).click();
+    await page.getByRole("button", { name: "제주", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "제주 반려동물 장소" })).toBeVisible();
+    await page.getByRole("button", { name: "지도", exact: true }).click();
+    await expect(page.locator(".full-map-explorer__map")).toBeVisible();
+    await page.getByRole("button", { name: "목록", exact: true }).click();
+    await expect(page.locator(".full-map-explorer__sidebar")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "총 54곳" })).toBeVisible();
+    const openFilterMenu = page.locator("details.explorer-filter-menu[open]");
+    if (await openFilterMenu.count()) await openFilterMenu.locator("summary").click();
+    await page.locator(".catalog-result-card").first().getByRole("button", { name: /지도에서 보기$/u }).click();
+    await expect(page.getByRole("button", { name: "지도", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".full-map-explorer__map")).toBeVisible();
+    await expect(page.locator('.fake-kakao-native-marker[data-marker-width="46"]')).toHaveCount(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    await page.getByRole("button", { name: "부산", exact: true }).click();
+    await page.getByRole("button", { name: "목록", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
+  }
+});
+
+test("keeps Jeju error, retry, and empty states accessible in mobile list mode", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === "mobile-chrome", "The test sets the 390px viewport explicitly.");
+  let firstJejuRequest = true;
+  await page.route("**/api/map/places?**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("region") !== "jeju") return route.fallback();
+    if (firstJejuRequest) {
+      firstJejuRequest = false;
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: false,
+          error: { code: "UPSTREAM_ERROR", message: "검증용 일시 오류", retryable: true },
+          requestId: "jeju-error",
+        }),
+      });
+      return;
+    }
+    const district = url.searchParams.get("district");
+    const items = district === "130" ? [] : JEJU_PUBLIC_MAP_UI_FIXTURE;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        data: {
+          region: { id: "jeju", displayName: "제주" },
+          items,
+          page: 1,
+          pageSize: 200,
+          totalCount: items.length,
+          hasNext: false,
+          nextCursor: null,
+        },
+        requestId: "jeju-retry",
+      }),
+    });
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/results?tab=catalog");
+  await page.getByRole("button", { name: "목록", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
+  await page.getByRole("button", { name: "제주", exact: true }).click();
+  await expect(page.locator('.explorer-results-status [role="alert"]'))
+    .toContainText("관광공사 장소를 불러오지 못했습니다.");
+  await page.getByRole("button", { name: "다시 시도" }).click();
+  await expect(page.getByRole("heading", { name: "총 54곳" })).toBeVisible();
+
+  const filter = page.locator(".explorer-filter-menu");
+  await filter.locator("summary").click();
+  await filter.getByLabel("제주 세부 지역").selectOption("130");
+  await expect(page.getByRole("heading", { name: "총 0곳" })).toBeVisible();
+  await expect(page.getByText("선택한 조건의 장소가 없습니다.", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
 });
 
 test("uses map/list modes without horizontal overflow at responsive widths", async ({ page }) => {
@@ -382,6 +633,7 @@ test("keeps 1,824 markers complete while the sidebar stays paged by 12", async (
   }));
   const markerItems = largeCatalog.map((place) => ({
     id: `tour:${place.contentId}`,
+    regionId: "busan",
     providerPlaceId: place.contentId,
     name: place.title,
     layer: "tourism",
@@ -451,11 +703,16 @@ test("keeps 1,824 markers complete while the sidebar stays paged by 12", async (
       }),
     });
   });
-  await page.route("**/api/map/places?**", (route) => route.fulfill({
-    status: 200,
-    contentType: "application/json",
-    body: JSON.stringify({ ok: true, data: { items: [], page: 1, pageSize: 200, totalCount: 0, hasNext: false }, requestId: "full-map-large-kakao" }),
-  }));
+  await page.route("**/api/map/places?**", (route) => {
+    expect(new URL(route.request().url()).searchParams.get("region")).toBe(
+      "busan",
+    );
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, data: { region: { id: "busan", displayName: "부산" }, items: [], page: 1, pageSize: 200, totalCount: 0, hasNext: false }, requestId: "full-map-large-kakao" }),
+    });
+  });
 
   await page.goto("/results?tab=catalog");
   await expect(page.getByRole("heading", { name: "총 1,824곳" })).toBeVisible();

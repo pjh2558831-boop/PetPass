@@ -17,6 +17,7 @@ import {
   recommendationFailure,
 } from "@/lib/recommendation/recommendation-errors";
 import {
+  getRequestedRecommendationRegion,
   routeRecommendationRequestSchema,
 } from "@/lib/recommendation/recommendation-request";
 import {
@@ -116,15 +117,6 @@ export function createRouteRecommendationHandler(
   return async function POST(request: Request): Promise<Response> {
     const enabled =
       options.enabled ?? process.env.ROUTE_ENGINE_V1_ENABLED === "true";
-    if (!enabled) {
-      const failure = recommendationFailure("route_engine_disabled", [
-        "route_engine_v1_feature_flag_disabled",
-      ]);
-      return Response.json(failure, {
-        status: recommendationHttpStatus(failure.status),
-        headers: { "Cache-Control": "no-store" },
-      });
-    }
     const limit = (options.rateLimit ?? consumeRateLimit)(
       "route-recommendation-v1",
       getRequestClientId(request),
@@ -148,6 +140,26 @@ export function createRouteRecommendationHandler(
     } catch {
       const failure = recommendationFailure("invalid_request", [
         "request_body_not_json",
+      ]);
+      return Response.json(failure, {
+        status: recommendationHttpStatus(failure.status),
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
+    const requestedRegion = getRequestedRecommendationRegion(body);
+    if (requestedRegion && !requestedRegion.itineraryEnabled) {
+      const failure = recommendationFailure(
+        "region_not_supported_for_itinerary",
+        ["REGION_NOT_SUPPORTED_FOR_ITINERARY"],
+      );
+      return Response.json(failure, {
+        status: recommendationHttpStatus(failure.status),
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
+    if (!enabled) {
+      const failure = recommendationFailure("route_engine_disabled", [
+        "route_engine_v1_feature_flag_disabled",
       ]);
       return Response.json(failure, {
         status: recommendationHttpStatus(failure.status),

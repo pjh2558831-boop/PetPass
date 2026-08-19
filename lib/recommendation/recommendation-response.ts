@@ -22,6 +22,7 @@ const category = z.enum([
 ]);
 const failureStatus = z.enum([
   "invalid_request",
+  "region_not_supported_for_itinerary",
   "insufficient_eligible_places",
   "insufficient_feasible_route",
   "tourism_provider_unavailable",

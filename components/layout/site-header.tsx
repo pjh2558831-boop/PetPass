@@ -7,10 +7,10 @@ import {
 
 const navigationItems = [
   { kind: "link", href: "/planner/pet", label: "여행 만들기" },
-  { kind: "link", href: "/results?tab=catalog", label: "장소 찾기" },
+  { kind: "link", href: "/results?tab=catalog&region=busan", label: "장소 찾기" },
   {
     kind: "link",
-    href: "/results?tab=recommendations",
+    href: "/results?tab=recommendations&region=busan",
     label: "추천 코스",
   },
   { kind: "future", label: "커뮤니티" },

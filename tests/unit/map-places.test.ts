@@ -14,6 +14,7 @@ import {
 
 const publicPlace: PublicMapPlaceDTO = {
   id: "kakao:123",
+  provider: "kakao",
   providerPlaceId: "123",
   name: "광안 반려 카페",
   kind: "pet_travel_candidate",
@@ -22,8 +23,11 @@ const publicPlace: PublicMapPlaceDTO = {
   address: "부산광역시 수영구 광안해변로 10",
   coordinates: { latitude: 35.1456, longitude: 129.1131 },
   phone: null,
+  imageUrl: null,
+  contentTypeId: null,
   placeUrl: "https://place.map.kakao.com/123",
   source: "kakao_search_candidate",
+  petAccessVerdict: "unknown",
   reviewStatus: "unreviewed",
   publicLabel: "동반 여부 확인 필요",
   categoryGroupCode: null,
@@ -33,6 +37,7 @@ const publicPlace: PublicMapPlaceDTO = {
 };
 
 const resultPage: PublicMapPlacePage = {
+  region: { id: "busan", displayName: "부산" },
   items: [publicPlace],
   page: 1,
   pageSize: 200,
@@ -51,7 +56,7 @@ describe("public Kakao map catalog route", () => {
   it("returns only the allowlisted DTO envelope", async () => {
     const query = vi.fn(async () => resultPage);
     const response = await createMapPlacesHandler({ query })(
-      new Request("http://localhost/api/map/places?district=500&kinds=pet_travel_candidate,veterinary&category=cafe&page=1&pageSize=200"),
+      new Request("http://localhost/api/map/places?region=busan&district=500&kinds=pet_travel_candidate,veterinary&category=cafe&page=1&pageSize=200"),
     );
     const body = await response.json();
 
@@ -63,8 +68,11 @@ describe("public Kakao map catalog route", () => {
       "name", "phone", "placeUrl", "providerPlaceId", "publicLabel",
       "reviewStatus", "source", "categoryGroupCode", "lastSeenAt",
       "matchedQueryCount", "categoryQueryAgreementCount",
+      "provider", "imageUrl", "contentTypeId", "petAccessVerdict",
     ].sort());
     expect(query).toHaveBeenCalledWith({
+      regionId: "busan",
+      providers: ["kakao"],
       districtCodes: ["500"],
       kinds: ["pet_travel_candidate", "veterinary"],
       category: "cafe",
@@ -74,13 +82,18 @@ describe("public Kakao map catalog route", () => {
   });
 
   it.each([
-    "district=99999",
-    "kinds=tourism_place",
-    "category=unknown-category",
-    "page=0",
-    "pageSize=201",
-    "query=카페",
-    "page=1&page=2",
+    "page=1",
+    "region=unknown",
+    "region=busan&district=99999",
+    "region=busan&district=130",
+    "region=jeju&district=500",
+    "region=busan&kinds=tourism_place",
+    "region=busan&category=unknown-category",
+    "region=busan&page=0",
+    "region=busan&pageSize=201",
+    "region=busan&query=카페",
+    "region=busan&page=1&page=2",
+    "region=busan&region=jeju",
   ])("rejects an invalid allowlist query: %s", async (parameters) => {
     const query = vi.fn(async () => resultPage);
     const response = await createMapPlacesHandler({ query })(
@@ -93,12 +106,116 @@ describe("public Kakao map catalog route", () => {
   it("rejects a client Authorization header", async () => {
     const query = vi.fn(async () => resultPage);
     const response = await createMapPlacesHandler({ query })(
-      new Request("http://localhost/api/map/places", {
+      new Request("http://localhost/api/map/places?region=busan", {
         headers: { Authorization: "Bearer client-value" },
       }),
     );
     expect(response.status).toBe(400);
     expect(query).not.toHaveBeenCalled();
+  });
+
+  it("resolves district 110 only inside its explicit region", async () => {
+    const jungGuPage: PublicMapPlacePage = {
+      ...resultPage,
+      items: [
+        {
+          ...publicPlace,
+          name: "부산 중구 후보",
+          district: { code: "110", name: "중구" },
+          address: "부산광역시 중구 중앙대로 1",
+        },
+      ],
+    };
+    const query = vi.fn(async () => jungGuPage);
+    const busan = await createMapPlacesHandler({ query })(
+      new Request("http://localhost/api/map/places?region=busan&district=110"),
+    );
+    expect(busan.status).toBe(200);
+    await expect(busan.json()).resolves.toMatchObject({
+      data: {
+        region: { id: "busan" },
+        items: [
+          {
+            name: "부산 중구 후보",
+            district: { code: "110", name: "중구" },
+          },
+        ],
+      },
+    });
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({
+      regionId: "busan",
+      districtCodes: ["110"],
+    }));
+
+    query.mockClear();
+    query.mockResolvedValueOnce({
+      ...resultPage,
+      region: { id: "jeju", displayName: "제주" },
+      items: [{
+        ...publicPlace,
+        id: "tour:9001",
+        providerPlaceId: "9001",
+        name: "제주 공식 장소",
+        kind: "tourism_place",
+        category: "attraction",
+        district: { code: "110", name: "제주시" },
+        address: "제주특별자치도 제주시 애월읍",
+        coordinates: { latitude: 33.46, longitude: 126.32 },
+        phone: null,
+        imageUrl: null,
+        contentTypeId: "12",
+        placeUrl: "/places/9001?region=jeju&contentTypeId=12",
+        source: "kto_official",
+        provider: "tour",
+        petAccessVerdict: "conditional",
+        publicLabel: "동반 조건 확인 필요",
+      } as unknown as PublicMapPlaceDTO],
+    });
+    const jeju = await createMapPlacesHandler({ query })(
+      new Request("http://localhost/api/map/places?region=jeju&district=110&providers=tour&kinds=tourism_place"),
+    );
+    expect(jeju.status).toBe(200);
+    await expect(jeju.json()).resolves.toMatchObject({
+      data: {
+        region: { id: "jeju" },
+        items: [{
+          name: "제주 공식 장소",
+          district: { code: "110", name: "제주시" },
+          source: "kto_official",
+          publicLabel: "동반 조건 확인 필요",
+        }],
+      },
+    });
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({
+      regionId: "jeju",
+      providers: ["tour"],
+      districtCodes: ["110"],
+      kinds: ["tourism_place"],
+    }));
+  });
+
+  it("rejects Kakao catalog access for Jeju before querying Supabase", async () => {
+    const query = vi.fn(async () => resultPage);
+    const response = await createMapPlacesHandler({ query })(
+      new Request("http://localhost/api/map/places?region=jeju&providers=kakao"),
+    );
+    expect(response.status).toBe(400);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it("rejects a repository page from a different region", async () => {
+    const query = vi.fn(async () => ({
+      ...resultPage,
+      region: { id: "jeju" as const, displayName: "제주" },
+    }));
+    const response = await createMapPlacesHandler({ query })(
+      new Request("http://localhost/api/map/places?region=busan"),
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "UPSTREAM_ERROR" },
+    });
   });
 
   it("uses the supplied cursor for exactly one RPC call without leaking database-only fields", async () => {
@@ -129,19 +246,66 @@ describe("public Kakao map catalog route", () => {
       .mockResolvedValueOnce([{ ...row, id: 2, has_more: false }]);
 
     const result = await queryPublicMapCatalog(
-      { page: 2, pageSize: 1, afterId: 1 },
+      { regionId: "busan", page: 2, pageSize: 1, afterId: 1 },
       { queryPage },
     );
 
     expect(queryPage).toHaveBeenCalledTimes(1);
     expect(queryPage).toHaveBeenCalledWith(expect.anything(), 1);
     expect(result).toEqual({
+      region: { id: "busan", displayName: "부산" },
       items: [{ ...publicPlace, phone: null, lastSeenAt: "2026-08-18T00:00:00.000Z" }],
       page: 2,
       pageSize: 1,
       totalCount: 3,
       hasNext: false,
       nextCursor: 2,
+    });
+  });
+
+  it("preserves KTO category, evidence label, image, and Jeju detail scope", async () => {
+    const queryPage = vi.fn(async () => [{
+      id: 50,
+      provider: "tour" as const,
+      provider_place_id: "5010050",
+      name: "제주 공식 숙소",
+      candidate_kind: "tourism_place" as const,
+      normalized_category: "accommodation" as const,
+      content_type_id: 32,
+      district_code: "110",
+      district_name: "제주시",
+      address: "제주특별자치도 제주시",
+      latitude: 33.5,
+      longitude: 126.53,
+      phone: null,
+      image_url: "https://tong.visitkorea.or.kr/jeju-official.jpg",
+      place_url: null,
+      review_status: "confirmed" as const,
+      public_label: "동반 조건 확인 필요",
+      source: "kto_official" as const,
+      pet_access_verdict: "conditional" as const,
+      pet_evidence_status: "official_verified",
+      category_group_code: "B02",
+      last_seen_at: "2026-08-19T00:00:00.000Z",
+      matched_query_count: 0,
+      category_query_agreement_count: 0,
+      total_count: 1,
+      has_more: false,
+    }]);
+
+    const result = await queryPublicMapCatalog(
+      { regionId: "jeju", providers: ["tour"], page: 1, pageSize: 200 },
+      { queryPage },
+    );
+
+    expect(result.items[0]).toMatchObject({
+      provider: "tour",
+      category: "accommodation",
+      contentTypeId: "32",
+      imageUrl: "https://tong.visitkorea.or.kr/jeju-official.jpg",
+      petAccessVerdict: "conditional",
+      publicLabel: "동반 조건 확인 필요",
+      placeUrl: "/places/5010050?region=jeju&contentTypeId=32",
     });
   });
 
@@ -177,7 +341,7 @@ describe("public Kakao map catalog route", () => {
     let afterId: number | undefined;
     for (let page = 1; page <= 10; page += 1) {
       const result = await queryPublicMapCatalog(
-        { page, pageSize: 200, ...(afterId === undefined ? {} : { afterId }) },
+        { regionId: "busan", page, pageSize: 200, ...(afterId === undefined ? {} : { afterId }) },
         { queryPage },
       );
       ids.push(...result.items.map(({ providerPlaceId }) => providerPlaceId));

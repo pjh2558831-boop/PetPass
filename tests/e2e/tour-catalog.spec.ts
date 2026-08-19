@@ -28,13 +28,14 @@ const kakaoItems = [
 async function mockKakaoCatalog(page: Page) {
   await page.route("**/api/map/places?**", async (route) => {
     const url = new URL(route.request().url());
+    expect(url.searchParams.get("region")).toBe("busan");
     const requestedPage = Number(url.searchParams.get("page") ?? "1");
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         ok: true,
-        data: { items: requestedPage === 1 ? kakaoItems : [], page: requestedPage, pageSize: 200, totalCount: 3, hasNext: false },
+        data: { region: { id: "busan", displayName: "부산" }, items: requestedPage === 1 ? kakaoItems : [], page: requestedPage, pageSize: 200, totalCount: 3, hasNext: false },
         requestId: "e2e-public-kakao-catalog",
       }),
     });

@@ -1,5 +1,4 @@
 import { ConfigurationRequiredError } from "@/lib/shared/errors";
-import { BUSAN_REGION_CONFIG } from "@/lib/regions/config";
 import { KAKAO_CURRENT_MAP_MAX_RADIUS_METERS } from "@/lib/kakao/search-area";
 import {
   getSourceMarkerAsset,
@@ -227,6 +226,7 @@ export function getRenderableRouteCoordinates(
 export function createKakaoCoordinatePicker(
   container: HTMLElement,
   options: {
+    defaultCenter: Coordinates;
     initialCoordinates?: Coordinates | null;
     onSelect: (coordinates: Coordinates) => void;
   },
@@ -240,7 +240,7 @@ export function createKakaoCoordinatePicker(
 
   const initialCoordinates = isValidMapCoordinates(options.initialCoordinates)
     ? options.initialCoordinates
-    : BUSAN_REGION_CONFIG.defaultMapCenter;
+    : options.defaultCenter;
   const map = new maps.Map(container, {
     center: new maps.LatLng(
       initialCoordinates.latitude,
@@ -305,6 +305,8 @@ export function createKakaoCoordinatePicker(
 export function createKakaoMapController(
   container: HTMLElement,
   options: {
+    defaultCenter: Coordinates;
+    defaultBounds?: KakaoCurrentMapSearch["rectangle"];
     locations: KakaoMapLocation[];
     routeCoordinates?: Coordinates[];
     onLocationSelect?: (id: string | null) => void;
@@ -334,8 +336,8 @@ export function createKakaoMapController(
   const CustomOverlayConstructor = maps.CustomOverlay;
 
   const defaultCenter = new maps.LatLng(
-    BUSAN_REGION_CONFIG.defaultMapCenter.latitude,
-    BUSAN_REGION_CONFIG.defaultMapCenter.longitude,
+    options.defaultCenter.latitude,
+    options.defaultCenter.longitude,
   );
   const map = new maps.Map(container, { center: defaultCenter, level: 8 });
   const nativeMarkerImages = new Map<KakaoMapMarkerKind, KakaoMarkerImage>();
@@ -625,7 +627,21 @@ export function createKakaoMapController(
     },
 
     fitBounds() {
-      if (visiblePoints.length === 0) return;
+      if (visiblePoints.length === 0) {
+        if (!options.defaultBounds) return;
+        const bounds = new maps.LatLngBounds();
+        bounds.extend(new maps.LatLng(
+          options.defaultBounds.south,
+          options.defaultBounds.west,
+        ));
+        bounds.extend(new maps.LatLng(
+          options.defaultBounds.north,
+          options.defaultBounds.east,
+        ));
+        pendingProgrammaticViewport = true;
+        map.setBounds(bounds, 48);
+        return;
+      }
       if (visiblePoints.length === 1) {
         pendingProgrammaticViewport = true;
         map.panTo(visiblePoints[0]);

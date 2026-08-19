@@ -1,12 +1,11 @@
-import { BUSAN_REGION_CONFIG } from "@/lib/regions/config";
+import {
+  BUSAN_REGION_CONFIG,
+  coordinatesInRegion,
+} from "@/lib/regions/config";
 import type { KakaoPlaceSearchResult } from "@/types/kakao";
 
-export const BUSAN_COLLECTION_COORDINATE_BOUNDS = {
-  west: 128.75,
-  south: 34.95,
-  east: 129.4,
-  north: 35.5,
-} as const;
+export const BUSAN_COLLECTION_COORDINATE_BOUNDS =
+  BUSAN_REGION_CONFIG.mapBounds;
 
 export const KAKAO_COLLECTION_VALIDATION_REASONS = [
   "unknown_district",
@@ -60,13 +59,7 @@ function validCoordinates(result: KakaoPlaceSearchResult): boolean {
 }
 
 function coordinatesInsideBusan(result: KakaoPlaceSearchResult): boolean {
-  const { latitude, longitude } = result.coordinates;
-  return (
-    longitude >= BUSAN_COLLECTION_COORDINATE_BOUNDS.west &&
-    longitude <= BUSAN_COLLECTION_COORDINATE_BOUNDS.east &&
-    latitude >= BUSAN_COLLECTION_COORDINATE_BOUNDS.south &&
-    latitude <= BUSAN_COLLECTION_COORDINATE_BOUNDS.north
-  );
+  return coordinatesInRegion(BUSAN_REGION_CONFIG, result.coordinates);
 }
 
 export function validateKakaoBusanCollectionResult(
@@ -75,7 +68,8 @@ export function validateKakaoBusanCollectionResult(
 ): KakaoCollectionValidationResult {
   const expectedDistrict =
     BUSAN_REGION_CONFIG.districts.find(
-      ({ code }) => code === expectedDistrictCode,
+      ({ legalDongDistrictCode }) =>
+        legalDongDistrictCode === expectedDistrictCode,
     ) ?? null;
   const roadAddress = normalizeAddress(result.roadAddress);
   const lotAddress = normalizeAddress(result.address);
@@ -96,14 +90,14 @@ export function validateKakaoBusanCollectionResult(
     reasonCodes.push("outside_busan");
   }
   const uniqueDistrictCodes = new Set(
-    busanDistricts.map(({ code }) => code),
+    busanDistricts.map(({ legalDongDistrictCode }) => legalDongDistrictCode),
   );
   if (uniqueDistrictCodes.size > 1) {
     reasonCodes.push("conflicting_districts");
   } else if (
     expectedDistrict &&
     busanDistricts.length > 0 &&
-    !uniqueDistrictCodes.has(expectedDistrict.code)
+    !uniqueDistrictCodes.has(expectedDistrict.legalDongDistrictCode)
   ) {
     reasonCodes.push("district_mismatch");
   }
@@ -118,7 +112,10 @@ export function validateKakaoBusanCollectionResult(
     accepted: reasonCodes.length === 0,
     canonicalAddress: roadAddress ?? lotAddress,
     district: expectedDistrict
-      ? { code: expectedDistrict.code, name: expectedDistrict.name }
+      ? {
+          code: expectedDistrict.legalDongDistrictCode,
+          name: expectedDistrict.name,
+        }
       : null,
     reasonCodes,
   };

@@ -9,13 +9,13 @@ import {
 } from "@/lib/regions/config";
 
 export const BUSAN_REGION = {
-  code: BUSAN_REGION_CONFIG.tourismAreaCode,
+  code: BUSAN_REGION_CONFIG.providerCodes.korPetTourService2.legalDongRegionCode,
   name: BUSAN_REGION_CONFIG.displayName,
 } as const;
 
 // Verified against KorPetTourService2 `ldongCode2` on 2026-08-05.
 export const BUSAN_DISTRICTS = BUSAN_REGION_CONFIG.districts.map(
-  ({ code, name }) => ({ code, name }),
+  ({ legalDongDistrictCode, name }) => ({ code: legalDongDistrictCode, name }),
 );
 export type { BusanDistrictCode } from "@/lib/regions/config";
 
