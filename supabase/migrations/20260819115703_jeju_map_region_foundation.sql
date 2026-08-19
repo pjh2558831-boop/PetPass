@@ -78,16 +78,37 @@ begin
       and district.district_name = place.district_name
     where
       district.region_id is null
-      or coalesce(
-        nullif(btrim(place.road_address), ''),
-        nullif(btrim(place.lot_address), '')
-      ) is null
-      or coalesce(
-        nullif(btrim(place.road_address), ''),
-        nullif(btrim(place.lot_address), '')
-      ) !~ '^(부산|부산광역시)[[:space:]]'
+      -- At least one authoritative address must independently establish the
+      -- selected Busan district. The other field may be a provider-supplied
+      -- supplement such as a floor, parenthesized dong, or bare lot number.
+      or not (
+        (
+          nullif(btrim(place.road_address), '') is not null
+          and place.road_address ~ (
+            '^(부산|부산광역시)[[:space:]]+'
+            || place.district_name
+            || '([[:space:]]|$)'
+          )
+        )
+        or (
+          nullif(btrim(place.lot_address), '') is not null
+          and place.lot_address ~ (
+            '^(부산|부산광역시)[[:space:]]+'
+            || place.district_name
+            || '([[:space:]]|$)'
+          )
+        )
+      )
+      -- A complete administrative address is authoritative even when the
+      -- other field is valid. Reject it if it names another region/district;
+      -- only incomplete supplemental fragments are ignored.
       or (
         nullif(btrim(place.road_address), '') is not null
+        and place.road_address ~ (
+          '^((부산|부산광역시)|'
+          || '[^[:space:]]+(특별시|광역시|특별자치시|특별자치도|도))'
+          || '[[:space:]]+'
+        )
         and place.road_address !~ (
           '^(부산|부산광역시)[[:space:]]+'
           || place.district_name
@@ -96,6 +117,11 @@ begin
       )
       or (
         nullif(btrim(place.lot_address), '') is not null
+        and place.lot_address ~ (
+          '^((부산|부산광역시)|'
+          || '[^[:space:]]+(특별시|광역시|특별자치시|특별자치도|도))'
+          || '[[:space:]]+'
+        )
         and place.lot_address !~ (
           '^(부산|부산광역시)[[:space:]]+'
           || place.district_name

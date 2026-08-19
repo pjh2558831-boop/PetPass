@@ -2,6 +2,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { BUSAN_REGION_CONFIG } from "@/lib/regions/config";
+import {
+  ADDRESS_FALLBACK_AND_REJECTION_FIXTURES,
+  PRODUCTION_SHAPED_SUPPLEMENTAL_LOT_FIXTURES,
+  type BusanRegionBackfillFixture,
+} from "./jeju-map-region-foundation-fixtures";
 
 const migrationPath = join(
   process.cwd(),
@@ -10,6 +15,53 @@ const migrationPath = join(
   "20260819115703_jeju_map_region_foundation.sql",
 );
 const sql = readFileSync(migrationPath, "utf8");
+
+const COMPLETE_ADMINISTRATIVE_ADDRESS =
+  /^((부산|부산광역시)|\S+(특별시|광역시|특별자치시|특별자치도|도))\s+/u;
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+function hasValidBusanBackfillIdentity(
+  fixture: BusanRegionBackfillFixture,
+): boolean {
+  const district = BUSAN_REGION_CONFIG.districts.find(
+    (candidate) =>
+      candidate.legalDongDistrictCode === fixture.districtCode &&
+      candidate.name === fixture.districtName,
+  );
+  if (!district) return false;
+
+  const roadAddress = fixture.roadAddress?.trim() || null;
+  const lotAddress = fixture.lotAddress?.trim() || null;
+  const districtPattern = new RegExp(
+    `^(부산|부산광역시)\\s+${escapeRegExp(fixture.districtName)}(\\s|$)`,
+    "u",
+  );
+  const validRoadAddress =
+    roadAddress !== null && districtPattern.test(roadAddress);
+  const validLotAddress =
+    lotAddress !== null && districtPattern.test(lotAddress);
+  const conflictingRoadAddress =
+    roadAddress !== null &&
+    COMPLETE_ADMINISTRATIVE_ADDRESS.test(roadAddress) &&
+    !validRoadAddress;
+  const conflictingLotAddress =
+    lotAddress !== null &&
+    COMPLETE_ADMINISTRATIVE_ADDRESS.test(lotAddress) &&
+    !validLotAddress;
+
+  return (
+    (validRoadAddress || validLotAddress) &&
+    !conflictingRoadAddress &&
+    !conflictingLotAddress &&
+    fixture.longitude >= 128.75 &&
+    fixture.longitude <= 129.4 &&
+    fixture.latitude >= 34.95 &&
+    fixture.latitude <= 35.5
+  );
+}
 
 describe("Jeju map region foundation migration", () => {
   it("uses text lookup tables and composite district identity", () => {
@@ -51,6 +103,44 @@ describe("Jeju map region foundation migration", () => {
         `alter table public.${table} alter column region_id set not null`,
       );
     }
+  });
+
+  it("accepts all 13 production-shaped supplemental lot-address patterns", () => {
+    expect(PRODUCTION_SHAPED_SUPPLEMENTAL_LOT_FIXTURES).toHaveLength(13);
+    for (const fixture of PRODUCTION_SHAPED_SUPPLEMENTAL_LOT_FIXTURES) {
+      expect(
+        hasValidBusanBackfillIdentity(fixture),
+        fixture.label,
+      ).toBe(fixture.expectedValid);
+    }
+  });
+
+  it("requires one complete matching address and rejects authoritative conflicts", () => {
+    for (const fixture of ADDRESS_FALLBACK_AND_REJECTION_FIXTURES) {
+      expect(
+        hasValidBusanBackfillIdentity(fixture),
+        fixture.label,
+      ).toBe(fixture.expectedValid);
+    }
+  });
+
+  it("encodes the same fail-closed address precedence in the migration", () => {
+    const validationStart = sql.indexOf("-- Refuse the backfill");
+    const validationEnd = sql.indexOf("update public.map_places", validationStart);
+    const validationSql = sql.slice(validationStart, validationEnd);
+
+    expect(validationSql).toContain(
+      "[^[:space:]]+(특별시|광역시|특별자치시|특별자치도|도)",
+    );
+    expect(validationSql).toMatch(
+      /not \(\s*\(\s*nullif\(btrim\(place\.road_address\), ''\) is not null[\s\S]+or \(\s*nullif\(btrim\(place\.lot_address\), ''\) is not null/iu,
+    );
+    expect(validationSql).toMatch(
+      /place\.road_address ~[\s\S]+and place\.road_address !~/iu,
+    );
+    expect(validationSql).toMatch(
+      /place\.lot_address ~[\s\S]+and place\.lot_address !~/iu,
+    );
   });
 
   it("enforces region-aware districts and cross-table ingestion ownership", () => {
