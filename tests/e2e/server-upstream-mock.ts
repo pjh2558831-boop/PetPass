@@ -856,6 +856,24 @@ export function installE2EUpstreamMock(): void {
       return Promise.resolve(new Response("missing", { status: 404 }));
     }
     if (
+      url.hostname === "tong.visitkorea.or.kr" &&
+      /^\/cms\/resource\/fixture-jeju-\d{2}\.jpg$/u.test(url.pathname)
+    ) {
+      const transparentPng = Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        "base64",
+      );
+      return Promise.resolve(
+        new Response(transparentPng, {
+          status: 200,
+          headers: {
+            "cache-control": "public, max-age=3600",
+            "content-type": "image/png",
+          },
+        }),
+      );
+    }
+    if (
       url.hostname === "dapi.kakao.com" &&
       url.pathname === "/v2/local/search/keyword.json"
     ) {

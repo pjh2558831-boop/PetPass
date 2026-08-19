@@ -91,16 +91,20 @@ Developers, then restart or redeploy. If Local or Mobility calls return a
 configuration error, verify only the server-side `KAKAO_REST_API_KEY`; never move
 that key into browser code to work around the error.
 
-## Stored Busan map places
+## Stored regional map places
 
 PetPass keeps map discovery data in Supabase instead of asking Kakao Local from
 the browser whenever the map moves.
 
-- `public.map_places` stores normalized Tour API and Kakao places with a PostGIS
-  point, provider identity, category, evidence status, source URL, and timestamps.
-- `public.get_map_places_in_bounds` returns only active places inside the visible
-  Busan map bounds. Anonymous clients have read-only access through this function
-  and the table RLS policy.
+- `public.map_places` stores normalized, region-scoped Tour API and Kakao places
+  with a PostGIS point, provider identity, category, evidence status, source URL,
+  and timestamps.
+- `/api/map/places` requires an explicit region and uses the server-only
+  region/provider catalog RPC. Browser roles cannot call that RPC or read lookup
+  tables directly.
+- The legacy Busan catalog and thumbnail RPCs remain temporarily available to
+  `anon` for the application currently deployed from `main`; they run as the
+  caller and are restricted by Busan-only RLS and column grants.
 - `public.map_ingest_runs` records sanitized collection counts and failures. It is
   intentionally unavailable to browser clients.
 - The map requests `/api/map/places` after the viewport becomes idle and draws

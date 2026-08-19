@@ -609,72 +609,6 @@ export type Database = {
           unique_place_count: number
         }[]
       }
-      get_map_places_in_bounds: {
-        Args: {
-          p_categories?: string[]
-          p_east: number
-          p_north: number
-          p_providers?: string[]
-          p_result_limit?: number
-          p_south: number
-          p_west: number
-        }
-        Returns: {
-          category_code: string
-          category_group: string
-          content_type_id: number
-          district_name: string
-          expires_at: string
-          fetched_at: string
-          id: number
-          image_url: string
-          latitude: number
-          longitude: number
-          lot_address: string
-          name: string
-          pet_evidence: Json
-          pet_evidence_status: string
-          pet_notes: string
-          phone: string
-          provider: string
-          provider_place_id: string
-          provider_visibility: string
-          road_address: string
-          source_url: string
-        }[]
-      }
-      get_public_map_catalog_v1: {
-        Args: {
-          p_after_id?: number
-          p_candidate_kinds?: string[]
-          p_district_codes?: string[]
-          p_east?: number
-          p_normalized_categories?: string[]
-          p_north?: number
-          p_result_limit?: number
-          p_south?: number
-          p_west?: number
-        }
-        Returns: {
-          address: string
-          candidate_kind: string
-          district_code: string
-          district_name: string
-          has_more: boolean
-          id: number
-          latitude: number
-          longitude: number
-          name: string
-          normalized_category: string
-          phone: string
-          place_url: string
-          provider_place_id: string
-          public_label: string
-          review_status: string
-          source: string
-          total_count: number
-        }[]
-      }
       get_public_map_catalog_v2: {
         Args: {
           p_after_id?: number
@@ -683,43 +617,6 @@ export type Database = {
           p_east?: number
           p_normalized_categories?: string[]
           p_north?: number
-          p_result_limit?: number
-          p_south?: number
-          p_west?: number
-        }
-        Returns: {
-          address: string
-          candidate_kind: string
-          category_group_code: string | null
-          category_query_agreement_count: number
-          district_code: string
-          district_name: string
-          has_more: boolean
-          id: number
-          last_seen_at: string
-          latitude: number
-          longitude: number
-          matched_query_count: number
-          name: string
-          normalized_category: string
-          phone: string | null
-          place_url: string
-          provider_place_id: string
-          public_label: string
-          review_status: string
-          source: string
-          total_count: number
-        }[]
-      }
-      get_public_map_catalog_by_region_v1: {
-        Args: {
-          p_after_id?: number
-          p_candidate_kinds?: string[]
-          p_district_codes?: string[]
-          p_east?: number
-          p_normalized_categories?: string[]
-          p_north?: number
-          p_region_id: string
           p_result_limit?: number
           p_south?: number
           p_west?: number

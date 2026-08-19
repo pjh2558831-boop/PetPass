@@ -15,6 +15,7 @@ const expectedMigrationFiles = [
   "20260819130604_public_map_catalog_region_api.sql",
   "20260819133943_jeju_kto_catalog_ingestion.sql",
   "20260819141913_public_map_catalog_provider_region_v2.sql",
+  "20260819162536_harden_legacy_map_rpcs.sql",
 ] as const;
 
 const productionStatementHashes = {
