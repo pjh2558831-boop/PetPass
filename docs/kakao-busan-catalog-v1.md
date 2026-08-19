@@ -42,7 +42,7 @@ verification-evidence/kakao-busan-catalog-v1/backup/<UTC timestamp>/
   manifest.json
 ```
 
-NDJSON은 object key가 재귀적으로 정렬된 UTF-8 형식이다. manifest에는 각 파일명, 행 수, 정확한 파일 bytes의 SHA-256만 기록한다. key, Authorization header 또는 raw HTTP 오류는 파일이나 로그에 넣지 않는다. 백업이 성공하고 manifest count/hash를 확인하기 전에는 `20260812123000_add_provider_visibility.sql` 및 `20260814090000_kakao_busan_catalog_v1.sql`을 적용하지 않는다.
+NDJSON은 object key가 재귀적으로 정렬된 UTF-8 형식이다. manifest에는 각 파일명, 행 수, 정확한 파일 bytes의 SHA-256만 기록한다. key, Authorization header 또는 raw HTTP 오류는 파일이나 로그에 넣지 않는다. 백업이 성공하고 manifest count/hash를 확인하기 전에는 `20260814161159_add_provider_visibility.sql` 및 `20260814161532_kakao_busan_catalog_v1.sql`을 적용하지 않는다.
 
 ## 요청 및 pagination 계약
 

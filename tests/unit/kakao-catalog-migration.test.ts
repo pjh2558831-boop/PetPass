@@ -11,7 +11,7 @@ const migrationPath = join(
   process.cwd(),
   "supabase",
   "migrations",
-  "20260814090000_kakao_busan_catalog_v1.sql",
+  "20260814161532_kakao_busan_catalog_v1.sql",
 );
 const sql = readFileSync(migrationPath, "utf8");
 const providerVisibilitySql = readFileSync(
@@ -19,7 +19,7 @@ const providerVisibilitySql = readFileSync(
     process.cwd(),
     "supabase",
     "migrations",
-    "20260812123000_add_provider_visibility.sql",
+    "20260814161159_add_provider_visibility.sql",
   ),
   "utf8",
 );

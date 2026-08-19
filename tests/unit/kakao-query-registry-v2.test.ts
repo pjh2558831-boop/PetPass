@@ -27,7 +27,7 @@ describe("Kakao Busan compact delta registry V2", () => {
 
   it("pins delta-only no-stale semantics in the collector and migration", () => {
     const script = readFileSync("scripts/collect-kakao-busan-v2.ts", "utf8");
-    const migration = readFileSync("supabase/migrations/20260819090000_category_first_catalog_v2.sql", "utf8");
+    const migration = readFileSync("supabase/migrations/20260818161218_category_first_catalog_v2.sql", "utf8");
     expect(script).toContain("isFullCatalogRun: false");
     expect(script).toContain("requestCap: 104");
     expect(migration).toContain("p_is_full_catalog_run is distinct from false");

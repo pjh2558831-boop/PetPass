@@ -208,18 +208,18 @@ as $$
       and (p_candidate_kinds is null or place.candidate_kind = any(p_candidate_kinds))
       and (p_normalized_categories is null or place.candidate_kind <> 'pet_travel_candidate' or place.normalized_category = any(p_normalized_categories))
       and (p_district_codes is null or place.district_code = any(p_district_codes))
-      and case
-        when p_south is null and p_west is null and p_north is null and p_east is null then true
-        when
+      and (
+        (p_south is null and p_west is null and p_north is null and p_east is null)
+        or (
           p_south between -90 and 90 and p_north between -90 and 90
           and p_west between -180 and 180 and p_east between -180 and 180
           and p_south < p_north and p_west < p_east
-        then extensions.st_intersects(
-          place.location,
-          extensions.st_makeenvelope(p_west, p_south, p_east, p_north, 4326)::extensions.geography
+          and extensions.st_intersects(
+            place.location,
+            extensions.st_makeenvelope(p_west, p_south, p_east, p_north, 4326)::extensions.geography
+          )
         )
-        else false
-      end
+      )
   ),
   counted as (select eligible.*, count(*) over () as total_count from eligible),
   result_window as (
