@@ -141,7 +141,14 @@ insert into public.map_places (
 select extensions.is(
   (
     select count(*)
-    from public.get_public_map_catalog_v2()
+    from public.get_public_map_catalog_v2(
+      p_after_id => (
+        select id - 1
+        from public.map_places
+        where provider = 'kakao'
+          and provider_place_id = '900000001'
+      )
+    )
     where provider_place_id = '900000001'
   ),
   1::bigint,
@@ -151,7 +158,14 @@ select extensions.is(
 select extensions.is(
   (
     select count(*)
-    from public.get_public_map_catalog_v2()
+    from public.get_public_map_catalog_v2(
+      p_after_id => (
+        select id - 1
+        from public.map_places
+        where provider = 'kakao'
+          and provider_place_id = '900000002'
+      )
+    )
     where provider_place_id = '900000002'
   ),
   0::bigint,
@@ -394,12 +408,12 @@ select extensions.ok(
 );
 
 select extensions.ok(
-  has_function_privilege(
+  not has_function_privilege(
     'authenticated',
     'public.get_public_map_catalog_v2(double precision,double precision,double precision,double precision,text[],text[],text[],bigint,integer)',
     'execute'
   ),
-  'authenticated public catalog RPC execution remains granted'
+  'authenticated legacy catalog execution is revoked by the final hardening migration'
 );
 
 select * from extensions.finish();

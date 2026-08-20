@@ -269,7 +269,19 @@ create temporary table rpc_role_results (
   value bigint not null
 ) on commit drop;
 
+create temporary table rpc_fixture_ids (
+  provider_place_id text primary key,
+  fixture_id bigint not null
+) on commit drop;
+
+insert into rpc_fixture_ids (provider_place_id, fixture_id)
+select provider_place_id, id
+from public.map_places
+where provider = 'kakao'
+  and provider_place_id in ('980000001', '980000002');
+
 grant insert, select on table rpc_role_results to anon, service_role;
+grant select on table rpc_fixture_ids to anon, service_role;
 
 set local role anon;
 
@@ -277,14 +289,26 @@ insert into rpc_role_results (metric, value)
 select
   'anon_busan_catalog',
   count(*)
-from public.get_public_map_catalog_v2()
+from public.get_public_map_catalog_v2(
+  p_after_id => (
+    select fixture_id - 1
+    from rpc_fixture_ids
+    where provider_place_id = '980000001'
+  )
+)
 where provider_place_id = '980000001';
 
 insert into rpc_role_results (metric, value)
 select
   'anon_jeju_catalog',
   count(*)
-from public.get_public_map_catalog_v2()
+from public.get_public_map_catalog_v2(
+  p_after_id => (
+    select fixture_id - 1
+    from rpc_fixture_ids
+    where provider_place_id = '980000002'
+  )
+)
 where provider_place_id = '980000002';
 
 insert into rpc_role_results (metric, value)
