@@ -398,7 +398,7 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
   await expect(page).toHaveURL(/\/places\/5010001\?region=jeju&contentTypeId=12/u);
   await expect(page.getByRole("heading", { name: "제주 UI 검증 상세 장소" })).toBeVisible();
   await expect(page.getByText("한국관광공사 원문", { exact: true })).toBeVisible();
-  await expect(page.getByText("조건부 동반 가능", { exact: true })).toBeVisible();
+  await expect(page.getByText("동반 조건 확인 필요", { exact: true })).toBeVisible();
   await expect(page.getByText("연락처", { exact: true })).toHaveCount(0);
   await page.getByRole("link", { name: "추천 결과로" }).click();
   await expect(page).toHaveURL(/\/results\?tab=catalog&region=jeju/u);

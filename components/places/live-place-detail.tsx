@@ -251,7 +251,10 @@ export function LivePlaceDetail({
 
         <div className="space-y-5">
           <SourceTrustPanel sourceRecords={detail.sourceRecords} trust={detail.trust} />
-          <PetAccessAssessmentPanel assessment={detail.petAccessAssessment} />
+          <PetAccessAssessmentPanel
+            assessment={detail.petAccessAssessment}
+            regionId={regionId}
+          />
           <LicenseInformationPanel licensing={detail.licensing} />
           <InformationReportDraftPanel
             placeName={title}

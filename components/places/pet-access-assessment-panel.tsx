@@ -6,13 +6,14 @@ import {
 } from "lucide-react";
 import {
   TOUR_PET_ACCESS_SCOPE_LABELS,
-  TOUR_PET_ACCESS_VERDICT_LABELS,
 } from "@/lib/pet-access/tourism/constants";
+import { tourPetAccessVerdictLabel } from "@/lib/pet-access/tourism/verdict-label";
 import type {
   TourPetAccessAssessment,
   TourPetAccessAssertion,
   TourPetAccessEvaluationState,
 } from "@/types/tour-pet-access";
+import type { RegionId } from "@/types/region";
 
 const VERDICT_STYLES: Record<TourPetAccessAssessment["verdict"], string> = {
   allowed: "border-[#b9ddca] bg-[#edf8f2] text-[#236148]",
@@ -59,8 +60,10 @@ function sourceDate(value: string | null): string | null {
 
 export function PetAccessAssessmentPanel({
   assessment,
+  regionId,
 }: {
   assessment: TourPetAccessAssessment;
+  regionId: RegionId;
 }) {
   const VerdictIcon = VERDICT_ICONS[assessment.verdict];
 
@@ -80,7 +83,7 @@ export function PetAccessAssessmentPanel({
             size={20}
             strokeWidth={2.5}
           />
-          {TOUR_PET_ACCESS_VERDICT_LABELS[assessment.verdict]}
+          {tourPetAccessVerdictLabel(assessment.verdict, regionId)}
         </p>
         <p className="mt-2 text-sm font-semibold leading-6">{assessment.summary}</p>
         <p className="mt-2 text-xs font-extrabold">
