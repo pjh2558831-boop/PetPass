@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -36,6 +37,13 @@ const LAYER_UI: Array<{
   { id: "veterinary", label: "동물병원", markerKind: "veterinary" },
   { id: "pet_shop", label: "펫샵·용품점", markerKind: "pet-shop" },
 ];
+
+const LAYER_MARKER_ASSETS: Record<HomepagePlaceLayer, string> = {
+  official: "/map-pins/tourism-official.svg",
+  kakao_candidate: "/map-pins/kakao-candidate.svg",
+  veterinary: "/map-pins/veterinary.svg",
+  pet_shop: "/map-pins/pet-shop.svg",
+};
 
 const API_ERROR_CODES = new Set<ApiError["code"]>([
   "CONFIGURATION_REQUIRED",
@@ -305,39 +313,65 @@ export function HomepageLiveExperience() {
     ({ id }) => snapshot.layers[id].state === "unavailable",
   );
 
+  const toggleLayer = (layer: HomepagePlaceLayer, visible: boolean) => {
+    if (snapshot.layers[layer].state === "unavailable") return;
+    if (visible && snapshot.layers[layer].state === "deferred") {
+      const request = optionalRequestRef.current ?? requestHomepageSnapshot(true);
+      optionalRequestRef.current = request;
+      void request.then((result) => {
+        if (!result.ok) {
+          optionalRequestRef.current = null;
+          return;
+        }
+        setSnapshot(result.data);
+        setVisibleLayers((current) => ({ ...current, [layer]: true }));
+      }).catch(() => {
+        optionalRequestRef.current = null;
+      });
+      return;
+    }
+    setVisibleLayers((current) => ({ ...current, [layer]: visible }));
+  };
+
   return (
     <div className="homepage-live-ready">
       <section className="homepage-map-section" aria-labelledby="homepage-map-title">
         <div className="homepage-map-shell">
-          <div className="homepage-area-summary">
-            <p className="homepage-kicker">BUSAN PLACE MAP</p>
-            <h2 id="homepage-map-title">
-              부산 공식 관광 장소
-              <strong>{snapshot.official.totalCount}곳</strong>
-            </h2>
-            <p>
-              공식 관광 정보와 카카오 검색 후보를 출처별로 구분합니다. 공식 수치는
-              동반 가능 장소 수를 뜻하지 않습니다.
-            </p>
-            {snapshot.official.categoryCounts.length > 0 ? (
-              <dl>
-                {snapshot.official.categoryCounts.map(({ label, count }) => (
-                  <div key={label}><dt>{label}</dt><dd>{count}</dd></div>
-                ))}
-              </dl>
-            ) : null}
-            <p className="homepage-map-count-note">
-              공식 지도 표시 {snapshot.official.markerCount}곳
-              {snapshot.official.omittedCoordinateCount > 0
-                ? ` · 좌표 미확인 또는 중복 위치 ${snapshot.official.omittedCoordinateCount}곳 제외`
-                : ""}
-            </p>
+          <h2 id="homepage-map-title" className="sr-only">
+            부산 공식 관광 장소 {snapshot.official.totalCount}곳
+          </h2>
+
+          <fieldset className="homepage-map-filter-panel" aria-label="지도 장소 필터">
+            <legend>장소 필터</legend>
+            <div className="homepage-map-filter-list">
+              {layerControls.map((layer) => (
+                <button
+                  key={layer.id}
+                  type="button"
+                  aria-pressed={layer.visible}
+                  disabled={layer.disabled}
+                  title={layer.description}
+                  onClick={() => toggleLayer(layer.id as HomepagePlaceLayer, !layer.visible)}
+                  className={layer.visible ? "is-active" : undefined}
+                >
+                  <Image
+                    src={LAYER_MARKER_ASSETS[layer.id as HomepagePlaceLayer]}
+                    width={18}
+                    height={22}
+                    alt=""
+                    aria-hidden="true"
+                  />
+                  <span>{layer.label}</span>
+                  <strong>{layer.count ?? "—"}</strong>
+                </button>
+              ))}
+            </div>
             {publicUnavailable ? (
               <p className="homepage-map-provider-status" role="status">
                 카카오 장소 데이터 준비 중
               </p>
             ) : null}
-          </div>
+          </fieldset>
 
           <Link href="/results?tab=catalog&region=busan" className="homepage-map-open-link">
             지도 크게 보기 <ArrowUpRight size={15} aria-hidden="true" />
@@ -353,28 +387,6 @@ export function HomepageLiveExperience() {
               selectedLocationId={selectedLocationId}
               onLocationSelect={(id) => setRequestedSelectionId(id ?? defaultSelectionId)}
               viewportKey="homepage:busan:mixed-source"
-              layerControls={layerControls}
-              onLayerToggle={(id, visible) => {
-                if (!HOMEPAGE_PLACE_LAYERS.includes(id as HomepagePlaceLayer)) return;
-                const layer = id as HomepagePlaceLayer;
-                if (snapshot.layers[layer].state === "unavailable") return;
-                if (visible && snapshot.layers[layer].state === "deferred") {
-                  const request = optionalRequestRef.current ?? requestHomepageSnapshot(true);
-                  optionalRequestRef.current = request;
-                  void request.then((result) => {
-                    if (!result.ok) {
-                      optionalRequestRef.current = null;
-                      return;
-                    }
-                    setSnapshot(result.data);
-                    setVisibleLayers((current) => ({ ...current, [layer]: true }));
-                  }).catch(() => {
-                    optionalRequestRef.current = null;
-                  });
-                  return;
-                }
-                setVisibleLayers((current) => ({ ...current, [layer]: visible }));
-              }}
               showLocationLabel={false}
               showSelectionInfo={false}
               emptyMessage="선택한 레이어에 지도에 표시할 장소가 없습니다."

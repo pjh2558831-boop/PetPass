@@ -2,7 +2,7 @@ import { Headphones, MessageCircle } from "lucide-react";
 
 export function ContactCard() {
   return (
-    <article className="weekendoog-contact-card flex min-h-[220px] flex-col justify-between rounded-[24px] border border-[var(--line)] bg-white p-5 shadow-[var(--shadow-card)] sm:p-7">
+    <article className="weekendoog-contact-card flex min-h-[200px] flex-col justify-between rounded-[24px] border border-[var(--line)] bg-white p-5 shadow-[var(--shadow-card)] sm:p-7">
       <div>
         <span className="grid size-11 place-items-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]">
           <Headphones size={21} aria-hidden="true" />

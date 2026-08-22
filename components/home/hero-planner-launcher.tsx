@@ -2,13 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import {
-  ArrowRight,
-  CalendarDays,
-  MapPin,
-  PawPrint,
-  Search,
-} from "lucide-react";
+import { ArrowRight, MapPin, Search } from "lucide-react";
 import { usePlannerState } from "@/components/planner/planner-state";
 import {
   BUSAN_DISTRICTS,
@@ -73,32 +67,19 @@ export function HeroPlannerLauncher() {
 
   return (
     <form
-      className="hero-planner-launcher rounded-[24px] border border-[var(--line)] bg-white p-4 shadow-[var(--shadow-card)] sm:p-5"
+      className="hero-planner-launcher border border-[var(--line)] bg-white shadow-[var(--shadow-card)]"
       aria-label="여행 만들기 빠른 시작"
       onSubmit={(event) => {
         event.preventDefault();
         openPlanner();
       }}
     >
-      <ol
-        className="grid grid-cols-3 items-start gap-2 border-b border-[var(--line)] pb-3"
-        aria-label="여행 정보 입력 순서"
-      >
-        <li className="flex min-w-0 items-start gap-1.5 text-[11px] font-extrabold leading-4 text-[var(--brand)] sm:items-center sm:text-xs">
-          <MapPin className="shrink-0" size={15} aria-hidden="true" />
-          <span>어디로 떠날까요?</span>
-        </li>
-        <li className="flex min-w-0 items-start gap-1.5 text-[11px] font-bold leading-4 text-[var(--muted)] sm:items-center sm:text-xs">
-          <CalendarDays className="shrink-0" size={15} aria-hidden="true" />
-          <span>언제 갈까요?</span>
-        </li>
-        <li className="flex min-w-0 items-start gap-1.5 text-[11px] font-bold leading-4 text-[var(--muted)] sm:items-center sm:text-xs">
-          <PawPrint className="shrink-0" size={15} aria-hidden="true" />
-          <span>누구와 함께?</span>
-        </li>
-      </ol>
+      <div className="hero-planner-heading">
+        <MapPin size={18} aria-hidden="true" />
+        <span>어디로 떠날까요?</span>
+      </div>
 
-      <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+      <div className="mt-3 flex flex-col gap-3 sm:flex-row">
         <label className="relative min-w-0 flex-1">
           <span className="sr-only">부산 여행 지역</span>
           <Search
@@ -130,7 +111,7 @@ export function HeroPlannerLauncher() {
         </button>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2" aria-label="빠른 지역 선택">
+      <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="빠른 지역 선택">
         <span className="mr-1 text-[11px] font-extrabold text-[var(--muted)]">
           빠른 지역 선택
         </span>
@@ -150,9 +131,6 @@ export function HeroPlannerLauncher() {
           </button>
         ))}
       </div>
-      <p className="mt-3 text-[11px] leading-5 text-[var(--muted)]">
-        날짜와 반려동물 정보는 다음 화면에서 이어서 입력합니다.
-      </p>
     </form>
   );
 }

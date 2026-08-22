@@ -3,7 +3,25 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { Check, ChevronLeft, ChevronRight, List, Map as MapIcon, RefreshCw, Route, Rows3, SlidersHorizontal } from "lucide-react";
+import {
+  BadgePlus,
+  Binoculars,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Coffee,
+  House,
+  List,
+  Map as MapIcon,
+  MapPin,
+  PawPrint,
+  RefreshCw,
+  Route,
+  Rows3,
+  ShoppingBag,
+  Utensils,
+  type LucideIcon,
+} from "lucide-react";
 import { MapPanel } from "@/components/map/map-panel";
 import { PublicCatalogCard } from "@/components/places/public-catalog-card";
 import { usePlannerState } from "@/components/planner/planner-state";
@@ -71,6 +89,16 @@ const LAYER_META: Record<PublicCatalogLayer, {
 };
 
 const MAP_ENABLED_REGIONS = getMapEnabledRegionConfigs();
+
+const CATEGORY_ICONS: Record<PlaceCategory, LucideIcon> = {
+  attraction: Binoculars,
+  food: Utensils,
+  cafe: Coffee,
+  accommodation: House,
+  shopping: ShoppingBag,
+  veterinary: BadgePlus,
+  pet_shop: PawPrint,
+};
 
 async function fetchAllBusanTourPlaces(
   district: string,
@@ -194,13 +222,15 @@ function CategoryToggleGroup({
 }) {
   return (
     <fieldset className="explorer-category-group">
-      <legend>{title}</legend>
+      <legend className="sr-only">{title}</legend>
       <div>
         {categories.map((category) => {
           const selected = active.includes(category);
+          const CategoryIcon = CATEGORY_ICONS[category];
           return (
             <button key={category} type="button" aria-pressed={selected} onClick={() => onToggle(category)}>
               <span className="explorer-category-group__check" aria-hidden="true">{selected ? <Check size={12} /> : null}</span>
+              <span className="explorer-category-group__icon" data-category={category} aria-hidden="true"><CategoryIcon size={22} strokeWidth={2.4} /></span>
               <span>{PLACE_CATEGORY_LABELS[category]}</span>
               <small>{counts[category] ?? "…"}</small>
             </button>
@@ -413,9 +443,6 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const anyReady = region === "jeju"
     ? tourState === "ready"
     : tourState === "ready" || kakaoState === "ready";
-  const isDefaultCategoryState = DEFAULT_PLACE_CATEGORIES.length === categories.length &&
-    DEFAULT_PLACE_CATEGORIES.every((category) => categories.includes(category));
-  const activeFilterCount = Number(district !== "all") + Number(!isDefaultCategoryState) + Number(Boolean(activeBounds));
   const allPopularityInsufficient = filteredPlaces.length > 0;
   const visibleDefaultCategories = region === "jeju" && tourState === "ready"
     ? DEFAULT_PLACE_CATEGORIES.filter((category) => categoryCounts[category] > 0)
@@ -457,6 +484,16 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   };
   const changeFilter = (update: () => void) => {
     update(); setPage(1); setSelectedId(null); resetViewportScope();
+  };
+  const changeDistrict = (nextDistrict: string) => {
+    changeFilter(() => {
+      setDistrict(nextDistrict);
+      setTourState("loading");
+      setKakaoState(regionConfig.kakaoDiscoveryEnabled ? "loading" : "ready");
+      setTourPlaces([]);
+      setKakaoPlaces([]);
+      setOptionalLoadedFor(null);
+    });
   };
   const toggleCategory = (category: PlaceCategory) => {
     setCategories((current) => current.includes(category)
@@ -540,37 +577,33 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
           <button type="button" aria-pressed={mobileMode === "map"} onClick={() => setMobileMode("map")}><MapIcon size={17} aria-hidden="true" />지도</button>
           <button type="button" aria-pressed={mobileMode === "list"} onClick={() => setMobileMode("list")}><List size={17} aria-hidden="true" />목록</button>
         </div>
-        <p className="full-map-explorer__scope"><strong>{districtName}</strong><span>{region === "jeju" ? "한국관광공사 공식 장소만 표시합니다." : "공식 관광 장소와 공개된 지역 후보를 함께 비교합니다."}</span></p>
+        <label className="explorer-district-control">
+          <span className="sr-only">{regionConfig.displayName} 세부 지역</span>
+          <select value={district} onChange={(event) => changeDistrict(event.target.value)}>
+            <option value="all">{regionConfig.displayName} 전체</option>
+            {regionConfig.districts.map((item) => <option key={item.legalDongDistrictCode} value={item.legalDongDistrictCode}>{item.name}</option>)}
+          </select>
+        </label>
+        <p className="full-map-explorer__scope"><span>{region === "jeju" ? "한국관광공사 공식 장소만 표시합니다." : "공식 관광 장소와 공개된 지역 후보를 함께 비교합니다."}</span></p>
       </div>
 
       <div className="full-map-explorer__main" data-mobile-mode={mobileMode}>
         <section className="full-map-explorer__map" aria-label={`${districtName} 전체 장소 지도`}>
           <div className="explorer-category-panel">
             <div className="explorer-category-panel__heading">
-              <p>{region.toUpperCase()} PET PLACE MAP</p>
-              <h2>{regionConfig.displayName} 반려동물 장소</h2>
-              <strong>현재 표시 {filteredPlaces.length.toLocaleString("ko-KR")}곳</strong>
+              <span aria-hidden="true"><MapPin size={28} fill="currentColor" /></span>
+              <div>
+                <h2>여행 장소</h2>
+                <p>반려견과 함께 방문 가능한 장소를 선택해보세요.</p>
+              </div>
             </div>
             <CategoryToggleGroup
-              title="여행 장소"
-              categories={visibleDefaultCategories}
+              title="장소 유형"
+              categories={[...visibleDefaultCategories, ...visibleOptionalCategories]}
               active={categories}
               counts={displayedCategoryCounts}
               onToggle={toggleCategory}
             />
-            {visibleOptionalCategories.length > 0 ? (
-              <CategoryToggleGroup
-                title="추가로 보기"
-                categories={visibleOptionalCategories}
-                active={categories}
-                counts={displayedCategoryCounts}
-                onToggle={toggleCategory}
-              />
-            ) : null}
-            <div className="explorer-category-panel__actions">
-              <button type="button" onClick={() => { setCategories([...visibleDefaultCategories, ...visibleOptionalCategories]); setPage(1); setSelectedId(null); }}>전체</button>
-              <button type="button" onClick={() => { setCategories([...DEFAULT_PLACE_CATEGORIES]); setPage(1); setSelectedId(null); }}>기본으로</button>
-            </div>
           </div>
           <div className="explorer-source-legend" aria-label="장소 출처 범례">
             {visibleLayers.map((layer) => (
@@ -598,19 +631,6 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
         <aside className="full-map-explorer__sidebar" aria-label="장소 검색 결과">
           <header className="explorer-results-header">
             <div><h1>총 {filteredPlaces.length.toLocaleString("ko-KR")}곳</h1><p>카드는 페이지당 12개 <span aria-hidden="true">·</span> 지도는 현재 필터의 전체 결과</p></div>
-            <details className="explorer-filter-menu">
-              <summary><SlidersHorizontal size={16} aria-hidden="true" />필터{activeFilterCount > 0 ? ` ${activeFilterCount}` : ""}</summary>
-              <div>
-                <label>{regionConfig.displayName} 세부 지역<select value={district} onChange={(event) => changeFilter(() => { setDistrict(event.target.value); setTourState("loading"); setKakaoState(regionConfig.kakaoDiscoveryEnabled ? "loading" : "ready"); setTourPlaces([]); setKakaoPlaces([]); setOptionalLoadedFor(null); })}><option value="all">{regionConfig.displayName} 전체</option>{regionConfig.districts.map((item) => <option key={item.legalDongDistrictCode} value={item.legalDongDistrictCode}>{item.name}</option>)}</select></label>
-                <CategoryToggleGroup title="여행 장소" categories={visibleDefaultCategories} active={categories} counts={displayedCategoryCounts} onToggle={toggleCategory} />
-                {visibleOptionalCategories.length > 0 ? <CategoryToggleGroup title="추가로 보기" categories={visibleOptionalCategories} active={categories} counts={displayedCategoryCounts} onToggle={toggleCategory} /> : null}
-                <div className="explorer-filter-menu__category-actions">
-                  <button type="button" onClick={() => { setCategories([...visibleDefaultCategories, ...visibleOptionalCategories]); setPage(1); setSelectedId(null); }}>전체 카테고리</button>
-                  <button type="button" onClick={() => { setCategories([...DEFAULT_PLACE_CATEGORIES]); setPage(1); setSelectedId(null); }}>기본 카테고리</button>
-                </div>
-                {activeBounds ? <button type="button" onClick={() => { resetViewportScope(); setPage(1); }}>지도 검색 범위 초기화</button> : null}
-              </div>
-            </details>
           </header>
 
           <div className="explorer-sort-row">

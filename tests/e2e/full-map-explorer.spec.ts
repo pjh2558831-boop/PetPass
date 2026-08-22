@@ -291,6 +291,13 @@ test("keeps one source marker per place across pagination, selection, and viewpo
   });
   await page.goto("/results?tab=catalog");
   await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
+  await expect(page.getByText(/현재 표시 \d+곳/u)).toHaveCount(0);
+  const categoryPanel = page.locator(".explorer-category-panel");
+  await expect(categoryPanel.getByRole("heading", { name: "여행 장소" })).toBeVisible();
+  await expect(categoryPanel.getByText("반려견과 함께 방문 가능한 장소를 선택해보세요.", { exact: true })).toBeVisible();
+  await expect(categoryPanel.locator(".explorer-category-group__icon")).toHaveCount(7);
+  await expect(page.locator(".explorer-filter-menu")).toHaveCount(0);
+  await expect(page.getByLabel("부산 세부 지역")).toBeVisible();
   await expect(page.locator('[id^="place-card-"]')).toHaveCount(12);
   const mapRoot = page.locator("[data-marker-registry-size]");
   await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "26");
@@ -300,7 +307,6 @@ test("keeps one source marker per place across pagination, selection, and viewpo
   await expect(page.locator(".fake-kakao-native-marker")).toHaveCount(26);
   await expect(page.locator(".kakao-map-selection")).toHaveCount(0);
 
-  const categoryPanel = page.locator(".explorer-category-panel");
   for (const label of ["관광지", "식당", "카페", "숙소"]) {
     await expect(categoryPanel.getByRole("button", { name: new RegExp(`^${label}`) })).toHaveAttribute("aria-pressed", "true");
   }
@@ -415,9 +421,7 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
   await expect(page.locator('.catalog-result-card [data-image-kind="category_placeholder"]')).toHaveCount(6);
   await expect(page.locator(".catalog-result-card").getByText("동반 정보 확인 필요", { exact: true })).toHaveCount(5);
 
-  const filter = page.locator(".explorer-filter-menu");
-  await filter.locator("summary").click();
-  const districtSelect = filter.getByLabel("제주 세부 지역");
+  const districtSelect = page.getByLabel("제주 세부 지역");
   await districtSelect.selectOption("110");
   await expect(page.getByRole("heading", { name: "총 27곳" })).toBeVisible();
   await expect(page).toHaveURL(/region=jeju.*district=110/u);
@@ -462,14 +466,12 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
     await page.setViewportSize(viewport);
     await page.getByRole("button", { name: "지도", exact: true }).click();
     await page.getByRole("button", { name: "제주", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "제주 반려동물 장소" })).toBeVisible();
+    await expect(page.locator(".explorer-category-panel").getByRole("heading", { name: "여행 장소" })).toBeVisible();
     await page.getByRole("button", { name: "지도", exact: true }).click();
     await expect(page.locator(".full-map-explorer__map")).toBeVisible();
     await page.getByRole("button", { name: "목록", exact: true }).click();
     await expect(page.locator(".full-map-explorer__sidebar")).toBeVisible();
     await expect(page.getByRole("heading", { name: "총 54곳" })).toBeVisible();
-    const openFilterMenu = page.locator("details.explorer-filter-menu[open]");
-    if (await openFilterMenu.count()) await openFilterMenu.locator("summary").click();
     await page.locator(".catalog-result-card").first().getByRole("button", { name: /지도에서 보기$/u }).click();
     await expect(page.getByRole("button", { name: "지도", exact: true })).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator(".full-map-explorer__map")).toBeVisible();
@@ -531,9 +533,7 @@ test("keeps Jeju error, retry, and empty states accessible in mobile list mode",
   await page.getByRole("button", { name: "다시 시도" }).click();
   await expect(page.getByRole("heading", { name: "총 54곳" })).toBeVisible();
 
-  const filter = page.locator(".explorer-filter-menu");
-  await filter.locator("summary").click();
-  await filter.getByLabel("제주 세부 지역").selectOption("130");
+  await page.getByLabel("제주 세부 지역").selectOption("130");
   await expect(page.getByRole("heading", { name: "총 0곳" })).toBeVisible();
   await expect(page.getByText("선택한 조건의 장소가 없습니다.", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
@@ -799,7 +799,9 @@ test("captures the requested full-map explorer evidence", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
   await capture("01-full-1440.png");
   const evidenceCategoryPanel = page.locator(".explorer-category-panel");
-  await evidenceCategoryPanel.getByRole("button", { name: "전체", exact: true }).click();
+  for (const label of ["동물병원", "펫샵·용품점"]) {
+    await evidenceCategoryPanel.getByRole("button", { name: new RegExp(`^${label}`) }).click();
+  }
   await expect(page.getByRole("heading", { name: "총 28곳" })).toBeVisible();
   await capture("02-all-filters-enabled.png");
 
@@ -819,7 +821,9 @@ test("captures the requested full-map explorer evidence", async ({ page }) => {
   }
   await expect(page.getByRole("heading", { name: "총 2곳" })).toBeVisible();
   await capture("07-veterinary-pet-shop.png");
-  await evidenceCategoryPanel.getByRole("button", { name: "기본으로", exact: true }).click();
+  for (const label of ["동물병원", "펫샵·용품점", "관광지", "식당", "카페", "숙소"]) {
+    await evidenceCategoryPanel.getByRole("button", { name: new RegExp(`^${label}`) }).click();
+  }
 
   await page.evaluate(() => (window as unknown as { __moveExplorerMap?: () => void }).__moveExplorerMap?.());
   await expect(page.getByRole("button", { name: "이 지역 검색 다시하기" })).toBeVisible();

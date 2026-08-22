@@ -1,4 +1,4 @@
-import { Clock3, Info, MapPin, Route } from "lucide-react";
+import { Clock3, MapPin, Route } from "lucide-react";
 import { WEEKENDOG_EXAMPLE_COURSE } from "@/lib/homepage/editorial-content";
 
 export function ExampleCourseCard() {
@@ -58,15 +58,11 @@ export function ExampleCourseCard() {
         ))}
       </ol>
 
-      <p className="mt-5 flex items-start gap-2 rounded-[14px] border border-[var(--line)] bg-[#fafbf9] p-3 text-xs font-semibold leading-5 text-[var(--muted)]">
-        <Info className="mt-0.5 shrink-0" size={15} aria-hidden="true" />
-        {course.disclosure}
-      </p>
       <button
         type="button"
         aria-disabled="true"
         title="코스 상세 기능 준비 중"
-        className="mt-4 inline-flex min-h-11 cursor-not-allowed items-center rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--muted)]"
+        className="mt-5 inline-flex min-h-11 cursor-not-allowed items-center rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--muted)]"
       >
         코스 자세히 보기 · 준비 중
       </button>

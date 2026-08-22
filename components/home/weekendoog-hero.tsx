@@ -1,4 +1,4 @@
-import { ArrowRight, PawPrint, ShieldCheck } from "lucide-react";
+import { ArrowRight, PawPrint } from "lucide-react";
 import { HeroPhotoCarousel } from "@/components/home/hero-photo-carousel";
 import { HeroPlannerLauncher } from "@/components/home/hero-planner-launcher";
 import { ButtonLink } from "@/components/ui/button";
@@ -8,11 +8,7 @@ export function WeekendoogHero() {
     <section className="weekendoog-hero overflow-hidden bg-[var(--background)]">
       <div className="weekendoog-shell weekendoog-hero-layout">
         <div className="weekendoog-hero-copy relative z-10 max-w-[590px]">
-            <p className="inline-flex items-center gap-2 rounded-full border border-[var(--brand-border)] bg-[var(--brand-soft)] px-3 py-1.5 text-xs font-extrabold text-[var(--brand)]">
-              <ShieldCheck size={15} aria-hidden="true" />
-              공식 데이터 기반 반려동물 여행
-            </p>
-            <h1 className="mt-5 text-[34px] font-black leading-[1.08] tracking-[-0.055em] text-[var(--foreground)] sm:text-[46px] lg:text-[64px]">
+            <h1 className="text-[34px] font-black leading-[1.08] tracking-[-0.055em] text-[var(--foreground)] sm:text-[46px] lg:text-[64px]">
               반려견과 함께,
               <br />
               어디로 떠나볼까요?

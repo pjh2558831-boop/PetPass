@@ -279,6 +279,17 @@ test("uses compact hero copy and three local official partner marks", async ({ p
   await expect(hero).toContainText(
     "가장 자연스러운 하루 일정을 제안해드려요.",
   );
+  await expect(hero.getByText("공식 데이터 기반 반려동물 여행", { exact: true })).toHaveCount(0);
+
+  const launcher = page.getByRole("form", { name: "여행 만들기 빠른 시작" });
+  await expect(launcher.getByText("어디로 떠날까요?", { exact: true })).toBeVisible();
+  await expect(launcher.getByText("언제 갈까요?", { exact: true })).toHaveCount(0);
+  await expect(launcher.getByText("누구와 함께?", { exact: true })).toHaveCount(0);
+  await expect(
+    launcher.getByText("날짜와 반려동물 정보는 다음 화면에서 이어서 입력합니다.", {
+      exact: true,
+    }),
+  ).toHaveCount(0);
 
   const trust = page.locator(".weekendoog-public-data-card");
   const marks = trust.locator(".weekendoog-partner-mark img");
@@ -291,10 +302,41 @@ test("uses compact hero copy and three local official partner marks", async ({ p
   );
   expect(sources[1]).toContain("/brand/partners/kakaomap-horizontal-ko.png");
   expect(sources[2]).toContain(
-    "/brand/partners/mois-horizontal-ko-transparent.png",
+    "/brand/partners/mois-horizontal-ko-transparent-trimmed.png",
   );
-  await expect(trust.getByText("관광 장소와 반려동물 동반 정보", { exact: true })).toBeVisible();
-  await expect(trust.getByText("지도 표시와 실제 이동시간", { exact: true })).toBeVisible();
+  await expect(trust).toContainText("관광 장소와 반려동물 동반 정보");
+  await expect(trust).toContainText("지도 표시와 실제 이동시간");
+  await expect(trust).toHaveAttribute("data-layout", "partner-strip");
+});
+
+test("aligns the desktop launcher below the hero copy and keeps annotated dimensions", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "Desktop annotation only");
+  await page.setViewportSize({ width: 1403, height: 986 });
+  await mockHomepage(page);
+  await page.goto("/");
+
+  await expect(page.locator(".weekendoog-hero")).toBeVisible();
+
+  const layoutBox = await page.locator(".weekendoog-hero-layout").boundingBox();
+  const copyBox = await page.locator(".weekendoog-hero-copy").boundingBox();
+  const launcherBox = await page.locator(".weekendoog-hero-launcher").boundingBox();
+  const trustBox = await page.locator(".weekendoog-public-data-card").boundingBox();
+  const contactBox = await page.locator(".weekendoog-contact-card").boundingBox();
+
+  expect(layoutBox).not.toBeNull();
+  expect(copyBox).not.toBeNull();
+  expect(launcherBox).not.toBeNull();
+  expect(trustBox).not.toBeNull();
+  expect(contactBox).not.toBeNull();
+  expect(launcherBox!.width).toBeCloseTo(600, 0);
+  expect(launcherBox!.x).toBeCloseTo(layoutBox!.x, 0);
+  expect(launcherBox!.y).toBeGreaterThanOrEqual(copyBox!.y + copyBox!.height);
+  expect(trustBox!.height).toBeCloseTo(200, 0);
+  expect(contactBox!.height).toBeCloseTo(trustBox!.height, 0);
+  await expect(page.getByText(
+    "실제 개인화 결과가 아니며 장소·시간은 조건에 따라 달라집니다.",
+    { exact: true },
+  )).toHaveCount(0);
 });
 
 test("disables hero autoplay and transition under reduced motion", async ({ page }) => {
@@ -341,10 +383,14 @@ test("renders mixed source markers, dynamic counts, truthful selection, and faci
   const mapCanvas = page.locator(".homepage-map-canvas-wrap .map-canvas");
   await expect(mapCanvas).toHaveAttribute("data-location-count", "3");
   await expect(mapCanvas).toHaveAttribute("data-route-point-count", "0");
-  await expect(page.getByRole("button", { name: /공식 장소\s*37/u })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: /카카오 후보\s*120/u })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: /동물병원\s*42/u })).toHaveAttribute("aria-pressed", "false");
-  await page.getByRole("button", { name: /동물병원\s*42/u }).click();
+  await expect(page.getByLabel("지도 마커 범례")).toHaveCount(0);
+  await expect(page.getByText("지도 레이어", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("BUSAN PLACE MAP", { exact: true })).toHaveCount(0);
+  const mapFilters = page.getByRole("group", { name: "지도 장소 필터" });
+  await expect(mapFilters.getByRole("button", { name: /공식 장소\s*37/u })).toHaveAttribute("aria-pressed", "true");
+  await expect(mapFilters.getByRole("button", { name: /카카오 후보\s*120/u })).toHaveAttribute("aria-pressed", "true");
+  await expect(mapFilters.getByRole("button", { name: /동물병원\s*42/u })).toHaveAttribute("aria-pressed", "false");
+  await mapFilters.getByRole("button", { name: /동물병원\s*42/u }).click();
   await expect(mapCanvas).toHaveAttribute("data-location-count", "4");
   const hospitalMarker = page.getByRole("button", { name: /부산 반려동물 동물병원 · 동물병원$/u });
   await hospitalMarker.evaluate((element) => (element as HTMLButtonElement).click());
@@ -352,6 +398,20 @@ test("renders mixed source markers, dynamic counts, truthful selection, and faci
   await expect(selected).toContainText("동물병원");
   await expect(selected).not.toContainText("동반 가능");
   await expect(selected).not.toContainText("24시간");
+
+  if ((page.viewportSize()?.width ?? 0) >= 768) {
+    const mapBox = await mapCanvas.boundingBox();
+    const selectedBox = await selected.boundingBox();
+    const watermarkBox = await page.locator(".homepage-map-canvas-wrap .map-watermark").boundingBox();
+    expect(mapBox).not.toBeNull();
+    expect(selectedBox).not.toBeNull();
+    expect(watermarkBox).not.toBeNull();
+    expect(selectedBox!.x).toBeGreaterThanOrEqual(mapBox!.x);
+    expect(selectedBox!.y).toBeGreaterThanOrEqual(mapBox!.y);
+    expect(selectedBox!.x + selectedBox!.width).toBeLessThanOrEqual(mapBox!.x + mapBox!.width);
+    expect(selectedBox!.y + selectedBox!.height).toBeLessThanOrEqual(mapBox!.y + mapBox!.height);
+    expect(selectedBox!.y + selectedBox!.height).toBeLessThanOrEqual(watermarkBox!.y);
+  }
 });
 
 test("filters truthful official, candidate, veterinary, and shop cards with safe links", async ({ page }) => {
