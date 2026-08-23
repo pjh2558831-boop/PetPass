@@ -50,7 +50,111 @@ final result: passed
 
 ---
 
+# WEEKENDOG homepage map category dropdown — design QA
+
+- User annotation: replace the homepage map's fixed provider-layer panel with the same place-category dropdown used by the full results explorer.
+- Verified route: `http://localhost:3000/`.
+- Viewports: 1915 × 1272, 390 × 844, and the 320 px overflow regression.
+
+## Final behavior
+
+- The compact `필터` trigger is anchored at the map's top-left on desktop and placed immediately above the map on mobile.
+- The dropdown contains only the seven place categories: 관광지, 식당, 카페, 숙소, 쇼핑, 동물병원, 펫샵·용품점.
+- 관광지·식당·카페·숙소 are selected by default. Draft choices do not change markers until `적용하기` is pressed.
+- `초기화` restores the four default travel categories. Escape closes the dropdown and returns focus to the trigger; clicking outside also closes it.
+- Provider identity remains truthful on markers, selected-place cards, and the map watermark; the removed provider controls are not recreated inside the dropdown.
+
+## Responsive evidence
+
+- Desktop measured trigger: 76 × 44 px. Dropdown: 380 × 447.9 px, fully contained within the 1280 px map shell with no horizontal document overflow.
+- Mobile 390 px measured dropdown: 358.4 × 425.6 px with no horizontal document overflow.
+- At 320 px the dropdown is 288 px wide, categories use one column, and document overflow remains zero.
+
+## Findings
+
+No actionable P0, P1, or P2 differences remain for the requested homepage dropdown revision.
+
+final result: passed
+
+---
+
+# WEEKENDOG results category dropdown revision — design QA
+
+- User annotation: remove the provider/source filter and replace the centered modal with an anchored dropdown.
+- Verified route: `http://localhost:3000/results?tab=catalog&region=busan&page=50`.
+- Viewports: 1403 × 986, 390 × 844, and the 320 px overflow regression.
+
+## Superseded behavior
+
+The earlier `results filter popup` modal specification is superseded by this revision. The filter no longer dims or blurs the page, no native `dialog` is mounted, and 한국관광공사/카카오맵 are no longer selectable provider filters. Provider markers remain present and truthfully identified in the map source legend.
+
+## Final behavior
+
+- The results-header `필터` button toggles a dropdown anchored below the button.
+- The dropdown contains only the seven place-type controls, plus `초기화` and `적용하기`.
+- Draft selections do not change results until `적용하기` is pressed.
+- Escape returns focus to the trigger; clicking outside closes the dropdown.
+- Desktop measured dropdown: 368.9 × 443.4 px with zero document overflow.
+- Mobile 390 px measured dropdown: 349.6 × 425.6 px with zero document overflow.
+- At 320 px, categories use one column and document overflow remains zero.
+
+## Findings
+
+No actionable P0, P1, or P2 differences remain for the requested revision.
+
+final result: passed
+
+---
+
+# WEEKENDOG results filter popup — design QA
+
+> Historical record only. The later `results category dropdown revision` above supersedes this centered modal and its provider controls.
+
+- Source visual truth: `C:/Users/pjh25/Downloads/ChatGPT Image 2026년 8월 23일 오후 04_09_37.png` (1536 × 1024 px).
+- Implementation screenshots:
+  - `C:/Users/pjh25/Desktop/펫패스/verification-evidence/weekendog-results-filter-popup-2026-08-23/results-filter-1403x986.png`
+  - `C:/Users/pjh25/Desktop/펫패스/verification-evidence/weekendog-results-filter-popup-2026-08-23/results-filter-390x844.png`
+- Combined comparison: `C:/Users/pjh25/Desktop/펫패스/verification-evidence/weekendog-results-filter-popup-2026-08-23/reference-vs-implementation.png`.
+- Viewports: desktop 1403 × 986 CSS px and mobile 390 × 844 CSS px, device scale factor 1. The desktop dialog measures 940 px wide; the mobile dialog measures 374.4 × 668.6 px with no document overflow.
+- State: `/results?tab=catalog&region=busan&page=1`, 부산 전체, filter dialog open, both data providers and the four default travel categories selected.
+
+## Full-view comparison evidence
+
+The permanent map overlay was removed. The results-header `필터` control now opens a centered modal over the existing map and result cards. The dialog follows the reference sequence: provider source choices, divider, travel-place heading and guidance, four selected travel categories, three optional categories, then reset and apply actions. The live map, result pagination, and district controls remain visible behind a blurred dimmed backdrop.
+
+## Focused region comparison evidence
+
+The reference and implementation were combined into one comparison image. Both use two provider controls, four columns for the selected travel categories, category-colored icons, round check states, subdued unselected controls, and a separated action row. The implementation intentionally uses the project's official transparent 한국관광공사 and 카카오맵 assets and WEEKENDOG tokens. Live counts remain data-driven, so the captured values differ from the illustrative reference.
+
+## Required fidelity surfaces
+
+- Fonts and typography: the existing Pretendard stack, compact 24 px dialog title, 22 px travel-place heading, and 14–15 px control labels preserve the reference hierarchy within the product's denser results view.
+- Spacing and layout rhythm: 34 px desktop body padding, 14 px provider gap, 12 px category gap, and a fixed footer create the same grouped rhythm while keeping all actions visible.
+- Colors and tokens: WEEKENDOG forest green, soft selected background, neutral line, and existing category colors are reused.
+- Image quality and asset fidelity: real local partner logo files and Lucide icons are used; no placeholder, emoji, or handcrafted SVG is introduced.
+- Copy and content: `출처 (데이터 제공처)`, `여행 장소`, the supporting sentence, `초기화`, and `적용하기` follow the supplied reference. The bottom legend now labels the yellow provider as `카카오맵`.
+
+## Comparison history
+
+1. P2 — the first popup pass repeated provider names beside logo images whose artwork already contained those names. The duplicate text was removed and the logo/count grid was rebalanced.
+2. P1 — opening the dialog directly from the click handler could lose the modal after a concurrent results rerender. Dialog visibility is now synchronized from React state, so pagination and repeated filter cycles remain stable.
+3. P2 — the desktop grid would be too dense if carried unchanged to a narrow viewport. The mobile popup uses one provider column and two category columns; the measured 390 px state has no horizontal overflow.
+
+## Findings
+
+No actionable P0, P1, or P2 visual differences remain. Counts differ only because the implementation displays current provider data instead of the reference's illustrative values.
+
+## Follow-up polish
+
+- P3: if longer localized category names are introduced, recheck the 390 px two-column label wrapping.
+
+final result: passed
+
+---
+
 # WEEKENDOG results category-panel redesign — design QA
+
+> Historical record only. The later `results category dropdown revision` above supersedes this permanent map overlay.
 
 - Source visual truth: Browser Comment 1 additional reference (`browser-comment://results-category-panel/comment-1/reference`, 964 × 510 px conversation attachment).
 - Implementation screenshot: `C:/Users/pjh25/Desktop/펫패스/verification-evidence/weekendog-results-filter-redesign-2026-08-23/results-filter-1403x986.png`.

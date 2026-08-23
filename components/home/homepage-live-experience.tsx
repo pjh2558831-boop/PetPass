@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -9,14 +8,23 @@ import {
   MapPin,
   PawPrint,
   RefreshCw,
+  RotateCcw,
   ShieldCheck,
   ShoppingBag,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HomepagePlaceCarousel } from "@/components/home/official-place-carousel";
-import { MapPanel, type MapLayerControl } from "@/components/map/map-panel";
+import { MapPanel } from "@/components/map/map-panel";
 import { PlaceImage } from "@/components/places/place-image";
+import { PlaceCategoryToggleGroup } from "@/components/places/place-category-toggle-group";
 import { createHomepageMapLocations } from "@/lib/homepage/homepage-map-locations";
+import {
+  DEFAULT_PLACE_CATEGORIES,
+  PLACE_CATEGORIES,
+  isPlaceCategory,
+  type PlaceCategory,
+} from "@/lib/map-places/place-categories";
 import type { ApiError, ApiResult } from "@/types/api";
 import {
   HOMEPAGE_PLACE_LAYERS,
@@ -26,24 +34,6 @@ import {
 } from "@/types/homepage-places";
 
 const EMPTY_ROUTE_COORDINATES: [] = [];
-
-const LAYER_UI: Array<{
-  id: HomepagePlaceLayer;
-  label: string;
-  markerKind: NonNullable<MapLayerControl["markerKind"]>;
-}> = [
-  { id: "official", label: "공식 장소", markerKind: "tourism-official" },
-  { id: "kakao_candidate", label: "카카오 후보", markerKind: "kakao-candidate" },
-  { id: "veterinary", label: "동물병원", markerKind: "veterinary" },
-  { id: "pet_shop", label: "펫샵·용품점", markerKind: "pet-shop" },
-];
-
-const LAYER_MARKER_ASSETS: Record<HomepagePlaceLayer, string> = {
-  official: "/map-pins/tourism-official.svg",
-  kakao_candidate: "/map-pins/kakao-candidate.svg",
-  veterinary: "/map-pins/veterinary.svg",
-  pet_shop: "/map-pins/pet-shop.svg",
-};
 
 const API_ERROR_CODES = new Set<ApiError["code"]>([
   "CONFIGURATION_REQUIRED",
@@ -90,6 +80,14 @@ function isHomepagePlacesSnapshot(
     typeof value.official.markerCount !== "number" ||
     typeof value.official.omittedCoordinateCount !== "number" ||
     !Array.isArray(value.official.categoryCounts) ||
+    !value.official.categoryCounts.every(
+      (entry) =>
+        isRecord(entry) &&
+        typeof entry.category === "string" &&
+        isPlaceCategory(entry.category) &&
+        typeof entry.label === "string" &&
+        typeof entry.count === "number",
+    ) ||
     typeof value.official.retrievedAt !== "string"
   ) {
     return false;
@@ -112,6 +110,8 @@ function isHomepagePlacesSnapshot(
       typeof marker.id === "string" &&
       HOMEPAGE_PLACE_LAYERS.includes(marker.layer as HomepagePlaceLayer) &&
       typeof marker.name === "string" &&
+      typeof marker.category === "string" &&
+      isPlaceCategory(marker.category) &&
       isRecord(marker.coordinates) &&
       typeof marker.coordinates.latitude === "number" &&
       typeof marker.coordinates.longitude === "number",
@@ -121,6 +121,8 @@ function isHomepagePlacesSnapshot(
       typeof card.id === "string" &&
       HOMEPAGE_PLACE_LAYERS.includes(card.layer as HomepagePlaceLayer) &&
       typeof card.name === "string" &&
+      typeof card.category === "string" &&
+      isPlaceCategory(card.category) &&
       typeof card.sourceLabel === "string",
   );
 }
@@ -216,14 +218,33 @@ export function HomepageLiveExperience() {
   const [error, setError] = useState<ApiError>(GENERIC_ERROR);
   const [retryToken, setRetryToken] = useState(0);
   const [requestedSelectionId, setRequestedSelectionId] = useState<string | null>(null);
-  const [visibleLayers, setVisibleLayers] = useState<Record<HomepagePlaceLayer, boolean>>({
-    official: true,
-    kakao_candidate: true,
-    veterinary: false,
-    pet_shop: false,
-  });
+  const [activeCategories, setActiveCategories] = useState<PlaceCategory[]>([...DEFAULT_PLACE_CATEGORIES]);
+  const [draftCategories, setDraftCategories] = useState<PlaceCategory[]>([...DEFAULT_PLACE_CATEGORIES]);
+  const [filterOpen, setFilterOpen] = useState(false);
   const requestRef = useRef<Promise<ApiResult<HomepagePlacesSnapshot>> | null>(null);
   const optionalRequestRef = useRef<Promise<ApiResult<HomepagePlacesSnapshot>> | null>(null);
+  const filterDropdownRef = useRef<HTMLElement>(null);
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!filterOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Node)) return;
+      if (filterDropdownRef.current?.contains(event.target) || filterButtonRef.current?.contains(event.target)) return;
+      setFilterOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setFilterOpen(false);
+      requestAnimationFrame(() => filterButtonRef.current?.focus());
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [filterOpen]);
 
   useEffect(() => {
     let active = true;
@@ -238,13 +259,8 @@ export function HomepageLiveExperience() {
         return;
       }
       setSnapshot(result.data);
-      setVisibleLayers(Object.fromEntries(
-        HOMEPAGE_PLACE_LAYERS.map((layer) => [
-          layer,
-          result.data.layers[layer].state !== "unavailable" &&
-            result.data.layers[layer].enabledByDefault,
-        ]),
-      ) as Record<HomepagePlaceLayer, boolean>);
+      setActiveCategories([...DEFAULT_PLACE_CATEGORIES]);
+      setDraftCategories([...DEFAULT_PLACE_CATEGORIES]);
       setLoadState("ready");
     }).catch(() => {
       if (!active) return;
@@ -265,8 +281,8 @@ export function HomepageLiveExperience() {
   };
 
   const visibleMarkers = useMemo(
-    () => snapshot?.markers.filter((marker) => visibleLayers[marker.layer]) ?? [],
-    [snapshot, visibleLayers],
+    () => snapshot?.markers.filter((marker) => activeCategories.includes(marker.category)) ?? [],
+    [activeCategories, snapshot],
   );
   const locations = useMemo(
     () => createHomepageMapLocations(visibleMarkers),
@@ -294,28 +310,25 @@ export function HomepageLiveExperience() {
     return <HomepageLiveError error={error} onRetry={retry} />;
   }
 
-  const layerControls: MapLayerControl[] = LAYER_UI.map((layer) => {
-    const status = snapshot.layers[layer.id];
-    return {
-      ...layer,
-      count: status.count,
-      visible: visibleLayers[layer.id],
-      disabled: status.state === "unavailable",
-      description:
-        status.state === "unavailable"
-          ? "카카오 장소 데이터 준비 중"
-          : status.state === "deferred"
-            ? `${layer.label} 레이어를 선택하면 불러옵니다.`
-          : `${layer.label} 레이어 ${visibleLayers[layer.id] ? "숨기기" : "보기"}`,
-    };
-  });
-  const publicUnavailable = LAYER_UI.slice(1).some(
-    ({ id }) => snapshot.layers[id].state === "unavailable",
+  const officialCategoryCounts = new Map(
+    snapshot.official.categoryCounts.map(({ category, count }) => [category, count] as const),
+  );
+  const categoryCounts = Object.fromEntries(PLACE_CATEGORIES.map((category) => {
+    const optionalLayer = category === "veterinary" ? "veterinary" : category === "pet_shop" ? "pet_shop" : null;
+    if (optionalLayer && snapshot.layers[optionalLayer].state !== "ready" && snapshot.layers[optionalLayer].state !== "empty") {
+      return [category, null];
+    }
+    const publicCount = snapshot.markers.filter((marker) => marker.layer !== "official" && marker.category === category).length;
+    return [category, (officialCategoryCounts.get(category) ?? 0) + publicCount];
+  })) as Record<PlaceCategory, number | null>;
+  const publicUnavailable = HOMEPAGE_PLACE_LAYERS.slice(1).some(
+    (layer) => snapshot.layers[layer].state === "unavailable",
   );
 
-  const toggleLayer = (layer: HomepagePlaceLayer, visible: boolean) => {
-    if (snapshot.layers[layer].state === "unavailable") return;
-    if (visible && snapshot.layers[layer].state === "deferred") {
+  const loadOptionalPlaces = (categories: readonly PlaceCategory[]) => {
+    const needsOptional = categories.some((category) => category === "veterinary" || category === "pet_shop") &&
+      (snapshot.layers.veterinary.state === "deferred" || snapshot.layers.pet_shop.state === "deferred");
+    if (needsOptional) {
       const request = optionalRequestRef.current ?? requestHomepageSnapshot(true);
       optionalRequestRef.current = request;
       void request.then((result) => {
@@ -324,13 +337,32 @@ export function HomepageLiveExperience() {
           return;
         }
         setSnapshot(result.data);
-        setVisibleLayers((current) => ({ ...current, [layer]: true }));
       }).catch(() => {
         optionalRequestRef.current = null;
       });
+    }
+  };
+  const toggleDraftCategory = (category: PlaceCategory) => {
+    setDraftCategories((current) => current.includes(category)
+      ? current.filter((value) => value !== category)
+      : PLACE_CATEGORIES.filter((value) => value === category || current.includes(value)));
+  };
+  const toggleFilters = () => {
+    if (filterOpen) {
+      setFilterOpen(false);
       return;
     }
-    setVisibleLayers((current) => ({ ...current, [layer]: visible }));
+    setDraftCategories([...activeCategories]);
+    setFilterOpen(true);
+  };
+  const applyFilters = () => {
+    setActiveCategories([...draftCategories]);
+    setRequestedSelectionId(null);
+    loadOptionalPlaces(draftCategories);
+    setFilterOpen(false);
+  };
+  const resetDraftFilters = () => {
+    setDraftCategories([...DEFAULT_PLACE_CATEGORIES]);
   };
 
   return (
@@ -341,37 +373,55 @@ export function HomepageLiveExperience() {
             부산 공식 관광 장소 {snapshot.official.totalCount}곳
           </h2>
 
-          <fieldset className="homepage-map-filter-panel" aria-label="지도 장소 필터">
-            <legend>장소 필터</legend>
-            <div className="homepage-map-filter-list">
-              {layerControls.map((layer) => (
-                <button
-                  key={layer.id}
-                  type="button"
-                  aria-pressed={layer.visible}
-                  disabled={layer.disabled}
-                  title={layer.description}
-                  onClick={() => toggleLayer(layer.id as HomepagePlaceLayer, !layer.visible)}
-                  className={layer.visible ? "is-active" : undefined}
-                >
-                  <Image
-                    src={LAYER_MARKER_ASSETS[layer.id as HomepagePlaceLayer]}
-                    width={18}
-                    height={22}
-                    alt=""
-                    aria-hidden="true"
-                  />
-                  <span>{layer.label}</span>
-                  <strong>{layer.count ?? "—"}</strong>
-                </button>
-              ))}
-            </div>
-            {publicUnavailable ? (
-              <p className="homepage-map-provider-status" role="status">
-                카카오 장소 데이터 준비 중
-              </p>
+          <div className="homepage-map-filter-control">
+            <button
+              ref={filterButtonRef}
+              type="button"
+              className="homepage-map-filter-trigger"
+              aria-expanded={filterOpen}
+              aria-controls="homepage-map-filter-dropdown"
+              onClick={toggleFilters}
+            >
+              <SlidersHorizontal size={17} aria-hidden="true" />필터
+            </button>
+            {filterOpen ? (
+              <section
+                ref={filterDropdownRef}
+                id="homepage-map-filter-dropdown"
+                className="explorer-filter-dropdown homepage-map-filter-dropdown"
+                role="region"
+                aria-label="지도 장소 필터"
+              >
+                <form onSubmit={(event) => { event.preventDefault(); applyFilters(); }}>
+                  <div className="explorer-filter-dropdown__body">
+                    <div className="explorer-category-panel__heading">
+                      <span aria-hidden="true"><MapPin size={28} fill="currentColor" /></span>
+                      <div>
+                        <h2>여행 장소</h2>
+                        <p>반려견과 함께 방문 가능한 장소를 선택해보세요.</p>
+                      </div>
+                    </div>
+                    <PlaceCategoryToggleGroup
+                      title="장소 유형"
+                      categories={PLACE_CATEGORIES}
+                      active={draftCategories}
+                      counts={categoryCounts}
+                      onToggle={toggleDraftCategory}
+                    />
+                    {publicUnavailable ? (
+                      <p className="homepage-map-provider-status" role="status">
+                        일부 카카오 장소 데이터 준비 중
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="explorer-filter-dropdown__actions">
+                    <button type="button" className="explorer-filter-dropdown__reset" onClick={resetDraftFilters}><RotateCcw size={19} aria-hidden="true" />초기화</button>
+                    <button type="submit" className="explorer-filter-dropdown__apply">적용하기 <SlidersHorizontal size={18} aria-hidden="true" /></button>
+                  </div>
+                </form>
+              </section>
             ) : null}
-          </fieldset>
+          </div>
 
           <Link href="/results?tab=catalog&region=busan" className="homepage-map-open-link">
             지도 크게 보기 <ArrowUpRight size={15} aria-hidden="true" />
@@ -389,7 +439,7 @@ export function HomepageLiveExperience() {
               viewportKey="homepage:busan:mixed-source"
               showLocationLabel={false}
               showSelectionInfo={false}
-              emptyMessage="선택한 레이어에 지도에 표시할 장소가 없습니다."
+              emptyMessage="선택한 장소 유형에 지도에 표시할 장소가 없습니다."
             />
           </div>
 

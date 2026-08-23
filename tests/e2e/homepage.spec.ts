@@ -36,6 +36,7 @@ function marker(
     id,
     layer,
     name,
+    category: layer === "veterinary" ? "veterinary" : layer === "pet_shop" ? "pet_shop" : "attraction",
     categoryLabel: layer === "veterinary" ? "동물병원" : layer === "pet_shop" ? "반려동물 용품" : "관광·문화",
     district: "해운대구",
     address: "부산광역시 해운대구 테스트로 1",
@@ -76,7 +77,7 @@ const KAKAO_CANDIDATE = marker(
   "kakao_candidate",
   "광안리 반려견 검색 후보",
   { latitude: 35.1532, longitude: 129.1187 },
-  { categoryLabel: "카페", district: "수영구" },
+  { category: "cafe", categoryLabel: "카페", district: "수영구" },
 );
 const VETERINARY = marker(
   "kakao:102",
@@ -97,8 +98,7 @@ const SNAPSHOT: HomepagePlacesSnapshot = {
     markerCount: 2,
     omittedCoordinateCount: 1,
     categoryCounts: [
-      { label: "관광지", count: 30 },
-      { label: "문화시설", count: 7 },
+      { category: "attraction", label: "관광지", count: 37 },
     ],
     featuredState: "ready",
     retrievedAt: RETRIEVED_AT,
@@ -386,11 +386,34 @@ test("renders mixed source markers, dynamic counts, truthful selection, and faci
   await expect(page.getByLabel("지도 마커 범례")).toHaveCount(0);
   await expect(page.getByText("지도 레이어", { exact: true })).toHaveCount(0);
   await expect(page.getByText("BUSAN PLACE MAP", { exact: true })).toHaveCount(0);
-  const mapFilters = page.getByRole("group", { name: "지도 장소 필터" });
-  await expect(mapFilters.getByRole("button", { name: /공식 장소\s*37/u })).toHaveAttribute("aria-pressed", "true");
-  await expect(mapFilters.getByRole("button", { name: /카카오 후보\s*120/u })).toHaveAttribute("aria-pressed", "true");
-  await expect(mapFilters.getByRole("button", { name: /동물병원\s*42/u })).toHaveAttribute("aria-pressed", "false");
-  await mapFilters.getByRole("button", { name: /동물병원\s*42/u }).click();
+  await expect(page.locator(".homepage-map-filter-panel")).toHaveCount(0);
+  const filterButton = page.getByRole("button", { name: "필터", exact: true });
+  await expect(filterButton).toHaveAttribute("aria-expanded", "false");
+  await filterButton.click();
+  const mapFilters = page.getByRole("region", { name: "지도 장소 필터" });
+  await expect(mapFilters).toBeVisible();
+  const triggerBox = await filterButton.boundingBox();
+  const dropdownBox = await mapFilters.boundingBox();
+  expect(triggerBox).not.toBeNull();
+  expect(dropdownBox).not.toBeNull();
+  expect(triggerBox!.width).toBeGreaterThanOrEqual(76);
+  expect(dropdownBox!.x).toBeGreaterThanOrEqual(0);
+  expect(dropdownBox!.x + dropdownBox!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  await expect(mapFilters.getByText("출처", { exact: true })).toHaveCount(0);
+  await expect(mapFilters.getByRole("button", { name: /^공식 장소/u })).toHaveCount(0);
+  for (const label of ["관광지", "식당", "카페", "숙소"]) {
+    await expect(mapFilters.getByRole("button", { name: new RegExp(`^${label}`) })).toHaveAttribute("aria-pressed", "true");
+  }
+  for (const label of ["쇼핑", "동물병원", "펫샵·용품점"]) {
+    await expect(mapFilters.getByRole("button", { name: new RegExp(`^${label}`) })).toHaveAttribute("aria-pressed", "false");
+  }
+  await page.keyboard.press("Escape");
+  await expect(filterButton).toHaveAttribute("aria-expanded", "false");
+  await expect(filterButton).toBeFocused();
+  await filterButton.click();
+  await mapFilters.getByRole("button", { name: /^동물병원/u }).click();
+  await expect(mapCanvas).toHaveAttribute("data-location-count", "3");
+  await mapFilters.getByRole("button", { name: "적용하기" }).click();
   await expect(mapCanvas).toHaveAttribute("data-location-count", "4");
   const hospitalMarker = page.getByRole("button", { name: /부산 반려동물 동물병원 · 동물병원$/u });
   await hospitalMarker.evaluate((element) => (element as HTMLButtonElement).click());
@@ -450,8 +473,10 @@ test("keeps official data working when the stored Kakao catalog is unavailable",
   await mockHomepage(page, unavailable);
   await page.goto("/");
   await expect(page.locator(".homepage-map-section")).toBeVisible();
-  await expect(page.getByText("카카오 장소 데이터 준비 중").first()).toBeVisible();
-  await expect(page.getByRole("button", { name: /카카오 후보\s*—/u })).toBeDisabled();
+  await page.getByRole("button", { name: "필터", exact: true }).click();
+  const mapFilters = page.getByRole("region", { name: "지도 장소 필터" });
+  await expect(mapFilters.getByText("일부 카카오 장소 데이터 준비 중")).toBeVisible();
+  await expect(mapFilters.getByRole("button", { name: /동물병원\s*…/u })).toBeEnabled();
   await expect(page.getByText("0곳", { exact: true })).toHaveCount(0);
 });
 
@@ -493,6 +518,13 @@ test("preserves mobile order, map width, card snap width, and page overflow", as
   expect(mapBox).not.toBeNull();
   expect(mapBox!.width).toBeLessThanOrEqual(390);
   expect(mapBox!.height).toBeGreaterThanOrEqual(320);
+  const filterButton = page.getByRole("button", { name: "필터", exact: true });
+  await filterButton.click();
+  const dropdownBox = await page.getByRole("region", { name: "지도 장소 필터" }).boundingBox();
+  expect(dropdownBox).not.toBeNull();
+  expect(dropdownBox!.x).toBeGreaterThanOrEqual(0);
+  expect(dropdownBox!.x + dropdownBox!.width).toBeLessThanOrEqual(390);
+  await page.keyboard.press("Escape");
   const cardBox = await page.locator(".homepage-place-card").first().boundingBox();
   expect(cardBox).not.toBeNull();
   expect(cardBox!.width).toBeGreaterThan(300);

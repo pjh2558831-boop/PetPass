@@ -1,4 +1,5 @@
 import type { HomepageFeaturedState } from "@/types/homepage";
+import type { PlaceCategory } from "@/lib/map-places/place-categories";
 
 export const HOMEPAGE_PLACE_LAYERS = [
   "official",
@@ -21,6 +22,7 @@ export interface HomepageMapMarker {
   id: string;
   layer: HomepagePlaceLayer;
   name: string;
+  category: PlaceCategory;
   categoryLabel: string;
   district: string | null;
   address: string;
@@ -39,6 +41,7 @@ export interface HomepagePlaceCard {
   id: string;
   layer: HomepagePlaceLayer;
   name: string;
+  category: PlaceCategory;
   categoryLabel: string;
   district: string | null;
   address: string;
@@ -57,7 +60,7 @@ export interface HomepagePlacesSnapshot {
     totalCount: number;
     markerCount: number;
     omittedCoordinateCount: number;
-    categoryCounts: Array<{ label: string; count: number }>;
+    categoryCounts: Array<{ category: PlaceCategory; label: string; count: number }>;
     featuredState: HomepageFeaturedState;
     retrievedAt: string;
   };

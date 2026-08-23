@@ -4,25 +4,19 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
-  BadgePlus,
-  Binoculars,
-  Check,
   ChevronLeft,
   ChevronRight,
-  Coffee,
-  House,
   List,
   Map as MapIcon,
   MapPin,
-  PawPrint,
   RefreshCw,
+  RotateCcw,
   Route,
   Rows3,
-  ShoppingBag,
-  Utensils,
-  type LucideIcon,
+  SlidersHorizontal,
 } from "lucide-react";
 import { MapPanel } from "@/components/map/map-panel";
+import { PlaceCategoryToggleGroup } from "@/components/places/place-category-toggle-group";
 import { PublicCatalogCard } from "@/components/places/public-catalog-card";
 import { usePlannerState } from "@/components/planner/planner-state";
 import {
@@ -42,7 +36,6 @@ import {
   DEFAULT_PLACE_CATEGORIES,
   OPTIONAL_PLACE_CATEGORIES,
   PLACE_CATEGORIES,
-  PLACE_CATEGORY_LABELS,
   mapCatalogPlaceToCategory,
   type PlaceCategory,
 } from "@/lib/map-places/place-categories";
@@ -83,22 +76,12 @@ const LAYER_META: Record<PublicCatalogLayer, {
   color: string;
 }> = {
   tourism: { label: "한국관광공사", markerKind: "tourism-official", color: "green" },
-  kakao: { label: "카카오 검색 후보", markerKind: "kakao-candidate", color: "yellow" },
+  kakao: { label: "카카오맵", markerKind: "kakao-candidate", color: "yellow" },
   veterinary: { label: "동물병원", markerKind: "veterinary", color: "red" },
   pet_shop: { label: "펫샵·용품점", markerKind: "pet-shop", color: "purple" },
 };
 
 const MAP_ENABLED_REGIONS = getMapEnabledRegionConfigs();
-
-const CATEGORY_ICONS: Record<PlaceCategory, LucideIcon> = {
-  attraction: Binoculars,
-  food: Utensils,
-  cafe: Coffee,
-  accommodation: House,
-  shopping: ShoppingBag,
-  veterinary: BadgePlus,
-  pet_shop: PawPrint,
-};
 
 async function fetchAllBusanTourPlaces(
   district: string,
@@ -207,40 +190,6 @@ function getVisiblePageNumbers(currentPage: number, totalPages: number): number[
   return Array.from({ length: 5 }, (_, index) => start + index);
 }
 
-function CategoryToggleGroup({
-  title,
-  categories,
-  active,
-  counts,
-  onToggle,
-}: {
-  title: string;
-  categories: readonly PlaceCategory[];
-  active: readonly PlaceCategory[];
-  counts: Record<PlaceCategory, number | null>;
-  onToggle: (category: PlaceCategory) => void;
-}) {
-  return (
-    <fieldset className="explorer-category-group">
-      <legend className="sr-only">{title}</legend>
-      <div>
-        {categories.map((category) => {
-          const selected = active.includes(category);
-          const CategoryIcon = CATEGORY_ICONS[category];
-          return (
-            <button key={category} type="button" aria-pressed={selected} onClick={() => onToggle(category)}>
-              <span className="explorer-category-group__check" aria-hidden="true">{selected ? <Check size={12} /> : null}</span>
-              <span className="explorer-category-group__icon" data-category={category} aria-hidden="true"><CategoryIcon size={22} strokeWidth={2.4} /></span>
-              <span>{PLACE_CATEGORY_LABELS[category]}</span>
-              <small>{counts[category] ?? "…"}</small>
-            </button>
-          );
-        })}
-      </div>
-    </fieldset>
-  );
-}
-
 export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, staticMapEnabled = false }: {
   initialTab?: ExplorerTab;
   initialCatalogState: PublicCatalogUrlState;
@@ -256,6 +205,8 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       : initialTab);
   const [district, setDistrict] = useState(initialCatalogState.district);
   const [categories, setCategories] = useState<PlaceCategory[]>(initialCatalogState.categories);
+  const [draftCategories, setDraftCategories] = useState<PlaceCategory[]>(initialCatalogState.categories);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(initialCatalogState.page);
   const [sort, setSort] = useState<ExplorerSort>(initialCatalogState.sort);
   const [mobileMode, setMobileMode] = useState<MobileExplorerMode>("map");
@@ -277,7 +228,29 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const latestViewportRef = useRef<KakaoCurrentMapSearch | null>(null);
   const viewportBaselineRef = useRef<KakaoCurrentMapSearch["rectangle"] | null>(null);
   const activeBoundsRef = useRef<KakaoCurrentMapSearch["rectangle"] | null>(null);
+  const filterDropdownRef = useRef<HTMLElement>(null);
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
   const [rankingAsOf] = useState(() => new Date().toISOString());
+
+  useEffect(() => {
+    if (!filterOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Node)) return;
+      if (filterDropdownRef.current?.contains(event.target) || filterButtonRef.current?.contains(event.target)) return;
+      setFilterOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setFilterOpen(false);
+      requestAnimationFrame(() => filterButtonRef.current?.focus());
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [filterOpen]);
 
   useEffect(() => {
     if (activeTab !== "catalog") return;
@@ -376,7 +349,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     regionId: region,
     district,
     categories,
-    layers: [...PUBLIC_CATALOG_LAYERS],
+    layers: region === "jeju" ? ["tourism"] : [...PUBLIC_CATALOG_LAYERS],
     activeBounds,
     page: 1,
     sort,
@@ -453,7 +426,6 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const visibleLayers = region === "jeju"
     ? (["tourism"] as const)
     : PUBLIC_CATALOG_LAYERS;
-
   const resetViewportScope = () => {
     activeBoundsRef.current = null;
     viewportBaselineRef.current = null;
@@ -468,6 +440,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     setActiveTab("catalog");
     setDistrict("all");
     setCategories([...DEFAULT_PLACE_CATEGORIES]);
+    setDraftCategories([...DEFAULT_PLACE_CATEGORIES]);
     setPage(1);
     setSelectedId(null);
     setTourPlaces([]);
@@ -495,12 +468,31 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       setOptionalLoadedFor(null);
     });
   };
-  const toggleCategory = (category: PlaceCategory) => {
-    setCategories((current) => current.includes(category)
+  const toggleDraftCategory = (category: PlaceCategory) => {
+    setDraftCategories((current) => current.includes(category)
       ? current.filter((value) => value !== category)
       : PLACE_CATEGORIES.filter((value) => value === category || current.includes(value)));
+  };
+  const toggleFilters = () => {
+    if (filterOpen) {
+      setFilterOpen(false);
+      return;
+    }
+    setDraftCategories([...categories]);
+    setFilterOpen(true);
+  };
+  const closeFilters = () => {
+    setFilterOpen(false);
+  };
+  const applyFilters = () => {
+    setCategories([...draftCategories]);
     setPage(1);
     setSelectedId(null);
+    resetViewportScope();
+    closeFilters();
+  };
+  const resetDraftFilters = () => {
+    setDraftCategories([...DEFAULT_PLACE_CATEGORIES]);
   };
   const selectPlace = (id: string | null) => {
     setSelectedId(id);
@@ -589,22 +581,6 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
 
       <div className="full-map-explorer__main" data-mobile-mode={mobileMode}>
         <section className="full-map-explorer__map" aria-label={`${districtName} 전체 장소 지도`}>
-          <div className="explorer-category-panel">
-            <div className="explorer-category-panel__heading">
-              <span aria-hidden="true"><MapPin size={28} fill="currentColor" /></span>
-              <div>
-                <h2>여행 장소</h2>
-                <p>반려견과 함께 방문 가능한 장소를 선택해보세요.</p>
-              </div>
-            </div>
-            <CategoryToggleGroup
-              title="장소 유형"
-              categories={[...visibleDefaultCategories, ...visibleOptionalCategories]}
-              active={categories}
-              counts={displayedCategoryCounts}
-              onToggle={toggleCategory}
-            />
-          </div>
           <div className="explorer-source-legend" aria-label="장소 출처 범례">
             {visibleLayers.map((layer) => (
               <span key={layer}><i data-color={LAYER_META[layer].color} aria-hidden="true" />{LAYER_META[layer].label}</span>
@@ -631,6 +607,48 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
         <aside className="full-map-explorer__sidebar" aria-label="장소 검색 결과">
           <header className="explorer-results-header">
             <div><h1>총 {filteredPlaces.length.toLocaleString("ko-KR")}곳</h1><p>카드는 페이지당 12개 <span aria-hidden="true">·</span> 지도는 현재 필터의 전체 결과</p></div>
+            <button
+              ref={filterButtonRef}
+              type="button"
+              className="explorer-filter-trigger"
+              aria-expanded={filterOpen}
+              aria-controls="explorer-filter-dropdown"
+              onClick={toggleFilters}
+            >
+              <SlidersHorizontal size={17} aria-hidden="true" />필터
+            </button>
+            {filterOpen ? (
+              <section
+                ref={filterDropdownRef}
+                id="explorer-filter-dropdown"
+                className="explorer-filter-dropdown"
+                role="region"
+                aria-label="장소 필터"
+              >
+                <form onSubmit={(event) => { event.preventDefault(); applyFilters(); }}>
+                  <div className="explorer-filter-dropdown__body">
+                    <div className="explorer-category-panel__heading">
+                      <span aria-hidden="true"><MapPin size={28} fill="currentColor" /></span>
+                      <div>
+                        <h2>여행 장소</h2>
+                        <p>반려견과 함께 방문 가능한 장소를 선택해보세요.</p>
+                      </div>
+                    </div>
+                    <PlaceCategoryToggleGroup
+                      title="장소 유형"
+                      categories={[...visibleDefaultCategories, ...visibleOptionalCategories]}
+                      active={draftCategories}
+                      counts={displayedCategoryCounts}
+                      onToggle={toggleDraftCategory}
+                    />
+                  </div>
+                  <div className="explorer-filter-dropdown__actions">
+                    <button type="button" className="explorer-filter-dropdown__reset" onClick={resetDraftFilters}><RotateCcw size={19} aria-hidden="true" />초기화</button>
+                    <button type="submit" className="explorer-filter-dropdown__apply">적용하기 <SlidersHorizontal size={18} aria-hidden="true" /></button>
+                  </div>
+                </form>
+              </section>
+            ) : null}
           </header>
 
           <div className="explorer-sort-row">

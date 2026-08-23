@@ -555,20 +555,59 @@ select {
   background: #0b503a;
 }
 
-.explorer-category-panel {
+.explorer-filter-dropdown {
   position: absolute;
-  top: 14px;
-  left: 14px;
-  z-index: 20;
-  width: min(720px, calc(100% - 28px));
-  max-height: calc(100% - 84px);
+  top: calc(100% + 8px);
+  right: 12px;
+  z-index: 50;
+  width: min(380px, calc(100% - 24px));
+  max-height: min(610px, calc(100dvh - 150px));
+  overflow: hidden;
+  border: 1px solid rgba(225, 231, 226, 0.96);
+  border-radius: 20px;
+  background: #fff;
+  padding: 0;
+  box-shadow: 0 18px 48px rgba(19, 32, 27, 0.18);
+  color: var(--text);
+}
+
+.explorer-filter-dropdown > form {
+  display: flex;
+  max-height: min(610px, calc(100dvh - 150px));
+  flex-direction: column;
+}
+
+.explorer-filter-trigger {
+  display: inline-flex;
+  min-width: 72px;
+  min-height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  padding: 0 13px;
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.explorer-filter-trigger[aria-expanded="true"] {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.explorer-filter-dropdown__body {
   overflow-y: auto;
-  border: 1px solid rgba(225, 231, 226, 0.92);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.97);
   padding: 20px;
-  box-shadow: 0 14px 36px rgba(19, 32, 27, 0.14);
-  backdrop-filter: blur(12px);
+}
+
+.explorer-filter-dropdown__actions,
+.explorer-filter-dropdown__actions button {
+  display: flex;
+  align-items: center;
 }
 
 .explorer-category-panel__heading {
@@ -612,8 +651,8 @@ select {
 
 .explorer-category-group > div {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
 }
 
 .explorer-category-group button {
@@ -673,6 +712,36 @@ select {
   color: var(--text);
   font-size: 14px;
   font-weight: 750;
+}
+
+.explorer-filter-dropdown__actions {
+  min-height: 72px;
+  flex: 0 0 auto;
+  justify-content: space-between;
+  gap: 18px;
+  border-top: 1px solid var(--line);
+  padding: 11px 20px;
+  background: #fff;
+}
+
+.explorer-filter-dropdown__actions button {
+  min-height: 50px;
+  justify-content: center;
+  gap: 9px;
+  border-radius: 16px;
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.explorer-filter-dropdown__reset {
+  color: var(--text-secondary);
+}
+
+.explorer-filter-dropdown__apply {
+  min-width: 160px;
+  background: var(--brand);
+  color: #fff;
+  box-shadow: var(--shadow-button);
 }
 
 .explorer-source-legend {
@@ -1158,14 +1227,29 @@ select {
     background: #f7f9f6;
   }
 
-  .explorer-category-panel {
-    position: static;
-    order: 1;
+  .explorer-filter-dropdown {
+    left: 4px;
+    right: 4px;
     width: auto;
-    max-height: none;
-    flex: 0 0 auto;
-    margin: 8px;
-    padding: 13px;
+    max-height: calc(100dvh - 140px);
+    border-radius: 18px;
+  }
+
+  .explorer-filter-dropdown > form {
+    max-height: calc(100dvh - 140px);
+  }
+
+  .explorer-filter-dropdown__body {
+    padding: 18px 16px 20px;
+  }
+
+  .explorer-filter-dropdown__actions {
+    min-height: 76px;
+    padding: 12px 16px;
+  }
+
+  .explorer-filter-dropdown__apply {
+    min-width: 150px;
   }
 
   .explorer-category-panel__heading h2 {
@@ -1546,67 +1630,41 @@ select {
   box-shadow: var(--shadow-card);
 }
 
-.homepage-map-filter-panel {
+.homepage-map-filter-control {
   position: absolute;
   top: 24px;
   left: 24px;
-  z-index: 20;
-  width: min(226px, calc(100% - 48px));
+  z-index: 30;
+}
+
+.homepage-map-filter-trigger {
+  display: inline-flex;
+  min-width: 76px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   border: 1px solid rgba(255, 255, 255, 0.92);
-  border-radius: var(--radius-card);
-  background: rgba(255, 255, 255, 0.95);
-  padding: 14px;
-  box-shadow: 0 12px 34px rgba(19, 32, 27, 0.11);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 0 13px;
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 850;
+  box-shadow: 0 8px 24px rgba(19, 32, 27, 0.1);
   backdrop-filter: blur(8px);
 }
 
-.homepage-map-filter-panel legend {
-  padding: 0 4px;
-  color: var(--brand);
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.homepage-map-filter-list {
-  display: grid;
-  gap: 7px;
-}
-
-.homepage-map-filter-list button {
-  display: grid;
-  min-height: 44px;
-  grid-template-columns: 20px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--line);
-  border-radius: 13px;
-  background: white;
-  padding: 7px 10px;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 800;
-  text-align: left;
-  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
-}
-
-.homepage-map-filter-list button:hover:not(:disabled) {
-  border-color: var(--brand-border);
-}
-
-.homepage-map-filter-list button.is-active {
-  border-color: #8caf9d;
+.homepage-map-filter-trigger[aria-expanded="true"] {
+  border-color: var(--brand);
   background: var(--brand-soft);
-  color: var(--brand);
 }
 
-.homepage-map-filter-list button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.homepage-map-filter-list button strong {
-  color: currentColor;
-  font-weight: 900;
+.homepage-map-filter-dropdown {
+  top: 52px;
+  right: auto;
+  left: 0;
+  width: min(380px, calc(100vw - 48px));
 }
 
 .homepage-map-open-link {
@@ -2518,23 +2576,32 @@ select {
     gap: 12px;
   }
 
-  .homepage-map-filter-panel,
+  .homepage-map-filter-control,
   .homepage-map-open-link,
   .homepage-selected-place {
     position: relative;
     inset: auto;
   }
 
-  .homepage-map-filter-panel {
+  .homepage-map-filter-control {
     order: 1;
-    width: 100%;
+    width: fit-content;
+    align-self: flex-start;
+  }
+
+  .homepage-map-filter-trigger {
     border-color: var(--line);
     background: white;
+    box-shadow: none;
     backdrop-filter: none;
   }
 
-  .homepage-map-filter-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .homepage-map-filter-dropdown {
+    position: absolute;
+    top: 52px;
+    right: auto;
+    left: 0;
+    width: min(380px, calc(100vw - 32px));
   }
 
   .homepage-map-open-link {

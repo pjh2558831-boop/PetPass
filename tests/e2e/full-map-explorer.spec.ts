@@ -280,6 +280,14 @@ test.beforeEach(async ({ page }) => {
   await mockCatalogApis(page);
 });
 
+async function openExplorerFilters(page: Page) {
+  const trigger = page.getByRole("button", { name: "필터", exact: true });
+  if (await trigger.getAttribute("aria-expanded") !== "true") await trigger.click();
+  const dropdown = page.getByRole("region", { name: "장소 필터" });
+  await expect(dropdown).toBeVisible();
+  return dropdown;
+}
+
 test("keeps one source marker per place across pagination, selection, and viewport commit", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === "mobile-chrome", "Desktop registry flow; responsive behavior has a dedicated cross-viewport test.");
   const catalogRequests: string[] = [];
@@ -292,11 +300,26 @@ test("keeps one source marker per place across pagination, selection, and viewpo
   await page.goto("/results?tab=catalog");
   await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
   await expect(page.getByText(/현재 표시 \d+곳/u)).toHaveCount(0);
-  const categoryPanel = page.locator(".explorer-category-panel");
+  await expect(page.locator(".explorer-filter-dropdown")).toHaveCount(0);
+  await expect(page.getByLabel("장소 출처 범례")).toContainText("카카오맵");
+  const filterButton = page.getByRole("button", { name: "필터", exact: true });
+  await expect(filterButton).toHaveAttribute("aria-expanded", "false");
+  await filterButton.click();
+  let categoryPanel = page.getByRole("region", { name: "장소 필터" });
+  await expect(categoryPanel).toBeVisible();
+  await expect(filterButton).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("dialog#explorer-filter-dialog")).toHaveCount(0);
+  await expect(categoryPanel.getByText("출처", { exact: true })).toHaveCount(0);
+  await expect(categoryPanel.getByRole("button", { name: /^한국관광공사/u })).toHaveCount(0);
+  await expect(categoryPanel.getByRole("button", { name: /^카카오맵/u })).toHaveCount(0);
   await expect(categoryPanel.getByRole("heading", { name: "여행 장소" })).toBeVisible();
   await expect(categoryPanel.getByText("반려견과 함께 방문 가능한 장소를 선택해보세요.", { exact: true })).toBeVisible();
   await expect(categoryPanel.locator(".explorer-category-group__icon")).toHaveCount(7);
-  await expect(page.locator(".explorer-filter-menu")).toHaveCount(0);
+  const filterButtonBox = await filterButton.boundingBox();
+  const dropdownBox = await categoryPanel.boundingBox();
+  expect(filterButtonBox).not.toBeNull();
+  expect(dropdownBox).not.toBeNull();
+  expect(dropdownBox?.y ?? 0).toBeGreaterThanOrEqual((filterButtonBox?.y ?? 0) + (filterButtonBox?.height ?? 0) - 1);
   await expect(page.getByLabel("부산 세부 지역")).toBeVisible();
   await expect(page.locator('[id^="place-card-"]')).toHaveCount(12);
   const mapRoot = page.locator("[data-marker-registry-size]");
@@ -313,6 +336,8 @@ test("keeps one source marker per place across pagination, selection, and viewpo
   for (const label of ["쇼핑", "동물병원", "펫샵·용품점"]) {
     await expect(categoryPanel.getByRole("button", { name: new RegExp(`^${label}`) })).toHaveAttribute("aria-pressed", "false");
   }
+  await filterButton.click();
+  await expect(categoryPanel).not.toBeVisible();
 
   const resetCount = await mapRoot.getAttribute("data-clusterer-reset-count");
   const createdCount = await mapRoot.getAttribute("data-created-source-marker-count");
@@ -329,7 +354,10 @@ test("keeps one source marker per place across pagination, selection, and viewpo
   await expect(page.locator('.fake-kakao-native-marker[data-marker-width="46"]')).toHaveCount(1);
   await expect(page.locator(".kakao-map-selection")).toHaveCount(0);
 
+  categoryPanel = await openExplorerFilters(page);
   await categoryPanel.getByRole("button", { name: /^카페/u }).click();
+  await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
+  await categoryPanel.getByRole("button", { name: "적용하기" }).click();
   await expect(page.getByRole("heading", { name: "총 25곳" })).toBeVisible();
   await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "25");
   await expect(page.getByText("동반 가능", { exact: true })).toHaveCount(0);
@@ -410,11 +438,13 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
   await expect(page).toHaveURL(/\/results\?tab=catalog&region=jeju/u);
   await expect(page.getByRole("heading", { name: "총 54곳" })).toBeVisible();
 
-  const categoryPanel = page.locator(".explorer-category-panel");
+  const categoryPanel = await openExplorerFilters(page);
   await expect(categoryPanel.getByRole("button", { name: /^관광지/u })).toContainText("46");
   await expect(categoryPanel.getByRole("button", { name: /^식당/u })).toContainText("4");
   await expect(categoryPanel.getByRole("button", { name: /^숙소/u })).toContainText("4");
   await expect(categoryPanel.getByRole("button", { name: /^카페/u })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(categoryPanel).not.toBeVisible();
 
   await page.getByRole("button", { name: "5", exact: true }).click();
   await expect(page.locator('.explorer-pagination [aria-current="page"]')).toHaveText("5");
@@ -466,12 +496,21 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
     await page.setViewportSize(viewport);
     await page.getByRole("button", { name: "지도", exact: true }).click();
     await page.getByRole("button", { name: "제주", exact: true }).click();
-    await expect(page.locator(".explorer-category-panel").getByRole("heading", { name: "여행 장소" })).toBeVisible();
+    await expect(page.locator(".explorer-filter-dropdown")).toHaveCount(0);
     await page.getByRole("button", { name: "지도", exact: true }).click();
     await expect(page.locator(".full-map-explorer__map")).toBeVisible();
     await page.getByRole("button", { name: "목록", exact: true }).click();
     await expect(page.locator(".full-map-explorer__sidebar")).toBeVisible();
     await expect(page.getByRole("heading", { name: "총 54곳" })).toBeVisible();
+    const responsiveDialog = await openExplorerFilters(page);
+    const dialogBox = await responsiveDialog.boundingBox();
+    expect(dialogBox).not.toBeNull();
+    expect(dialogBox?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(viewport.width - 8);
+    await expect(responsiveDialog.getByRole("button", { name: /^한국관광공사/u })).toHaveCount(0);
+    await expect(responsiveDialog.getByRole("button", { name: /^관광지/u })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(responsiveDialog).not.toBeVisible();
+    await expect(page.getByRole("button", { name: "필터", exact: true })).toBeFocused();
     await page.locator(".catalog-result-card").first().getByRole("button", { name: /지도에서 보기$/u }).click();
     await expect(page.getByRole("button", { name: "지도", exact: true })).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator(".full-map-explorer__map")).toBeVisible();
@@ -572,19 +611,26 @@ test("keeps deterministic explorer interactions bounded and the live registry st
   await expect(page.locator('.explorer-pagination [aria-current="page"]')).toHaveText("2");
   const pageSwitchMs = Date.now() - pageSwitchStartedAt;
 
-  const candidateFilter = page.locator(".explorer-category-panel").getByRole("button", { name: /^카페/u });
   const filterSwitchStartedAt = Date.now();
-  await candidateFilter.click();
+  let categoryPanel = await openExplorerFilters(page);
+  await categoryPanel.getByRole("button", { name: /^카페/u }).click();
+  await categoryPanel.getByRole("button", { name: "적용하기" }).click();
   await expect(page.getByRole("heading", { name: "총 25곳" })).toBeVisible();
   const filterSwitchMs = Date.now() - filterSwitchStartedAt;
 
   for (let index = 0; index < 4; index += 1) {
-    await candidateFilter.click();
+    categoryPanel = await openExplorerFilters(page);
+    await categoryPanel.getByRole("button", { name: /^카페/u }).click();
+    await categoryPanel.getByRole("button", { name: "적용하기" }).click();
     await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
-    await candidateFilter.click();
+    categoryPanel = await openExplorerFilters(page);
+    await categoryPanel.getByRole("button", { name: /^카페/u }).click();
+    await categoryPanel.getByRole("button", { name: "적용하기" }).click();
     await expect(page.getByRole("heading", { name: "총 25곳" })).toBeVisible();
   }
-  await candidateFilter.click();
+  categoryPanel = await openExplorerFilters(page);
+  await categoryPanel.getByRole("button", { name: /^카페/u }).click();
+  await categoryPanel.getByRole("button", { name: "적용하기" }).click();
   await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
   await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "26");
   await expect(mapRoot).toHaveAttribute("data-active-marker-count", "26");
@@ -742,11 +788,14 @@ test("keeps 1,824 markers complete while the sidebar stays paged by 12", async (
   const pageSwitchMs = Date.now() - pageSwitchStartedAt;
   await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "1824");
 
-  const tourismFilter = page.locator(".explorer-category-panel").getByRole("button", { name: /^관광지/u });
   const filterSwitchStartedAt = Date.now();
-  await tourismFilter.click();
+  let categoryPanel = await openExplorerFilters(page);
+  await categoryPanel.getByRole("button", { name: /^관광지/u }).click();
+  await categoryPanel.getByRole("button", { name: "적용하기" }).click();
   await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "0");
-  await tourismFilter.click();
+  categoryPanel = await openExplorerFilters(page);
+  await categoryPanel.getByRole("button", { name: /^관광지/u }).click();
+  await categoryPanel.getByRole("button", { name: "적용하기" }).click();
   await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "1824");
   const filterSwitchMs = Date.now() - filterSwitchStartedAt;
   await expect(page.locator(".fake-kakao-native-marker")).toHaveCount(1_824);
@@ -798,10 +847,11 @@ test("captures the requested full-map explorer evidence", async ({ page }) => {
   await page.goto("/results?tab=catalog");
   await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
   await capture("01-full-1440.png");
-  const evidenceCategoryPanel = page.locator(".explorer-category-panel");
+  let evidenceCategoryPanel = await openExplorerFilters(page);
   for (const label of ["동물병원", "펫샵·용품점"]) {
     await evidenceCategoryPanel.getByRole("button", { name: new RegExp(`^${label}`) }).click();
   }
+  await evidenceCategoryPanel.getByRole("button", { name: "적용하기" }).click();
   await expect(page.getByRole("heading", { name: "총 28곳" })).toBeVisible();
   await capture("02-all-filters-enabled.png");
 
@@ -816,14 +866,18 @@ test("captures the requested full-map explorer evidence", async ({ page }) => {
   await page.getByRole("button", { name: /^광안 여행 후보 ·/u }).evaluate((element) => (element as HTMLButtonElement).click());
   await capture("06-selected-kakao-candidate.png");
 
+  evidenceCategoryPanel = await openExplorerFilters(page);
   for (const label of ["관광지", "식당", "카페", "숙소", "쇼핑"]) {
     await evidenceCategoryPanel.getByRole("button", { name: new RegExp(`^${label}`) }).click();
   }
+  await evidenceCategoryPanel.getByRole("button", { name: "적용하기" }).click();
   await expect(page.getByRole("heading", { name: "총 2곳" })).toBeVisible();
   await capture("07-veterinary-pet-shop.png");
+  evidenceCategoryPanel = await openExplorerFilters(page);
   for (const label of ["동물병원", "펫샵·용품점", "관광지", "식당", "카페", "숙소"]) {
     await evidenceCategoryPanel.getByRole("button", { name: new RegExp(`^${label}`) }).click();
   }
+  await evidenceCategoryPanel.getByRole("button", { name: "적용하기" }).click();
 
   await page.evaluate(() => (window as unknown as { __moveExplorerMap?: () => void }).__moveExplorerMap?.());
   await expect(page.getByRole("button", { name: "이 지역 검색 다시하기" })).toBeVisible();

@@ -5,6 +5,13 @@ import { BUSAN_REGION_CONFIG } from "@/lib/regions/config";
 import { TOUR_CATEGORY_LABELS } from "@/lib/shared/format";
 import { collectTourHomepageSnapshot } from "@/lib/tour-api/homepage-catalog";
 import type { PublicMapCatalogQuery } from "@/lib/map-places/public-catalog";
+import {
+  mapCatalogPlaceToCategory,
+  mapTourSummaryToPlaceCategory,
+  PLACE_CATEGORIES,
+  PLACE_CATEGORY_LABELS,
+  type PlaceCategory,
+} from "@/lib/map-places/place-categories";
 import { queryCachedHomepagePublicCatalog } from "@/lib/homepage/public-catalog-cache";
 import type { TourPlaceService } from "@/lib/tour-api/service";
 import type {
@@ -15,7 +22,7 @@ import type {
   HomepagePlacesSnapshot,
 } from "@/types/homepage-places";
 import type { TourHomepageSnapshot } from "@/types/homepage";
-import type { TourPlaceCategory, TourPlaceSummary } from "@/types/place";
+import type { TourPlaceSummary } from "@/types/place";
 import type {
   PublicMapPlaceDTO,
   PublicMapPlaceKind,
@@ -27,18 +34,6 @@ const PUBLIC_LAYER_KINDS = [
   "veterinary",
   "pet_shop",
 ] as const satisfies readonly PublicMapPlaceKind[];
-
-const CATEGORY_ORDER: readonly TourPlaceCategory[] = [
-  "attraction",
-  "culture",
-  "festival",
-  "leisure",
-  "accommodation",
-  "food",
-  "shopping",
-  "transportation",
-  "unknown",
-];
 
 const PUBLIC_CATEGORY_LABELS = {
   cafe: "카페",
@@ -140,6 +135,7 @@ function officialCard(
     id: `tour:${place.contentId}`,
     layer: "official",
     name: place.title?.trim() || "이름 확인 필요",
+    category: mapTourSummaryToPlaceCategory(place),
     categoryLabel: TOUR_CATEGORY_LABELS[place.category],
     district: tourDistrict(place),
     address:
@@ -171,6 +167,11 @@ function publicCard(place: PublicMapPlaceDTO): HomepagePlaceCard {
     id: place.id,
     layer: config.layer,
     name: place.name,
+    category: mapCatalogPlaceToCategory({
+      layer: config.layer === "kakao_candidate" ? "kakao" : config.layer,
+      category: place.category ?? "other",
+      categoryGroupCode: place.categoryGroupCode,
+    }),
     categoryLabel: publicCategoryLabel(place),
     district: place.district.name,
     address: place.address,
@@ -304,11 +305,12 @@ export async function collectHomepagePlacesSnapshot({
     publicCards.push(...cards.slice(0, 10));
   }
 
-  const categoryCounts = new Map<TourPlaceCategory, number>();
+  const categoryCounts = new Map<PlaceCategory, number>();
   for (const place of official.catalog.places) {
+    const category = mapTourSummaryToPlaceCategory(place);
     categoryCounts.set(
-      place.category,
-      (categoryCounts.get(place.category) ?? 0) + 1,
+      category,
+      (categoryCounts.get(category) ?? 0) + 1,
     );
   }
 
@@ -320,10 +322,10 @@ export async function collectHomepagePlacesSnapshot({
         0,
         official.catalog.places.length - officialMarkers.length,
       ),
-      categoryCounts: CATEGORY_ORDER.flatMap((category) => {
+      categoryCounts: PLACE_CATEGORIES.flatMap((category) => {
         const count = categoryCounts.get(category) ?? 0;
         return count > 0
-          ? [{ label: TOUR_CATEGORY_LABELS[category], count }]
+          ? [{ category, label: PLACE_CATEGORY_LABELS[category], count }]
           : [];
       }),
       featuredState: official.featured.state,

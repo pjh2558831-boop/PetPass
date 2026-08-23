@@ -50,10 +50,11 @@ async function showListMode(page: Page) {
 }
 
 async function openCatalogFilters(page: Page) {
-  const details = page.locator(".explorer-filter-menu");
-  if (!await details.evaluate((element) => (element as HTMLDetailsElement).open)) {
-    await details.locator("summary").click();
-  }
+  const trigger = page.getByRole("button", { name: "필터", exact: true });
+  if (await trigger.getAttribute("aria-expanded") !== "true") await trigger.click();
+  const dropdown = page.getByRole("region", { name: "장소 필터" });
+  await expect(dropdown).toBeVisible();
+  return dropdown;
 }
 
 test.beforeEach(async ({ page }, testInfo) => {
@@ -69,7 +70,7 @@ test("starts category-first and keeps optional facility records available", asyn
   const district = page.getByLabel("부산 세부 지역");
   await expect(district).toHaveValue("all");
   await expect(district.locator("option")).toHaveCount(17);
-  const categoryPanel = page.locator(".explorer-category-panel");
+  const categoryPanel = await openCatalogFilters(page);
   for (const label of ["관광지", "식당", "카페", "숙소"]) {
     await expect(categoryPanel.getByRole("button", { name: new RegExp(`^${label}`) })).toHaveAttribute("aria-pressed", "true");
   }
@@ -77,9 +78,10 @@ test("starts category-first and keeps optional facility records available", asyn
     await expect(categoryPanel.getByRole("button", { name: new RegExp(`^${label}`) })).toHaveAttribute("aria-pressed", "false");
   }
   await expect(page.getByLabel("장소 출처 범례")).toContainText("한국관광공사");
-  await expect(page.getByLabel("장소 출처 범례")).toContainText("카카오 검색 후보");
+  await expect(page.getByLabel("장소 출처 범례")).toContainText("카카오맵");
   await categoryPanel.getByRole("button", { name: /^동물병원/ }).click();
   await categoryPanel.getByRole("button", { name: /^펫샵·용품점/ }).click();
+  await categoryPanel.getByRole("button", { name: "적용하기" }).click();
   await showListMode(page);
   await expect(page.getByText("광안 동물병원", { exact: true })).toBeVisible();
   await expect(page.getByText("광안 펫샵", { exact: true })).toBeVisible();
@@ -87,12 +89,22 @@ test("starts category-first and keeps optional facility records available", asyn
   await expect(page.getByText("동반 가능", { exact: true })).toHaveCount(0);
 });
 
+test("keeps all providers visible while the category dropdown is open", async ({ page }) => {
+  await page.goto("/results");
+  const dropdown = await openCatalogFilters(page);
+  await expect(dropdown.getByText("출처", { exact: true })).toHaveCount(0);
+  await expect(dropdown.getByRole("button", { name: /^한국관광공사/u })).toHaveCount(0);
+  await expect(dropdown.getByRole("button", { name: /^카카오맵/u })).toHaveCount(0);
+  await expect(page.getByLabel("장소 출처 범례")).toContainText("한국관광공사");
+  await expect(page.getByLabel("장소 출처 범례")).toContainText("카카오맵");
+  await expect(page).not.toHaveURL(/layers=/u);
+});
+
 test("changes both authoritative providers by district without Kakao discovery", async ({ page }) => {
   const discoveryRequests: string[] = [];
   page.on("request", (request) => { if (request.url().includes("/api/places/discovery")) discoveryRequests.push(request.url()); });
   await page.goto("/results");
   await showListMode(page);
-  await openCatalogFilters(page);
   const tourResponse = page.waitForResponse((response) => response.url().includes("districtCode=500"));
   const kakaoResponse = page.waitForResponse((response) => response.url().includes("/api/map/places?") && response.url().includes("district=500"));
   await page.getByLabel("부산 세부 지역").selectOption("500");
@@ -108,30 +120,41 @@ test("paginates cards by 12 while keeping all filtered places on the map", async
   await expect(page.locator('[id^="place-card-"]')).toHaveCount(12);
   const mapCount = await page.locator(".map-canvas").getAttribute("data-location-count");
   expect(Number(mapCount)).toBeGreaterThan(12);
+  const firstPageCardId = await page.locator('[id^="place-card-"]').first().getAttribute("id");
   await page.getByRole("button", { name: "다음 페이지" }).click();
-  await expect(page.locator('[id^="place-card-"]')).not.toHaveCount(12);
+  await expect(page.locator('.explorer-pagination [aria-current="page"]')).toHaveText("2");
+  await expect(page.locator('[id^="place-card-"]').first()).not.toHaveAttribute("id", firstPageCardId ?? "");
 
-  await openCatalogFilters(page);
-  const filterMenu = page.locator(".explorer-filter-menu");
+  let filterMenu = await openCatalogFilters(page);
   await filterMenu.getByRole("button", { name: /^관광지/ }).click();
   await filterMenu.getByRole("button", { name: /^식당/ }).click();
   await filterMenu.getByRole("button", { name: /^숙소/ }).click();
+  await filterMenu.getByRole("button", { name: "적용하기" }).click();
   await expect(page).toHaveURL(/categories=cafe/u);
   await expect(page.getByRole("heading", { name: /총 \d+곳/ })).toBeVisible();
   await expect(page.getByText("광안 반려 카페", { exact: true })).toBeVisible();
   await expect(page.getByText("광안 동물병원")).toHaveCount(0);
+  filterMenu = await openCatalogFilters(page);
   await filterMenu.getByRole("button", { name: /^동물병원/ }).click();
+  await filterMenu.getByRole("button", { name: "적용하기" }).click();
   await expect(page.getByText("광안 동물병원")).toBeVisible();
+  filterMenu = await openCatalogFilters(page);
   await filterMenu.getByRole("button", { name: /^펫샵·용품점/ }).click();
+  await filterMenu.getByRole("button", { name: "적용하기" }).click();
   await expect(page.getByText("광안 펫샵")).toBeVisible();
 });
 
 test("supports all, default reset, recommendation, and popularity fallback", async ({ page }) => {
   await page.goto("/results");
-  const panel = page.locator(".explorer-category-panel");
-  await panel.getByRole("button", { name: "전체", exact: true }).click();
+  let panel = await openCatalogFilters(page);
+  for (const label of ["쇼핑", "동물병원", "펫샵·용품점"]) {
+    await panel.getByRole("button", { name: new RegExp(`^${label}`) }).click();
+  }
+  await panel.getByRole("button", { name: "적용하기" }).click();
   await expect(page).toHaveURL(/categories=attraction%2Cfood%2Ccafe%2Caccommodation%2Cshopping%2Cveterinary%2Cpet_shop/u);
-  await panel.getByRole("button", { name: "기본으로", exact: true }).click();
+  panel = await openCatalogFilters(page);
+  await panel.getByRole("button", { name: "초기화", exact: true }).click();
+  await panel.getByRole("button", { name: "적용하기" }).click();
   await expect(page).not.toHaveURL(/categories=/u);
   await showListMode(page);
   const sort = page.getByLabel("정렬");

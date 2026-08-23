@@ -243,6 +243,7 @@ describe("homepage map location transformation", () => {
   it("preserves source marker semantics and drops duplicate ids and invalid coordinates", () => {
     const base = {
       name: "장소",
+      category: "attraction",
       categoryLabel: "관광",
       district: "해운대구",
       address: "부산",
