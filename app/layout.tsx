@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { PlannerStateProvider } from "@/components/planner/planner-state";
-import "./globals.css";
+import "./weekendog-globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   const headerStore = await headers();
