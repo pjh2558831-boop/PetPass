@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -13,7 +13,6 @@ import {
   Coffee,
   Dog,
   House,
-  Info,
   Landmark,
   MapPin,
   PawPrint,
@@ -36,6 +35,7 @@ import {
   getTripPacePlanning,
   TRIP_PACE_OPTIONS,
 } from "@/lib/itinerary/trip-pace";
+import { savePetProfile } from "@/lib/storage/profile-storage";
 import { BUSAN_DISTRICTS, BUSAN_REGION } from "@/lib/tour-api/catalog";
 import type {
   PetProfile,
@@ -122,7 +122,13 @@ function isValidIsoDate(value: string): boolean {
   );
 }
 
-export function UnifiedPlannerForm() {
+export function UnifiedPlannerForm({
+  initialPetProfile = null,
+  isAuthenticated = false,
+}: {
+  initialPetProfile?: PetProfile | null;
+  isAuthenticated?: boolean;
+}) {
   const router = useRouter();
   const submittingRef = useRef(false);
   const {
@@ -134,14 +140,23 @@ export function UnifiedPlannerForm() {
     confirmPlannerAndRequestGeneration,
   } = usePlannerState();
   const [species, setSpecies] = useState<PetSpecies | null>(
-    profileConfirmed ? profile.species : null,
+    profileConfirmed
+      ? profile.species
+      : (initialPetProfile?.species ?? null),
   );
   const [size, setSize] = useState<PetSize | null>(
-    profileConfirmed ? profile.size : null,
+    profileConfirmed ? profile.size : (initialPetProfile?.size ?? null),
   );
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [saveError, setSaveError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [searchVersion, setSearchVersion] = useState(0);
+
+  useEffect(() => {
+    if (!initialPetProfile || profileConfirmed) return;
+    // Hydrate the server-validated account value after the client provider mounts.
+    setProfile(initialPetProfile);
+  }, [initialPetProfile, profileConfirmed, setProfile]);
 
   const updateProfile = <K extends keyof PetProfile>(
     key: K,
@@ -181,6 +196,7 @@ export function UnifiedPlannerForm() {
     submittingRef.current = false;
     setSubmitting(false);
     setErrors({});
+    setSaveError("");
     setSpecies(null);
     setSize(null);
     setProfile({ ...DEFAULT_PLANNER_PROFILE });
@@ -195,7 +211,7 @@ export function UnifiedPlannerForm() {
     <form
       className="mt-8 space-y-5"
       noValidate
-      onSubmit={(event) => {
+      onSubmit={async (event) => {
         event.preventDefault();
         if (submittingRef.current) return;
 
@@ -265,6 +281,40 @@ export function UnifiedPlannerForm() {
         submittingRef.current = true;
         setSubmitting(true);
         setErrors({});
+        setSaveError("");
+
+        savePetProfile(confirmedProfile);
+        if (isAuthenticated) {
+          try {
+            const response = await fetch("/api/account/pet-profile", {
+              method: "PUT",
+              headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                name: confirmedProfile.name,
+                species: confirmedProfile.species,
+                size: confirmedProfile.size,
+                hasCarrier: confirmedProfile.hasCarrier,
+                hasLeash: confirmedProfile.hasLeash,
+                hasMuzzle: confirmedProfile.hasMuzzle,
+                acceptsOutdoorOnly: confirmedProfile.acceptsOutdoorOnly,
+              }),
+            });
+            if (!response.ok) {
+              throw new Error("account pet profile save failed");
+            }
+          } catch {
+            submittingRef.current = false;
+            setSubmitting(false);
+            setSaveError(
+              "계정에 반려동물 정보를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+            );
+            return;
+          }
+        }
+
         confirmPlannerAndRequestGeneration(confirmedProfile, preferences);
         router.push("/results?tab=recommendations&region=busan");
       }}
@@ -471,10 +521,18 @@ export function UnifiedPlannerForm() {
         </fieldset>
       </section>
 
-      <aside className="flex items-start gap-3 rounded-[var(--radius-card)] border border-[#aac2b4] bg-[#f4faf6] p-4 text-sm leading-6 text-[#355646]" aria-label="추천 데이터 안내">
-        <Info className="mt-0.5 shrink-0 text-[var(--brand)]" size={20} aria-hidden="true" />
-        <p className="font-semibold">추천 단계에서는 한국관광공사 동반 근거를 확인한 실제 장소만 사용하며, 제공자 실패를 데모 데이터로 대체하지 않습니다.</p>
-      </aside>
+      <div
+        className="rounded-[var(--radius-card)] border border-[var(--line)] bg-white px-4 py-3 text-sm font-semibold leading-6 text-[#52665b]"
+        role={saveError ? "alert" : "status"}
+      >
+        {saveError
+          ? saveError
+          : isAuthenticated
+            ? initialPetProfile
+              ? `${initialPetProfile.name}의 저장된 정보를 불러왔습니다. 추천을 요청하면 변경한 값으로 업데이트합니다.`
+              : "추천을 요청하면 이 반려동물 정보를 계정에 저장합니다."
+            : "로그인하면 반려동물 정보를 계정에 저장해 다음 여행에서도 불러올 수 있습니다."}
+      </div>
 
       <div className="surface-panel flex flex-col-reverse gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <button type="button" onClick={resetForm} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] px-4 text-sm font-extrabold text-[#52645b] hover:bg-[var(--brand-soft)]"><RotateCcw size={18} aria-hidden="true" />초기화</button>

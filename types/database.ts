@@ -14,6 +14,68 @@ export type Database = {
   }
   public: {
     Tables: {
+      profiles: {
+        Row: {
+          id: string
+          display_name: string
+          avatar_url: string | null
+          onboarding_completed: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          display_name: string
+          avatar_url?: string | null
+          onboarding_completed?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          display_name?: string
+          avatar_url?: string | null
+          onboarding_completed?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      pet_profiles: {
+        Row: {
+          user_id: string
+          name: string
+          species: string
+          size: string
+          has_carrier: boolean
+          has_leash: boolean
+          has_muzzle: boolean
+          accepts_outdoor_only: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          name: string
+          species: string
+          size: string
+          has_carrier?: boolean
+          has_leash?: boolean
+          has_muzzle?: boolean
+          accepts_outdoor_only?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          name?: string
+          species?: string
+          size?: string
+          has_carrier?: boolean
+          has_leash?: boolean
+          has_muzzle?: boolean
+          accepts_outdoor_only?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       map_ingest_run_queries: {
         Row: {
           accepted_result_count: number

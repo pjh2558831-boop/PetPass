@@ -137,9 +137,7 @@ test("shows one neutral combined input screen without sample selections", async 
   await expect(page.getByLabel("여행 날짜")).toHaveValue("");
   await expect(page.getByLabel("시작 시간")).toHaveValue("");
   await expect(page.locator('input[id^="category-"]:checked')).toHaveCount(0);
-  await expect(page.getByLabel("추천 데이터 안내")).toContainText(
-    "제공자 실패를 데모 데이터로 대체하지 않습니다",
-  );
+  await expect(page.getByLabel("추천 데이터 안내")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "여행 추천 받기" })).toBeVisible();
 
   await page.goto("/planner/trip");

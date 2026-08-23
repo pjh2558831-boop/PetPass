@@ -4,6 +4,7 @@ import {
   MobileNavigation,
   type NavigationItem,
 } from "@/components/layout/mobile-navigation";
+import { createAuthServerClient } from "@/lib/supabase/server";
 
 const navigationItems = [
   { kind: "link", href: "/planner/pet", label: "여행 만들기" },
@@ -14,45 +15,44 @@ const navigationItems = [
     label: "추천 코스",
   },
   { kind: "future", label: "커뮤니티" },
-  { kind: "future", label: "마이페이지" },
+  { kind: "link", href: "/account", label: "마이페이지" },
 ] as const satisfies readonly NavigationItem[];
 
-const accountItems = [
-  { kind: "future", label: "로그인" },
-  { kind: "future", label: "회원가입" },
-] as const satisfies readonly NavigationItem[];
+export async function SiteHeader() {
+  let displayName: string | null = null;
+  let needsOnboarding = false;
+  try {
+    const supabase = await createAuthServerClient();
+    const { data: claimsData } = await supabase.auth.getClaims();
+    const userId = claimsData?.claims?.sub;
+    if (userId) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("display_name, onboarding_completed")
+        .eq("id", userId)
+        .maybeSingle();
+      if (profile?.onboarding_completed) displayName = profile.display_name;
+      else needsOnboarding = true;
+    }
+  } catch {
+    // Public navigation remains usable when auth status cannot be resolved.
+  }
 
-function FutureNavigationButton({
-  label,
-  emphasis = false,
-}: {
-  label: string;
-  emphasis?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      aria-disabled="true"
-      title={`${label} 준비 중`}
-      className={`inline-flex min-h-11 cursor-not-allowed items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-xs font-extrabold ${
-        emphasis
-          ? "bg-[var(--brand)] text-white"
-          : "border border-[var(--line)] bg-white text-[#53645c]"
-      }`}
-    >
-      <span>{label}</span>
-      <span
-        className={`rounded-full px-1.5 py-0.5 text-[9px] leading-none ${
-          emphasis ? "bg-white/20 text-white" : "bg-[#eef3ef] text-[#708078]"
-        }`}
-      >
-        준비 중
-      </span>
-    </button>
-  );
-}
+  const accountItems: readonly NavigationItem[] = displayName
+    ? [{ kind: "link", href: "/account", label: displayName }]
+    : needsOnboarding
+      ? [{ kind: "link", href: "/onboarding", label: "프로필 설정" }]
+      : [
+          { kind: "link", href: "/login", label: "로그인" },
+          { kind: "link", href: "/login", label: "회원가입" },
+        ];
+  const accountHref = displayName
+    ? "/account"
+    : needsOnboarding
+      ? "/onboarding"
+      : "/login";
+  const accountLabel = displayName ?? (needsOnboarding ? "프로필 설정" : "로그인");
 
-export function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-t-[3px] border-b-[#D5E2D9] border-t-[#0B503A] bg-[#EDF4EF] text-[#102019]">
       <div className="site-shell flex min-h-[61px] items-center justify-between gap-3 lg:min-h-[69px]">
@@ -96,8 +96,8 @@ export function SiteHeader() {
           )}
         </nav>
         <div className="hidden shrink-0 items-center gap-1.5 lg:flex">
-          <FutureNavigationButton label="로그인" />
-          <FutureNavigationButton label="회원가입" emphasis />
+          <Link href={accountHref} className="inline-flex min-h-11 max-w-40 items-center gap-1.5 truncate whitespace-nowrap rounded-full border border-[var(--line)] bg-white px-3 text-xs font-extrabold text-[#53645c]">{accountLabel}</Link>
+          {!displayName && !needsOnboarding ? <Link href="/login" className="inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full bg-[var(--brand)] px-3 text-xs font-extrabold text-white">회원가입</Link> : null}
         </div>
         <div className="flex items-center lg:hidden">
           <MobileNavigation items={navigationItems} accountItems={accountItems} />

@@ -17,6 +17,11 @@ const expectedMigrationFiles = [
   "20260819141913_public_map_catalog_provider_region_v2.sql",
   "20260819162536_harden_legacy_map_rpcs.sql",
   "20260820032918_fix_tour_catalog_start_coalesce.sql",
+  "20260823131927_add_auth_profiles.sql",
+  "20260823134126_add_saved_pet_profiles.sql",
+  "20260823135016_harden_auth_profile_privileges.sql",
+  "20260823135158_combine_profile_select_policies.sql",
+  "20260823142200_harden_profile_avatar_bucket.sql",
 ] as const;
 
 const productionStatementHashes = {
