@@ -212,7 +212,11 @@ function SelectedPlaceholder({ layer }: { layer: HomepagePlaceLayer }) {
   return <span className={`homepage-selected-placeholder homepage-selected-placeholder--${layer}`}><Icon size={24} aria-hidden="true" /></span>;
 }
 
-export function HomepageLiveExperience() {
+export function HomepageLiveExperience({
+  staticMapEnabled = false,
+}: {
+  staticMapEnabled?: boolean;
+}) {
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [snapshot, setSnapshot] = useState<HomepagePlacesSnapshot | null>(null);
   const [error, setError] = useState<ApiError>(GENERIC_ERROR);
@@ -495,6 +499,7 @@ export function HomepageLiveExperience() {
         places={snapshot.cards}
         layers={snapshot.layers}
         featuredState={snapshot.official.featuredState}
+        staticMapEnabled={staticMapEnabled}
       />
     </div>
   );

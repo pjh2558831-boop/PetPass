@@ -1,11 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { Menu, X } from "lucide-react";
+import { Menu, UserRound, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 
 export type NavigationItem =
-  | { kind: "link"; href: string; label: string }
+  | { kind: "link"; href: string; label: string; avatarUrl?: string | null }
   | { kind: "future"; label: string };
 
 export function MobileNavigation({
@@ -94,8 +95,17 @@ export function MobileNavigation({
                     key={item.href}
                     href={item.href}
                     onClick={() => setOpen(false)}
-                    className="flex min-h-12 items-center justify-center rounded-xl border border-[var(--line)] px-2 text-xs font-extrabold text-[#385246]"
+                    className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[var(--line)] px-2 text-xs font-extrabold text-[#385246]"
                   >
+                    {"avatarUrl" in item ? (
+                      <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--brand-soft)] text-[var(--brand)]">
+                        {item.avatarUrl ? (
+                          <Image src={item.avatarUrl} alt="" width={28} height={28} unoptimized className="size-full object-cover" />
+                        ) : (
+                          <UserRound size={16} aria-hidden="true" />
+                        )}
+                      </span>
+                    ) : null}
                     {item.label}
                   </Link>
                 ) : (

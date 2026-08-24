@@ -5,6 +5,7 @@ import { HomepageLiveExperience } from "@/components/home/homepage-live-experien
 import { PublicDataTrustCard } from "@/components/home/public-data-trust-card";
 import { RecommendationProcessSection } from "@/components/home/recommendation-process-section";
 import { WeekendoogHero } from "@/components/home/weekendoog-hero";
+import { staticMapThumbnailsEnabled } from "@/lib/kakao/static-map";
 
 export default function HomePage() {
   return (
@@ -12,7 +13,9 @@ export default function HomePage() {
       <WeekendoogHero />
 
       <div className="homepage-shell weekendoog-live-shell">
-        <HomepageLiveExperience />
+        <HomepageLiveExperience
+          staticMapEnabled={staticMapThumbnailsEnabled()}
+        />
       </div>
 
       <RecommendationProcessSection />

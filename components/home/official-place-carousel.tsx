@@ -4,15 +4,13 @@ import Link from "next/link";
 import {
   ChevronLeft,
   ChevronRight,
-  HeartPulse,
   MapPin,
-  PawPrint,
   Phone,
   ShieldCheck,
-  ShoppingBag,
 } from "lucide-react";
 import { useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { PlaceImage } from "@/components/places/place-image";
+import { PlaceCardMedia } from "@/components/places/place-card-media";
+import { resolveHomepageCardImage } from "@/lib/homepage/homepage-card-image";
 import type {
   HomepageLayerSnapshot,
   HomepagePlaceCard,
@@ -30,12 +28,6 @@ const FILTERS: Array<{ id: CarouselFilter; label: string }> = [
   { id: "pet_shop", label: "펫샵" },
 ];
 
-function placeholderIcon(layer: HomepagePlaceLayer) {
-  if (layer === "veterinary") return HeartPulse;
-  if (layer === "pet_shop") return ShoppingBag;
-  return PawPrint;
-}
-
 function visibleForFilter(place: HomepagePlaceCard, filter: CarouselFilter) {
   if (filter === "all") {
     return place.layer === "official" || place.layer === "kakao_candidate";
@@ -47,10 +39,12 @@ export function HomepagePlaceCarousel({
   places,
   layers,
   featuredState,
+  staticMapEnabled,
 }: {
   places: HomepagePlaceCard[];
   layers: Record<HomepagePlaceLayer, HomepageLayerSnapshot>;
   featuredState: HomepageFeaturedState;
+  staticMapEnabled: boolean;
 }) {
   const [activeFilter, setActiveFilter] = useState<CarouselFilter>("all");
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -181,22 +175,18 @@ export function HomepagePlaceCarousel({
           aria-label="부산 장소 카드"
         >
           {visiblePlaces.map((place, index) => {
-            const PlaceholderIcon = placeholderIcon(place.layer);
+            const image = resolveHomepageCardImage(place, {
+              regionId: "busan",
+              staticMapEnabled,
+            });
             const cardContent = (
               <>
-                {place.layer === "official" ? (
-                  <PlaceImage
-                    imageUrl={place.imageUrl}
-                    title={place.name}
-                    className="homepage-place-image"
-                    sizes="(max-width: 767px) 82vw, (max-width: 1023px) 31vw, 230px"
-                  />
-                ) : (
-                  <div className={`homepage-place-placeholder homepage-place-placeholder--${place.layer}`}>
-                    <PlaceholderIcon size={32} aria-hidden="true" />
-                    <span>{place.categoryLabel}</span>
-                  </div>
-                )}
+                <PlaceCardMedia
+                  image={image}
+                  fallbackCategory={place.category}
+                  className="homepage-place-image"
+                  sizes="(max-width: 767px) 82vw, (max-width: 1023px) 31vw, 230px"
+                />
                 <div className="homepage-place-card-body">
                   <div className="homepage-card-meta">
                     <span>{place.categoryLabel}</span>
@@ -225,7 +215,9 @@ export function HomepagePlaceCarousel({
                   <p className={`homepage-place-source homepage-place-source--${place.layer}`}>
                     {place.sourceLabel}
                   </p>
-                  {place.warning ? <p className="homepage-place-warning">{place.warning}</p> : null}
+                  {place.warning && place.layer !== "kakao_candidate" ? (
+                    <p className="homepage-place-warning">{place.warning}</p>
+                  ) : null}
                 </div>
               </>
             );

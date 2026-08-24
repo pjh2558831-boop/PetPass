@@ -21,6 +21,23 @@ describe("location thumbnail route", () => {
     expect(findLocation).toHaveBeenCalledWith("busan", "123");
   });
 
+  it("resolves an official Tourism ID server-side before rendering its map", async () => {
+    const findTourLocation = vi.fn(async () => ({ latitude: 35.15, longitude: 129.12 }));
+    const fetchMap = vi.fn(async () => ({ body: new Uint8Array([1, 2, 3]).buffer, contentType: "image/png" as const }));
+    const response = await createLocationThumbnailHandler({
+      enabled: () => true,
+      findTourLocation,
+      fetchMap,
+      rateLimit: () => allowed,
+    })(new Request("http://localhost/api/places/tour:3426656/location-thumbnail?region=busan"), {
+      params: Promise.resolve({ placeId: "tour:3426656" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(findTourLocation).toHaveBeenCalledWith("busan", "3426656");
+    expect(fetchMap).toHaveBeenCalledWith({ latitude: 35.15, longitude: 129.12 });
+  });
+
   it("rejects arbitrary URLs and browser-provided coordinates before lookup", async () => {
     const findLocation = vi.fn();
     const handler = createLocationThumbnailHandler({ enabled: () => true, findLocation, rateLimit: () => allowed });

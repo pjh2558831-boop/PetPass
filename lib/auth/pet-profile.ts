@@ -12,8 +12,8 @@ const savedPetProfileRowSchema = z.object({
   has_leash: z.boolean(),
   has_muzzle: z.boolean(),
   accepts_outdoor_only: z.boolean(),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
 });
 
 export const savedPetProfileInputSchema = petProfileSchema

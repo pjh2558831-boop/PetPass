@@ -33,6 +33,28 @@ describe("saved pet profile persistence", () => {
     });
   });
 
+  it("accepts PostgreSQL timestamptz values with an explicit UTC offset", () => {
+    expect(
+      savedPetProfileFromRow({
+        user_id: userId,
+        name: "보리",
+        species: "DOG",
+        size: "SMALL",
+        has_carrier: false,
+        has_leash: true,
+        has_muzzle: false,
+        accepts_outdoor_only: false,
+        created_at: "2026-08-24T05:45:16.123456+00:00",
+        updated_at: "2026-08-24T05:45:16.123456+00:00",
+      }),
+    ).toMatchObject({
+      id: userId,
+      name: "보리",
+      species: "DOG",
+      size: "SMALL",
+    });
+  });
+
   it("maps only the allowlisted planner fields to an owner-bound upsert", () => {
     expect(
       savedPetProfileToRow(userId, {

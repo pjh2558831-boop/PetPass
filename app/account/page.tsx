@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { UserRound } from "lucide-react";
 import { redirect } from "next/navigation";
 import { signOut } from "@/app/account/actions";
 import { savedPetProfileFromRow } from "@/lib/auth/pet-profile";
@@ -54,7 +55,7 @@ export default async function AccountPage() {
                   className="size-full object-cover"
                 />
               ) : (
-                "WD"
+                <UserRound size={32} strokeWidth={1.8} aria-hidden="true" />
               )}
             </div>
             <div>

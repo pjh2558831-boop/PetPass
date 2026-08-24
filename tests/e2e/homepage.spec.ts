@@ -445,6 +445,10 @@ test("filters truthful official, candidate, veterinary, and shop cards with safe
   await expect(carousel).toContainText("해운대 달맞이 산책로");
   await expect(carousel).toContainText("광안리 반려견 검색 후보");
   await expect(carousel).not.toContainText("부산 반려동물 동물병원");
+  await expect(carousel.getByText(
+    "카카오 검색 후보입니다. 방문 전 반려동물 동반 가능 여부를 확인해 주세요.",
+    { exact: true },
+  )).toHaveCount(0);
   await expect(carousel.getByRole("link", { name: /광안리 반려견 검색 후보 카카오 장소 정보/u })).toHaveAttribute("href", "https://place.map.kakao.com/101");
   await expect(carousel.locator(".homepage-allowed-badge")).toHaveCount(1);
 

@@ -379,6 +379,20 @@ test("keeps one source marker per place across pagination, selection, and viewpo
   expect(catalogRequests).toHaveLength(requestCountBeforeCommit);
 });
 
+test("hides redundant pet-access caveats from Kakao candidate cards", async ({ page }) => {
+  await page.goto("/results?tab=catalog&region=busan&categories=cafe&layers=kakao&page=1");
+  await expect(page.getByRole("heading", { name: "총 1곳" })).toBeVisible();
+
+  const kakaoCandidateCard = page.locator("#place-card-kakao-9101");
+  await expect(kakaoCandidateCard).toBeVisible();
+  await expect(kakaoCandidateCard).toContainText("카카오 검색 후보");
+  await expect(kakaoCandidateCard.getByText("동반 여부 확인 필요", { exact: true })).toHaveCount(0);
+  await expect(kakaoCandidateCard.getByText(
+    "카카오 검색 후보입니다. 방문 전 반려동물 동반 가능 여부를 확인해 주세요.",
+    { exact: true },
+  )).toHaveCount(0);
+});
+
 test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === "mobile-chrome", "The Jeju cross-region flow sets all required viewports in desktop Chromium.");
   await page.setViewportSize({ width: 1440, height: 1000 });

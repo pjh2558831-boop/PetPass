@@ -1,5 +1,6 @@
+import Image from "next/image";
 import Link from "next/link";
-import { PawPrint } from "lucide-react";
+import { PawPrint, UserRound } from "lucide-react";
 import {
   MobileNavigation,
   type NavigationItem,
@@ -20,6 +21,7 @@ const navigationItems = [
 
 export async function SiteHeader() {
   let displayName: string | null = null;
+  let avatarUrl: string | null = null;
   let needsOnboarding = false;
   try {
     const supabase = await createAuthServerClient();
@@ -28,10 +30,13 @@ export async function SiteHeader() {
     if (userId) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("display_name, onboarding_completed")
+        .select("display_name, avatar_url, onboarding_completed")
         .eq("id", userId)
         .maybeSingle();
-      if (profile?.onboarding_completed) displayName = profile.display_name;
+      if (profile?.onboarding_completed) {
+        displayName = profile.display_name;
+        avatarUrl = profile.avatar_url;
+      }
       else needsOnboarding = true;
     }
   } catch {
@@ -39,7 +44,7 @@ export async function SiteHeader() {
   }
 
   const accountItems: readonly NavigationItem[] = displayName
-    ? [{ kind: "link", href: "/account", label: displayName }]
+    ? [{ kind: "link", href: "/account", label: displayName, avatarUrl }]
     : needsOnboarding
       ? [{ kind: "link", href: "/onboarding", label: "프로필 설정" }]
       : [
@@ -96,7 +101,18 @@ export async function SiteHeader() {
           )}
         </nav>
         <div className="hidden shrink-0 items-center gap-1.5 lg:flex">
-          <Link href={accountHref} className="inline-flex min-h-11 max-w-40 items-center gap-1.5 truncate whitespace-nowrap rounded-full border border-[var(--line)] bg-white px-3 text-xs font-extrabold text-[#53645c]">{accountLabel}</Link>
+          <Link href={accountHref} className="inline-flex min-h-11 max-w-48 items-center gap-2 truncate whitespace-nowrap rounded-full border border-[var(--line)] bg-white px-2.5 text-xs font-extrabold text-[#53645c]">
+            {displayName ? (
+              <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--brand-soft)] text-[var(--brand)]">
+                {avatarUrl ? (
+                  <Image src={avatarUrl} alt="" width={28} height={28} unoptimized className="size-full object-cover" />
+                ) : (
+                  <UserRound size={16} aria-hidden="true" />
+                )}
+              </span>
+            ) : null}
+            <span className="truncate">{accountLabel}</span>
+          </Link>
           {!displayName && !needsOnboarding ? <Link href="/login" className="inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full bg-[var(--brand)] px-3 text-xs font-extrabold text-white">회원가입</Link> : null}
         </div>
         <div className="flex items-center lg:hidden">

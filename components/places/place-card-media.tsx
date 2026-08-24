@@ -31,10 +31,12 @@ export function PlaceCardMedia({
   image,
   fallbackCategory,
   className = "",
+  sizes = "132px",
 }: {
   image: PlaceCardImage;
   fallbackCategory: PlaceCategory;
   className?: string;
+  sizes?: string;
 }) {
   const [failedSource, setFailedSource] = useFailedSource(image);
   if (image.kind === "category_placeholder" || failedSource) {
@@ -46,7 +48,7 @@ export function PlaceCardMedia({
         src={image.src}
         alt={image.alt}
         fill
-        sizes="132px"
+        sizes={sizes}
         className="object-cover"
         onError={() => setFailedSource(image.src)}
       />
