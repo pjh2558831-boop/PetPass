@@ -190,6 +190,7 @@ function initialSnapshot(
     providers: scope === "default" ? "default" : "kakao",
     generatedAt: snapshot.official.retrievedAt,
     dataVersion: scope === "default" ? "v1-0123456789abcdef" : "v1-fedcba9876543210",
+    generationId: scope === "default" ? "g1-0123456789abcdef" : "g1-fedcba9876543210",
     totalCount,
     markerCount: markers.length,
     freshness: { status: "fresh" },
@@ -206,6 +207,7 @@ function initialSnapshot(
           ] as const]
         : [])
       : [],
+    continuations: [],
   };
 }
 

@@ -15,6 +15,7 @@ const initial: HomepageInitialPlacesSnapshot = {
   providers: "default",
   generatedAt: "2026-08-24T03:00:00.000Z",
   dataVersion: "v1-0123456789abcdef",
+  generationId: "g1-0123456789abcdef",
   totalCount: 3,
   markerCount: 3,
   freshness: { status: "fresh" },
@@ -34,6 +35,10 @@ const initial: HomepageInitialPlacesSnapshot = {
     ["kakao:3", "카카오 후보", "kakao", "cafe", "수영구", 35.3, 129.3, "unknown", "방문 전 확인 필요"],
   ],
   cardDetails: [],
+  continuations: [
+    { datasetId: "default-tour", layer: "tourism", provider: "tour", kind: "tourism_place", loadedItemCount: 2, expectedTotalCount: 2, nextCursor: 2, complete: true, generationId: "g1-0123456789abcdef" },
+    { datasetId: "default-kakao", layer: "kakao", provider: "kakao", kind: "pet_travel_candidate", loadedItemCount: 1, expectedTotalCount: 1, nextCursor: 3, complete: true, generationId: "g1-0123456789abcdef" },
+  ],
 };
 
 describe("homepage progressive client projection", () => {
@@ -65,6 +70,7 @@ describe("homepage progressive client projection", () => {
       scope: "optional",
       providers: "kakao",
       dataVersion: "v1-fedcba9876543210",
+      generationId: "g1-fedcba9876543210",
       totalCount: 2,
       markerCount: 2,
       layers: {
@@ -84,6 +90,10 @@ describe("homepage progressive client projection", () => {
       cardDetails: [
         ["kakao:4", "부산광역시 해운대구 병원로 1", "051-123-4567", null],
         ["kakao:5", "부산광역시 해운대구 상점로 2", null, null],
+      ],
+      continuations: [
+        { datasetId: "optional-veterinary", layer: "veterinary", provider: "kakao", kind: "veterinary", loadedItemCount: 1, expectedTotalCount: 1, nextCursor: 4, complete: true, generationId: "g1-fedcba9876543210" },
+        { datasetId: "optional-pet-shop", layer: "pet_shop", provider: "kakao", kind: "pet_shop", loadedItemCount: 1, expectedTotalCount: 1, nextCursor: 5, complete: true, generationId: "g1-fedcba9876543210" },
       ],
     };
     const merged = mergeHomepageOptionalInitial(

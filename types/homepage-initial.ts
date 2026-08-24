@@ -4,6 +4,7 @@ import {
 } from "@/lib/map-places/place-categories";
 import type { PublicMapPetAccessVerdict } from "@/types/public-map-place";
 import { REGION_IDS, type RegionId } from "@/types/region";
+import type { HomepageDatasetContinuationV1 } from "@/types/homepage-completion";
 
 export const HOMEPAGE_INITIAL_VERSION = 1 as const;
 export const HOMEPAGE_INITIAL_SCOPES = ["default", "optional"] as const;
@@ -80,6 +81,7 @@ export interface HomepageInitialPlacesSnapshot {
   providers: HomepageInitialProviderSelection;
   generatedAt: string;
   dataVersion: string;
+  generationId: string;
   totalCount: number;
   markerCount: number;
   freshness: {
@@ -90,6 +92,7 @@ export interface HomepageInitialPlacesSnapshot {
   categoryCounts: HomepageInitialCategoryCountV1[];
   markers: HomepageInitialMarkerV1[];
   cardDetails: HomepageInitialCardDetailV1[];
+  continuations: HomepageDatasetContinuationV1[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -161,6 +164,7 @@ export function isHomepageInitialPlacesSnapshot(
   const providers = value.providers as HomepageInitialProviderSelection;
   if (typeof value.generatedAt !== "string" || !Number.isFinite(Date.parse(value.generatedAt))) return false;
   if (typeof value.dataVersion !== "string" || !/^v1-[a-f0-9]{16}$/u.test(value.dataVersion)) return false;
+  if (typeof value.generationId !== "string" || !/^g1-[a-f0-9]{16}$/u.test(value.generationId)) return false;
   if (!isCount(value.totalCount) || !isCount(value.markerCount)) return false;
   if (!isRecord(value.freshness) || !["fresh", "stale"].includes(String(value.freshness.status))) return false;
   if (value.freshness.status === "stale" && (
@@ -200,6 +204,20 @@ export function isHomepageInitialPlacesSnapshot(
   if (scope === "default" && cardDetails.length > 0) return false;
   const markerIds = new Set(markers.map((marker) => marker[0]));
   if (!cardDetails.every((detail) => markerIds.has(detail[0]))) return false;
+  if (!Array.isArray(value.continuations)) return false;
+  if (new Set(value.continuations.map((entry) => isRecord(entry) ? entry.datasetId : null)).size !== value.continuations.length) return false;
+  if (!value.continuations.every((entry) => isRecord(entry) &&
+    typeof entry.datasetId === "string" &&
+    HOMEPAGE_INITIAL_LAYERS.includes(entry.layer as HomepageInitialLayer) &&
+    ["tour", "kakao"].includes(String(entry.provider)) &&
+    ["tourism_place", "pet_travel_candidate", "veterinary", "pet_shop"].includes(String(entry.kind)) &&
+    isCount(entry.loadedItemCount) && isCount(entry.expectedTotalCount) &&
+    Number(entry.loadedItemCount) <= Number(entry.expectedTotalCount) &&
+    (entry.nextCursor === null || (Number.isInteger(entry.nextCursor) && Number(entry.nextCursor) > 0)) &&
+    typeof entry.complete === "boolean" &&
+    entry.complete === (entry.loadedItemCount === entry.expectedTotalCount) &&
+    entry.generationId === value.generationId
+  )) return false;
   const markerLayerCounts: Record<HomepageInitialLayer, number> = {
     tourism: 0,
     kakao: 0,

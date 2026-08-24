@@ -47,7 +47,7 @@ function parseRequest(request: Request): HomepageInitialPlacesRequest | null {
   if (parsed.data.scope === "optional" && (
     !region.kakaoDiscoveryEnabled || parsed.data.providers === "tour"
   )) return null;
-  if (parsed.data.region === "jeju" && parsed.data.providers === "kakao") return null;
+  if (!region.kakaoDiscoveryEnabled && parsed.data.providers === "kakao") return null;
   return parsed.data;
 }
 

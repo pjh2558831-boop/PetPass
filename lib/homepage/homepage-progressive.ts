@@ -4,6 +4,7 @@ import {
 } from "@/lib/map-places/place-categories";
 import type { RegionId } from "@/types/region";
 import type { HomepageEnrichmentSnapshot } from "@/types/homepage-enrichment";
+import type { HomepageCompletionSnapshot } from "@/types/homepage-completion";
 import type {
   HomepageInitialLayer,
   HomepageInitialCardDetailV1,
@@ -60,7 +61,7 @@ function markerHref(id: string, layer: HomepageInitialLayer, region: RegionId): 
     : `https://place.map.kakao.com/${encodeURIComponent(providerPlaceId)}`;
 }
 
-function projectMarker(
+export function projectHomepageMarker(
   tuple: HomepageInitialMarkerV1,
   region: RegionId,
   detail?: HomepageInitialCardDetailV1,
@@ -132,7 +133,7 @@ export function projectHomepageInitialSnapshot(
 ): HomepagePlacesSnapshot {
   const details = new Map(initial.cardDetails.map((detail) => [detail[0], detail]));
   const markers = initial.markers.map((marker) =>
-    projectMarker(marker, initial.region, details.get(marker[0])),
+    projectHomepageMarker(marker, initial.region, details.get(marker[0])),
   );
   const officialAllowed = markers.some(({ layer, isAllowed }) => layer === "official" && isAllowed);
   return {
@@ -155,6 +156,80 @@ export function projectHomepageInitialSnapshot(
     },
     markers,
     cards: initialCards(markers, details),
+  };
+}
+
+function markerEqual(left: HomepageMapMarker, right: HomepageMapMarker): boolean {
+  return left.id === right.id && left.layer === right.layer && left.name === right.name &&
+    left.category === right.category && left.district === right.district && left.address === right.address &&
+    left.coordinates.latitude === right.coordinates.latitude &&
+    left.coordinates.longitude === right.coordinates.longitude &&
+    left.sourceLabel === right.sourceLabel && left.statusLabel === right.statusLabel &&
+    left.isAllowed === right.isAllowed && left.href === right.href && left.imageUrl === right.imageUrl;
+}
+
+export function mergeHomepageCompletion(
+  current: HomepagePlacesSnapshot,
+  completion: HomepageCompletionSnapshot,
+  base: Pick<HomepageInitialPlacesSnapshot, "region" | "scope" | "dataVersion" | "generationId">,
+  activeRegion: RegionId,
+): HomepagePlacesSnapshot {
+  if (completion.region !== activeRegion || base.region !== activeRegion ||
+    completion.scope !== "default" || base.scope !== "default") {
+    throw new Error("Homepage completion response crossed region or scope boundaries.");
+  }
+  if (completion.baseDataVersion !== base.dataVersion || completion.generationId !== base.generationId) {
+    throw new Error("Homepage completion response does not match the initial generation.");
+  }
+  const currentById = new Map(current.markers.map((marker) => [marker.id, marker] as const));
+  for (const tuple of completion.markers) {
+    const projected = projectHomepageMarker(tuple, activeRegion);
+    const existing = currentById.get(projected.id);
+    currentById.set(projected.id, existing && markerEqual(existing, projected) ? existing : projected);
+  }
+  const orderedIds = new Set(current.markers.map(({ id }) => id));
+  const markers = [
+    ...current.markers.map(({ id }) => currentById.get(id) as HomepageMapMarker),
+    ...completion.markers.flatMap(([id]) => {
+      if (orderedIds.has(id)) return [];
+      orderedIds.add(id);
+      return currentById.get(id) ?? [];
+    }),
+  ];
+  const markerCounts = new Map<HomepagePlaceLayer, number>();
+  for (const marker of markers) markerCounts.set(marker.layer, (markerCounts.get(marker.layer) ?? 0) + 1);
+  const layerFor = (layer: HomepageInitialLayer): HomepagePlaceLayer => LAYER_MAP[layer];
+  const layers = { ...current.layers };
+  for (const continuation of completion.continuations) {
+    const layer = layerFor(continuation.layer);
+    layers[layer] = {
+      ...layers[layer],
+      state: continuation.complete ? (continuation.expectedTotalCount === 0 ? "empty" : "ready") : layers[layer].state,
+      count: continuation.expectedTotalCount,
+      markerCount: markerCounts.get(layer) ?? 0,
+    };
+  }
+  const officialCounts = new Map(current.official.categoryCounts.map((entry) => [entry.category, entry] as const));
+  for (const [layer, category, count] of completion.categoryCounts) {
+    if (layer !== "tourism") continue;
+    const previous = officialCounts.get(category);
+    officialCounts.set(category, {
+      category,
+      label: PLACE_CATEGORY_LABELS[category],
+      count: (previous?.count ?? 0) + count,
+    });
+  }
+  return {
+    ...current,
+    official: {
+      ...current.official,
+      markerCount: markerCounts.get("official") ?? 0,
+      omittedCoordinateCount: Math.max(0, current.official.totalCount - (markerCounts.get("official") ?? 0)),
+      categoryCounts: [...officialCounts.values()],
+      retrievedAt: completion.generatedAt,
+    },
+    layers,
+    markers,
   };
 }
 

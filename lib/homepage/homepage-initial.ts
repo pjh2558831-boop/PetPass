@@ -1,10 +1,17 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
+import {
+  getHomepageCatalogDatasets,
+  homepageDatasetCacheKey,
+  type HomepageCatalogDatasetDescriptor,
+} from "@/lib/homepage/catalog-datasets";
 import type { HomepageTimingObserver } from "@/lib/homepage/performance-timing";
 import { mapCatalogPlaceToCategory } from "@/lib/map-places/place-categories";
 import { queryPublicMapCatalog } from "@/lib/map-places/public-catalog";
 import { normalizePublicMapCatalogMarker } from "@/types/public-catalog-place";
+import { getRegionConfig } from "@/lib/regions/config";
+import type { HomepageDatasetContinuationV1 } from "@/types/homepage-completion";
 import type {
   PublicMapPlaceKind,
   PublicMapPlacePage,
@@ -24,22 +31,13 @@ import {
 export const HOMEPAGE_INITIAL_FRESH_MS = 300_000;
 export const HOMEPAGE_INITIAL_STALE_IF_ERROR_MS = 3_600_000;
 
-const OPTIONAL_KINDS = ["veterinary", "pet_shop"] as const satisfies readonly PublicMapPlaceKind[];
-const DEFAULT_SOURCES = [
-  { layer: "tourism", provider: "tour", kind: "tourism_place" },
-  { layer: "kakao", provider: "kakao", kind: "pet_travel_candidate" },
-] as const satisfies ReadonlyArray<{
-  layer: "tourism" | "kakao";
-  provider: PublicMapPlaceProvider;
-  kind: PublicMapPlaceKind;
-}>;
-
 type CatalogQuery = (input: {
   regionId: HomepageInitialPlacesRequest["region"];
   providers: PublicMapPlaceProvider[];
   kinds: PublicMapPlaceKind[];
   page: number;
   pageSize: number;
+  afterId?: number;
 }) => Promise<PublicMapPlacePage>;
 type InitialAssembler = (
   input: HomepageInitialPlacesRequest,
@@ -63,7 +61,7 @@ function emptyLayers(scope: HomepageInitialPlacesRequest["scope"]): Record<Homep
   };
 }
 
-function toTuple(marker: {
+export function toHomepageInitialTuple(marker: {
   id: string;
   name: string;
   layer: HomepageInitialLayer;
@@ -89,15 +87,50 @@ function toTuple(marker: {
 
 function dataVersion(
   input: HomepageInitialPlacesRequest,
-  sourceVersion: string,
+  generationId: string,
   markers: readonly HomepageInitialMarkerV1[],
   cardDetails: readonly HomepageInitialCardDetailV1[] = [],
 ): string {
   const hash = createHash("sha256");
-  hash.update(`${input.version}:${input.region}:${input.scope}:${input.providers}:${sourceVersion}\n`);
+  hash.update(`${input.version}:${input.region}:${input.scope}:${input.providers}:${generationId}\n`);
   for (const marker of markers) hash.update(`${JSON.stringify(marker)}\n`);
   for (const detail of cardDetails) hash.update(`${JSON.stringify(detail)}\n`);
   return `v1-${hash.digest("hex").slice(0, 16)}`;
+}
+
+function generationId(
+  input: HomepageInitialPlacesRequest,
+  sources: ReadonlyArray<{
+    descriptor: HomepageCatalogDatasetDescriptor;
+    page: PublicMapPlacePage;
+  }>,
+): string {
+  const hash = createHash("sha256");
+  hash.update(`${input.version}:${input.region}:${input.scope}:${input.providers}\n`);
+  for (const { descriptor, page } of sources) {
+    const latest = page.items.reduce<string | null>((current, item) =>
+      item.lastSeenAt && (!current || item.lastSeenAt > current) ? item.lastSeenAt : current, null);
+    hash.update(`${descriptor.id}:${page.totalCount}:${page.nextCursor ?? "end"}:${latest ?? "unknown"}\n`);
+  }
+  return `g1-${hash.digest("hex").slice(0, 16)}`;
+}
+
+function continuationFor(
+  descriptor: HomepageCatalogDatasetDescriptor,
+  page: PublicMapPlacePage,
+  observedGenerationId: string,
+): HomepageDatasetContinuationV1 {
+  return {
+    datasetId: descriptor.id,
+    layer: descriptor.layer,
+    provider: descriptor.provider,
+    kind: descriptor.kind,
+    loadedItemCount: page.items.length,
+    expectedTotalCount: page.totalCount,
+    nextCursor: page.nextCursor ?? null,
+    complete: page.items.length === page.totalCount,
+    generationId: observedGenerationId,
+  };
 }
 
 function providerAllowed(
@@ -107,7 +140,7 @@ function providerAllowed(
   return providers === "default" || providers === (layer === "tourism" ? "tour" : "kakao");
 }
 
-function categoryCounts(
+export function homepageCategoryCounts(
   items: ReadonlyArray<{ layer: HomepageInitialLayer; category: HomepageInitialMarkerV1[3] }>,
 ): HomepageInitialCategoryCountV1[] {
   const counts = new Map<string, HomepageInitialCategoryCountV1>();
@@ -126,18 +159,18 @@ async function assembleDefault(
   observeTiming?: HomepageTimingObserver,
 ): Promise<HomepageInitialPlacesSnapshot> {
   const startedAt = performance.now();
-  const requestedSources = DEFAULT_SOURCES.filter(({ layer }) =>
-    providerAllowed(layer, input.providers) &&
-    !(input.region === "jeju" && layer === "kakao"),
-  );
-  const results = await Promise.allSettled(requestedSources.map(async (source) => ({
-    source,
+  const region = getRegionConfig(input.region);
+  if (!region) throw new Error("Homepage region is unavailable.");
+  const requestedSources = getHomepageCatalogDatasets(region, "default").filter(({ layer }) =>
+    (layer === "tourism" || layer === "kakao") && providerAllowed(layer, input.providers));
+  const results = await Promise.allSettled(requestedSources.map(async (descriptor) => ({
+    descriptor,
     page: await queryPublicCatalog({
       regionId: input.region,
-      providers: [source.provider],
-      kinds: [source.kind],
+      providers: [descriptor.provider],
+      kinds: [descriptor.kind],
       page: 1,
-      pageSize: 200,
+      pageSize: descriptor.pageSize,
     }),
   }))).finally(() => observeTiming?.({
       name: "supabase_catalog",
@@ -153,33 +186,35 @@ async function assembleDefault(
     layer: HomepageInitialLayer;
     category: HomepageInitialMarkerV1[3];
   }> = [];
+  const fulfilledSources: Array<{ descriptor: HomepageCatalogDatasetDescriptor; page: PublicMapPlacePage }> = [];
   for (const result of results) {
     if (result.status === "rejected") continue;
-    const { source, page } = result.value;
+    const { descriptor, page } = result.value;
+    fulfilledSources.push({ descriptor, page });
     if (page.region.id !== input.region) {
       throw new Error("Homepage default catalog region does not match the request.");
     }
     const seenCoordinates = new Set<string>();
     const tuples = page.items.flatMap((place) => {
       const marker = normalizePublicMapCatalogMarker(place, input.region);
-      if (marker.layer !== source.layer) {
+      if (marker.layer !== descriptor.layer) {
         throw new Error("Homepage default catalog provider does not match the requested layer.");
       }
       const category = mapCatalogPlaceToCategory(marker);
-      selectedCategories.push({ layer: source.layer, category });
+      selectedCategories.push({ layer: descriptor.layer, category });
       if (!marker.coordinates) return [];
       const coordinateKey = `${marker.coordinates.latitude.toFixed(6)}:${marker.coordinates.longitude.toFixed(6)}`;
       if (seenCoordinates.has(coordinateKey)) return [];
       seenCoordinates.add(coordinateKey);
-      const compact = toTuple({
+      const compact = toHomepageInitialTuple({
         ...marker,
-        layer: source.layer,
+        layer: descriptor.layer,
         category,
         petAccessVerdict: marker.petAccessVerdict ?? "unknown",
       });
       return compact ? [compact] : [];
     });
-    layers[source.layer] = layerSnapshot(
+    layers[descriptor.layer] = layerSnapshot(
       page.totalCount === 0 ? "empty" : "ready",
       page.totalCount,
       tuples.length,
@@ -191,6 +226,9 @@ async function assembleDefault(
     layers[requestedSources[index].layer] = layerSnapshot("unavailable", null, null);
   }
   const generatedAt = now().toISOString();
+  const observedGenerationId = generationId(input, fulfilledSources);
+  const continuations = fulfilledSources.map(({ descriptor, page }) =>
+    continuationFor(descriptor, page, observedGenerationId));
   const totalCount = HOMEPAGE_INITIAL_LAYERS.reduce(
     (sum, layer) => sum + (layers[layer].count ?? 0),
     0,
@@ -201,14 +239,16 @@ async function assembleDefault(
     scope: input.scope,
     providers: input.providers,
     generatedAt,
-    dataVersion: dataVersion(input, generatedAt, markers),
+    dataVersion: dataVersion(input, observedGenerationId, markers),
+    generationId: observedGenerationId,
     totalCount,
     markerCount: markers.length,
     freshness: { status: "fresh" },
     layers,
-    categoryCounts: categoryCounts(selectedCategories),
+    categoryCounts: homepageCategoryCounts(selectedCategories),
     markers,
     cardDetails: [],
+    continuations,
   };
 }
 
@@ -219,14 +259,17 @@ async function assembleOptional(
   observeTiming?: HomepageTimingObserver,
 ): Promise<HomepageInitialPlacesSnapshot> {
   const startedAt = performance.now();
-  const results = await Promise.allSettled(OPTIONAL_KINDS.map(async (kind) => ({
-    kind,
+  const region = getRegionConfig(input.region);
+  if (!region) throw new Error("Homepage region is unavailable.");
+  const requestedSources = getHomepageCatalogDatasets(region, "optional");
+  const results = await Promise.allSettled(requestedSources.map(async (descriptor) => ({
+    descriptor,
     page: await queryPublicCatalog({
       regionId: input.region,
-      providers: ["kakao"],
-      kinds: [kind],
+      providers: [descriptor.provider],
+      kinds: [descriptor.kind],
       page: 1,
-      pageSize: 200,
+      pageSize: descriptor.pageSize,
     }),
   }))).finally(() => observeTiming?.({
     name: "supabase_catalog",
@@ -240,11 +283,13 @@ async function assembleOptional(
   const markers: HomepageInitialMarkerV1[] = [];
   const cardDetails: HomepageInitialCardDetailV1[] = [];
   const selectedCategories: Array<{ layer: HomepageInitialLayer; category: HomepageInitialMarkerV1[3] }> = [];
+  const fulfilledSources: Array<{ descriptor: HomepageCatalogDatasetDescriptor; page: PublicMapPlacePage }> = [];
   for (const result of results) {
     if (result.status === "rejected") continue;
-    const { kind, page } = result.value;
+    const { descriptor, page } = result.value;
+    fulfilledSources.push({ descriptor, page });
     if (page.region.id !== input.region) throw new Error("Homepage optional catalog region does not match the request.");
-    const layer: HomepageInitialLayer = kind === "veterinary" ? "veterinary" : "pet_shop";
+    const layer = descriptor.layer;
     const normalized = page.items.map((place) => {
       const marker = normalizePublicMapCatalogMarker(place, input.region);
       return {
@@ -259,7 +304,7 @@ async function assembleOptional(
       };
     });
     const tuples = normalized.flatMap((marker) => {
-      const compact = toTuple(marker);
+      const compact = toHomepageInitialTuple(marker);
       if (compact) {
         cardDetails.push([
           marker.id,
@@ -284,10 +329,13 @@ async function assembleOptional(
   for (const result of results) {
     if (result.status === "fulfilled") continue;
     const index = results.indexOf(result);
-    const layer = OPTIONAL_KINDS[index] === "veterinary" ? "veterinary" : "pet_shop";
+    const layer = requestedSources[index].layer;
     layers[layer] = layerSnapshot("unavailable", null, null);
   }
   const generatedAt = now().toISOString();
+  const observedGenerationId = generationId(input, fulfilledSources);
+  const continuations = fulfilledSources.map(({ descriptor, page }) =>
+    continuationFor(descriptor, page, observedGenerationId));
   const totalCount = HOMEPAGE_INITIAL_LAYERS.reduce(
     (sum, layer) => sum + (layers[layer].count ?? 0),
     0,
@@ -298,14 +346,16 @@ async function assembleOptional(
     scope: input.scope,
     providers: input.providers,
     generatedAt,
-    dataVersion: dataVersion(input, generatedAt, markers, cardDetails),
+    dataVersion: dataVersion(input, observedGenerationId, markers, cardDetails),
+    generationId: observedGenerationId,
     totalCount,
     markerCount: markers.length,
     freshness: { status: "fresh" },
     layers,
-    categoryCounts: categoryCounts(selectedCategories),
+    categoryCounts: homepageCategoryCounts(selectedCategories),
     markers,
     cardDetails,
+    continuations,
   };
 }
 
@@ -342,7 +392,15 @@ function hasUnavailableLayer(snapshot: HomepageInitialPlacesSnapshot): boolean {
 export function homepageInitialCacheKey(
   input: HomepageInitialPlacesRequest,
 ): string {
-  return `${input.version}:${input.region}:${input.scope}:${input.providers}`;
+  const region = getRegionConfig(input.region);
+  if (!region) return `${input.version}:${input.region}:${input.scope}:unavailable:${input.providers}`;
+  const datasets = getHomepageCatalogDatasets(region, input.scope)
+    .filter(({ layer }) => input.scope === "optional" ||
+      ((layer === "tourism" || layer === "kakao") && providerAllowed(layer, input.providers)))
+    .map((dataset) => homepageDatasetCacheKey(region, dataset))
+    .sort()
+    .join("|");
+  return `${input.version}:${input.region}:${input.scope}:${datasets}:${input.providers}`;
 }
 
 export function createHomepageInitialPlacesLoader({

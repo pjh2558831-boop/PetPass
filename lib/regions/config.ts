@@ -24,8 +24,8 @@ export interface RegionSearchCenter {
   radiusMeters: number;
 }
 
-export interface RegionConfig {
-  id: RegionId;
+export interface RegionConfig<TId extends string = RegionId> {
+  id: TId;
   displayName: string;
   providerCodes: {
     korPetTourService2: {
@@ -36,6 +36,7 @@ export interface RegionConfig {
   mapEnabled: boolean;
   itineraryEnabled: boolean;
   kakaoDiscoveryEnabled: boolean;
+  homepageFeaturedEnabled: boolean;
   defaultMapCenter: Coordinates;
   mapBounds: RegionBounds;
   districts: readonly RegionDistrictConfig[];
@@ -71,6 +72,7 @@ export const BUSAN_REGION_CONFIG = {
   mapEnabled: true,
   itineraryEnabled: true,
   kakaoDiscoveryEnabled: true,
+  homepageFeaturedEnabled: true,
   defaultMapCenter: { latitude: 35.1796, longitude: 129.0756 },
   mapBounds: { west: 128.75, south: 34.95, east: 129.4, north: 35.5 },
   districts: BUSAN_DISTRICT_CONFIGS,
@@ -109,6 +111,7 @@ export const JEJU_REGION_CONFIG = {
   mapEnabled: true,
   itineraryEnabled: false,
   kakaoDiscoveryEnabled: false,
+  homepageFeaturedEnabled: false,
   defaultMapCenter: { latitude: 33.4996, longitude: 126.5312 },
   mapBounds: { west: 125.9, south: 33.0, east: 127.1, north: 34.0 },
   districts: [

@@ -9,6 +9,7 @@ export const HOMEPAGE_BROWSER_TIMING_STAGES = [
 
 export const HOMEPAGE_BROWSER_TIMING_METRICS = [
   "request_delay",
+  "feedback",
   "headers",
   "download",
   "parse",
