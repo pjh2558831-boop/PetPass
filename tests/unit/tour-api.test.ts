@@ -466,6 +466,93 @@ describe("Korea Tourism Organization provider", () => {
     expect(JSON.stringify(body)).not.toContain("arbitrary");
   });
 
+  it("paginates the filtered marker dataset without reporting the unfiltered total", async () => {
+    const checkedAt = "2026-08-05T00:00:00.000Z";
+    const makeSummary = (contentId: string, contentTypeId: "12" | "39", title: string) =>
+      normalizeTourPlaceSummary(
+        {
+          contentid: contentId,
+          contenttypeid: contentTypeId,
+          title,
+          addr1: "부산광역시 해운대구",
+          mapx: "129.16",
+          mapy: "35.16",
+          lDongRegnCd: "26",
+          lDongSignguCd: "350",
+        },
+        { operation: "areaBasedList2", retrievedAt: checkedAt },
+      )!;
+    const placesByType = new Map([
+      ["12", [
+        makeSummary("1201", "12", "가 관광지"),
+        makeSummary("1202", "12", "나 관광지"),
+      ]],
+      ["39", [makeSummary("3901", "39", "음식점 하나")]],
+    ]);
+    const service = {
+      listPlaces: vi.fn(async (query: { contentTypeId: string; page: number; pageSize: number }) => {
+        const places = placesByType.get(query.contentTypeId) ?? [];
+        return {
+          places,
+          page: query.page,
+          pageSize: query.pageSize,
+          totalCount: places.length,
+          source: {
+            provider: "Korea Tourism Organization" as const,
+            operation: "areaBasedList2" as const,
+            retrievedAt: checkedAt,
+          },
+        };
+      }),
+      listProviderVisibility: vi.fn(async (query: { contentTypeId: string; page: number; pageSize: number }) => {
+        const places = placesByType.get(query.contentTypeId) ?? [];
+        return {
+          records: places.map((place) => ({
+            contentId: place.contentId,
+            contentTypeId: place.contentTypeId,
+            visibility: {
+              status: "exposed" as const,
+              providerField: "showflag",
+              providerValue: "1",
+              checkedAt,
+              reasonCodes: [],
+            },
+          })),
+          page: query.page,
+          pageSize: query.pageSize,
+          totalCount: places.length,
+          source: {
+            provider: "Korea Tourism Organization" as const,
+            operation: "petTourSyncList2" as const,
+            retrievedAt: checkedAt,
+          },
+        };
+      }),
+      getPlaceDetail: vi.fn(),
+    } as unknown as TourPlaceService;
+    const handler = createTourPlacesHandler(service);
+
+    const first = await handler(new Request(
+      "http://localhost/api/tour/places?view=markers&categories=attraction&page=1&pageSize=1",
+    ));
+    const second = await handler(new Request(
+      "http://localhost/api/tour/places?view=markers&categories=attraction&page=2&pageSize=1",
+    ));
+    const unfiltered = await handler(new Request(
+      "http://localhost/api/tour/places?view=markers&page=1&pageSize=2",
+    ));
+
+    await expect(first.json()).resolves.toMatchObject({
+      data: { items: [{ providerPlaceId: "1201" }], totalCount: 2, hasNext: true },
+    });
+    await expect(second.json()).resolves.toMatchObject({
+      data: { items: [{ providerPlaceId: "1202" }], totalCount: 2, hasNext: false },
+    });
+    await expect(unfiltered.json()).resolves.toMatchObject({
+      data: { totalCount: 3, hasNext: true },
+    });
+  });
+
   it("returns a sanitized typed provider error from the catalog route", async () => {
     const service = {
       listPlaces: vi.fn(async () => {

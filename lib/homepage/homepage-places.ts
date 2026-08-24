@@ -191,8 +191,18 @@ function markerFromCard(
   coordinates: { latitude: number; longitude: number },
 ): HomepageMapMarker {
   return {
-    ...card,
+    id: card.id,
+    layer: card.layer,
+    name: card.name,
+    category: card.category,
+    district: card.district,
+    address: card.address,
     coordinates,
+    sourceLabel: card.sourceLabel,
+    statusLabel: card.statusLabel,
+    isAllowed: card.isAllowed,
+    href: card.href,
+    imageUrl: card.imageUrl,
   };
 }
 

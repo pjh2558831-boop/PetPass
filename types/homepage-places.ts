@@ -23,18 +23,14 @@ export interface HomepageMapMarker {
   layer: HomepagePlaceLayer;
   name: string;
   category: PlaceCategory;
-  categoryLabel: string;
   district: string | null;
   address: string;
   coordinates: { latitude: number; longitude: number };
   sourceLabel: string;
   statusLabel: string;
-  warning: string | null;
   isAllowed: boolean;
   href: string | null;
-  external: boolean;
   imageUrl: string | null;
-  phone: string | null;
 }
 
 export interface HomepagePlaceCard {

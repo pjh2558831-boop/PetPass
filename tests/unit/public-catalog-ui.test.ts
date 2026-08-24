@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parsePublicCatalogUrlState, PUBLIC_CATALOG_LAYERS } from "@/lib/map-places/catalog-url";
+import {
+  parsePublicCatalogUrlState,
+  PUBLIC_CATALOG_LAYERS,
+  serializeResultsUrl,
+} from "@/lib/map-places/catalog-url";
 import { normalizeKakaoCatalogPlace, normalizeTourCatalogPlace } from "@/types/public-catalog-place";
 import type { PublicMapPlaceDTO } from "@/types/public-map-place";
 import type { TourPlaceSummary } from "@/types/place";
@@ -38,6 +42,22 @@ describe("public catalog URL state", () => {
 
   it("restores an explicit all-layers-off state", () => {
     expect(parsePublicCatalogUrlState({ layers: "none" }).layers).toEqual([]);
+  });
+
+  it("serializes a canonical shareable results URL that round-trips", () => {
+    const state = {
+      region: "jeju" as const,
+      district: "110",
+      categories: ["attraction", "cafe"] as const,
+      layers: ["tourism"] as const,
+      page: 3,
+      sort: "popularity" as const,
+    };
+    const url = serializeResultsUrl("catalog", state);
+
+    expect(url).toBe("/results?tab=catalog&region=jeju&district=110&categories=attraction%2Ccafe&sort=popularity&page=3");
+    expect(parsePublicCatalogUrlState(Object.fromEntries(new URL(url, "http://localhost").searchParams)))
+      .toEqual({ ...state, layers: [...PUBLIC_CATALOG_LAYERS] });
   });
 });
 

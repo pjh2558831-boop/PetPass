@@ -26,6 +26,17 @@ const kakaoItems = [
 ];
 
 async function mockKakaoCatalog(page: Page) {
+  await page.route("**/api/map/places/snapshot?**", async (route) => {
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: false,
+        error: { code: "UPSTREAM_ERROR", message: "fallback contract test", retryable: true },
+        requestId: "e2e-snapshot-fallback",
+      }),
+    });
+  });
   await page.route("**/api/map/places?**", async (route) => {
     const url = new URL(route.request().url());
     expect(url.searchParams.get("region")).toBe("busan");
@@ -101,17 +112,27 @@ test("keeps all providers visible while the category dropdown is open", async ({
   await expect(page).not.toHaveURL(/layers=/u);
 });
 
-test("changes both authoritative providers by district without Kakao discovery", async ({ page }) => {
+test("filters both authoritative providers by district locally without Kakao discovery", async ({ page }) => {
   const discoveryRequests: string[] = [];
-  page.on("request", (request) => { if (request.url().includes("/api/places/discovery")) discoveryRequests.push(request.url()); });
+  const baseCatalogRequests: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/places/discovery") discoveryRequests.push(request.url());
+    if (
+      url.pathname === "/api/map/places/snapshot" ||
+      url.pathname === "/api/map/places" ||
+      (url.pathname === "/api/tour/places" && url.searchParams.get("view") === "markers")
+    ) baseCatalogRequests.push(request.url());
+  });
   await page.goto("/results");
   await showListMode(page);
-  const tourResponse = page.waitForResponse((response) => response.url().includes("districtCode=500"));
-  const kakaoResponse = page.waitForResponse((response) => response.url().includes("/api/map/places?") && response.url().includes("district=500"));
+  await expect(page.getByRole("heading", { name: /총 \d+곳/u })).toBeVisible();
+  await expect.poll(() => baseCatalogRequests.length).toBe(3);
+  const beforeDistrictChange = baseCatalogRequests.length;
   await page.getByLabel("부산 세부 지역").selectOption("500");
-  expect((await tourResponse).status()).toBe(200);
-  expect((await kakaoResponse).status()).toBe(200);
   await expect(page).toHaveURL(/district=500/u);
+  await expect(page.getByRole("heading", { name: /총 \d+곳/u })).toBeVisible();
+  expect(baseCatalogRequests).toHaveLength(beforeDistrictChange);
   expect(discoveryRequests).toEqual([]);
 });
 

@@ -237,6 +237,21 @@ describe("homepage public catalog server cache", () => {
     expect(jeju.region.id).toBe("jeju");
     expect(query).toHaveBeenCalledTimes(3);
   });
+
+  it("does not coalesce otherwise identical catalog queries across providers", async () => {
+    const query = vi.fn(async (input: Parameters<ReturnType<typeof createHomepagePublicCatalogLoader>>[0]) => ({
+      ...publicPage(input.providers?.[0] === "tour" ? "tourism_place" : "pet_travel_candidate"),
+      items: [],
+      totalCount: 0,
+    }));
+    const cached = createHomepagePublicCatalogLoader({ query });
+    const input = { regionId: "busan" as const, page: 1, pageSize: 20 };
+
+    await cached({ ...input, providers: ["kakao"] });
+    await cached({ ...input, providers: ["tour"] });
+
+    expect(query).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("homepage map location transformation", () => {
@@ -287,17 +302,52 @@ describe("GET /api/homepage/places", () => {
     cards: [],
   };
 
-  it("returns no-store, rejects query parameters, and forwards only server dependencies", async () => {
+  it("returns public shared-cache headers, rejects query parameters, and forwards only server dependencies", async () => {
     const loadSnapshot = vi.fn(async () => emptySnapshot);
     const handler = createHomepagePlacesHandler({ service, rateLimit: allow, loadSnapshot });
     const ok = await handler(new Request("http://localhost/api/homepage/places"));
     const invalid = await handler(new Request("http://localhost/api/homepage/places?kind=veterinary"));
 
     expect(ok.status).toBe(200);
-    expect(ok.headers.get("cache-control")).toBe("no-store");
+    expect(ok.headers.get("cache-control")).toContain("public");
+    expect(ok.headers.get("cdn-cache-control")).toContain("stale-while-revalidate");
+    expect(ok.headers.get("vercel-cdn-cache-control")).toContain("max-age=300");
     expect(await ok.json()).toMatchObject({ ok: true, data: emptySnapshot });
     expect(invalid.status).toBe(400);
     expect(loadSnapshot).toHaveBeenCalledTimes(1);
     expect(loadSnapshot).toHaveBeenCalledWith(expect.objectContaining({ service }));
+  });
+
+  it("coalesces identical generation and serves the last valid snapshot after a refresh failure", async () => {
+    let cacheTime = 0;
+    const loadSnapshot = vi.fn()
+      .mockResolvedValueOnce(emptySnapshot)
+      .mockRejectedValueOnce(new Error("temporary provider failure"))
+      .mockResolvedValueOnce(emptySnapshot);
+    const handler = createHomepagePlacesHandler({
+      service,
+      rateLimit: allow,
+      loadSnapshot,
+      cacheNow: () => cacheTime,
+      cacheFreshMs: 100,
+      cacheStaleIfErrorMs: 1_000,
+    });
+    const request = () => new Request("http://localhost/api/homepage/places");
+
+    const [first, concurrent] = await Promise.all([handler(request()), handler(request())]);
+    expect(first.status).toBe(200);
+    expect(concurrent.status).toBe(200);
+    expect(loadSnapshot).toHaveBeenCalledTimes(1);
+
+    cacheTime = 101;
+    const stale = await handler(request());
+    expect(stale.status).toBe(200);
+    await expect(stale.json()).resolves.toMatchObject({ data: emptySnapshot });
+    expect(loadSnapshot).toHaveBeenCalledTimes(2);
+    expect((await handler(request())).status).toBe(200);
+    expect(loadSnapshot).toHaveBeenCalledTimes(2);
+
+    await handler(new Request("http://localhost/api/homepage/places?includeOptional=true"));
+    expect(loadSnapshot).toHaveBeenCalledTimes(3);
   });
 });

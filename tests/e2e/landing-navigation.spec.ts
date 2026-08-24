@@ -90,7 +90,7 @@ test("keeps real desktop navigation routable and future items non-linking", asyn
     "/results?tab=recommendations&region=busan",
   );
 
-  for (const label of ["커뮤니티", "마이페이지", "로그인", "회원가입"]) {
+  for (const label of ["커뮤니티"]) {
     const future = header.getByRole("button", {
       name: new RegExp(`${label}\\s*준비 중`, "u"),
     });
@@ -98,6 +98,9 @@ test("keeps real desktop navigation routable and future items non-linking", asyn
     await expect(future).not.toHaveAttribute("href", /.+/u);
     await expect(header.getByRole("link", { name: new RegExp(label, "u") })).toHaveCount(0);
   }
+  await expect(navigation.getByRole("link", { name: "마이페이지" })).toHaveAttribute("href", "/account");
+  await expect(header.getByRole("link", { name: "로그인" })).toHaveAttribute("href", "/login");
+  await expect(header.getByRole("link", { name: "회원가입" })).toHaveAttribute("href", "/login");
 
   const footer = page.locator("footer");
   await expect(footer.getByRole("link", { name: "여행 만들기" })).toHaveAttribute(

@@ -326,7 +326,9 @@ test("keeps the existing demo detail and provider validation boundaries", async 
   await expect(page.locator("blockquote")).toBeVisible();
   await expect(page.getByLabel("로컬 데모 데이터")).toBeVisible();
 
-  const response = await request.get("/api/tour/places?contentTypeId=75");
+  const response = await request.get("/api/tour/places?contentTypeId=75", {
+    headers: { "x-forwarded-for": `planner-provider-boundary-${test.info().project.name}` },
+  });
   expect(response.status()).toBe(400);
   await expect(response.json()).resolves.toMatchObject({
     ok: false,

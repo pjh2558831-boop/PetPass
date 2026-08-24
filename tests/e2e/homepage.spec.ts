@@ -37,26 +37,38 @@ function marker(
     layer,
     name,
     category: layer === "veterinary" ? "veterinary" : layer === "pet_shop" ? "pet_shop" : "attraction",
-    categoryLabel: layer === "veterinary" ? "동물병원" : layer === "pet_shop" ? "반려동물 용품" : "관광·문화",
     district: "해운대구",
     address: "부산광역시 해운대구 테스트로 1",
     coordinates,
     sourceLabel: labels[layer][0],
     statusLabel: labels[layer][1],
-    warning: layer === "official" ? null : "방문 전 현재 정보를 확인해 주세요.",
     isAllowed: false,
     href: layer === "official" ? `/places/${id.slice(5)}?contentTypeId=12` : `https://place.map.kakao.com/${id.split(":")[1]}`,
-    external: layer !== "official",
     imageUrl: null,
-    phone: layer === "veterinary" || layer === "pet_shop" ? "051-123-4567" : null,
     ...overrides,
   };
 }
 
 function cardFromMarker(value: HomepageMapMarker): HomepagePlaceCard {
-  const { coordinates, ...card } = value;
-  void coordinates;
-  return card;
+  return {
+    id: value.id,
+    layer: value.layer,
+    name: value.name,
+    category: value.category,
+    categoryLabel: value.category === "veterinary"
+      ? "동물병원"
+      : value.category === "pet_shop" ? "반려동물 용품" : value.category === "cafe" ? "카페" : "관광·문화",
+    district: value.district,
+    address: value.address,
+    phone: value.layer === "veterinary" || value.layer === "pet_shop" ? "051-123-4567" : null,
+    sourceLabel: value.sourceLabel,
+    statusLabel: value.statusLabel,
+    warning: value.layer === "official" ? null : "방문 전 현재 정보를 확인해 주세요.",
+    isAllowed: value.isAllowed,
+    href: value.href,
+    external: value.href?.startsWith("http") ?? false,
+    imageUrl: value.imageUrl,
+  };
 }
 
 const OFFICIAL_ALLOWED = marker(
@@ -77,7 +89,7 @@ const KAKAO_CANDIDATE = marker(
   "kakao_candidate",
   "광안리 반려견 검색 후보",
   { latitude: 35.1532, longitude: 129.1187 },
-  { category: "cafe", categoryLabel: "카페", district: "수영구" },
+  { category: "cafe", district: "수영구" },
 );
 const VETERINARY = marker(
   "kakao:102",
@@ -233,6 +245,47 @@ test(NETWORK_TEST, async ({ page }) => {
   expect(sdk.searchParams.get("autoload")).toBe("false");
   expect(new Set(sdk.searchParams.get("libraries")?.split(","))).toEqual(new Set(["services", "clusterer"]));
   expect(forbidden).toEqual([]);
+});
+
+test("aborts an abandoned homepage snapshot request on navigation", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === "mobile-chrome", "Abort instrumentation is verified once in desktop Chromium.");
+  await page.addInitScript(() => {
+    const NativeAbortController = window.AbortController;
+    window.AbortController = class extends NativeAbortController {
+      override abort(reason?: unknown) {
+        const count = Number(sessionStorage.getItem("homepage-abort-count") ?? "0");
+        sessionStorage.setItem("homepage-abort-count", String(count + 1));
+        super.abort(reason);
+      }
+    };
+  });
+  let release!: () => void;
+  let requested = false;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  await page.route(HOMEPAGE_API, async (route) => {
+    requested = true;
+    await held;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, data: SNAPSHOT, requestId: "homepage-abort" }),
+    })
+      .catch(() => undefined);
+  });
+
+  await page.goto("/");
+  await expect(page.locator(".homepage-live-loading")).toBeVisible();
+  await expect.poll(() => requested).toBe(true);
+  const navigation = Promise.all([
+    page.waitForURL(/\/planner\/pet/u),
+    page.getByRole("link", { name: "여행 만들기", exact: true }).first().click(),
+  ]);
+  await page.waitForURL(/\/planner\/pet/u);
+  await expect.poll(() => page.evaluate(
+    () => Number(sessionStorage.getItem("homepage-abort-count") ?? "0"),
+  )).toBeGreaterThan(0);
+  release();
+  await navigation;
 });
 
 test("uses one eager hero image, lazy later slides, manual controls, and six-second autoplay", async ({ page }) => {

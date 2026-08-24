@@ -22,6 +22,7 @@ import { createHomepageMapLocations } from "@/lib/homepage/homepage-map-location
 import {
   DEFAULT_PLACE_CATEGORIES,
   PLACE_CATEGORIES,
+  PLACE_CATEGORY_LABELS,
   isPlaceCategory,
   type PlaceCategory,
 } from "@/lib/map-places/place-categories";
@@ -34,6 +35,7 @@ import {
 } from "@/types/homepage-places";
 
 const EMPTY_ROUTE_COORDINATES: [] = [];
+const STRICT_EFFECT_ABORT_GRACE_MS = 50;
 
 const API_ERROR_CODES = new Set<ApiError["code"]>([
   "CONFIGURATION_REQUIRED",
@@ -143,11 +145,11 @@ function parseHomepageResult(
     : null;
 }
 
-async function requestHomepageSnapshot(includeOptional = false): Promise<
+async function requestHomepageSnapshot(includeOptional = false, signal?: AbortSignal): Promise<
   ApiResult<HomepagePlacesSnapshot>
 > {
   const response = await fetch(`/api/homepage/places${includeOptional ? "?includeOptional=true" : ""}`, {
-    cache: "no-store",
+    signal,
     headers: { Accept: "application/json" },
   });
   let value: unknown;
@@ -225,8 +227,13 @@ export function HomepageLiveExperience({
   const [activeCategories, setActiveCategories] = useState<PlaceCategory[]>([...DEFAULT_PLACE_CATEGORIES]);
   const [draftCategories, setDraftCategories] = useState<PlaceCategory[]>([...DEFAULT_PLACE_CATEGORIES]);
   const [filterOpen, setFilterOpen] = useState(false);
-  const requestRef = useRef<Promise<ApiResult<HomepagePlacesSnapshot>> | null>(null);
-  const optionalRequestRef = useRef<Promise<ApiResult<HomepagePlacesSnapshot>> | null>(null);
+  type PendingRequest = {
+    controller: AbortController;
+    promise: Promise<ApiResult<HomepagePlacesSnapshot>>;
+    abortTimer: ReturnType<typeof setTimeout> | null;
+  };
+  const requestRef = useRef<PendingRequest | null>(null);
+  const optionalRequestRef = useRef<PendingRequest | null>(null);
   const filterDropdownRef = useRef<HTMLElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -252,9 +259,14 @@ export function HomepageLiveExperience({
 
   useEffect(() => {
     let active = true;
-    const request = requestRef.current ?? requestHomepageSnapshot();
-    requestRef.current = request;
-    void request.then((result) => {
+    const pending = requestRef.current ?? (() => {
+      const controller = new AbortController();
+      return { controller, promise: requestHomepageSnapshot(false, controller.signal), abortTimer: null };
+    })();
+    if (pending.abortTimer) clearTimeout(pending.abortTimer);
+    pending.abortTimer = null;
+    requestRef.current = pending;
+    void pending.promise.then((result) => {
       if (!active) return;
       if (!result.ok) {
         setSnapshot(null);
@@ -267,15 +279,29 @@ export function HomepageLiveExperience({
       setDraftCategories([...DEFAULT_PLACE_CATEGORIES]);
       setLoadState("ready");
     }).catch(() => {
-      if (!active) return;
+      if (!active || pending.controller.signal.aborted) return;
       setSnapshot(null);
       setError(GENERIC_ERROR);
       setLoadState("error");
     });
-    return () => { active = false; };
+    return () => {
+      active = false;
+      pending.abortTimer = setTimeout(() => {
+        if (requestRef.current !== pending) return;
+        pending.controller.abort();
+        requestRef.current = null;
+      }, STRICT_EFFECT_ABORT_GRACE_MS);
+    };
   }, [retryToken]);
 
+  useEffect(() => () => {
+    optionalRequestRef.current?.controller.abort();
+    optionalRequestRef.current = null;
+  }, []);
+
   const retry = () => {
+    requestRef.current?.controller.abort();
+    optionalRequestRef.current?.controller.abort();
     requestRef.current = null;
     optionalRequestRef.current = null;
     setSnapshot(null);
@@ -333,16 +359,19 @@ export function HomepageLiveExperience({
     const needsOptional = categories.some((category) => category === "veterinary" || category === "pet_shop") &&
       (snapshot.layers.veterinary.state === "deferred" || snapshot.layers.pet_shop.state === "deferred");
     if (needsOptional) {
-      const request = optionalRequestRef.current ?? requestHomepageSnapshot(true);
-      optionalRequestRef.current = request;
-      void request.then((result) => {
+      const pending = optionalRequestRef.current ?? (() => {
+        const controller = new AbortController();
+        return { controller, promise: requestHomepageSnapshot(true, controller.signal), abortTimer: null };
+      })();
+      optionalRequestRef.current = pending;
+      void pending.promise.then((result) => {
         if (!result.ok) {
-          optionalRequestRef.current = null;
+          if (optionalRequestRef.current === pending) optionalRequestRef.current = null;
           return;
         }
         setSnapshot(result.data);
       }).catch(() => {
-        optionalRequestRef.current = null;
+        if (optionalRequestRef.current === pending) optionalRequestRef.current = null;
       });
     }
   };
@@ -459,7 +488,7 @@ export function HomepageLiveExperience({
               ) : <SelectedPlaceholder layer={selectedMarker.layer} />}
               <div className="homepage-selected-body">
                 <div className="homepage-selected-meta">
-                  <span>{selectedMarker.categoryLabel}</span>
+                  <span>{PLACE_CATEGORY_LABELS[selectedMarker.category]}</span>
                   {selectedMarker.isAllowed ? (
                     <span className="homepage-allowed-badge"><ShieldCheck size={12} aria-hidden="true" />동반 가능</span>
                   ) : (
@@ -473,7 +502,7 @@ export function HomepageLiveExperience({
                 </span>
               </div>
               {selectedMarker.href ? (
-                selectedMarker.external ? (
+                selectedMarker.href.startsWith("http") ? (
                   <a
                     href={selectedMarker.href}
                     target="_blank"

@@ -13,6 +13,11 @@ import {
 import type { HomepagePlacesSnapshot } from "@/types/homepage-places";
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" } as const;
+const PUBLIC_CACHE_HEADERS = {
+  "Cache-Control": "public, max-age=60, stale-while-revalidate=60",
+  "CDN-Cache-Control": "public, max-age=300, stale-while-revalidate=300",
+  "Vercel-CDN-Cache-Control": "public, max-age=300, stale-while-revalidate=300",
+} as const;
 
 type SnapshotLoader = (
   dependencies: HomepagePlacesDependencies,
@@ -23,6 +28,59 @@ export interface HomepagePlacesHandlerDependencies {
   now?: () => Date;
   rateLimit?: typeof consumeRateLimit;
   loadSnapshot?: SnapshotLoader;
+  cacheNow?: () => number;
+  cacheFreshMs?: number;
+  cacheStaleIfErrorMs?: number;
+}
+
+interface SnapshotCacheEntry {
+  value?: HomepagePlacesSnapshot;
+  storedAt?: number;
+  inFlight?: Promise<HomepagePlacesSnapshot>;
+  retryAfter?: number;
+}
+
+function createCachedSnapshotLoader({
+  loadSnapshot,
+  cacheNow,
+  freshMs,
+  staleIfErrorMs,
+}: {
+  loadSnapshot: SnapshotLoader;
+  cacheNow: () => number;
+  freshMs: number;
+  staleIfErrorMs: number;
+}): SnapshotLoader {
+  const entries = new Map<string, SnapshotCacheEntry>();
+  return async (dependencies) => {
+    const key = dependencies.includeOptional ? "optional" : "default";
+    const entry = entries.get(key) ?? {};
+    const age = entry.storedAt === undefined
+      ? Number.POSITIVE_INFINITY
+      : cacheNow() - entry.storedAt;
+    if (entry.value && age <= freshMs) return entry.value;
+    if (entry.value && entry.retryAfter !== undefined && entry.retryAfter > cacheNow()) {
+      return entry.value;
+    }
+    if (entry.inFlight) return entry.inFlight;
+    const inFlight = loadSnapshot(dependencies).then((value) => {
+      entries.set(key, { value, storedAt: cacheNow() });
+      return value;
+    }).catch((error: unknown) => {
+      if (entry.value && age <= freshMs + staleIfErrorMs) {
+        entries.set(key, {
+          value: entry.value,
+          storedAt: entry.storedAt,
+          retryAfter: cacheNow() + Math.min(freshMs, 60_000),
+        });
+        return entry.value;
+      }
+      entries.delete(key);
+      throw error;
+    });
+    entries.set(key, { ...entry, inFlight });
+    return inFlight;
+  };
 }
 
 export function createHomepagePlacesHandler({
@@ -30,7 +88,16 @@ export function createHomepagePlacesHandler({
   now = () => new Date(),
   rateLimit = consumeRateLimit,
   loadSnapshot = collectHomepagePlacesSnapshot,
+  cacheNow = Date.now,
+  cacheFreshMs = 300_000,
+  cacheStaleIfErrorMs = 3_600_000,
 }: HomepagePlacesHandlerDependencies) {
+  const loadCachedSnapshot = createCachedSnapshotLoader({
+    loadSnapshot,
+    cacheNow,
+    freshMs: cacheFreshMs,
+    staleIfErrorMs: cacheStaleIfErrorMs,
+  });
   return async function GET(request: Request): Promise<Response> {
     const limit = rateLimit("homepage-places", getRequestClientId(request), {
       limit: 30,
@@ -65,9 +132,9 @@ export function createHomepagePlacesHandler({
 
     try {
       return apiSuccess(
-        await loadSnapshot({ service, now, includeOptional }),
+        await loadCachedSnapshot({ service, now, includeOptional }),
         200,
-        NO_STORE_HEADERS,
+        PUBLIC_CACHE_HEADERS,
       );
     } catch (error) {
       const response = tourProviderErrorResponse(error);
@@ -77,6 +144,11 @@ export function createHomepagePlacesHandler({
   };
 }
 
+let defaultHomepagePlacesHandler: ReturnType<typeof createHomepagePlacesHandler> | null = null;
+
 export async function GET(request: Request): Promise<Response> {
-  return createHomepagePlacesHandler({ service: getDefaultTourService() })(request);
+  defaultHomepagePlacesHandler ??= createHomepagePlacesHandler({
+    service: getDefaultTourService(),
+  });
+  return defaultHomepagePlacesHandler(request);
 }

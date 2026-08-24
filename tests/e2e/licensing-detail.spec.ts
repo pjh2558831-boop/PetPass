@@ -58,6 +58,15 @@ test("hides licensing for non-food details and makes no licensing request", asyn
 
 test("preserves the existing Kakao marker-to-detail interaction", async ({ page }) => {
   await installDetailMock(page, "matched_high", "general_restaurants");
+  await page.route("**/api/map/places/snapshot?**", (route) => route.fulfill({
+    status: 503,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: false,
+      error: { code: "UPSTREAM_ERROR", message: "legacy interaction fallback", retryable: true },
+      requestId: "licensing-snapshot-fallback",
+    }),
+  }));
   await page.goto("/results");
   if ((page.viewportSize()?.width ?? 1_024) < 1_024) {
     const listMode = page.getByRole("button", { name: "목록", exact: true });

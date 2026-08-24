@@ -86,17 +86,27 @@ export function createTourPlacesHandler(service: TourPlaceService) {
             const places = collection.places.filter(({ contentId }) => parsed.data.ids?.includes(contentId));
             return { ...collection, places, page: 1, pageSize: places.length, totalCount: places.length };
           })
+        : parsed.data.categories
+          ? await collectTourCatalog(service, parsed.data)
         : await listTourCatalog(service, parsed.data);
       const filteredPlaces = parsed.data.categories
         ? data.places.filter((place) => parsed.data.categories?.includes(mapTourSummaryToPlaceCategory(place)))
         : data.places;
+      const shouldPaginateFiltered = Boolean(parsed.data.categories && !parsed.data.ids);
+      const page = shouldPaginateFiltered ? parsed.data.page : data.page;
+      const pageSize = shouldPaginateFiltered ? parsed.data.pageSize : data.pageSize;
+      const offset = (page - 1) * pageSize;
+      const visiblePlaces = shouldPaginateFiltered
+        ? filteredPlaces.slice(offset, offset + pageSize)
+        : filteredPlaces;
+      const totalCount = parsed.data.categories ? filteredPlaces.length : data.totalCount;
       return apiSuccess(parsed.data.view === "markers" ? {
-        items: filteredPlaces.map(normalizeTourCatalogMarker),
-        page: data.page,
-        pageSize: data.pageSize,
-        totalCount: data.totalCount,
-        hasNext: data.page * data.pageSize < data.totalCount,
-      } : { ...data, places: filteredPlaces, totalCount: filteredPlaces.length }, 200, {
+        items: visiblePlaces.map(normalizeTourCatalogMarker),
+        page,
+        pageSize,
+        totalCount,
+        hasNext: page * pageSize < totalCount,
+      } : { ...data, places: visiblePlaces, page, pageSize, totalCount }, 200, {
         "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60",
       });
     } catch (error) {

@@ -76,6 +76,26 @@ export function serializePublicCatalogCategories(categories: readonly PlaceCateg
     : canonical.join(",");
 }
 
+export function serializeResultsUrl(
+  activeTab: "catalog" | "recommendations",
+  state: Omit<PublicCatalogUrlState, "categories" | "layers"> & {
+    categories: readonly PlaceCategory[];
+    layers: readonly PublicCatalogLayer[];
+  },
+): string {
+  const params = new URLSearchParams();
+  params.set("tab", activeTab);
+  params.set("region", state.region);
+  if (activeTab === "catalog") {
+    if (state.district !== "all") params.set("district", state.district);
+    const categoryState = serializePublicCatalogCategories(state.categories);
+    if (categoryState) params.set("categories", categoryState);
+    if (state.sort !== "recommendation") params.set("sort", state.sort);
+    params.set("page", String(state.page));
+  }
+  return `/results?${params.toString()}`;
+}
+
 export function getPublicCatalogDistrictName(regionId: RegionId, code: string): string {
   const region = getRegionConfig(regionId);
   return code === "all"

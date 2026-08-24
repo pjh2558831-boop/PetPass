@@ -22,6 +22,7 @@ function cacheKey(input: PublicMapCatalogQuery): string {
     regionId: input.regionId,
     districtCodes: [...(input.districtCodes ?? [])].sort(),
     kinds: [...(input.kinds ?? [])].sort(),
+    providers: [...(input.providers ?? [])].sort(),
     category: input.category ?? null,
     categories: [...(input.categories ?? [])].sort(),
     page: input.page,
