@@ -19,6 +19,7 @@ export type Database = {
           id: string
           display_name: string
           avatar_url: string | null
+          display_name_changed_at: string | null
           onboarding_completed: boolean
           created_at: string
           updated_at: string
@@ -27,6 +28,7 @@ export type Database = {
           id: string
           display_name: string
           avatar_url?: string | null
+          display_name_changed_at?: string | null
           onboarding_completed?: boolean
           created_at?: string
           updated_at?: string
@@ -34,6 +36,7 @@ export type Database = {
         Update: {
           display_name?: string
           avatar_url?: string | null
+          display_name_changed_at?: string | null
           onboarding_completed?: boolean
           updated_at?: string
         }
@@ -41,6 +44,7 @@ export type Database = {
       }
       pet_profiles: {
         Row: {
+          id: string
           user_id: string
           name: string
           species: string
@@ -49,10 +53,12 @@ export type Database = {
           has_leash: boolean
           has_muzzle: boolean
           accepts_outdoor_only: boolean
+          image_path: string | null
           created_at: string
           updated_at: string
         }
         Insert: {
+          id?: string
           user_id: string
           name: string
           species: string
@@ -61,10 +67,13 @@ export type Database = {
           has_leash?: boolean
           has_muzzle?: boolean
           accepts_outdoor_only?: boolean
+          image_path?: string | null
           created_at?: string
           updated_at?: string
         }
         Update: {
+          id?: string
+          user_id?: string
           name?: string
           species?: string
           size?: string
@@ -72,6 +81,7 @@ export type Database = {
           has_leash?: boolean
           has_muzzle?: boolean
           accepts_outdoor_only?: boolean
+          image_path?: string | null
           updated_at?: string
         }
         Relationships: []

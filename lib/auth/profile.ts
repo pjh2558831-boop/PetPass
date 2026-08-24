@@ -24,7 +24,30 @@ export type CommunityProfile = {
   display_name: string;
   avatar_url: string | null;
   onboarding_completed: boolean;
+  display_name_changed_at: string | null;
 };
+
+const DISPLAY_NAME_CHANGE_INTERVAL_MS = 30 * 24 * 60 * 60 * 1_000;
+
+export function getDisplayNameChangeAvailability(
+  changedAt: string | null,
+  now = new Date(),
+): { allowed: boolean; nextAvailableAt: Date | null } {
+  if (!changedAt) return { allowed: true, nextAvailableAt: null };
+
+  const changedAtDate = new Date(changedAt);
+  if (Number.isNaN(changedAtDate.getTime())) {
+    return { allowed: false, nextAvailableAt: null };
+  }
+
+  const nextAvailableAt = new Date(
+    changedAtDate.getTime() + DISPLAY_NAME_CHANGE_INTERVAL_MS,
+  );
+  return {
+    allowed: now.getTime() >= nextAvailableAt.getTime(),
+    nextAvailableAt,
+  };
+}
 
 export function socialProfileDefaults(metadata: Record<string, unknown>) {
   const nameCandidate = [metadata.full_name, metadata.name, metadata.nickname, metadata.preferred_username].find(
