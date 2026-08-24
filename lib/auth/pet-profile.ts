@@ -18,6 +18,16 @@ const savedPetProfileRowSchema = z.object({
   updated_at: z.string().datetime({ offset: true }),
 });
 
+const legacySavedPetProfileRowSchema = savedPetProfileRowSchema.omit({
+  id: true,
+  image_path: true,
+});
+
+const postgrestErrorSchema = z.object({
+  code: z.string(),
+  message: z.string(),
+});
+
 export const savedPetProfileInputSchema = petProfileSchema
   .omit({ id: true })
   .strict();
@@ -39,6 +49,24 @@ export function savedPetProfileFromRow(row: unknown): SavedPetProfile {
     acceptsOutdoorOnly: parsed.accepts_outdoor_only,
   });
   return { ...profile, imagePath: parsed.image_path };
+}
+
+export function savedPetProfileFromLegacyRow(row: unknown): SavedPetProfile {
+  const parsed = legacySavedPetProfileRowSchema.parse(row);
+  return savedPetProfileFromRow({
+    ...parsed,
+    id: parsed.user_id,
+    image_path: null,
+  });
+}
+
+export function isMissingMultiPetSchemaError(error: unknown): boolean {
+  const parsed = postgrestErrorSchema.safeParse(error);
+  if (!parsed.success || parsed.data.code !== "42703") return false;
+
+  return /column pet_profiles\.(?:id|image_path) does not exist/u.test(
+    parsed.data.message,
+  );
 }
 
 export function savedPetProfileToRow(

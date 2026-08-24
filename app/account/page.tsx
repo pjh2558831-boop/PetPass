@@ -5,7 +5,11 @@ import { PawPrint, Plus, UserRound } from "lucide-react";
 import { redirect } from "next/navigation";
 import { signOut } from "@/app/account/actions";
 import { PET_IMAGE_BUCKET } from "@/lib/auth/pet-image";
-import { savedPetProfileFromRow } from "@/lib/auth/pet-profile";
+import {
+  isMissingMultiPetSchemaError,
+  savedPetProfileFromLegacyRow,
+  savedPetProfileFromRow,
+} from "@/lib/auth/pet-profile";
 import { createAuthServerClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "마이페이지" };
@@ -25,13 +29,29 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     supabase.from("pet_profiles").select("id, user_id, name, species, size, has_carrier, has_leash, has_muzzle, accepts_outdoor_only, image_path, created_at, updated_at").eq("user_id", userId).order("created_at", { ascending: true }),
   ]);
   if (!profile?.onboarding_completed) redirect("/onboarding");
-  if (petError) throw new Error("저장된 반려동물 정보를 불러오지 못했습니다.");
+  let isLegacyPetSchema = false;
+  let pets: Array<{ pet: ReturnType<typeof savedPetProfileFromRow>; imageUrl: string | null }>;
 
-  const pets = await Promise.all((petRows ?? []).map(async (row) => {
-    const pet = savedPetProfileFromRow(row);
-    const imageUrl = row.image_path ? (await supabase.storage.from(PET_IMAGE_BUCKET).createSignedUrl(row.image_path, 3600)).data?.signedUrl ?? null : null;
-    return { pet, imageUrl };
-  }));
+  if (petError && isMissingMultiPetSchemaError(petError)) {
+    isLegacyPetSchema = true;
+    const { data: legacyRows, error: legacyError } = await supabase
+      .from("pet_profiles")
+      .select("user_id, name, species, size, has_carrier, has_leash, has_muzzle, accepts_outdoor_only, created_at, updated_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: true });
+    if (legacyError) throw new Error("저장된 반려동물 정보를 불러오지 못했습니다.");
+    pets = (legacyRows ?? []).map((row) => ({
+      pet: savedPetProfileFromLegacyRow(row),
+      imageUrl: null,
+    }));
+  } else {
+    if (petError) throw new Error("저장된 반려동물 정보를 불러오지 못했습니다.");
+    pets = await Promise.all((petRows ?? []).map(async (row) => {
+      const pet = savedPetProfileFromRow(row);
+      const imageUrl = row.image_path ? (await supabase.storage.from(PET_IMAGE_BUCKET).createSignedUrl(row.image_path, 3600)).data?.signedUrl ?? null : null;
+      return { pet, imageUrl };
+    }));
+  }
   const status = await searchParams;
 
   return (
@@ -51,7 +71,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
                 </div>
               </div>
             </div>
-            <Link href="/account/profile" className="inline-flex min-h-11 items-center rounded-xl border border-[var(--line)] bg-white px-4 text-sm font-extrabold">내 프로필 수정</Link>
+            {!isLegacyPetSchema ? <Link href="/account/profile" className="inline-flex min-h-11 items-center rounded-xl border border-[var(--line)] bg-white px-4 text-sm font-extrabold">내 프로필 수정</Link> : null}
           </div>
         </header>
 
@@ -62,9 +82,10 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               <h2 id="saved-pet-heading" className="mt-2 text-2xl font-black">등록한 반려동물</h2>
               <p className="mt-2 text-sm leading-6 text-[var(--muted)]">여행 계획 입력과 별도로 마이페이지에서 여러 마리를 관리할 수 있습니다.</p>
             </div>
-            <Link href="/account/pets/new" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--brand)] px-4 text-sm font-extrabold text-white"><Plus size={17} aria-hidden="true" />반려동물 정보 추가하기</Link>
+            {!isLegacyPetSchema ? <Link href="/account/pets/new" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--brand)] px-4 text-sm font-extrabold text-white"><Plus size={17} aria-hidden="true" />반려동물 정보 추가하기</Link> : null}
           </div>
 
+          {isLegacyPetSchema ? <p role="status" className="mt-5 rounded-xl bg-[#fff8dc] p-3 text-sm font-bold text-[#755b00]">기존 반려동물 정보는 안전하게 표시하고 있습니다. 여러 마리 등록과 사진 관리는 계정 기능 업데이트 후 사용할 수 있습니다.</p> : null}
           {status.pet || status.profile ? <p role="status" className="mt-5 rounded-xl bg-[var(--brand-soft)] p-3 text-sm font-bold text-[var(--brand)]">변경사항을 저장했습니다.</p> : null}
           {pets.length > 0 ? (
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -76,7 +97,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
                   <div className="p-5">
                     <h3 className="text-xl font-black">{pet.name}</h3>
                     <p className="mt-1 text-sm font-semibold text-[var(--muted)]">{speciesLabels[pet.species]} · {sizeLabels[pet.size]}</p>
-                    <Link href={`/account/pets/${pet.id}/edit`} className="mt-4 inline-flex min-h-11 items-center rounded-xl border border-[var(--line)] px-4 text-sm font-extrabold">개별 정보 수정</Link>
+                    {!isLegacyPetSchema ? <Link href={`/account/pets/${pet.id}/edit`} className="mt-4 inline-flex min-h-11 items-center rounded-xl border border-[var(--line)] px-4 text-sm font-extrabold">개별 정보 수정</Link> : <p className="mt-4 text-sm font-bold text-[var(--muted)]">현재 읽기 전용</p>}
                   </div>
                 </article>
               ))}
