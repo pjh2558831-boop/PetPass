@@ -20,19 +20,33 @@ import { PlaceImage } from "@/components/places/place-image";
 import { PlaceCategoryToggleGroup } from "@/components/places/place-category-toggle-group";
 import { createHomepageMapLocations } from "@/lib/homepage/homepage-map-locations";
 import {
+  mergeHomepageEnrichment,
+  mergeHomepageOptionalInitial,
+  projectHomepageInitialSnapshot,
+  shouldApplyHomepageResponse,
+} from "@/lib/homepage/homepage-progressive";
+import {
   DEFAULT_PLACE_CATEGORIES,
   PLACE_CATEGORIES,
   PLACE_CATEGORY_LABELS,
-  isPlaceCategory,
   type PlaceCategory,
 } from "@/lib/map-places/place-categories";
 import type { ApiError, ApiResult } from "@/types/api";
+import {
+  isHomepageEnrichmentSnapshot,
+  type HomepageEnrichmentSnapshot,
+} from "@/types/homepage-enrichment";
+import {
+  isHomepageInitialPlacesSnapshot,
+  type HomepageInitialPlacesSnapshot,
+} from "@/types/homepage-initial";
 import {
   HOMEPAGE_PLACE_LAYERS,
   type HomepageMapMarker,
   type HomepagePlaceLayer,
   type HomepagePlacesSnapshot,
 } from "@/types/homepage-places";
+import type { RegionId } from "@/types/region";
 
 const EMPTY_ROUTE_COORDINATES: [] = [];
 const STRICT_EFFECT_ABORT_GRACE_MS = 50;
@@ -70,73 +84,15 @@ function isApiError(value: unknown): value is ApiError {
   );
 }
 
-function isHomepagePlacesSnapshot(
+function parseHomepageResult<T>(
   value: unknown,
-): value is HomepagePlacesSnapshot {
-  if (!isRecord(value) || !isRecord(value.official) || !isRecord(value.layers)) {
-    return false;
-  }
-  if (!Array.isArray(value.markers) || !Array.isArray(value.cards)) return false;
-  if (
-    typeof value.official.totalCount !== "number" ||
-    typeof value.official.markerCount !== "number" ||
-    typeof value.official.omittedCoordinateCount !== "number" ||
-    !Array.isArray(value.official.categoryCounts) ||
-    !value.official.categoryCounts.every(
-      (entry) =>
-        isRecord(entry) &&
-        typeof entry.category === "string" &&
-        isPlaceCategory(entry.category) &&
-        typeof entry.label === "string" &&
-        typeof entry.count === "number",
-    ) ||
-    typeof value.official.retrievedAt !== "string"
-  ) {
-    return false;
-  }
-  for (const layer of HOMEPAGE_PLACE_LAYERS) {
-    const entry = value.layers[layer];
-    if (
-      !isRecord(entry) ||
-      !["ready", "empty", "deferred", "unavailable"].includes(String(entry.state)) ||
-      !(typeof entry.count === "number" || entry.count === null) ||
-      !(typeof entry.markerCount === "number" || entry.markerCount === null) ||
-      typeof entry.enabledByDefault !== "boolean"
-    ) {
-      return false;
-    }
-  }
-  return value.markers.every(
-    (marker) =>
-      isRecord(marker) &&
-      typeof marker.id === "string" &&
-      HOMEPAGE_PLACE_LAYERS.includes(marker.layer as HomepagePlaceLayer) &&
-      typeof marker.name === "string" &&
-      typeof marker.category === "string" &&
-      isPlaceCategory(marker.category) &&
-      isRecord(marker.coordinates) &&
-      typeof marker.coordinates.latitude === "number" &&
-      typeof marker.coordinates.longitude === "number",
-  ) && value.cards.every(
-    (card) =>
-      isRecord(card) &&
-      typeof card.id === "string" &&
-      HOMEPAGE_PLACE_LAYERS.includes(card.layer as HomepagePlaceLayer) &&
-      typeof card.name === "string" &&
-      typeof card.category === "string" &&
-      isPlaceCategory(card.category) &&
-      typeof card.sourceLabel === "string",
-  );
-}
-
-function parseHomepageResult(
-  value: unknown,
-): ApiResult<HomepagePlacesSnapshot> | null {
+  validate: (data: unknown) => data is T,
+): ApiResult<T> | null {
   if (!isRecord(value) || typeof value.ok !== "boolean") return null;
   const requestId =
     typeof value.requestId === "string" ? value.requestId : "homepage";
   if (value.ok) {
-    return isHomepagePlacesSnapshot(value.data)
+    return validate(value.data)
       ? { ok: true, data: value.data, requestId }
       : null;
   }
@@ -145,24 +101,84 @@ function parseHomepageResult(
     : null;
 }
 
-async function requestHomepageSnapshot(includeOptional = false, signal?: AbortSignal): Promise<
-  ApiResult<HomepagePlacesSnapshot>
-> {
-  const response = await fetch(`/api/homepage/places${includeOptional ? "?includeOptional=true" : ""}`, {
+type BrowserTimingStage = "initial" | "optional" | "enrichment";
+
+function recordBrowserTiming(
+  stage: BrowserTimingStage,
+  metric: "headers" | "download" | "parse" | "react_commit",
+  startedAt: number,
+): void {
+  if (typeof performance === "undefined" || typeof performance.measure !== "function") return;
+  performance.measure(`weekendog:homepage:${stage}:${metric}`, {
+    start: startedAt,
+    end: performance.now(),
+  });
+}
+
+async function requestHomepageData<T>({
+  url,
+  stage,
+  validate,
+  signal,
+}: {
+  url: string;
+  stage: BrowserTimingStage;
+  validate: (data: unknown) => data is T;
+  signal?: AbortSignal;
+}): Promise<ApiResult<T>> {
+  const requestStartedAt = performance.now();
+  const response = await fetch(url, {
     signal,
     headers: { Accept: "application/json" },
   });
+  recordBrowserTiming(stage, "headers", requestStartedAt);
+  const downloadStartedAt = performance.now();
+  const raw = await response.text();
+  recordBrowserTiming(stage, "download", downloadStartedAt);
   let value: unknown;
+  const parseStartedAt = performance.now();
   try {
-    value = await response.json();
+    value = JSON.parse(raw);
   } catch {
     return { ok: false, error: GENERIC_ERROR, requestId: "homepage" };
+  } finally {
+    recordBrowserTiming(stage, "parse", parseStartedAt);
   }
-  const body = parseHomepageResult(value);
+  const body = parseHomepageResult(value, validate);
   if (!body || (!response.ok && body.ok)) {
     return { ok: false, error: GENERIC_ERROR, requestId: "homepage" };
   }
   return body;
+}
+
+function requestHomepageInitial(
+  region: RegionId,
+  scope: "default" | "optional",
+  signal?: AbortSignal,
+): Promise<ApiResult<HomepageInitialPlacesSnapshot>> {
+  const params = new URLSearchParams({
+    version: "1",
+    region,
+    scope,
+    providers: scope === "default" ? "default" : "kakao",
+  });
+  return requestHomepageData({
+    url: `/api/homepage/places/initial?${params}`,
+    stage: scope === "default" ? "initial" : "optional",
+    validate: isHomepageInitialPlacesSnapshot,
+    signal,
+  });
+}
+
+function requestHomepageEnrichment(
+  signal?: AbortSignal,
+): Promise<ApiResult<HomepageEnrichmentSnapshot>> {
+  return requestHomepageData({
+    url: "/api/homepage/places/enrichment?version=1&region=busan&scope=featured",
+    stage: "enrichment",
+    validate: isHomepageEnrichmentSnapshot,
+    signal,
+  });
 }
 
 function HomepageLiveSkeleton() {
@@ -170,7 +186,7 @@ function HomepageLiveSkeleton() {
     <div className="homepage-live-loading" aria-live="polite" aria-busy="true">
       <section className="homepage-map-loading" aria-label="부산 장소 지도 불러오는 중">
         <div className="homepage-loading-copy"><span /><span /><span /></div>
-        <p>공식 관광 정보와 저장된 장소 카탈로그를 불러오고 있어요.</p>
+        <p>저장된 공식·공개 장소 지도를 불러오고 있어요.</p>
       </section>
       <section className="homepage-carousel-loading" aria-label="장소 카드 불러오는 중">
         <div className="homepage-loading-heading" />
@@ -214,26 +230,59 @@ function SelectedPlaceholder({ layer }: { layer: HomepagePlaceLayer }) {
   return <span className={`homepage-selected-placeholder homepage-selected-placeholder--${layer}`}><Icon size={24} aria-hidden="true" /></span>;
 }
 
+function markEnrichmentUnavailable(
+  current: HomepagePlacesSnapshot | null,
+): HomepagePlacesSnapshot | null {
+  return current ? {
+    ...current,
+    official: { ...current.official, featuredState: "unavailable" },
+  } : current;
+}
+
+function markOptionalLayersUnavailable(
+  current: HomepagePlacesSnapshot | null,
+): HomepagePlacesSnapshot | null {
+  return current ? {
+    ...current,
+    layers: {
+      ...current.layers,
+      veterinary: { state: "unavailable", count: null, markerCount: null, enabledByDefault: false },
+      pet_shop: { state: "unavailable", count: null, markerCount: null, enabledByDefault: false },
+    },
+  } : current;
+}
+
+type PendingRequest<T> = {
+  key: string;
+  controller: AbortController;
+  promise: Promise<ApiResult<T>>;
+};
+
 export function HomepageLiveExperience({
   staticMapEnabled = false,
+  regionId = "busan",
 }: {
   staticMapEnabled?: boolean;
+  regionId?: RegionId;
 }) {
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [snapshot, setSnapshot] = useState<HomepagePlacesSnapshot | null>(null);
   const [error, setError] = useState<ApiError>(GENERIC_ERROR);
   const [retryToken, setRetryToken] = useState(0);
+  const initialKey = `${regionId}:${retryToken}`;
+  const [loadedInitialKey, setLoadedInitialKey] = useState<string | null>(null);
+  const [baseRequestKey, setBaseRequestKey] = useState<string | null>(null);
   const [requestedSelectionId, setRequestedSelectionId] = useState<string | null>(null);
   const [activeCategories, setActiveCategories] = useState<PlaceCategory[]>([...DEFAULT_PLACE_CATEGORIES]);
   const [draftCategories, setDraftCategories] = useState<PlaceCategory[]>([...DEFAULT_PLACE_CATEGORIES]);
   const [filterOpen, setFilterOpen] = useState(false);
-  type PendingRequest = {
-    controller: AbortController;
-    promise: Promise<ApiResult<HomepagePlacesSnapshot>>;
-    abortTimer: ReturnType<typeof setTimeout> | null;
-  };
-  const requestRef = useRef<PendingRequest | null>(null);
-  const optionalRequestRef = useRef<PendingRequest | null>(null);
+  const initialRequestRef = useRef<PendingRequest<HomepageInitialPlacesSnapshot> | null>(null);
+  const enrichmentRequestRef = useRef<PendingRequest<HomepageEnrichmentSnapshot> | null>(null);
+  const optionalRequestRef = useRef<PendingRequest<HomepageInitialPlacesSnapshot> | null>(null);
+  const initialAbortTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const enrichmentAbortTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeRequestKeyRef = useRef<string | null>(null);
+  const stateUpdateStartedAtRef = useRef<number | null>(null);
   const filterDropdownRef = useRef<HTMLElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -259,22 +308,52 @@ export function HomepageLiveExperience({
 
   useEffect(() => {
     let active = true;
-    const pending = requestRef.current ?? (() => {
+    if (initialRequestRef.current && initialRequestRef.current.key !== initialKey) {
+      initialRequestRef.current.controller.abort();
+      initialRequestRef.current = null;
+    }
+    enrichmentRequestRef.current?.controller.abort();
+    enrichmentRequestRef.current = null;
+    optionalRequestRef.current?.controller.abort();
+    optionalRequestRef.current = null;
+    activeRequestKeyRef.current = null;
+    const pending = initialRequestRef.current ?? (() => {
       const controller = new AbortController();
-      return { controller, promise: requestHomepageSnapshot(false, controller.signal), abortTimer: null };
+      return {
+        key: initialKey,
+        controller,
+        promise: requestHomepageInitial(regionId, "default", controller.signal),
+      };
     })();
-    if (pending.abortTimer) clearTimeout(pending.abortTimer);
-    pending.abortTimer = null;
-    requestRef.current = pending;
+    if (initialAbortTimerRef.current) clearTimeout(initialAbortTimerRef.current);
+    initialAbortTimerRef.current = null;
+    initialRequestRef.current = pending;
     void pending.promise.then((result) => {
-      if (!active) return;
+      if (!active || pending.key !== initialKey) return;
       if (!result.ok) {
         setSnapshot(null);
         setError(result.error);
+        setLoadedInitialKey(initialKey);
         setLoadState("error");
         return;
       }
-      setSnapshot(result.data);
+      if (
+        result.data.region !== regionId ||
+        result.data.scope !== "default" ||
+        result.data.providers !== "default"
+      ) {
+        setSnapshot(null);
+        setError(GENERIC_ERROR);
+        setLoadedInitialKey(initialKey);
+        setLoadState("error");
+        return;
+      }
+      const requestKey = `${regionId}:${result.data.dataVersion}`;
+      activeRequestKeyRef.current = requestKey;
+      stateUpdateStartedAtRef.current = performance.now();
+      setSnapshot(projectHomepageInitialSnapshot(result.data));
+      setLoadedInitialKey(initialKey);
+      setBaseRequestKey(requestKey);
       setActiveCategories([...DEFAULT_PLACE_CATEGORIES]);
       setDraftCategories([...DEFAULT_PLACE_CATEGORIES]);
       setLoadState("ready");
@@ -282,28 +361,94 @@ export function HomepageLiveExperience({
       if (!active || pending.controller.signal.aborted) return;
       setSnapshot(null);
       setError(GENERIC_ERROR);
+      setLoadedInitialKey(initialKey);
       setLoadState("error");
     });
     return () => {
       active = false;
-      pending.abortTimer = setTimeout(() => {
-        if (requestRef.current !== pending) return;
+      initialAbortTimerRef.current = setTimeout(() => {
+        if (initialRequestRef.current !== pending) return;
         pending.controller.abort();
-        requestRef.current = null;
+        initialRequestRef.current = null;
       }, STRICT_EFFECT_ABORT_GRACE_MS);
     };
-  }, [retryToken]);
+  }, [initialKey, regionId]);
+
+  useEffect(() => {
+    if (loadState !== "ready" || !snapshot || stateUpdateStartedAtRef.current === null) return;
+    recordBrowserTiming("initial", "react_commit", stateUpdateStartedAtRef.current);
+    stateUpdateStartedAtRef.current = null;
+  }, [loadState, snapshot]);
+
+  useEffect(() => {
+    if (
+      !baseRequestKey ||
+      regionId !== "busan" ||
+      !shouldApplyHomepageResponse(activeRequestKeyRef.current, baseRequestKey)
+    ) return;
+    let active = true;
+    if (enrichmentRequestRef.current && enrichmentRequestRef.current.key !== baseRequestKey) {
+      enrichmentRequestRef.current.controller.abort();
+      enrichmentRequestRef.current = null;
+    }
+    const pending = enrichmentRequestRef.current ?? (() => {
+      const controller = new AbortController();
+      return {
+        key: baseRequestKey,
+        controller,
+        promise: requestHomepageEnrichment(controller.signal),
+      };
+    })();
+    if (enrichmentAbortTimerRef.current) clearTimeout(enrichmentAbortTimerRef.current);
+    enrichmentAbortTimerRef.current = null;
+    enrichmentRequestRef.current = pending;
+    void pending.promise.then((result) => {
+      if (!active || !shouldApplyHomepageResponse(activeRequestKeyRef.current, pending.key)) return;
+      if (!result.ok) {
+        setSnapshot(markEnrichmentUnavailable);
+        return;
+      }
+      setSnapshot((current) => current
+        ? mergeHomepageEnrichment(current, result.data, regionId)
+        : current);
+    }).catch(() => {
+      if (!active || pending.controller.signal.aborted ||
+        !shouldApplyHomepageResponse(activeRequestKeyRef.current, pending.key)) return;
+      setSnapshot(markEnrichmentUnavailable);
+    });
+    return () => {
+      active = false;
+      enrichmentAbortTimerRef.current = setTimeout(() => {
+        if (enrichmentRequestRef.current !== pending) return;
+        pending.controller.abort();
+        enrichmentRequestRef.current = null;
+      }, STRICT_EFFECT_ABORT_GRACE_MS);
+    };
+  }, [baseRequestKey, regionId]);
 
   useEffect(() => () => {
+    enrichmentRequestRef.current?.controller.abort();
+    enrichmentRequestRef.current = null;
     optionalRequestRef.current?.controller.abort();
     optionalRequestRef.current = null;
+    activeRequestKeyRef.current = null;
+    if (enrichmentAbortTimerRef.current) clearTimeout(enrichmentAbortTimerRef.current);
   }, []);
 
   const retry = () => {
-    requestRef.current?.controller.abort();
+    initialRequestRef.current?.controller.abort();
+    enrichmentRequestRef.current?.controller.abort();
     optionalRequestRef.current?.controller.abort();
-    requestRef.current = null;
+    initialRequestRef.current = null;
+    enrichmentRequestRef.current = null;
     optionalRequestRef.current = null;
+    activeRequestKeyRef.current = null;
+    if (initialAbortTimerRef.current) clearTimeout(initialAbortTimerRef.current);
+    if (enrichmentAbortTimerRef.current) clearTimeout(enrichmentAbortTimerRef.current);
+    initialAbortTimerRef.current = null;
+    enrichmentAbortTimerRef.current = null;
+    setLoadedInitialKey(null);
+    setBaseRequestKey(null);
     setSnapshot(null);
     setRequestedSelectionId(null);
     setLoadState("loading");
@@ -335,7 +480,7 @@ export function HomepageLiveExperience({
     ? markerById.get(selectedLocationId) ?? null
     : null;
 
-  if (loadState === "loading") return <HomepageLiveSkeleton />;
+  if (loadedInitialKey !== initialKey || loadState === "loading") return <HomepageLiveSkeleton />;
   if (loadState === "error" || !snapshot) {
     return <HomepageLiveError error={error} onRetry={retry} />;
   }
@@ -358,19 +503,40 @@ export function HomepageLiveExperience({
   const loadOptionalPlaces = (categories: readonly PlaceCategory[]) => {
     const needsOptional = categories.some((category) => category === "veterinary" || category === "pet_shop") &&
       (snapshot.layers.veterinary.state === "deferred" || snapshot.layers.pet_shop.state === "deferred");
-    if (needsOptional) {
+    if (needsOptional && baseRequestKey) {
+      if (optionalRequestRef.current && optionalRequestRef.current.key !== baseRequestKey) {
+        optionalRequestRef.current.controller.abort();
+        optionalRequestRef.current = null;
+      }
       const pending = optionalRequestRef.current ?? (() => {
         const controller = new AbortController();
-        return { controller, promise: requestHomepageSnapshot(true, controller.signal), abortTimer: null };
+        return {
+          key: baseRequestKey,
+          controller,
+          promise: requestHomepageInitial(regionId, "optional", controller.signal),
+        };
       })();
       optionalRequestRef.current = pending;
       void pending.promise.then((result) => {
-        if (!result.ok) {
+        if (!shouldApplyHomepageResponse(activeRequestKeyRef.current, pending.key)) return;
+        if (
+          !result.ok ||
+          result.data.region !== regionId ||
+          result.data.scope !== "optional" ||
+          result.data.providers !== "kakao"
+        ) {
+          setSnapshot(markOptionalLayersUnavailable);
           if (optionalRequestRef.current === pending) optionalRequestRef.current = null;
           return;
         }
-        setSnapshot(result.data);
+        setSnapshot((current) => current
+          ? mergeHomepageOptionalInitial(current, result.data, regionId)
+          : current);
       }).catch(() => {
+        if (!pending.controller.signal.aborted &&
+          shouldApplyHomepageResponse(activeRequestKeyRef.current, pending.key)) {
+          setSnapshot(markOptionalLayersUnavailable);
+        }
         if (optionalRequestRef.current === pending) optionalRequestRef.current = null;
       });
     }
@@ -524,11 +690,12 @@ export function HomepageLiveExperience({
       </section>
 
       <HomepagePlaceCarousel
-        key={`${snapshot.official.retrievedAt}:${snapshot.cards.map(({ id }) => id).join(",")}`}
+        key={regionId}
         places={snapshot.cards}
         layers={snapshot.layers}
         featuredState={snapshot.official.featuredState}
         staticMapEnabled={staticMapEnabled}
+        onOptionalLayerRequest={(layer) => loadOptionalPlaces([layer])}
       />
     </div>
   );

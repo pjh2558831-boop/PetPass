@@ -130,7 +130,7 @@ function tourDistrict(place: TourPlaceSummary): string | null {
   });
 }
 
-function officialCard(
+export function createOfficialHomepageCard(
   place: TourPlaceSummary,
   allowed: boolean,
 ): HomepagePlaceCard {
@@ -283,7 +283,7 @@ export async function collectHomepagePlacesSnapshot({
     if (seenOfficialCoordinates.has(coordinateKey)) return [];
     seenOfficialCoordinates.add(coordinateKey);
     return [
-      markerFromCard(officialCard(place, allowedIds.has(place.contentId)), {
+      markerFromCard(createOfficialHomepageCard(place, allowedIds.has(place.contentId)), {
         latitude: place.latitude,
         longitude: place.longitude,
       }),
@@ -291,7 +291,7 @@ export async function collectHomepagePlacesSnapshot({
   });
   const officialCards = official.featured.places
     .filter(({ summary }) => allowedIds.has(summary.contentId))
-    .map(({ summary }) => officialCard(summary, true));
+    .map(({ summary }) => createOfficialHomepageCard(summary, true));
 
   const layers: Record<HomepagePlaceLayer, HomepageLayerSnapshot> = {
     official: readyLayer(
