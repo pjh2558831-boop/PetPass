@@ -13,7 +13,7 @@ import {
   ShoppingBag,
   SlidersHorizontal,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { HomepagePlaceCarousel } from "@/components/home/official-place-carousel";
 import { MapPanel } from "@/components/map/map-panel";
 import { PlaceImage } from "@/components/places/place-image";
@@ -52,6 +52,11 @@ import {
   type HomepageInitialPlacesSnapshot,
 } from "@/types/homepage-initial";
 import {
+  isHomepageOptionalSnapshot,
+  type HomepageOptionalSnapshot,
+  type HomepageStoredOptionalDatasetId,
+} from "@/types/homepage-optional";
+import {
   HOMEPAGE_PLACE_LAYERS,
   type HomepageMapMarker,
   type HomepagePlaceLayer,
@@ -61,6 +66,10 @@ import type { RegionId } from "@/types/region";
 
 const EMPTY_ROUTE_COORDINATES: [] = [];
 const STRICT_EFFECT_ABORT_GRACE_MS = 50;
+const OPTIONAL_DATASET_BY_CATEGORY = {
+  veterinary: "optional-veterinary",
+  pet_shop: "optional-pet-shop",
+} as const satisfies Record<"veterinary" | "pet_shop", HomepageStoredOptionalDatasetId>;
 
 const API_ERROR_CODES = new Set<ApiError["code"]>([
   "CONFIGURATION_REQUIRED",
@@ -152,19 +161,32 @@ async function requestHomepageData<T>({
 
 function requestHomepageInitial(
   region: RegionId,
-  scope: "default" | "optional",
   signal?: AbortSignal,
 ): Promise<ApiResult<HomepageInitialPlacesSnapshot>> {
   const params = new URLSearchParams({
     version: "1",
     region,
-    scope,
-    providers: scope === "default" ? "default" : "kakao",
+    scope: "default",
+    providers: "default",
   });
   return requestHomepageData({
     url: `/api/homepage/places/initial?${params}`,
-    stage: scope === "default" ? "initial" : "optional",
+    stage: "initial",
     validate: isHomepageInitialPlacesSnapshot,
+    signal,
+  });
+}
+
+function requestHomepageOptional(
+  region: RegionId,
+  dataset: HomepageStoredOptionalDatasetId,
+  signal?: AbortSignal,
+): Promise<ApiResult<HomepageOptionalSnapshot>> {
+  const params = new URLSearchParams({ version: "1", region, scope: "optional", dataset });
+  return requestHomepageData({
+    url: `/api/homepage/places/optional?${params}`,
+    stage: "optional",
+    validate: isHomepageOptionalSnapshot,
     signal,
   });
 }
@@ -269,19 +291,6 @@ function markEnrichmentUnavailable(
   } : current;
 }
 
-function markOptionalLayersUnavailable(
-  current: HomepagePlacesSnapshot | null,
-): HomepagePlacesSnapshot | null {
-  return current ? {
-    ...current,
-    layers: {
-      ...current.layers,
-      veterinary: { state: "unavailable", count: null, markerCount: null, enabledByDefault: false },
-      pet_shop: { state: "unavailable", count: null, markerCount: null, enabledByDefault: false },
-    },
-  } : current;
-}
-
 type PendingRequest<T> = {
   key: string;
   controller: AbortController;
@@ -307,21 +316,28 @@ export function HomepageLiveExperience({
   const [draftCategories, setDraftCategories] = useState<PlaceCategory[]>([...DEFAULT_PLACE_CATEGORIES]);
   const [filterOpen, setFilterOpen] = useState(false);
   const [completionState, setCompletionState] = useState<"initial" | "loading" | "complete" | "partial">("initial");
+  const [optionalLoadState, setOptionalLoadState] = useState<Record<"veterinary" | "pet_shop", "idle" | "loading" | "ready" | "error">>({
+    veterinary: "idle",
+    pet_shop: "idle",
+  });
   const [filterPending, startFilterTransition] = useTransition();
   const region = getRegionConfig(regionId);
   const initialRequestRef = useRef<PendingRequest<HomepageInitialPlacesSnapshot> | null>(null);
   const completionRequestRef = useRef<PendingRequest<HomepageCompletionSnapshot> | null>(null);
   const enrichmentRequestRef = useRef<PendingRequest<HomepageEnrichmentSnapshot> | null>(null);
-  const optionalRequestRef = useRef<PendingRequest<HomepageInitialPlacesSnapshot> | null>(null);
+  const optionalRequestsRef = useRef(new Map<HomepageStoredOptionalDatasetId, PendingRequest<HomepageOptionalSnapshot>>());
   const initialAbortTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const enrichmentAbortTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const completionAbortTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeRequestKeyRef = useRef<string | null>(null);
   const stateUpdateStartedAtRef = useRef<number | null>(null);
   const completionUpdateStartedAtRef = useRef<number | null>(null);
+  const completionMapUpdatePendingRef = useRef(false);
   const initialUsableAtRef = useRef<number | null>(null);
   const baseInitialRef = useRef<HomepageInitialPlacesSnapshot | null>(null);
   const filterUpdateStartedAtRef = useRef<number | null>(null);
+  const pendingFilterCategoriesRef = useRef<PlaceCategory[] | null>(null);
+  const readyOptionalDatasetsRef = useRef(new Set<HomepageStoredOptionalDatasetId>());
   const filterDropdownRef = useRef<HTMLElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -353,18 +369,21 @@ export function HomepageLiveExperience({
     }
     enrichmentRequestRef.current?.controller.abort();
     enrichmentRequestRef.current = null;
-    optionalRequestRef.current?.controller.abort();
-    optionalRequestRef.current = null;
+    for (const request of optionalRequestsRef.current.values()) request.controller.abort();
+    optionalRequestsRef.current.clear();
     completionRequestRef.current?.controller.abort();
     completionRequestRef.current = null;
     baseInitialRef.current = null;
+    completionMapUpdatePendingRef.current = false;
+    pendingFilterCategoriesRef.current = null;
+    readyOptionalDatasetsRef.current.clear();
     activeRequestKeyRef.current = null;
     const pending = initialRequestRef.current ?? (() => {
       const controller = new AbortController();
       return {
         key: initialKey,
         controller,
-        promise: requestHomepageInitial(regionId, "default", controller.signal),
+        promise: requestHomepageInitial(regionId, controller.signal),
       };
     })();
     if (initialAbortTimerRef.current) clearTimeout(initialAbortTimerRef.current);
@@ -399,6 +418,7 @@ export function HomepageLiveExperience({
       setBaseRequestKey(requestKey);
       setActiveCategories([...DEFAULT_PLACE_CATEGORIES]);
       setDraftCategories([...DEFAULT_PLACE_CATEGORIES]);
+      setOptionalLoadState({ veterinary: "idle", pet_shop: "idle" });
       setLoadState("ready");
     }).catch(() => {
       if (!active || pending.controller.signal.aborted) return;
@@ -462,6 +482,7 @@ export function HomepageLiveExperience({
         }
         const mergeStartedAt = performance.now();
         completionUpdateStartedAtRef.current = mergeStartedAt;
+        completionMapUpdatePendingRef.current = true;
         setSnapshot((current) => current
           ? mergeHomepageCompletion(current, result.data, initial, regionId)
           : current);
@@ -490,11 +511,16 @@ export function HomepageLiveExperience({
   useEffect(() => {
     if (completionUpdateStartedAtRef.current === null) return;
     recordHomepageBrowserTiming("completion", "react_commit", completionUpdateStartedAtRef.current);
+    completionUpdateStartedAtRef.current = null;
+  }, [snapshot]);
+
+  const handleMapDataUpdate = useCallback(() => {
+    if (!completionMapUpdatePendingRef.current) return;
+    completionMapUpdatePendingRef.current = false;
     if (initialUsableAtRef.current !== null) {
       recordHomepageBrowserTiming("completion", "total", initialUsableAtRef.current);
     }
-    completionUpdateStartedAtRef.current = null;
-  }, [snapshot]);
+  }, []);
 
   useEffect(() => {
     if (
@@ -545,8 +571,8 @@ export function HomepageLiveExperience({
   useEffect(() => () => {
     enrichmentRequestRef.current?.controller.abort();
     enrichmentRequestRef.current = null;
-    optionalRequestRef.current?.controller.abort();
-    optionalRequestRef.current = null;
+    for (const request of optionalRequestsRef.current.values()) request.controller.abort();
+    optionalRequestsRef.current.clear();
     completionRequestRef.current?.controller.abort();
     completionRequestRef.current = null;
     activeRequestKeyRef.current = null;
@@ -557,13 +583,16 @@ export function HomepageLiveExperience({
   const retry = () => {
     initialRequestRef.current?.controller.abort();
     enrichmentRequestRef.current?.controller.abort();
-    optionalRequestRef.current?.controller.abort();
+    for (const request of optionalRequestsRef.current.values()) request.controller.abort();
     completionRequestRef.current?.controller.abort();
     initialRequestRef.current = null;
     enrichmentRequestRef.current = null;
-    optionalRequestRef.current = null;
+    optionalRequestsRef.current.clear();
     completionRequestRef.current = null;
     baseInitialRef.current = null;
+    completionMapUpdatePendingRef.current = false;
+    pendingFilterCategoriesRef.current = null;
+    readyOptionalDatasetsRef.current.clear();
     activeRequestKeyRef.current = null;
     if (initialAbortTimerRef.current) clearTimeout(initialAbortTimerRef.current);
     if (enrichmentAbortTimerRef.current) clearTimeout(enrichmentAbortTimerRef.current);
@@ -573,6 +602,7 @@ export function HomepageLiveExperience({
     setBaseRequestKey(null);
     setSnapshot(null);
     setCompletionState("initial");
+    setOptionalLoadState({ veterinary: "idle", pet_shop: "idle" });
     setRequestedSelectionId(null);
     setLoadState("loading");
     setRetryToken((current) => current + 1);
@@ -632,47 +662,69 @@ export function HomepageLiveExperience({
   );
 
   const loadOptionalPlaces = (categories: readonly PlaceCategory[]) => {
-    const needsOptional = categories.some((category) => category === "veterinary" || category === "pet_shop") &&
-      (snapshot.layers.veterinary.state === "deferred" || snapshot.layers.pet_shop.state === "deferred");
-    if (needsOptional && baseRequestKey) {
-      if (optionalRequestRef.current && optionalRequestRef.current.key !== baseRequestKey) {
-        optionalRequestRef.current.controller.abort();
-        optionalRequestRef.current = null;
+    if (!baseRequestKey) return;
+    const requestedCategories = categories.filter(
+      (category): category is "veterinary" | "pet_shop" => category === "veterinary" || category === "pet_shop",
+    );
+    for (const category of requestedCategories) {
+      if (["ready", "empty"].includes(snapshot.layers[category].state)) continue;
+      const dataset = OPTIONAL_DATASET_BY_CATEGORY[category];
+      const requestKey = `${baseRequestKey}:${dataset}`;
+      const currentPending = optionalRequestsRef.current.get(dataset);
+      if (currentPending && currentPending.key !== requestKey) {
+        currentPending.controller.abort();
+        optionalRequestsRef.current.delete(dataset);
       }
-      const pending = optionalRequestRef.current ?? (() => {
+      const pending = optionalRequestsRef.current.get(dataset) ?? (() => {
         const controller = new AbortController();
         return {
-          key: baseRequestKey,
+          key: requestKey,
           controller,
-          promise: requestHomepageInitial(regionId, "optional", controller.signal),
+          promise: requestHomepageOptional(regionId, dataset, controller.signal),
         };
       })();
-      optionalRequestRef.current = pending;
+      optionalRequestsRef.current.set(dataset, pending);
+      setOptionalLoadState((current) => ({ ...current, [category]: "loading" }));
       void pending.promise.then((result) => {
-        if (!shouldApplyHomepageResponse(activeRequestKeyRef.current, pending.key)) return;
+        if (!shouldApplyHomepageResponse(activeRequestKeyRef.current, baseRequestKey)) return;
         if (
           !result.ok ||
           result.data.region !== regionId ||
           result.data.scope !== "optional" ||
-          result.data.providers !== "kakao"
+          result.data.dataset !== dataset
         ) {
-          setSnapshot(markOptionalLayersUnavailable);
-          if (optionalRequestRef.current === pending) optionalRequestRef.current = null;
+          setOptionalLoadState((current) => ({ ...current, [category]: "error" }));
+          optionalRequestsRef.current.delete(dataset);
           return;
         }
+        const mergeStartedAt = performance.now();
         setSnapshot((current) => current
           ? mergeHomepageOptionalInitial(current, result.data, regionId)
           : current);
+        recordHomepageBrowserTiming("optional", "deduplication", mergeStartedAt);
+        readyOptionalDatasetsRef.current.add(dataset);
+        setOptionalLoadState((current) => ({ ...current, [category]: "ready" }));
+        const pendingCategories = pendingFilterCategoriesRef.current;
+        const pendingDatasets = pendingCategories?.flatMap((pendingCategory) =>
+          pendingCategory === "veterinary" || pendingCategory === "pet_shop"
+            ? [OPTIONAL_DATASET_BY_CATEGORY[pendingCategory]]
+            : []);
+        if (pendingCategories && pendingDatasets?.every((pendingDataset) =>
+          readyOptionalDatasetsRef.current.has(pendingDataset))) {
+          pendingFilterCategoriesRef.current = null;
+          startFilterTransition(() => setActiveCategories(pendingCategories));
+        }
       }).catch(() => {
         if (!pending.controller.signal.aborted &&
-          shouldApplyHomepageResponse(activeRequestKeyRef.current, pending.key)) {
-          setSnapshot(markOptionalLayersUnavailable);
+          shouldApplyHomepageResponse(activeRequestKeyRef.current, baseRequestKey)) {
+          setOptionalLoadState((current) => ({ ...current, [category]: "error" }));
         }
-        if (optionalRequestRef.current === pending) optionalRequestRef.current = null;
+        optionalRequestsRef.current.delete(dataset);
       });
     }
   };
   const toggleDraftCategory = (category: PlaceCategory) => {
+    if (!draftCategories.includes(category)) loadOptionalPlaces([category]);
     setDraftCategories((current) => current.includes(category)
       ? current.filter((value) => value !== category)
       : PLACE_CATEGORIES.filter((value) => value === category || current.includes(value)));
@@ -692,7 +744,16 @@ export function HomepageLiveExperience({
     filterUpdateStartedAtRef.current = startedAt;
     setFilterOpen(false);
     requestAnimationFrame(() => recordHomepageBrowserTiming("filter", "feedback", startedAt));
-    startFilterTransition(() => setActiveCategories([...draftCategories]));
+    const unresolvedOptional = draftCategories.flatMap((category) =>
+      category === "veterinary" || category === "pet_shop"
+        ? [OPTIONAL_DATASET_BY_CATEGORY[category]]
+        : []).filter((dataset) => !readyOptionalDatasetsRef.current.has(dataset));
+    if (unresolvedOptional.length > 0) {
+      pendingFilterCategoriesRef.current = [...draftCategories];
+    } else {
+      pendingFilterCategoriesRef.current = null;
+      startFilterTransition(() => setActiveCategories([...draftCategories]));
+    }
     loadOptionalPlaces(draftCategories);
   };
   const resetDraftFilters = () => {
@@ -747,6 +808,18 @@ export function HomepageLiveExperience({
                         일부 카카오 장소 데이터 준비 중
                       </p>
                     ) : null}
+                    {(["veterinary", "pet_shop"] as const).map((category) =>
+                      optionalLoadState[category] === "loading" ? (
+                        <p key={category} className="homepage-map-provider-status" role="status">
+                          {PLACE_CATEGORY_LABELS[category]} 데이터를 불러오는 중
+                        </p>
+                      ) : optionalLoadState[category] === "error" ? (
+                        <p key={category} className="homepage-map-provider-status" role="alert">
+                          {PLACE_CATEGORY_LABELS[category]}을 불러오지 못했습니다.
+                          <button type="button" onClick={() => loadOptionalPlaces([category])}>다시 시도</button>
+                        </p>
+                      ) : null,
+                    )}
                   </div>
                   <div className="explorer-filter-dropdown__actions">
                     <button type="button" className="explorer-filter-dropdown__reset" onClick={resetDraftFilters}><RotateCcw size={19} aria-hidden="true" />초기화</button>
@@ -770,6 +843,7 @@ export function HomepageLiveExperience({
               routeCoordinates={EMPTY_ROUTE_COORDINATES}
               selectedLocationId={selectedLocationId}
               onLocationSelect={(id) => setRequestedSelectionId(id ?? defaultSelectionId)}
+              onDataUpdate={handleMapDataUpdate}
               viewportKey={`homepage:${regionId}:mixed-source`}
               showLocationLabel={false}
               showSelectionInfo={false}

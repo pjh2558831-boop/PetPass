@@ -19,6 +19,11 @@ export default defineConfig({
     env: {
       ...process.env,
       PETPASS_E2E_UPSTREAM_MOCK: "1",
+      // Deliberately non-production values keep proxy/auth client construction
+      // deterministic without allowing tests to inherit a real Supabase project.
+      NEXT_PUBLIC_SUPABASE_URL: "https://petpass-e2e.invalid",
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "e2e-public-key",
+      SUPABASE_SECRET_KEY: "e2e-secret-key",
       NEXT_PUBLIC_KAKAO_MAP_JS_KEY: "e2e-test-key",
       KAKAO_REST_API_KEY: "e2e-test-key",
       KAKAO_STATIC_MAP_THUMBNAILS_ENABLED: "false",

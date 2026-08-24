@@ -12,9 +12,11 @@ import type {
   HomepageInitialMarkerV1,
   HomepageInitialPlacesSnapshot,
 } from "@/types/homepage-initial";
+import type { HomepageOptionalSnapshot, HomepageStoredOptionalDatasetId } from "@/types/homepage-optional";
 
 const HOMEPAGE_INITIAL_API = "**/api/homepage/places/initial?**";
 const HOMEPAGE_ENRICHMENT_API = "**/api/homepage/places/enrichment?**";
+const HOMEPAGE_OPTIONAL_API = "**/api/homepage/places/optional?**";
 const GENERATE_API_PATH = "/api/itineraries/generate";
 const RETRIEVED_AT = "2026-08-15T02:00:00.000Z";
 const NETWORK_TEST = "loads one compact base snapshot and only one canonical Kakao SDK";
@@ -211,6 +213,56 @@ function initialSnapshot(
   };
 }
 
+function optionalSnapshot(
+  snapshot: HomepagePlacesSnapshot,
+  dataset: HomepageStoredOptionalDatasetId,
+): HomepageOptionalSnapshot {
+  const layer = dataset === "optional-veterinary" ? "veterinary" : "pet_shop";
+  const kind = layer;
+  const base = initialSnapshot(snapshot, "optional");
+  const markers = base.markers.filter((marker) => marker[2] === layer);
+  const markerIds = new Set(markers.map((marker) => marker[0]));
+  const generationId = dataset === "optional-veterinary"
+    ? "g1-aaaaaaaaaaaaaaaa"
+    : "g1-bbbbbbbbbbbbbbbb";
+  return {
+    ...base,
+    scope: "optional",
+    providers: "kakao",
+    dataset,
+    dataVersion: dataset === "optional-veterinary"
+      ? "v1-aaaaaaaaaaaaaaaa"
+      : "v1-bbbbbbbbbbbbbbbb",
+    generationId,
+    totalCount: markers.length,
+    markerCount: markers.length,
+    layers: {
+      tourism: { state: "deferred", count: null, markerCount: null },
+      kakao: { state: "deferred", count: null, markerCount: null },
+      veterinary: layer === "veterinary"
+        ? { state: markers.length === 0 ? "empty" : "ready", count: markers.length, markerCount: markers.length }
+        : { state: "deferred", count: null, markerCount: null },
+      pet_shop: layer === "pet_shop"
+        ? { state: markers.length === 0 ? "empty" : "ready", count: markers.length, markerCount: markers.length }
+        : { state: "deferred", count: null, markerCount: null },
+    },
+    categoryCounts: base.categoryCounts.filter(([entryLayer]) => entryLayer === layer),
+    markers,
+    cardDetails: base.cardDetails.filter(([id]) => markerIds.has(id)),
+    continuations: [{
+      datasetId: dataset,
+      layer,
+      provider: "kakao",
+      kind,
+      loadedItemCount: markers.length,
+      expectedTotalCount: markers.length,
+      nextCursor: markers.length === 0 ? null : 1,
+      complete: true,
+      generationId,
+    }],
+  };
+}
+
 function enrichmentSnapshot(snapshot = SNAPSHOT): HomepageEnrichmentSnapshot {
   return {
     contractVersion: 1,
@@ -242,6 +294,14 @@ async function mockHomepage(page: Page, snapshot = SNAPSHOT) {
       ? "optional"
       : "default";
     return fulfillInitial(route, snapshot, scope);
+  });
+  await page.route(HOMEPAGE_OPTIONAL_API, (route) => {
+    const dataset = new URL(route.request().url()).searchParams.get("dataset") as HomepageStoredOptionalDatasetId;
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, data: optionalSnapshot(snapshot, dataset), requestId: "homepage-optional-e2e" }),
+    });
   });
   await page.route(HOMEPAGE_ENRICHMENT_API, (route) => route.fulfill({
     status: 200,

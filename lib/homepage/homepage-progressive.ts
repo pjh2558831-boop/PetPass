@@ -246,12 +246,18 @@ export function mergeHomepageOptionalInitial(
     throw new Error("Homepage optional response region or scope does not match the active request.");
   }
   const projected = projectHomepageInitialSnapshot(optional);
+  const veterinary = projected.layers.veterinary.state === "deferred"
+    ? current.layers.veterinary
+    : projected.layers.veterinary;
+  const petShop = projected.layers.pet_shop.state === "deferred"
+    ? current.layers.pet_shop
+    : projected.layers.pet_shop;
   return {
     ...current,
     layers: {
       ...current.layers,
-      veterinary: projected.layers.veterinary,
-      pet_shop: projected.layers.pet_shop,
+      veterinary,
+      pet_shop: petShop,
     },
     markers: uniqueById([...current.markers, ...projected.markers]),
     cards: uniqueById([...current.cards, ...projected.cards]),
