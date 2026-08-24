@@ -14,6 +14,7 @@ import {
   collectTourCatalog,
   type TourCatalogCollectionQuery,
 } from "@/lib/tour-api/catalog-service";
+import type { HomepageTimingObserver } from "@/lib/homepage/performance-timing";
 import type { TourPlaceService } from "@/lib/tour-api/service";
 import type {
   HomepageFeaturedPlace,
@@ -59,6 +60,7 @@ export interface TourHomepageCatalogDependencies {
   service: TourPlaceService;
   now?: () => Date;
   collectCatalog?: CatalogCollector;
+  observeTiming?: HomepageTimingObserver;
 }
 
 interface AssessmentSuccess {
@@ -232,13 +234,27 @@ export async function collectTourHomepageSnapshot({
   service,
   now = () => new Date(),
   collectCatalog = collectTourCatalog,
+  observeTiming,
 }: TourHomepageCatalogDependencies): Promise<TourHomepageSnapshot> {
+  const listStartedAt = performance.now();
   const catalog = await collectCatalog(service, {
     regionCode: BUSAN_REGION.code,
+  }).finally(() => {
+    observeTiming?.({
+      name: "kto_list",
+      durationMs: performance.now() - listStartedAt,
+    });
   });
   const candidates = selectHomepageCandidates(catalog);
   const evaluatedAt = now().toISOString();
-  const outcomes = await assessCandidates(service, candidates, evaluatedAt);
+  const detailsStartedAt = performance.now();
+  const outcomes = await assessCandidates(service, candidates, evaluatedAt)
+    .finally(() => {
+      observeTiming?.({
+        name: "kto_details",
+        durationMs: performance.now() - detailsStartedAt,
+      });
+    });
   const successful = outcomes.filter(
     (outcome): outcome is AssessmentSuccess => outcome.status === "fulfilled",
   );

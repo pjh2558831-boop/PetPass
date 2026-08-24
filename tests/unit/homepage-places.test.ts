@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHomepagePlacesHandler } from "@/app/api/homepage/places/route";
-import { collectHomepagePlacesSnapshot } from "@/lib/homepage/homepage-places";
+import {
+  collectHomepagePlacesSnapshot,
+  type HomepagePlacesDependencies,
+} from "@/lib/homepage/homepage-places";
 import { createHomepageMapLocations } from "@/lib/homepage/homepage-map-locations";
 import { createHomepagePublicCatalogLoader } from "@/lib/homepage/public-catalog-cache";
 import type { TourPlaceService } from "@/lib/tour-api/service";
@@ -303,7 +306,25 @@ describe("GET /api/homepage/places", () => {
   };
 
   it("returns public shared-cache headers, rejects query parameters, and forwards only server dependencies", async () => {
-    const loadSnapshot = vi.fn(async () => emptySnapshot);
+    const loadSnapshot = vi.fn(async (dependencies: HomepagePlacesDependencies) => {
+      dependencies.observeTiming?.({
+        name: "supabase_catalog",
+        durationMs: 12.345,
+      });
+      dependencies.observeTiming?.({
+        name: "kto_list",
+        durationMs: 23.456,
+      });
+      dependencies.observeTiming?.({
+        name: "kto_details",
+        durationMs: 34.567,
+      });
+      dependencies.observeTiming?.({
+        name: "merge",
+        durationMs: 1.234,
+      });
+      return emptySnapshot;
+    });
     const handler = createHomepagePlacesHandler({ service, rateLimit: allow, loadSnapshot });
     const ok = await handler(new Request("http://localhost/api/homepage/places"));
     const invalid = await handler(new Request("http://localhost/api/homepage/places?kind=veterinary"));
@@ -312,6 +333,15 @@ describe("GET /api/homepage/places", () => {
     expect(ok.headers.get("cache-control")).toContain("public");
     expect(ok.headers.get("cdn-cache-control")).toContain("stale-while-revalidate");
     expect(ok.headers.get("vercel-cdn-cache-control")).toContain("max-age=300");
+    expect(ok.headers.get("server-timing")).toMatch(
+      /app_cache;dur=\d+(?:\.\d)?;desc=miss/u,
+    );
+    expect(ok.headers.get("server-timing")).toContain("supabase_catalog;dur=12.3");
+    expect(ok.headers.get("server-timing")).toContain("kto_list;dur=23.5");
+    expect(ok.headers.get("server-timing")).toContain("kto_details;dur=34.6");
+    expect(ok.headers.get("server-timing")).toContain("merge;dur=1.2");
+    expect(ok.headers.get("server-timing")).toMatch(/serialize;dur=\d+(?:\.\d)?/u);
+    expect(ok.headers.get("server-timing")).toMatch(/total;dur=\d+(?:\.\d)?/u);
     expect(await ok.json()).toMatchObject({ ok: true, data: emptySnapshot });
     expect(invalid.status).toBe(400);
     expect(loadSnapshot).toHaveBeenCalledTimes(1);

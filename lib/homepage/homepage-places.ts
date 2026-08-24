@@ -13,6 +13,7 @@ import {
   type PlaceCategory,
 } from "@/lib/map-places/place-categories";
 import { queryCachedHomepagePublicCatalog } from "@/lib/homepage/public-catalog-cache";
+import type { HomepageTimingObserver } from "@/lib/homepage/performance-timing";
 import type { TourPlaceService } from "@/lib/tour-api/service";
 import type {
   HomepageLayerSnapshot,
@@ -91,9 +92,11 @@ export interface HomepagePlacesDependencies {
   collectOfficial?: (input: {
     service: TourPlaceService;
     now?: () => Date;
+    observeTiming?: HomepageTimingObserver;
   }) => Promise<TourHomepageSnapshot>;
   queryPublicCatalog?: PublicCatalogLoader;
   includeOptional?: boolean;
+  observeTiming?: HomepageTimingObserver;
 }
 
 function hasCoordinates(place: TourPlaceSummary): place is TourPlaceSummary & {
@@ -238,8 +241,10 @@ export async function collectHomepagePlacesSnapshot({
   collectOfficial = collectTourHomepageSnapshot,
   queryPublicCatalog = queryCachedHomepagePublicCatalog,
   includeOptional = false,
+  observeTiming,
 }: HomepagePlacesDependencies): Promise<HomepagePlacesSnapshot> {
   const requestedKinds = includeOptional ? PUBLIC_LAYER_KINDS : PUBLIC_LAYER_KINDS.slice(0, 1);
+  const publicStartedAt = performance.now();
   const publicResultsPromise = Promise.allSettled(
     requestedKinds.map(async (kind) => ({
       kind,
@@ -250,8 +255,17 @@ export async function collectHomepagePlacesSnapshot({
         pageSize: 200,
       }),
     })),
-  );
-  const official = await collectOfficial({ service, now });
+  ).finally(() => {
+    observeTiming?.({
+      name: "supabase_catalog",
+      durationMs: performance.now() - publicStartedAt,
+    });
+  });
+  const [official, publicResults] = await Promise.all([
+    collectOfficial({ service, now, observeTiming }),
+    publicResultsPromise,
+  ]);
+  const mergeStartedAt = performance.now();
   const allowedIds = new Set(
     official.featured.places
       .filter(
@@ -278,8 +292,6 @@ export async function collectHomepagePlacesSnapshot({
   const officialCards = official.featured.places
     .filter(({ summary }) => allowedIds.has(summary.contentId))
     .map(({ summary }) => officialCard(summary, true));
-
-  const publicResults = await publicResultsPromise;
 
   const layers: Record<HomepagePlaceLayer, HomepageLayerSnapshot> = {
     official: readyLayer(
@@ -324,7 +336,7 @@ export async function collectHomepagePlacesSnapshot({
     );
   }
 
-  return {
+  const snapshot: HomepagePlacesSnapshot = {
     official: {
       totalCount: official.catalog.totalCount,
       markerCount: officialMarkers.length,
@@ -345,4 +357,9 @@ export async function collectHomepagePlacesSnapshot({
     markers: [...officialMarkers, ...publicMarkers],
     cards: [...officialCards, ...publicCards],
   };
+  observeTiming?.({
+    name: "merge",
+    durationMs: performance.now() - mergeStartedAt,
+  });
+  return snapshot;
 }
