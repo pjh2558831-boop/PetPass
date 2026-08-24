@@ -20,6 +20,10 @@ import { PlaceImage } from "@/components/places/place-image";
 import { PlaceCategoryToggleGroup } from "@/components/places/place-category-toggle-group";
 import { createHomepageMapLocations } from "@/lib/homepage/homepage-map-locations";
 import {
+  recordHomepageBrowserTiming,
+  type HomepageBrowserTimingStage,
+} from "@/lib/homepage/browser-performance";
+import {
   mergeHomepageEnrichment,
   mergeHomepageOptionalInitial,
   projectHomepageInitialSnapshot,
@@ -101,20 +105,6 @@ function parseHomepageResult<T>(
     : null;
 }
 
-type BrowserTimingStage = "initial" | "optional" | "enrichment";
-
-function recordBrowserTiming(
-  stage: BrowserTimingStage,
-  metric: "headers" | "download" | "parse" | "react_commit",
-  startedAt: number,
-): void {
-  if (typeof performance === "undefined" || typeof performance.measure !== "function") return;
-  performance.measure(`weekendog:homepage:${stage}:${metric}`, {
-    start: startedAt,
-    end: performance.now(),
-  });
-}
-
 async function requestHomepageData<T>({
   url,
   stage,
@@ -122,7 +112,7 @@ async function requestHomepageData<T>({
   signal,
 }: {
   url: string;
-  stage: BrowserTimingStage;
+  stage: HomepageBrowserTimingStage;
   validate: (data: unknown) => data is T;
   signal?: AbortSignal;
 }): Promise<ApiResult<T>> {
@@ -131,10 +121,10 @@ async function requestHomepageData<T>({
     signal,
     headers: { Accept: "application/json" },
   });
-  recordBrowserTiming(stage, "headers", requestStartedAt);
+  recordHomepageBrowserTiming(stage, "headers", requestStartedAt);
   const downloadStartedAt = performance.now();
   const raw = await response.text();
-  recordBrowserTiming(stage, "download", downloadStartedAt);
+  recordHomepageBrowserTiming(stage, "download", downloadStartedAt);
   let value: unknown;
   const parseStartedAt = performance.now();
   try {
@@ -142,9 +132,11 @@ async function requestHomepageData<T>({
   } catch {
     return { ok: false, error: GENERIC_ERROR, requestId: "homepage" };
   } finally {
-    recordBrowserTiming(stage, "parse", parseStartedAt);
+    recordHomepageBrowserTiming(stage, "parse", parseStartedAt);
   }
+  const validationStartedAt = performance.now();
   const body = parseHomepageResult(value, validate);
+  recordHomepageBrowserTiming(stage, "validation", validationStartedAt);
   if (!body || (!response.ok && body.ok)) {
     return { ok: false, error: GENERIC_ERROR, requestId: "homepage" };
   }
@@ -376,7 +368,7 @@ export function HomepageLiveExperience({
 
   useEffect(() => {
     if (loadState !== "ready" || !snapshot || stateUpdateStartedAtRef.current === null) return;
-    recordBrowserTiming("initial", "react_commit", stateUpdateStartedAtRef.current);
+    recordHomepageBrowserTiming("initial", "react_commit", stateUpdateStartedAtRef.current);
     stateUpdateStartedAtRef.current = null;
   }, [loadState, snapshot]);
 
