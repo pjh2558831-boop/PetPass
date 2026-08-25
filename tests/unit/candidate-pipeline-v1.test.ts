@@ -727,10 +727,12 @@ describe("candidate-pipeline-v1 foundations", () => {
       now: () => new Date(RETRIEVED_AT),
     });
 
-    expect(result.status).toBe("provider_unavailable");
+    expect(result.status).toBe("ready");
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]?.eligibility.tier).toBe("unverified");
     expect(result.diagnostics.providerFailures).toBe(0);
     expect(result.diagnostics.providerUnavailableCandidates).toBe(1);
-    expect(result.diagnostics.excludedByReason).toMatchObject({
+    expect(result.diagnostics.warningsByReason).toMatchObject({
       required_pet_detail_call_unavailable: 1,
     });
   });
@@ -1224,8 +1226,9 @@ describe("candidate-pipeline-v1 adaptive Stage C", () => {
       now: () => new Date(RETRIEVED_AT),
     });
 
-    expect(result.status).toBe("insufficient_eligible_places");
-    expect(result.candidates).toEqual([]);
+    expect(result.status).toBe("ready");
+    expect(result.candidates.map(({ contentId }) => contentId)).toEqual(["inquiry"]);
+    expect(result.candidates[0]?.eligibility.tier).toBe("unverified");
     expect(result.diagnostics.providerFailures).toBe(0);
     expect(result.reasonCounts).toMatchObject({
       mandatory_condition_unsatisfied: 1,
@@ -1233,7 +1236,7 @@ describe("candidate-pipeline-v1 adaptive Stage C", () => {
       unsupported_content_type: 1,
       provider_visibility_not_exposed: 1,
     });
-    expect(result.reasonCounts.pet_access_unknown).toBeGreaterThanOrEqual(1);
+    expect(result.diagnostics.warningsByReason.pet_access_unknown).toBeGreaterThanOrEqual(1);
     expect(result.reasonCounts.pet_access_not_applicable).toBe(1);
   });
 
@@ -1340,8 +1343,9 @@ describe("candidate-pipeline-v1 adaptive Stage C", () => {
 
     expect(result.candidates.map(({ contentId }) => contentId)).toEqual([
       confirmedIndoor.contentId,
+      unknownIndoor.contentId,
     ]);
-    expect(result.reasonCounts.indoor_access_not_confirmed).toBe(1);
+    expect(result.reasonCounts.indoor_access_not_confirmed).toBeUndefined();
   });
 
   it("computes category scarcity from strict eligible records only", async () => {

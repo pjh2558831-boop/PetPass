@@ -14,5 +14,6 @@ export const PLACE_UTILITY_V1_CONFIG = {
   petCompatibility: {
     allowed: 1,
     compatibleConditional: 0.85,
+    unverified: 0.55,
   },
 } as const;

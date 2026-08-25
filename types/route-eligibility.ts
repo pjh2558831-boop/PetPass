@@ -18,6 +18,15 @@ export const AUTOMATIC_ROUTE_ELIGIBILITY_STATUSES = [
 export type AutomaticRouteEligibilityStatus =
   (typeof AUTOMATIC_ROUTE_ELIGIBILITY_STATUSES)[number];
 
+export const ROUTE_ELIGIBILITY_TIERS = [
+  "verified",
+  "conditional",
+  "unverified",
+  "explicitly_ineligible",
+] as const;
+
+export type RouteEligibilityTier = (typeof ROUTE_ELIGIBILITY_TIERS)[number];
+
 export const AUTOMATIC_ROUTE_PROVIDER_CALL_STATUSES = [
   "succeeded",
   "not_applicable",
@@ -139,6 +148,7 @@ export interface AutomaticRouteEligibilityInput {
 export interface AutomaticRouteEligibilityResult {
   eligible: boolean;
   status: AutomaticRouteEligibilityStatus;
+  tier?: RouteEligibilityTier;
   reasonCodes: AutomaticRouteEligibilityReasonCode[];
   warnings: AutomaticRouteEligibilityWarning[];
   /** Meaningful `detailPetTour2` fields actually consumed by Phase 3. */

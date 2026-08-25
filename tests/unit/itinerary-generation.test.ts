@@ -663,9 +663,9 @@ describe("bounded request-driven itinerary generation", () => {
       "allowed",
       "conditional",
     ]);
-    expect(result.itineraries[0]?.stops[1].petAccess.conditions.length).toBeGreaterThan(0);
+    expect(result.itineraries[0]?.stops.find(({ petAccess }) => petAccess.verdict === "conditional")?.petAccess.conditions.length).toBeGreaterThan(0);
     expect(result.exclusionCounts.not_allowed).toBe(1);
-    expect(result.exclusionCounts.unknown).toBe(1);
+    expect(result.exclusionCounts.unknown).toBe(0);
   });
 
   it("projects normalized Tourism pet evidence fields for presentation", async () => {
@@ -822,29 +822,28 @@ describe("bounded request-driven itinerary generation", () => {
       tourService: new MockTourService(places, details),
       directions: mockDirections,
     });
-    expect(result.exclusionCounts.unknown).toBe(2);
+    expect(result.exclusionCounts.unknown).toBe(0);
     expect(result.exclusionCounts.not_allowed).toBe(0);
-    expect(result.itineraries).toEqual([]);
+    expect(result.itineraries.length).toBeGreaterThan(0);
     expect(result.candidateFunnel).toMatchObject({
       detailedAssessmentCandidates: 2,
       basePetAccess: {
         allowed: 0,
         conditional: 0,
         notAllowed: 0,
-        unknown: 0,
+        unknown: 2,
         notApplicable: 0,
       },
-      itineraryEligibleCandidates: 0,
-      returnedRoutes: 0,
+      itineraryEligibleCandidates: 2,
     });
-    expect(result.candidatePipeline.reasonCounts).toMatchObject({
+    expect(result.candidatePipeline.diagnostics.warningsByReason).toMatchObject({
       pet_evidence_empty: 2,
       pet_access_unknown: 2,
     });
     expect(result.candidatePipeline.diagnostics).toMatchObject({
       detailedEvaluationCount: 2,
-      eligibleCount: 0,
-      finalEligibleCount: 0,
+      eligibleCount: 2,
+      finalEligibleCount: 2,
     });
   });
 
@@ -962,22 +961,24 @@ describe("bounded request-driven itinerary generation", () => {
     );
 
     expect(result).toMatchObject({
-      state: "provider_unavailable",
-      itineraries: [],
-      exclusionCounts: { detail_unavailable: 1, unknown: 0 },
+      state: "ready",
+      exclusionCounts: { detail_unavailable: 0, unknown: 0 },
       candidateFunnel: {
         detailOutcomes: { unavailable: 1 },
-        basePetAccess: { unknown: 0 },
+        basePetAccess: { unknown: 1 },
       },
       candidatePipeline: {
-        reasonCounts: { required_pet_detail_call_unavailable: 1 },
         diagnostics: {
           providerFailures: 0,
           providerUnavailableCandidates: 1,
-          eligibleCount: 0,
-          finalEligibleCount: 0,
+          eligibleCount: 1,
+          finalEligibleCount: 1,
         },
       },
+    });
+    expect(result.itineraries[0]?.stops[0]?.petAccess.verdict).toBe("unknown");
+    expect(result.candidatePipeline.diagnostics.warningsByReason).toMatchObject({
+      required_pet_detail_call_unavailable: 1,
     });
   });
 
@@ -1130,28 +1131,30 @@ describe("bounded request-driven itinerary generation", () => {
       petSizeCompatibility: {
         compatible: 1,
         incompatible: 0,
-        verificationRequired: 0,
+        verificationRequired: 1,
         notSpecified: 1,
       },
-      itineraryEligibleCandidates: 2,
+      itineraryEligibleCandidates: 4,
     });
     expect(result.candidatePipeline.reasonCounts).toMatchObject({
       pet_size_incompatible: 1,
-      pet_size_verification_required: 1,
       pet_access_not_allowed: 1,
+    });
+    expect(result.candidatePipeline.diagnostics.warningsByReason).toMatchObject({
+      pet_size_verification_required: 1,
       pet_access_unknown: 1,
     });
     expect(result.candidatePipeline.diagnostics).toMatchObject({
       detailedEvaluationCount: 6,
       detailedBatchCount: 2,
-      eligibleCount: 2,
-      finalEligibleCount: 2,
+      eligibleCount: 4,
+      finalEligibleCount: 4,
     });
     expect(result.exclusionCounts).toMatchObject({
       pet_size_incompatible: 1,
-      pet_size_verification_required: 1,
+      pet_size_verification_required: 0,
       not_allowed: 1,
-      unknown: 1,
+      unknown: 0,
     });
     expect(result.itineraries[0]?.stops[0].petAccess.sizeCompatibility.state)
       .toMatch(/compatible|not_specified/u);
@@ -1299,13 +1302,11 @@ describe("bounded request-driven itinerary generation", () => {
     );
     expect(result.itineraries).toEqual([]);
     expect(result.exclusionCounts.indoor_requirement).toBe(2);
-    expect(result.candidatePipeline.reasonCounts).toMatchObject({
-      mandatory_condition_unsatisfied: 2,
-    });
+    expect(result.candidatePipeline.reasonCounts.mandatory_condition_unsatisfied).toBeUndefined();
     expect(result.candidatePipeline.diagnostics).toMatchObject({
       detailedEvaluationCount: 2,
-      eligibleCount: 0,
-      finalEligibleCount: 0,
+      eligibleCount: 2,
+      finalEligibleCount: 2,
     });
   });
 });

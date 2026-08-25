@@ -5,6 +5,7 @@ import type {
 import { ROUTE_RECOMMENDATION_API_VERSION } from "@/types/recommendation";
 
 const KOREAN_MESSAGES: Record<Exclude<RecommendationStatus, "ready">, string> = {
+  unavailable: "현재 조건에서 경로에 넣을 수 있는 장소를 찾지 못했습니다.",
   invalid_request: "입력한 여행 조건을 확인해 주세요.",
   region_not_supported_for_itinerary:
     "선택한 지역은 아직 여행 경로 추천을 지원하지 않습니다.",
@@ -63,6 +64,7 @@ export function recommendationHttpStatus(
     case "route_engine_disabled":
       return 503;
     case "insufficient_eligible_places":
+    case "unavailable":
     case "insufficient_feasible_route":
     case "travel_matrix_incomplete":
     case "final_route_validation_failed":

@@ -39,6 +39,7 @@ describe("core domain schemas", () => {
     expect(travelPreferencesSchema.parse(legacyTravelPreferences)).toEqual({
       ...legacyTravelPreferences,
       tripPace: "balanced",
+      environmentPreference: "any",
     });
   });
 

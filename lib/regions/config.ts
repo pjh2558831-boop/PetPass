@@ -56,6 +56,8 @@ export interface RegionConfig<TId extends string = RegionId> {
   };
   defaultMapCenter: Coordinates;
   mapBounds: RegionBounds;
+  /** Accepted departure spillover around map bounds for itinerary origins. */
+  itineraryOriginBorderToleranceMeters: number;
   districts: readonly RegionDistrictConfig[];
   wideSearchCenters: readonly RegionSearchCenter[];
 }
@@ -103,6 +105,7 @@ export const BUSAN_REGION_CONFIG = {
   },
   defaultMapCenter: { latitude: 35.1796, longitude: 129.0756 },
   mapBounds: { west: 128.75, south: 34.95, east: 129.4, north: 35.5 },
+  itineraryOriginBorderToleranceMeters: 500,
   districts: BUSAN_DISTRICT_CONFIGS,
   // A bounded west/central/east plan covers the MVP region without crawling pages.
   wideSearchCenters: [
@@ -153,6 +156,7 @@ export const JEJU_REGION_CONFIG = {
   },
   defaultMapCenter: { latitude: 33.4996, longitude: 126.5312 },
   mapBounds: { west: 125.9, south: 33.0, east: 127.1, north: 34.0 },
+  itineraryOriginBorderToleranceMeters: 500,
   districts: [
     { legalDongDistrictCode: "110", name: "제주시", searchCenter: { latitude: 33.4996, longitude: 126.5312 } },
     { legalDongDistrictCode: "130", name: "서귀포시", searchCenter: { latitude: 33.2541, longitude: 126.5601 } },
@@ -234,4 +238,25 @@ export function coordinatesInRegion(
     coordinates.latitude <= region.mapBounds.north &&
     coordinates.longitude >= region.mapBounds.west &&
     coordinates.longitude <= region.mapBounds.east;
+}
+
+export function coordinatesInItineraryOriginScope(
+  region: RegionConfig<string>,
+  coordinates: Coordinates,
+): boolean {
+  if (!Number.isFinite(coordinates.latitude) || !Number.isFinite(coordinates.longitude)) {
+    return false;
+  }
+  const latitudePadding = region.itineraryOriginBorderToleranceMeters / 111_320;
+  const centerLatitude = (region.mapBounds.south + region.mapBounds.north) / 2;
+  const longitudeMetersPerDegree = Math.max(
+    1,
+    111_320 * Math.cos((centerLatitude * Math.PI) / 180),
+  );
+  const longitudePadding =
+    region.itineraryOriginBorderToleranceMeters / longitudeMetersPerDegree;
+  return coordinates.latitude >= region.mapBounds.south - latitudePadding &&
+    coordinates.latitude <= region.mapBounds.north + latitudePadding &&
+    coordinates.longitude >= region.mapBounds.west - longitudePadding &&
+    coordinates.longitude <= region.mapBounds.east + longitudePadding;
 }

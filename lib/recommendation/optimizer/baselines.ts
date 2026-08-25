@@ -1,6 +1,7 @@
 import "server-only";
 
 import { ROUTE_SOLVER_V1_CONFIG } from "@/lib/recommendation/config/route-solver-v1";
+import { getRouteTripConstraints } from "@/lib/recommendation/optimizer/trip-constraints";
 import { scoreCompletedRouteV1 } from "@/lib/recommendation/optimizer/route-score";
 import {
   appendScheduledVisit,
@@ -56,7 +57,7 @@ export function buildGreedyBaselineV1(
   input: RouteOptimizationInput,
 ): CompletedRouteCandidate | null {
   const start = tripStartMs(input.tripRequest);
-  const pace = ROUTE_SOLVER_V1_CONFIG.pace[input.tripRequest.tripPace];
+  const pace = getRouteTripConstraints(input.tripRequest);
   const target = pace.targetStops;
   const visits: ScheduledRouteVisit[] = [];
   let currentNodeId = input.departure.id;

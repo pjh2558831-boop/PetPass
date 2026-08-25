@@ -9,7 +9,6 @@ import {
   evaluateAutomaticRouteEligibility,
   KTO_SERVICE2_NAME,
 } from "@/lib/itinerary/automatic-route-eligibility";
-import { supportsRequiredIndoorAccess } from "@/lib/itinerary/indoor-access";
 import { UNKNOWN_OPERATING_HOURS_WARNING } from "@/lib/itinerary/operating-hours";
 import { CANDIDATE_PIPELINE_V1_CONFIG } from "@/lib/recommendation/config/candidate-pipeline-v1";
 import { resolveDwellDurationV1 } from "@/lib/recommendation/config/dwell-duration-v1";
@@ -845,21 +844,13 @@ export async function runCandidatePipelineV1(
             });
             return null;
           }
-        if (
-          input.context.request.indoorAccessPreference === "required" &&
-          !supportsRequiredIndoorAccess(assessment)
-        ) {
-          output.skippedCandidates += 1;
-          increment(output.excludedByReason, "indoor_access_not_confirmed");
-          traceCandidate(input, {
-            contentId: candidate.contentId,
-            category: candidate.category,
-            stage: "automatic_eligibility",
-            outcome: "excluded",
-            reasonCodes: ["indoor_access_not_confirmed"],
-            warningCodes: eligibility.warnings,
-          });
-          return null;
+        if (eligibility.status === "provider_unavailable") {
+          output.providerUnavailableCandidates += 1;
+        }
+        if (eligibility.status !== "eligible") {
+          for (const reason of eligibility.reasonCodes) {
+            increment(output.warningsByReason, reason);
+          }
         }
         const strictEligibility = {
           ...eligibility,
@@ -985,9 +976,9 @@ export async function runCandidatePipelineV1(
   output.categoryDistribution = sortedCounter(output.categoryDistribution);
   const reasonCounts = { ...output.excludedByReason };
   const status =
-    candidates.length >= input.context.minStops
+    candidates.length > 0
       ? "ready"
-      : candidates.length === 0 && output.providerUnavailableCandidates > 0
+      : output.providerUnavailableCandidates > 0
         ? "provider_unavailable"
         : "insufficient_eligible_places";
   return {

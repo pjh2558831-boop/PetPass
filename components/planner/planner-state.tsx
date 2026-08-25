@@ -40,7 +40,7 @@ export const DEFAULT_PLANNER_PREFERENCES: TravelPreferences = {
   planningMode: "stop_count",
   desiredStopCount: 3,
   desiredDurationMinutes: 360,
-  indoorAccessPreference: "any",
+  environmentPreference: "any",
   includeShopping: false,
   roundTrip: false,
 };
@@ -240,17 +240,11 @@ export function PlannerStateProvider({ children }: { children: ReactNode }) {
   );
 
   const confirmProfile = useCallback(() => {
-    if (!profile.acceptsOutdoorOnly) {
-      setPreferencesState((current) => ({
-        ...current,
-        indoorAccessPreference: "required",
-      }));
-    }
     setProfileConfirmed(true);
     setPreferencesConfirmed(false);
     setGenerationRequested(false);
     invalidateGeneration();
-  }, [invalidateGeneration, profile.acceptsOutdoorOnly]);
+  }, [invalidateGeneration]);
 
   const confirmPreferencesAndRequestGeneration = useCallback(() => {
     setPreferencesConfirmed(true);
@@ -264,9 +258,7 @@ export function PlannerStateProvider({ children }: { children: ReactNode }) {
       setProfileState(nextProfile);
       setPreferencesState({
         ...nextPreferences,
-        indoorAccessPreference: nextProfile.acceptsOutdoorOnly
-          ? (nextPreferences.indoorAccessPreference ?? "any")
-          : "required",
+        environmentPreference: nextPreferences.environmentPreference ?? "any",
       });
       setProfileConfirmed(true);
       setPreferencesConfirmed(true);

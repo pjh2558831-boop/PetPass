@@ -2,8 +2,8 @@ import "server-only";
 
 import { z } from "zod";
 import {
-  BUSAN_REGION_CONFIG,
   REGION_IDS,
+  coordinatesInItineraryOriginScope,
   getRegionConfig,
   getRegionDistrict,
   type RegionConfig,
@@ -25,6 +25,18 @@ const categories = z.enum([
 const recommendationRegionProbeSchema = z.object({
   trip: z.object({ regionId: z.string() }),
 });
+const personalizationSchema = z.object({
+  petCount: z.number().int().min(1).max(4).default(1),
+  petActivityLevel: z.enum(["low", "moderate", "high"]).default("moderate"),
+  walkingTolerance: z.enum(["low", "moderate", "high"]).default("moderate"),
+  crowdPreference: z.enum(["avoid", "any", "enjoy"]).default("any"),
+  tripMood: z.enum(["balanced", "scenic", "foodie", "active", "restful"]).default("balanced"),
+  categoryPriorities: z.record(categories, z.number().finite().min(0).max(1)).default({}),
+  recentRouteSignatures: z.array(z.string().trim().min(1).max(512)).max(12).default([]),
+  recentlySelectedCandidateIds: z.array(z.string().trim().min(1).max(128)).max(30).default([]),
+  explicitlyExcludedPlaceIds: z.array(z.string().trim().min(1).max(128)).max(30).default([]),
+  rerollVariant: z.number().int().min(0).max(10_000).default(0),
+}).strict();
 
 export function getRequestedRecommendationRegion(
   input: unknown,
@@ -62,6 +74,12 @@ export const routeRecommendationRequestSchema = z
             message: "selectedCategories must not contain duplicates",
           }),
         roundTrip: z.boolean(),
+        environmentPreference: z
+          .enum(["any", "indoor_preferred", "outdoor_preferred"])
+          .default("any"),
+        desiredStopCount: z.number().int().min(1).max(5).optional(),
+        durationMinutes: z.number().int().min(60).max(720).optional(),
+        travelMode: z.literal("driving").default("driving"),
       })
       .strict()
       .superRefine((trip, context) => {
@@ -99,22 +117,42 @@ export const routeRecommendationRequestSchema = z
         acceptsOutdoorOnlyPlaces: z.boolean(),
       })
       .strict(),
+    personalization: personalizationSchema.default({}),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    const region = getRegionConfig(value.trip.regionId);
+    if (
+      region &&
+      !coordinatesInItineraryOriginScope(region, {
+        latitude: value.departure.latitude,
+        longitude: value.departure.longitude,
+      })
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["departure"],
+        message: "DEPARTURE_OUTSIDE_ITINERARY_REGION",
+      });
+    }
+  });
 
 export function normalizeRecommendationRequest(
   input: RouteRecommendationRequest,
 ): NormalizedItineraryRequest {
   const requestedRegion = getRegionConfig(input.trip.regionId);
-  if (
-    requestedRegion.id !== BUSAN_REGION_CONFIG.id ||
-    !requestedRegion.itineraryEnabled
-  ) {
+  if (!requestedRegion.itineraryEnabled) {
     throw new TypeError("REGION_NOT_SUPPORTED_FOR_ITINERARY");
+  }
+  if (!coordinatesInItineraryOriginScope(requestedRegion, {
+    latitude: input.departure.latitude,
+    longitude: input.departure.longitude,
+  })) {
+    throw new TypeError("DEPARTURE_OUTSIDE_ITINERARY_REGION");
   }
   const pace = getTripPaceConfig(input.trip.tripPace);
   const district = getRegionDistrict(
-    BUSAN_REGION_CONFIG,
+    requestedRegion,
     input.trip.districtId,
   );
   return {
@@ -122,18 +160,18 @@ export function normalizeRecommendationRequest(
       ? {
           type: "district",
           regionCode:
-            BUSAN_REGION_CONFIG.providerCodes.korPetTourService2
+            requestedRegion.providerCodes.korPetTourService2
               .legalDongRegionCode,
-          regionName: BUSAN_REGION_CONFIG.displayName,
+          regionName: requestedRegion.displayName,
           districtCode: district.legalDongDistrictCode,
           districtName: district.name,
         }
       : {
-          type: "busan",
+          type: "region",
           regionCode:
-            BUSAN_REGION_CONFIG.providerCodes.korPetTourService2
+            requestedRegion.providerCodes.korPetTourService2
               .legalDongRegionCode,
-          regionName: "부산 전체",
+          regionName: `${requestedRegion.displayName} 전체`,
         },
     start: {
       label: input.departure.label,
@@ -147,8 +185,8 @@ export function normalizeRecommendationRequest(
     tripPace: input.trip.tripPace,
     startTime: input.trip.startTime,
     planningMode: "stop_count",
-    desiredDurationMinutes: null,
-    desiredStopCount: pace.desiredStopCount,
+    desiredDurationMinutes: input.trip.durationMinutes ?? null,
+    desiredStopCount: input.trip.desiredStopCount ?? pace.desiredStopCount,
     petSpecies: input.pet.species,
     petSize: input.pet.size,
     acceptsOutdoorOnly: input.pet.acceptsOutdoorOnlyPlaces,
@@ -157,13 +195,24 @@ export function normalizeRecommendationRequest(
       hasLeash: input.pet.availableEquipment.leash,
       hasMuzzle: input.pet.availableEquipment.muzzle,
     },
-    indoorAccessPreference: input.pet.acceptsOutdoorOnlyPlaces
-      ? "any"
-      : "required",
+    indoorAccessPreference: "any",
+    environmentPreference: input.trip.environmentPreference ?? "any",
     selectedCategories: input.trip.selectedCategories,
     includeShopping: input.trip.selectedCategories.includes("shopping"),
-    generationSeed: "route-engine-v1",
-    recentRouteSignatures: [],
+    generationSeed: `route-engine-v2:${input.personalization?.rerollVariant ?? 0}`,
+    recentRouteSignatures: input.personalization?.recentRouteSignatures ?? [],
+    personalization: input.personalization ?? {
+      petCount: 1,
+      petActivityLevel: "moderate",
+      walkingTolerance: "moderate",
+      crowdPreference: "any",
+      tripMood: "balanced",
+      categoryPriorities: {},
+      recentRouteSignatures: [],
+      recentlySelectedCandidateIds: [],
+      explicitlyExcludedPlaceIds: [],
+      rerollVariant: 0,
+    },
   };
 }
 

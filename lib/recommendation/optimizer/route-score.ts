@@ -3,7 +3,7 @@ import "server-only";
 import { categoryTransitionBonusV1 } from "@/lib/recommendation/config/category-transition-v1";
 import { MEAL_WINDOWS_V1_CONFIG } from "@/lib/recommendation/config/meal-windows-v1";
 import { ROUTE_OBJECTIVE_V1_CONFIG } from "@/lib/recommendation/config/route-objective-v1";
-import { ROUTE_SOLVER_V1_CONFIG } from "@/lib/recommendation/config/route-solver-v1";
+import { getRouteTripConstraints } from "@/lib/recommendation/optimizer/trip-constraints";
 import {
   isUsableTravelEdge,
   koreaMinuteOfDay,
@@ -93,7 +93,7 @@ export function scoreCompletedRouteV1(input: {
 }): CompletedRouteCandidate {
   const { visits } = input;
   const cfg = ROUTE_OBJECTIVE_V1_CONFIG;
-  const pace = ROUTE_SOLVER_V1_CONFIG.pace[input.tripRequest.tripPace];
+  const pace = getRouteTripConstraints(input.tripRequest);
   const orderedPlaceIds = visits.map((visit) => visit.candidate.node.id);
   const baseDrivingSeconds = visits.reduce((sum, visit) => sum + visit.travelSeconds, 0);
   const baseDistanceMeters = visits.reduce(

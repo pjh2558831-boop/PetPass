@@ -2,6 +2,7 @@ import "server-only";
 
 import { ROUTE_OBJECTIVE_V1_CONFIG } from "@/lib/recommendation/config/route-objective-v1";
 import { ROUTE_SOLVER_V1_CONFIG } from "@/lib/recommendation/config/route-solver-v1";
+import { getRouteTripConstraints } from "@/lib/recommendation/optimizer/trip-constraints";
 import { compareCompletedRoutes, scoreCompletedRouteV1 } from "@/lib/recommendation/optimizer/route-score";
 import {
   appendScheduledVisit,
@@ -108,8 +109,12 @@ function accommodationAllowed(input: RouteOptimizationInput, state: PartialState
 }
 
 function completedConstraint(input: RouteOptimizationInput, visits: ScheduledRouteVisit[]): boolean {
-  const pace = ROUTE_SOLVER_V1_CONFIG.pace[input.tripRequest.tripPace];
-  if (visits.length < pace.minStops || visits.length > pace.maxStops) return false;
+  const pace = getRouteTripConstraints(input.tripRequest);
+  const effectiveMinimum = Math.min(
+    pace.minStops,
+    Math.max(1, input.candidates.length),
+  );
+  if (visits.length < effectiveMinimum || visits.length > pace.maxStops) return false;
   if (input.tripRequest.tripType === "overnight") {
     return visits.at(-1)?.candidate.visitRole === "accommodation";
   }
@@ -130,7 +135,7 @@ function completion(
     if (!isUsableTravelEdge(edge)) return null;
     returnTravel = { seconds: edge.durationSeconds, meters: edge.distanceMeters };
     const end = visits.at(-1)!.departureAtMs + edge.durationSeconds * 1000;
-    const pace = ROUTE_SOLVER_V1_CONFIG.pace[input.tripRequest.tripPace];
+    const pace = getRouteTripConstraints(input.tripRequest);
     if (end - serviceDayStartMs > pace.maxDurationMinutes * 60_000) return null;
   }
   return scoreCompletedRouteV1({
@@ -157,7 +162,7 @@ function partialHeuristic(visits: ScheduledRouteVisit[]): number {
 }
 
 function safeUpperBound(input: RouteOptimizationInput, state: PartialState): number {
-  const maxStops = ROUTE_SOLVER_V1_CONFIG.pace[input.tripRequest.tripPace].maxStops;
+  const maxStops = getRouteTripConstraints(input.tripRequest).maxStops;
   const open = input.candidates
     .filter((candidate) => !state.used.has(candidate.node.id))
     .map((candidate) => candidate.placeUtility.total)
@@ -216,7 +221,7 @@ function expandState(
   });
   if (!appended) {
     const arrival = state.currentTimeMs + edge.durationSeconds * 1000;
-    const pace = ROUTE_SOLVER_V1_CONFIG.pace[input.tripRequest.tripPace];
+    const pace = getRouteTripConstraints(input.tripRequest);
     if (arrival - serviceDayStartMs > pace.maxDurationMinutes * 60_000) {
       diagnostics.prunedByDuration += 1;
     } else {
@@ -247,7 +252,7 @@ function beamSearch(
   }];
   const finalists: CompletedRouteCandidate[] = [];
   const fastestTravelCache = new Map<string, number>();
-  const maxStops = ROUTE_SOLVER_V1_CONFIG.pace[input.tripRequest.tripPace].maxStops;
+  const maxStops = getRouteTripConstraints(input.tripRequest).maxStops;
   for (let depth = 0; depth < maxStops; depth += 1) {
     const next: PartialState[] = [];
     for (const state of beam) {
@@ -288,7 +293,7 @@ export function searchRoutesV1(
     .find((edge) => edge.status === "resolved")?.temporalBasis ?? "unknown";
   const diagnostics = emptyDiagnostics(temporalBasis);
   diagnostics.candidateCount = input.candidates.length;
-  const pace = ROUTE_SOLVER_V1_CONFIG.pace[input.tripRequest.tripPace];
+  const pace = getRouteTripConstraints(input.tripRequest);
   const start = tripStartMs(input.tripRequest);
   const root: PartialState = {
     visits: [], used: new Set(), currentNodeId: input.departure.id,

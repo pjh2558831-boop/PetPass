@@ -24,4 +24,16 @@ describe("trip pace", () => {
       expect(pace.desiredStopCount).toBeLessThanOrEqual(pace.maxStops);
     }
   });
+
+  it("uses the V2 normal minima while retaining the existing targets", () => {
+    expect(TRIP_PACE_OPTIONS.map(({ id, minStops, desiredStopCount }) => ({
+      id,
+      minStops,
+      desiredStopCount,
+    }))).toEqual([
+      { id: "relaxed", minStops: 1, desiredStopCount: 2 },
+      { id: "balanced", minStops: 2, desiredStopCount: 3 },
+      { id: "packed", minStops: 3, desiredStopCount: 5 },
+    ]);
+  });
 });

@@ -41,6 +41,8 @@ export function recommendationWarningCopy(code: string): string | null {
 
 export function recommendationActions(status: RecommendationStatus): string[] {
   switch (status) {
+    case "unavailable":
+      return ["장소 유형 바꾸기", "출발지 확인하기", "방문 가능한 장소 둘러보기"];
     case "insufficient_eligible_places":
       return ["선택한 장소 유형 줄이기", "다른 구·군 선택하기", "방문 가능한 장소 둘러보기"];
     case "insufficient_feasible_route":
