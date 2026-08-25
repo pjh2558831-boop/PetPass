@@ -65,6 +65,7 @@ async function loadAllPages(
   retrievedAt: string;
 }> {
   let cursor: number | undefined;
+  let terminalCursor: number | null = null;
   let expectedTotal: number | null = null;
   let maximumPages = 1;
   const items: PublicMapPlaceDTO[] = [];
@@ -96,7 +97,7 @@ async function loadAllPages(
     }
     const nextCursor = page.nextCursor ?? null;
     if (!page.hasNext) {
-      cursor = nextCursor ?? cursor;
+      terminalCursor = nextCursor;
       break;
     }
     if (nextCursor === null || nextCursor === cursor) throw new Error("Optional dataset cursor did not advance.");
@@ -107,7 +108,7 @@ async function loadAllPages(
   }
   return {
     items,
-    nextCursor: cursor ?? null,
+    nextCursor: terminalCursor,
     pageCount: Math.max(1, Math.ceil(items.length / descriptor.pageSize)),
     retrievedAt: items.reduce(
       (latest, item) => item.lastSeenAt && item.lastSeenAt > latest ? item.lastSeenAt : latest,

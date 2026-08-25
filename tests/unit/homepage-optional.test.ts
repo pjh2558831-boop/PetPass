@@ -49,14 +49,15 @@ function place(id: number, kind: PublicMapPlaceKind = "veterinary"): PublicMapPl
 
 function page(afterId: number, total = 257): PublicMapPlacePage {
   const count = Math.min(200, total - afterId);
+  const hasNext = afterId + count < total;
   return {
     region: { id: "busan", displayName: "부산" },
     items: Array.from({ length: count }, (_, index) => place(afterId + index + 1)),
     page: 1,
     pageSize: 200,
     totalCount: total,
-    hasNext: afterId + count < total,
-    nextCursor: afterId + count,
+    hasNext,
+    nextCursor: hasNext ? afterId + count : null,
   };
 }
 
