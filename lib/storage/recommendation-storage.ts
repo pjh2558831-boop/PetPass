@@ -67,7 +67,7 @@ export interface SavedRouteRecommendationSnapshotV1 {
 }
 
 const savedRouteSchema: z.ZodType<SavedRouteRecommendationSnapshotV1> = z.object({
-  engineVersion: z.literal("petpass-route-engine-v1"),
+  engineVersion: z.enum(["petpass-route-engine-v1", "petpass-route-engine-v2"]),
   objectiveVersion: z.literal("route-objective-v1"),
   solverVersion: z.literal("route-solver-v1"),
   requestSummary: z.object({

@@ -246,9 +246,9 @@ export function PetProfileForm() {
           />
           <House size={20} className="mt-0.5 shrink-0 text-[var(--brand)]" aria-hidden="true" />
           <span>
-            <span className="block text-sm font-extrabold">야외 전용 장소도 포함해요</span>
+            <span className="block text-sm font-extrabold">야외 위주 활동에 익숙해요</span>
             <span className="mt-1 block text-xs leading-5 text-[var(--muted)]">
-              선택하지 않으면 실내 이용이 필요한 조건으로 유지합니다.
+              장소를 제외하는 조건이 아니라 편안함 추천의 참고 정보로만 사용해요.
             </span>
           </span>
         </label>
@@ -289,7 +289,7 @@ export function PetProfileForm() {
           <div>
             <dt className="text-xs font-bold text-[var(--muted)]">공간 조건</dt>
             <dd className="mt-1 font-extrabold">
-              {profile.acceptsOutdoorOnly ? "야외 전용 장소 포함" : "실내 이용 필요"}
+              {profile.acceptsOutdoorOnly ? "야외 활동 익숙함" : "공간 선호 미지정"}
             </dd>
           </div>
         </dl>

@@ -93,6 +93,26 @@ function trustLabel(value: "high" | "medium" | "low"): string {
   return value === "high" ? "높음" : value === "medium" ? "보통" : "낮음";
 }
 
+function petStatusLabel(value: "allowed" | "conditional" | "unknown"): string {
+  if (value === "allowed") return "동반 근거 확인";
+  if (value === "conditional") return "조건부 동반";
+  return "동반 여부 확인 필요";
+}
+
+function evidenceStatusLabel(
+  value: "verified" | "conditional" | "unverified" | undefined,
+): string {
+  if (value === "verified") return "근거 확인됨";
+  if (value === "conditional") return "조건 근거 있음";
+  return "근거 미확인";
+}
+
+const ROUTE_STYLE_COPY = {
+  comfort: "긴 이동과 활동 부담을 낮추고 동반 근거가 더 분명한 장소를 우선했어요.",
+  preference: "선택한 관심사와 여행 분위기에 가장 잘 맞는 조합을 우선했어요.",
+  efficient: "실제 이동시간과 거리가 가장 작은 실용적인 동선을 우선했어요.",
+} as const;
+
 function EmptyResult() {
   return (
     <section className="surface-panel mx-auto max-w-3xl p-8 text-center" aria-labelledby="route-empty-heading">
@@ -195,15 +215,16 @@ function Timeline({
               <h3 className="mt-4 text-xl font-black tracking-[-0.03em]">{stop.title}</h3>
               <p className="mt-2 text-sm text-[var(--muted)]">{CATEGORY_LABEL[stop.category]} · {stop.sourceLabel}</p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs font-extrabold">
-                <span className="rounded-full bg-[#edf8f2] px-3 py-1.5 text-[#285c45]">{stop.petAssessment === "allowed" ? "동반 가능" : "조건부 가능"}</span>
+                <span className="rounded-full bg-[#edf8f2] px-3 py-1.5 text-[#285c45]">{petStatusLabel(stop.petAssessment)}</span>
                 <span className="rounded-full border border-[#d7e0da] bg-white px-3 py-1.5 text-[#52665b]">정보 신뢰도 {trustLabel(stop.informationTrust)}</span>
-                <span className="rounded-full border border-[#d7e0da] bg-white px-3 py-1.5 text-[#52665b]">공식 관광 정보</span>
-                {stop.licensingStatus === "no_match" || stop.licensingStatus === "verification_required" ? <span className="rounded-full border border-[#dfccb3] bg-[#fff8ec] px-3 py-1.5 text-[#76542f]">인허가 데이터 추가 확인 필요</span> : null}
+                <span className="rounded-full border border-[#d7e0da] bg-white px-3 py-1.5 text-[#52665b]">{stop.sourceLabel}</span>
+                <span className="rounded-full border border-[#d7e0da] bg-white px-3 py-1.5 text-[#52665b]">{evidenceStatusLabel(stop.evidenceStatus)}</span>
+                {stop.retrievedAt ? <span className="rounded-full border border-[#d7e0da] bg-white px-3 py-1.5 text-[#52665b]">확인 {new Date(stop.retrievedAt).toLocaleDateString("ko-KR")}</span> : null}
               </div>
               {validated && stop.driveSecondsFromPrevious > 0 ? <p className="mt-3 text-xs font-bold text-[#607168]">이전 지점에서 {formatDistance(stop.distanceMetersFromPrevious)} · 약 {formatDuration(stop.driveSecondsFromPrevious)}</p> : null}
             </button>
             {stop.mandatoryConditions.length > 0 ? (
-              <ul className="mt-4 space-y-1 rounded-xl bg-[#fff8ec] p-3 text-sm font-bold text-[#76542f]">
+              <ul className="mt-4 space-y-1 rounded-xl bg-[#f4f7f4] p-3 text-sm font-semibold text-[#52665b]">
                 {stop.mandatoryConditions.map((condition) => <li key={`${condition.type}:${condition.label}`}>· {condition.label}</li>)}
               </ul>
             ) : null}
@@ -213,7 +234,7 @@ function Timeline({
                 <div><h4 className="font-black">포함한 이유</h4><ul className="mt-1 space-y-1 text-[var(--muted)]">{inclusion.map((copy) => <li key={copy}>· {copy}</li>)}</ul></div>
                 <div><h4 className="font-black">이 위치에 둔 이유</h4>{validated ? <ul className="mt-1 space-y-1 text-[var(--muted)]">{ordering.map((copy) => <li key={copy}>· {copy}</li>)}</ul> : <p className="mt-1 text-[var(--muted)]">경로를 다시 계산한 뒤 표시합니다.</p>}</div>
               </div>
-              {warnings.length > 0 ? <ul className="mt-3 space-y-1 text-sm font-bold text-[#76542f]">{[...new Set(warnings)].map((warning) => <li key={warning}>· {warning}</li>)}</ul> : null}
+              {warnings.length > 0 ? <ul className="mt-3 space-y-1 text-sm text-[var(--muted)]">{[...new Set(warnings)].map((warning) => <li key={warning}>· {warning}</li>)}</ul> : null}
               {stop.evidence.length > 0 ? <div className="mt-3 border-t border-[var(--line)] pt-3"><h4 className="text-sm font-black">한국관광공사 동반 근거</h4>{stop.evidence.map((evidence) => <p key={`${evidence.field}:${evidence.originalText}`} className="mt-2 text-xs leading-5 text-[var(--muted)]"><span className="font-black text-[#405249]">{evidence.label}</span> · {evidence.originalText}</p>)}</div> : null}
             </details>
             <div className="mt-4 flex flex-wrap gap-2" aria-label={`${stop.title} 순서 편집`}>
@@ -246,14 +267,19 @@ export function RecommendationPlanner({
   const [saveMessage, setSaveMessage] = useState("");
   const [manualError, setManualError] = useState("");
   const [editDirty, setEditDirty] = useState(false);
-  const submittingRef = useRef(false);
   const controllerRef = useRef<AbortController | null>(null);
   const startedRef = useRef(false);
+  const requestSequenceRef = useRef(0);
+  const rerollVariantRef = useRef(0);
+  const recentSignaturesRef = useRef<string[]>([]);
+  const recentCandidateIdsRef = useRef<string[]>([]);
   const errorRef = useRef<HTMLDivElement>(null);
 
-  const runRecommendation = useCallback(async () => {
-    if (submittingRef.current || !profileConfirmed || !preferencesConfirmed) return;
-    submittingRef.current = true;
+  const runRecommendation = useCallback(async (mode: "initial" | "reroll" = "initial") => {
+    if (!profileConfirmed || !preferencesConfirmed) return;
+    const requestSequence = requestSequenceRef.current + 1;
+    requestSequenceRef.current = requestSequence;
+    if (mode === "reroll") rerollVariantRef.current += 1;
     setLoading(true);
     setSlow(false);
     setSaveMessage("");
@@ -263,7 +289,11 @@ export function RecommendationPlanner({
     controllerRef.current = controller;
     const slowTimer = window.setTimeout(() => setSlow(true), 8_000);
     try {
-      const request = createRouteRecommendationRequest(profile, preferences);
+      const request = createRouteRecommendationRequest(profile, preferences, {
+        rerollVariant: rerollVariantRef.current,
+        recentRouteSignatures: recentSignaturesRef.current,
+        recentlySelectedCandidateIds: recentCandidateIdsRef.current,
+      });
       const result = await fetch("/api/itineraries/generate", {
         method: "POST",
         headers: { Accept: "application/json", "Content-Type": "application/json" },
@@ -272,19 +302,29 @@ export function RecommendationPlanner({
       });
       const parsed = routeRecommendationResponseSchema.safeParse(await result.json());
       if (!parsed.success) throw new Error("추천 응답 형식을 확인하지 못했습니다.");
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || requestSequenceRef.current !== requestSequence) return;
       setResponse(parsed.data);
       if (parsed.data.status === "ready") {
-        setActiveRoute(parsed.data.route);
-        setEditableIds(parsed.data.route.stops.map(({ placeId }) => placeId));
+        const returnedRoutes = parsed.data.routeOptions ?? [parsed.data.route, ...parsed.data.alternatives];
+        const selected = returnedRoutes[0] ?? parsed.data.route;
+        recentSignaturesRef.current = [...new Set([
+          ...recentSignaturesRef.current,
+          ...returnedRoutes.flatMap(({ routeSignature }) => routeSignature ? [routeSignature] : []),
+        ])].slice(-12);
+        recentCandidateIdsRef.current = [...new Set([
+          ...recentCandidateIdsRef.current,
+          ...returnedRoutes.flatMap(({ stops }) => stops.map(({ placeId }) => placeId)),
+        ])].slice(-40);
+        setActiveRoute(selected);
+        setEditableIds(selected.stops.map(({ placeId }) => placeId));
         setEditDirty(false);
-        setSelectedPlaceId(parsed.data.route.stops[0]?.placeId ?? null);
+        setSelectedPlaceId(selected.stops[0]?.placeId ?? null);
       } else {
         setActiveRoute(null);
         setEditableIds([]);
       }
     } catch (error) {
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || requestSequenceRef.current !== requestSequence) return;
       setResponse({
         status: "internal_error",
         apiVersion: "route-recommendation-response-v1",
@@ -296,8 +336,7 @@ export function RecommendationPlanner({
     } finally {
       window.clearTimeout(slowTimer);
       if (controllerRef.current === controller) controllerRef.current = null;
-      submittingRef.current = false;
-      setLoading(false);
+      if (requestSequenceRef.current === requestSequence) setLoading(false);
     }
   }, [preferences, preferencesConfirmed, profile, profileConfirmed]);
 
@@ -369,7 +408,7 @@ export function RecommendationPlanner({
         coordinates: stop.coordinates,
         order: stop.sequence,
         markerKind: "itinerary" as const,
-        sourceLabel: "한국관광공사 공식 장소",
+        sourceLabel: stop.sourceLabel,
         interactive: true,
         clusterable: false,
       })),
@@ -438,6 +477,13 @@ export function RecommendationPlanner({
 
   const summary = displayedRoute.routeSummary;
   const exact = ready.optimality === "optimal_within_candidate_set_current_matrix";
+  const availableRoutes = ready.routeOptions ?? [ready.route, ...ready.alternatives];
+  const activeStyle = displayedRoute.style;
+  const reducedCopy = ready.resultState === "single_stop_suggestion"
+    ? "지금 확인된 한 곳을 중심으로 짧고 확실한 일정을 만들었어요."
+    : ready.resultState === "ready_with_reduced_stops"
+      ? `요청한 ${displayedRoute.requestedTarget ?? "목표"}곳보다 적지만, 실제로 방문 가능한 ${summary.stopCount}곳으로 완성했어요.`
+      : null;
   return (
     <div className="space-y-6">
       <header className="surface-panel p-6 sm:p-8">
@@ -445,12 +491,13 @@ export function RecommendationPlanner({
           <div>
             <p className="eyebrow">{editDirty ? "수정 중인 일정" : displayedRoute.kind === "manual" ? "직접 수정한 일정" : "WEEKENDOG 추천 일정"}</p>
             <h1 className="mt-2 text-3xl font-black tracking-[-0.045em]">{ready.requestSummary.departureLabel}에서 시작하는 {summary.stopCount}곳 일정</h1>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--muted)]">{editDirty ? "방문 순서를 수정했습니다. 실제 거리와 운영시간을 다시 확인해야 확정됩니다." : displayedRoute.kind === "manual" ? "직접 정한 방문 순서를 Kakao 경로로 다시 확인한 결과입니다." : exact ? "현재 후보와 확인된 이동 정보 안에서 가장 적합한 일정을 찾았습니다." : "제한 시간 안에서 확인한 일정 중 가장 적합한 결과입니다."}</p>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--muted)]">{editDirty ? "방문 순서를 수정했습니다. 실제 거리와 운영시간을 다시 확인해야 확정됩니다." : displayedRoute.kind === "manual" ? "직접 정한 방문 순서를 Kakao 경로로 다시 확인한 결과입니다." : reducedCopy ?? (exact ? "현재 후보와 확인된 이동 정보 안에서 가장 적합한 일정을 찾았습니다." : "제한 시간 안에서 확인한 일정 중 가장 적합한 결과입니다.")}</p>
+            {!editDirty && displayedRoute.kind !== "manual" && reducedCopy && !exact ? <p className="mt-2 text-xs font-semibold text-[var(--muted)]">제한 시간 안에서 확인한 일정 중 가장 적합한 결과입니다.</p> : null}
             {!editDirty && displayedRoute.temporalBasis.searchMatrix !== displayedRoute.temporalBasis.finalRoute ? <p className="mt-2 text-xs font-bold text-[#76542f]">장소 순서는 확인된 이동 정보로 비교하고, 표시된 시간과 경로는 Kakao의 최종 길찾기 결과를 반영했습니다.</p> : null}
           </div>
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="brandSecondary" disabled={editDirty} onClick={() => { const saved = saveRouteRecommendation(ready, displayedRoute); setSaveMessage(saved ? "현재 일정을 이 브라우저에 저장했습니다." : "저장하지 못했습니다. 브라우저 저장 공간을 확인해 주세요."); }}><Save size={16} aria-hidden="true" /> 일정 저장</Button>
-            <Button type="button" variant="brandSecondary" onClick={() => void runRecommendation()}><RefreshCw size={16} aria-hidden="true" /> 추천 일정 다시 만들기</Button>
+            <Button type="button" variant="brandSecondary" onClick={() => void runRecommendation("reroll")}><RefreshCw size={16} aria-hidden="true" /> 다른 조합 보기</Button>
           </div>
         </div>
         {saveMessage ? <p className="mt-3 text-sm font-bold text-[var(--brand)]" role="status">{saveMessage}</p> : null}
@@ -462,14 +509,16 @@ export function RecommendationPlanner({
         </dl>
       </header>
 
-      {ready.alternatives.length > 0 ? (
+      {ready.routeOptions || availableRoutes.length > 1 ? (
         <section className="surface-card p-4" aria-labelledby="route-alternatives-heading">
-          <h2 id="route-alternatives-heading" className="text-sm font-black">검증된 다른 일정</h2>
+          <h2 id="route-alternatives-heading" className="text-sm font-black">추천 기준을 바꿔 비교해 보세요</h2>
           <div className="mt-3 flex flex-wrap gap-2" role="tablist" aria-label="일정 대안">
-            {[ready.route, ...ready.alternatives].map((route) => (
+            {availableRoutes.map((route) => (
               <button key={route.id} type="button" role="tab" aria-selected={activeRoute?.id === route.id} onClick={() => { setActiveRoute(route); setEditableIds(route.stops.map(({ placeId }) => placeId)); setEditDirty(false); setSelectedPlaceId(route.stops[0]?.placeId ?? null); setManualError(""); }} className={`min-h-11 rounded-full border px-4 text-sm font-extrabold ${activeRoute?.id === route.id ? "border-[var(--mint-500)] bg-[var(--brand-soft)] text-[var(--brand)]" : "border-[var(--line)] bg-white text-[#607168]"}`}>{route.label}</button>
             ))}
           </div>
+          {activeStyle ? <p className="mt-3 text-sm leading-6 text-[var(--muted)]" role="tabpanel">{ROUTE_STYLE_COPY[activeStyle]}</p> : null}
+          {ready.alternativeAvailability === "limited" ? <p className="mt-2 text-xs font-semibold text-[var(--muted)]">현재 후보에서는 서로 다른 검증 경로만 표시했어요.</p> : null}
         </section>
       ) : null}
 
@@ -484,7 +533,7 @@ export function RecommendationPlanner({
         <aside className="min-w-0 lg:sticky lg:top-24 lg:self-start" aria-label="추천 일정 지도">
           <MapPanel regionId="busan" compact locations={routeLocations} routeCoordinates={editDirty ? [] : displayedRoute.geometry} selectedLocationId={selectedPlaceId} onLocationSelect={selectPlace} viewportKey={`route:${displayedRoute.id}:${editDirty ? "draft" : "validated"}`} title="추천 일정의 Kakao 실제 이동 경로" locationLabel={`${summary.stopCount}곳 방문 일정`} emptyMessage={editDirty ? "수정한 순서를 재계산하면 실제 경로를 표시합니다." : "검증된 경로 geometry가 없습니다."} />
           <p className="mt-3 rounded-xl bg-[#f4f7f4] p-3 text-xs font-semibold leading-5 text-[var(--muted)]"><MapPinned className="mr-1 inline" size={14} aria-hidden="true" /> {editDirty ? "번호는 수정한 방문 순서입니다. 경로 재계산 전에는 선을 표시하지 않습니다." : "번호는 방문 순서이며 선은 최종 Kakao 길찾기가 반환한 geometry입니다."}</p>
-          <section className="surface-card mt-4 p-4" aria-labelledby="route-reliability-heading"><h2 id="route-reliability-heading" className="flex items-center gap-2 text-sm font-black"><ShieldCheck size={17} className="text-[var(--brand)]" aria-hidden="true" /> 정보 안내</h2><p className="mt-2 text-xs leading-6 text-[var(--muted)]">자동 일정에는 한국관광공사의 공식 동반 근거와 노출 상태를 확인한 장소만 포함합니다. 운영 정책은 바뀔 수 있어 방문 전 최종 확인을 권합니다.</p></section>
+          <section className="surface-card mt-4 p-4" aria-labelledby="route-reliability-heading"><h2 id="route-reliability-heading" className="flex items-center gap-2 text-sm font-black"><ShieldCheck size={17} className="text-[var(--brand)]" aria-hidden="true" /> 정보 안내</h2><p className="mt-2 text-xs leading-6 text-[var(--muted)]">한국관광공사 근거 장소와 저장된 카카오 후보를 출처·근거 상태와 함께 표시합니다. 미확인 정보는 동반 가능으로 단정하지 않으며 방문 전 확인할 수 있어요.</p></section>
           {displayedRoute.kind === "manual" ? <Button type="button" variant="brandSecondary" className="mt-4 w-full" onClick={() => { setActiveRoute(ready.route); setEditableIds(ready.route.stops.map(({ placeId }) => placeId)); setEditDirty(false); setSelectedPlaceId(ready.route.stops[0]?.placeId ?? null); }}><RotateCcw size={16} aria-hidden="true" /> 원래 추천 일정 복원</Button> : null}
         </aside>
       </div>
