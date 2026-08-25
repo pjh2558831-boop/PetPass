@@ -1,4 +1,8 @@
-import type { Coordinates } from "@/types/place";
+import type {
+  Coordinates,
+  TourContentTypeId,
+  TourOperationName,
+} from "@/types/place";
 import type { RegionId } from "@/types/region";
 
 export { REGION_IDS } from "@/types/region";
@@ -24,6 +28,16 @@ export interface RegionSearchCenter {
   radiusMeters: number;
 }
 
+export interface HomepageOptionalTourDatasetConfig {
+  enabled: boolean;
+  listOperation: Extract<TourOperationName, "areaBasedList2">;
+  visibilityOperation: Extract<TourOperationName, "petTourSyncList2">;
+  contentTypeId: TourContentTypeId;
+  legalDongDistrictCode: string | null;
+  providerPageSize: number;
+  maxProviderPages: number;
+}
+
 export interface RegionConfig<TId extends string = RegionId> {
   id: TId;
   displayName: string;
@@ -37,6 +51,9 @@ export interface RegionConfig<TId extends string = RegionId> {
   itineraryEnabled: boolean;
   kakaoDiscoveryEnabled: boolean;
   homepageFeaturedEnabled: boolean;
+  homepageOptionalDatasets: {
+    ktoShopping: HomepageOptionalTourDatasetConfig;
+  };
   defaultMapCenter: Coordinates;
   mapBounds: RegionBounds;
   districts: readonly RegionDistrictConfig[];
@@ -73,6 +90,17 @@ export const BUSAN_REGION_CONFIG = {
   itineraryEnabled: true,
   kakaoDiscoveryEnabled: true,
   homepageFeaturedEnabled: true,
+  homepageOptionalDatasets: {
+    ktoShopping: {
+      enabled: true,
+      listOperation: "areaBasedList2",
+      visibilityOperation: "petTourSyncList2",
+      contentTypeId: "38",
+      legalDongDistrictCode: null,
+      providerPageSize: 200,
+      maxProviderPages: 20,
+    },
+  },
   defaultMapCenter: { latitude: 35.1796, longitude: 129.0756 },
   mapBounds: { west: 128.75, south: 34.95, east: 129.4, north: 35.5 },
   districts: BUSAN_DISTRICT_CONFIGS,
@@ -112,6 +140,17 @@ export const JEJU_REGION_CONFIG = {
   itineraryEnabled: false,
   kakaoDiscoveryEnabled: false,
   homepageFeaturedEnabled: false,
+  homepageOptionalDatasets: {
+    ktoShopping: {
+      enabled: false,
+      listOperation: "areaBasedList2",
+      visibilityOperation: "petTourSyncList2",
+      contentTypeId: "38",
+      legalDongDistrictCode: null,
+      providerPageSize: 200,
+      maxProviderPages: 20,
+    },
+  },
   defaultMapCenter: { latitude: 33.4996, longitude: 126.5312 },
   mapBounds: { west: 125.9, south: 33.0, east: 127.1, north: 34.0 },
   districts: [
@@ -176,7 +215,7 @@ export function getKakaoDiscoveryEnabledRegionConfig(
 }
 
 export function getRegionDistrict(
-  region: RegionConfig,
+  region: RegionConfig<string>,
   districtCode: string | null | undefined,
 ): RegionDistrictConfig | null {
   if (!districtCode) return null;
@@ -186,7 +225,7 @@ export function getRegionDistrict(
 }
 
 export function coordinatesInRegion(
-  region: RegionConfig,
+  region: RegionConfig<string>,
   coordinates: Coordinates,
 ): boolean {
   return Number.isFinite(coordinates.latitude) &&

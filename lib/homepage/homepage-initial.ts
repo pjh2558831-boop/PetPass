@@ -261,7 +261,8 @@ async function assembleOptional(
   const startedAt = performance.now();
   const region = getRegionConfig(input.region);
   if (!region) throw new Error("Homepage region is unavailable.");
-  const requestedSources = getHomepageCatalogDatasets(region, "optional");
+  const requestedSources = getHomepageCatalogDatasets(region, "optional")
+    .filter(({ requiresThirdParty }) => !requiresThirdParty);
   const results = await Promise.allSettled(requestedSources.map(async (descriptor) => ({
     descriptor,
     page: await queryPublicCatalog({
@@ -395,6 +396,7 @@ export function homepageInitialCacheKey(
   const region = getRegionConfig(input.region);
   if (!region) return `${input.version}:${input.region}:${input.scope}:unavailable:${input.providers}`;
   const datasets = getHomepageCatalogDatasets(region, input.scope)
+    .filter(({ requiresThirdParty }) => !requiresThirdParty)
     .filter(({ layer }) => input.scope === "optional" ||
       ((layer === "tourism" || layer === "kakao") && providerAllowed(layer, input.providers)))
     .map((dataset) => homepageDatasetCacheKey(region, dataset))

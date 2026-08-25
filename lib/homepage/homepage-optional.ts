@@ -12,8 +12,16 @@ import {
 import type { HomepageTimingObserver } from "@/lib/homepage/performance-timing";
 import { mapCatalogPlaceToCategory } from "@/lib/map-places/place-categories";
 import { queryPublicMapCatalog } from "@/lib/map-places/public-catalog";
-import { getRegionConfig } from "@/lib/regions/config";
+import { getRegionConfig, getRegionDistrict } from "@/lib/regions/config";
 import { normalizePublicMapCatalogMarker } from "@/types/public-catalog-place";
+import {
+  collectTourHomepageOptionalDataset,
+  TourHomepageOptionalDatasetError,
+} from "@/lib/tour-api/homepage-optional-dataset";
+import {
+  getDefaultTourService,
+  type TourPlaceService,
+} from "@/lib/tour-api/service";
 import type {
   HomepageInitialCardDetailV1,
   HomepageInitialCategoryCountV1,
@@ -24,6 +32,10 @@ import type {
 import type {
   HomepageOptionalRequest,
   HomepageOptionalSnapshot,
+} from "@/types/homepage-optional";
+import {
+  homepageOptionalDataHash,
+  isHomepageOptionalSnapshot,
 } from "@/types/homepage-optional";
 import type { PublicMapPlaceDTO, PublicMapPlacePage } from "@/types/public-map-place";
 
@@ -46,7 +58,12 @@ async function loadAllPages(
   descriptor: NonNullable<ReturnType<typeof getHomepageCatalogDataset>>,
   queryCatalog: CatalogQuery,
   observeTiming?: HomepageTimingObserver,
-): Promise<{ items: PublicMapPlaceDTO[]; nextCursor: number | null }> {
+): Promise<{
+  items: PublicMapPlaceDTO[];
+  nextCursor: number | null;
+  pageCount: number;
+  retrievedAt: string;
+}> {
   let cursor: number | undefined;
   let expectedTotal: number | null = null;
   let maximumPages = 1;
@@ -88,17 +105,25 @@ async function loadAllPages(
   if (expectedTotal === null || items.length !== expectedTotal) {
     throw new Error("Optional dataset ended before its expected count.");
   }
-  return { items, nextCursor: cursor ?? null };
+  return {
+    items,
+    nextCursor: cursor ?? null,
+    pageCount: Math.max(1, Math.ceil(items.length / descriptor.pageSize)),
+    retrievedAt: items.reduce(
+      (latest, item) => item.lastSeenAt && item.lastSeenAt > latest ? item.lastSeenAt : latest,
+      "",
+    ) || new Date(0).toISOString(),
+  };
 }
 
 function versionFor(
   input: HomepageOptionalRequest,
-  items: readonly PublicMapPlaceDTO[],
+  identities: ReadonlyArray<{ id: string; changedAt: string | null }>,
   markers: readonly HomepageInitialMarkerV1[],
 ): { dataVersion: string; generationId: string } {
   const generation = createHash("sha256");
-  generation.update(`${input.version}:${input.region}:${input.scope}:${input.dataset}:${items.length}\n`);
-  for (const item of items) generation.update(`${item.id}:${item.lastSeenAt ?? "unknown"}\n`);
+  generation.update(`${input.version}:${input.region}:${input.scope}:${input.dataset}:${identities.length}\n`);
+  for (const item of identities) generation.update(`${item.id}:${item.changedAt ?? "unknown"}\n`);
   const generationId = `g1-${generation.digest("hex").slice(0, 16)}`;
   const data = createHash("sha256");
   data.update(`${generationId}\n`);
@@ -110,80 +135,167 @@ export async function assembleHomepageOptionalDataset(
   input: HomepageOptionalRequest,
   {
     queryCatalog = queryPublicMapCatalog,
+    tourService,
     now = () => new Date(),
     observeTiming,
   }: {
     queryCatalog?: CatalogQuery;
+    tourService?: TourPlaceService;
     now?: () => Date;
     observeTiming?: HomepageTimingObserver;
   } = {},
 ): Promise<HomepageOptionalSnapshot> {
   const region = getRegionConfig(input.region);
   const descriptor = region ? getHomepageCatalogDataset(region, input.dataset) : null;
-  if (!region?.mapEnabled || !descriptor || descriptor.scope !== "optional" || descriptor.requiresThirdParty) {
-    throw new Error("Optional dataset is not enabled for this region.");
+  if (!region?.mapEnabled || !descriptor || descriptor.scope !== "optional") {
+    throw new TourHomepageOptionalDatasetError(
+      "unavailable",
+      "Optional dataset is not enabled for this region.",
+    );
   }
-  const loaded = await loadAllPages(input, descriptor, queryCatalog, observeTiming);
-  const { items } = loaded;
   const markers: HomepageInitialMarkerV1[] = [];
   const cardDetails: HomepageInitialCardDetailV1[] = [];
   const categories: Array<{ layer: HomepageInitialLayer; category: HomepageInitialMarkerV1[3] }> = [];
-  for (const item of items) {
-    const normalized = normalizePublicMapCatalogMarker(item, input.region);
-    if (normalized.layer !== descriptor.layer) throw new Error("Optional dataset returned an out-of-scope marker.");
-    const category = mapCatalogPlaceToCategory({
-      layer: descriptor.layer,
-      category: normalized.category,
-      categoryGroupCode: normalized.categoryGroupCode,
+  let itemCount = 0;
+  let providerTotalCount = 0;
+  let visibilityTotalCount: number | null = null;
+  let pageCount = 1;
+  let visibilityPageCount: number | null = null;
+  let integrityPageSize = descriptor.pageSize;
+  let nextCursor: number | null = null;
+  let retrievedAt = now().toISOString();
+  let identities: Array<{ id: string; changedAt: string | null }> = [];
+
+  if (descriptor.provider === "tour") {
+    const loaded = await collectTourHomepageOptionalDataset({
+      region,
+      descriptor,
+      service: tourService ?? getDefaultTourService(),
+      observeTiming,
     });
-    if (!descriptor.categories.includes(category)) throw new Error("Optional dataset returned an invalid category.");
-    const tuple = toHomepageInitialTuple({
-      ...normalized,
-      layer: descriptor.layer,
-      category,
-      petAccessVerdict: normalized.petAccessVerdict ?? "unknown",
-    });
-    if (!tuple) throw new Error("Optional dataset marker has no usable coordinates.");
-    markers.push(tuple);
-    cardDetails.push([normalized.id, normalized.address, normalized.phone ?? null, normalized.imageUrl ?? null]);
-    categories.push({ layer: descriptor.layer, category });
+    itemCount = loaded.returnedCount;
+    providerTotalCount = loaded.listTotalCount;
+    visibilityTotalCount = loaded.visibilityTotalCount;
+    pageCount = loaded.listPageCount;
+    visibilityPageCount = loaded.visibilityPageCount;
+    integrityPageSize = loaded.pageSize;
+    retrievedAt = loaded.retrievedAt;
+    identities = loaded.places.map((place) => ({
+      id: `tour:${place.contentId}`,
+      changedAt: place.modifiedTime ?? place.source.retrievedAt,
+    }));
+    for (const place of loaded.places) {
+      const category = descriptor.categories[0];
+      const district = getRegionDistrict(region, place.legalDistrictCode);
+      const tuple = toHomepageInitialTuple({
+        id: `tour:${place.contentId}`,
+        name: place.title?.trim() || "이름 확인 필요",
+        layer: descriptor.layer,
+        category,
+        districtName: district?.name ?? null,
+        coordinates: place.latitude === null || place.longitude === null
+          ? null
+          : { latitude: place.latitude, longitude: place.longitude },
+        petAccessVerdict: "unknown",
+        publicLabel: "동반 정보 확인 필요",
+      });
+      if (!tuple) {
+        throw new TourHomepageOptionalDatasetError(
+          "partial",
+          "Optional KTO marker has no usable coordinates.",
+        );
+      }
+      markers.push(tuple);
+      categories.push({ layer: descriptor.layer, category });
+    }
+  } else {
+    if (descriptor.requiresThirdParty) {
+      throw new TourHomepageOptionalDatasetError(
+        "unavailable",
+        "Optional provider configuration is unavailable.",
+      );
+    }
+    const loaded = await loadAllPages(input, descriptor, queryCatalog, observeTiming);
+    const items = loaded.items;
+    itemCount = items.length;
+    providerTotalCount = items.length;
+    pageCount = loaded.pageCount;
+    nextCursor = loaded.nextCursor;
+    retrievedAt = loaded.retrievedAt;
+    identities = items.map((item) => ({ id: item.id, changedAt: item.lastSeenAt ?? null }));
+    for (const item of items) {
+      const normalized = normalizePublicMapCatalogMarker(item, input.region);
+      if (normalized.layer !== descriptor.layer) throw new Error("Optional dataset returned an out-of-scope marker.");
+      const category = mapCatalogPlaceToCategory({
+        layer: descriptor.layer,
+        category: normalized.category,
+        categoryGroupCode: normalized.categoryGroupCode,
+      });
+      if (!descriptor.categories.includes(category)) throw new Error("Optional dataset returned an invalid category.");
+      const tuple = toHomepageInitialTuple({
+        ...normalized,
+        layer: descriptor.layer,
+        category,
+        petAccessVerdict: normalized.petAccessVerdict ?? "unknown",
+      });
+      if (!tuple) throw new Error("Optional dataset marker has no usable coordinates.");
+      markers.push(tuple);
+      cardDetails.push([normalized.id, normalized.address, normalized.phone ?? null, normalized.imageUrl ?? null]);
+      categories.push({ layer: descriptor.layer, category });
+    }
   }
-  const { dataVersion, generationId } = versionFor(input, items, markers);
+  const { dataVersion, generationId } = versionFor(input, identities, markers);
   const layers = deferredLayers();
   layers[descriptor.layer] = {
     state: markers.length === 0 ? "empty" : "ready",
-    count: items.length,
+    count: itemCount,
     markerCount: markers.length,
   };
   const categoryCounts: HomepageInitialCategoryCountV1[] = homepageCategoryCounts(categories);
-  return {
+  const snapshot = {
     contractVersion: 1,
     region: input.region,
     scope: "optional",
-    providers: "kakao",
+    providers: descriptor.provider,
     dataset: input.dataset,
+    status: itemCount === 0 ? "complete_empty" : "complete",
     generatedAt: now().toISOString(),
+    retrievedAt,
     dataVersion,
     generationId,
-    totalCount: items.length,
+    totalCount: itemCount,
     markerCount: markers.length,
     freshness: { status: "fresh" },
     layers,
     categoryCounts,
     markers,
     cardDetails,
+    integrity: {
+      dataHash: "",
+      expectedItemCount: itemCount,
+      returnedItemCount: markers.length,
+      providerTotalCount,
+      visibilityTotalCount,
+      pageCount,
+      visibilityPageCount,
+      pageSize: integrityPageSize,
+      nextCursor,
+      traversalComplete: true,
+    },
     continuations: [{
       datasetId: descriptor.id,
       layer: descriptor.layer,
       provider: descriptor.provider,
       kind: descriptor.kind,
-      loadedItemCount: items.length,
-      expectedTotalCount: items.length,
-      nextCursor: loaded.nextCursor,
+      loadedItemCount: itemCount,
+      expectedTotalCount: itemCount,
+      nextCursor,
       complete: true,
       generationId,
     }],
-  };
+  } satisfies HomepageOptionalSnapshot;
+  snapshot.integrity.dataHash = homepageOptionalDataHash(snapshot);
+  return snapshot;
 }
 
 export function homepageOptionalCacheKey(input: HomepageOptionalRequest): string {
@@ -228,7 +340,11 @@ export function createHomepageOptionalLoader({
     }
     if (entry.value && entry.retryAfter !== undefined && entry.retryAfter > now()) {
       observeCache("stale");
-      return { ...entry.value, freshness: { status: "stale" as const, staleAt: new Date(now()).toISOString() } };
+      return {
+        ...entry.value,
+        status: "stale" as const,
+        freshness: { status: "stale" as const, staleAt: new Date(now()).toISOString() },
+      };
     }
     if (entry.inFlight) {
       observeCache("coalesced");
@@ -236,12 +352,23 @@ export function createHomepageOptionalLoader({
     }
     observeCache("miss");
     const inFlight = assemble(input, { observeTiming }).then((value) => {
+      if (!isHomepageOptionalSnapshot(value) ||
+        (value.status !== "complete" && value.status !== "complete_empty")) {
+        throw new TourHomepageOptionalDatasetError(
+          "partial",
+          "Optional dataset generation did not produce a complete cacheable value.",
+        );
+      }
       entries.set(key, { value, storedAt: now() });
       return value;
     }).catch((error: unknown) => {
       if (entry.value && age <= freshMs + staleIfErrorMs) {
         entries.set(key, { value: entry.value, storedAt: entry.storedAt, retryAfter: now() + 60_000 });
-        return { ...entry.value, freshness: { status: "stale" as const, staleAt: new Date(now()).toISOString() } };
+        return {
+          ...entry.value,
+          status: "stale" as const,
+          freshness: { status: "stale" as const, staleAt: new Date(now()).toISOString() },
+        };
       }
       entries.delete(key);
       throw error;

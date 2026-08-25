@@ -145,7 +145,9 @@ function layerMatchesProjection(
   providers: HomepageInitialProviderSelection,
 ): boolean {
   if (scope === "optional") {
-    return providers !== "tour" && (layer === "veterinary" || layer === "pet_shop");
+    return providers === "tour"
+      ? layer === "tourism"
+      : providers === "kakao" && (layer === "veterinary" || layer === "pet_shop");
   }
   if (layer !== "tourism" && layer !== "kakao") return false;
   if (providers === "tour") return layer === "tourism";

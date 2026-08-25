@@ -5,6 +5,7 @@ import type {
   PublicMapPlaceProvider,
 } from "@/types/public-map-place";
 import type { HomepageInitialLayer } from "@/types/homepage-initial";
+import type { TourContentTypeId, TourOperationName } from "@/types/place";
 
 export const HOMEPAGE_DATASET_CONTRACT_VERSION = 1 as const;
 export const HOMEPAGE_CATALOG_PAGE_SIZE = 200;
@@ -12,8 +13,19 @@ export const HOMEPAGE_CATALOG_PAGE_SIZE = 200;
 export type HomepageDatasetId =
   | "default-tour"
   | "default-kakao"
+  | "optional-kto-shopping"
   | "optional-veterinary"
   | "optional-pet-shop";
+
+export interface HomepageTourProviderParameters {
+  listOperation: Extract<TourOperationName, "areaBasedList2">;
+  visibilityOperation: Extract<TourOperationName, "petTourSyncList2">;
+  contentTypeId: TourContentTypeId;
+  legalDongRegionCode: string;
+  legalDongDistrictCode: string | null;
+  pageSize: number;
+  maxPages: number;
+}
 
 export interface HomepageCatalogDatasetDescriptor {
   contractVersion: typeof HOMEPAGE_DATASET_CONTRACT_VERSION;
@@ -31,10 +43,24 @@ export interface HomepageCatalogDatasetDescriptor {
   staleIfErrorMs: number;
   completionStrategy: "cursor";
   pageSize: number;
-  capability: "map" | "kakao-discovery";
+  capability: "map" | "kakao-discovery" | "kto-shopping";
+  providerParameters?: HomepageTourProviderParameters;
 }
 
 const DATASETS = [
+  {
+    id: "optional-kto-shopping",
+    scope: "optional",
+    provider: "tour",
+    kind: "tourism_place",
+    layer: "tourism",
+    categories: ["shopping"],
+    defaultMap: false,
+    optional: true,
+    mayPrefetch: true,
+    requiresThirdParty: true,
+    capability: "kto-shopping",
+  },
   {
     id: "default-tour",
     scope: "default",
@@ -96,7 +122,9 @@ function capabilityEnabled(
   region: RegionConfig<string>,
   capability: HomepageCatalogDatasetDescriptor["capability"],
 ): boolean {
-  return capability === "map" ? region.mapEnabled : region.kakaoDiscoveryEnabled;
+  if (capability === "map") return region.mapEnabled;
+  if (capability === "kakao-discovery") return region.kakaoDiscoveryEnabled;
+  return region.homepageOptionalDatasets.ktoShopping.enabled;
 }
 
 export function getHomepageCatalogDatasets(
@@ -112,6 +140,19 @@ export function getHomepageCatalogDatasets(
       staleIfErrorMs: 3_600_000,
       completionStrategy: "cursor",
       pageSize: HOMEPAGE_CATALOG_PAGE_SIZE,
+      ...(dataset.id === "optional-kto-shopping" ? {
+        providerParameters: {
+          listOperation: region.homepageOptionalDatasets.ktoShopping.listOperation,
+          visibilityOperation: region.homepageOptionalDatasets.ktoShopping.visibilityOperation,
+          contentTypeId: region.homepageOptionalDatasets.ktoShopping.contentTypeId,
+          legalDongRegionCode:
+            region.providerCodes.korPetTourService2.legalDongRegionCode,
+          legalDongDistrictCode:
+            region.homepageOptionalDatasets.ktoShopping.legalDongDistrictCode,
+          pageSize: region.homepageOptionalDatasets.ktoShopping.providerPageSize,
+          maxPages: region.homepageOptionalDatasets.ktoShopping.maxProviderPages,
+        },
+      } : {}),
     }));
 }
 

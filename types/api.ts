@@ -13,6 +13,7 @@ export interface ApiError {
     | "NOT_FOUND";
   message: string;
   retryable: boolean;
+  datasetStatus?: "unavailable" | "partial";
 }
 
 export type ApiResult<T> =
