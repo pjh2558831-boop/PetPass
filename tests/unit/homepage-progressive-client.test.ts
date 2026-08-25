@@ -7,6 +7,10 @@ import {
 } from "@/lib/homepage/homepage-progressive";
 import type { HomepageEnrichmentSnapshot } from "@/types/homepage-enrichment";
 import type { HomepageInitialPlacesSnapshot } from "@/types/homepage-initial";
+import {
+  homepageOptionalDataHash,
+  type HomepageOptionalSnapshot,
+} from "@/types/homepage-optional";
 
 const initial: HomepageInitialPlacesSnapshot = {
   contractVersion: 1,
@@ -65,10 +69,13 @@ describe("homepage progressive client projection", () => {
   });
 
   it("merges optional markers without replacing the active base region", () => {
-    const optional: HomepageInitialPlacesSnapshot = {
+    const optional: HomepageOptionalSnapshot = {
       ...initial,
       scope: "optional",
       providers: "kakao",
+      dataset: "optional-veterinary",
+      status: "complete",
+      retrievedAt: "2026-08-24T03:00:00.000Z",
       dataVersion: "v1-fedcba9876543210",
       generationId: "g1-fedcba9876543210",
       totalCount: 2,
@@ -91,11 +98,24 @@ describe("homepage progressive client projection", () => {
         ["kakao:4", "부산광역시 해운대구 병원로 1", "051-123-4567", null],
         ["kakao:5", "부산광역시 해운대구 상점로 2", null, null],
       ],
+      integrity: {
+        dataHash: "",
+        expectedItemCount: 2,
+        returnedItemCount: 2,
+        providerTotalCount: 2,
+        visibilityTotalCount: null,
+        pageCount: 1,
+        visibilityPageCount: null,
+        pageSize: 200,
+        nextCursor: 5,
+        traversalComplete: true,
+      },
       continuations: [
         { datasetId: "optional-veterinary", layer: "veterinary", provider: "kakao", kind: "veterinary", loadedItemCount: 1, expectedTotalCount: 1, nextCursor: 4, complete: true, generationId: "g1-fedcba9876543210" },
         { datasetId: "optional-pet-shop", layer: "pet_shop", provider: "kakao", kind: "pet_shop", loadedItemCount: 1, expectedTotalCount: 1, nextCursor: 5, complete: true, generationId: "g1-fedcba9876543210" },
       ],
     };
+    optional.integrity.dataHash = homepageOptionalDataHash(optional);
     const merged = mergeHomepageOptionalInitial(
       projectHomepageInitialSnapshot(initial),
       optional,

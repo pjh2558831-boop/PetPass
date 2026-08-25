@@ -12,7 +12,11 @@ import type {
   HomepageInitialMarkerV1,
   HomepageInitialPlacesSnapshot,
 } from "@/types/homepage-initial";
-import type { HomepageOptionalSnapshot, HomepageStoredOptionalDatasetId } from "@/types/homepage-optional";
+import {
+  homepageOptionalDataHash,
+  type HomepageOptionalDatasetId,
+  type HomepageOptionalSnapshot,
+} from "@/types/homepage-optional";
 
 const HOMEPAGE_INITIAL_API = "**/api/homepage/places/initial?**";
 const HOMEPAGE_ENRICHMENT_API = "**/api/homepage/places/enrichment?**";
@@ -111,6 +115,13 @@ const PET_SHOP = marker(
   "pet_shop",
   "부산 반려동물 용품점",
   { latitude: 35.18, longitude: 129.19 },
+);
+const KTO_SHOPPING = marker(
+  "tour:shopping-104",
+  "official",
+  "부산 공식 쇼핑 장소",
+  { latitude: 35.19, longitude: 129.2 },
+  { category: "shopping", statusLabel: "동반 정보 확인 필요" },
 );
 
 const SNAPSHOT: HomepagePlacesSnapshot = {
@@ -215,21 +226,35 @@ function initialSnapshot(
 
 function optionalSnapshot(
   snapshot: HomepagePlacesSnapshot,
-  dataset: HomepageStoredOptionalDatasetId,
+  dataset: HomepageOptionalDatasetId,
 ): HomepageOptionalSnapshot {
-  const layer = dataset === "optional-veterinary" ? "veterinary" : "pet_shop";
-  const kind = layer;
+  const layer = dataset === "optional-kto-shopping"
+    ? "tourism"
+    : dataset === "optional-veterinary" ? "veterinary" : "pet_shop";
+  const kind = layer === "tourism" ? "tourism_place" : layer;
   const base = initialSnapshot(snapshot, "optional");
-  const markers = base.markers.filter((marker) => marker[2] === layer);
+  const markers: HomepageInitialMarkerV1[] = layer === "tourism" ? [[
+    KTO_SHOPPING.id,
+    KTO_SHOPPING.name,
+    "tourism",
+    "shopping",
+    KTO_SHOPPING.district,
+    KTO_SHOPPING.coordinates.latitude,
+    KTO_SHOPPING.coordinates.longitude,
+    "unknown",
+    KTO_SHOPPING.statusLabel,
+  ]] : base.markers.filter((marker) => marker[2] === layer);
   const markerIds = new Set(markers.map((marker) => marker[0]));
   const generationId = dataset === "optional-veterinary"
     ? "g1-aaaaaaaaaaaaaaaa"
     : "g1-bbbbbbbbbbbbbbbb";
-  return {
+  const optional = {
     ...base,
     scope: "optional",
-    providers: "kakao",
+    providers: layer === "tourism" ? "tour" : "kakao",
     dataset,
+    status: markers.length === 0 ? "complete_empty" : "complete",
+    retrievedAt: RETRIEVED_AT,
     dataVersion: dataset === "optional-veterinary"
       ? "v1-aaaaaaaaaaaaaaaa"
       : "v1-bbbbbbbbbbbbbbbb",
@@ -237,7 +262,9 @@ function optionalSnapshot(
     totalCount: markers.length,
     markerCount: markers.length,
     layers: {
-      tourism: { state: "deferred", count: null, markerCount: null },
+      tourism: layer === "tourism"
+        ? { state: markers.length === 0 ? "empty" : "ready", count: markers.length, markerCount: markers.length }
+        : { state: "deferred", count: null, markerCount: null },
       kakao: { state: "deferred", count: null, markerCount: null },
       veterinary: layer === "veterinary"
         ? { state: markers.length === 0 ? "empty" : "ready", count: markers.length, markerCount: markers.length }
@@ -246,21 +273,39 @@ function optionalSnapshot(
         ? { state: markers.length === 0 ? "empty" : "ready", count: markers.length, markerCount: markers.length }
         : { state: "deferred", count: null, markerCount: null },
     },
-    categoryCounts: base.categoryCounts.filter(([entryLayer]) => entryLayer === layer),
+    categoryCounts: layer === "tourism"
+      ? [["tourism", "shopping", markers.length]]
+      : base.categoryCounts.filter(([entryLayer]) => entryLayer === layer),
     markers,
-    cardDetails: base.cardDetails.filter(([id]) => markerIds.has(id)),
+    cardDetails: layer === "tourism"
+      ? []
+      : base.cardDetails.filter(([id]) => markerIds.has(id)),
+    integrity: {
+      dataHash: "",
+      expectedItemCount: markers.length,
+      returnedItemCount: markers.length,
+      providerTotalCount: markers.length,
+      visibilityTotalCount: layer === "tourism" ? markers.length : null,
+      pageCount: 1,
+      visibilityPageCount: layer === "tourism" ? 1 : null,
+      pageSize: 200,
+      nextCursor: null,
+      traversalComplete: true,
+    },
     continuations: [{
       datasetId: dataset,
       layer,
-      provider: "kakao",
+      provider: layer === "tourism" ? "tour" : "kakao",
       kind,
       loadedItemCount: markers.length,
       expectedTotalCount: markers.length,
-      nextCursor: markers.length === 0 ? null : 1,
+      nextCursor: null,
       complete: true,
       generationId,
     }],
-  };
+  } satisfies HomepageOptionalSnapshot;
+  optional.integrity.dataHash = homepageOptionalDataHash(optional);
+  return optional;
 }
 
 function enrichmentSnapshot(snapshot = SNAPSHOT): HomepageEnrichmentSnapshot {
@@ -296,7 +341,7 @@ async function mockHomepage(page: Page, snapshot = SNAPSHOT) {
     return fulfillInitial(route, snapshot, scope);
   });
   await page.route(HOMEPAGE_OPTIONAL_API, (route) => {
-    const dataset = new URL(route.request().url()).searchParams.get("dataset") as HomepageStoredOptionalDatasetId;
+    const dataset = new URL(route.request().url()).searchParams.get("dataset") as HomepageOptionalDatasetId;
     return route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -377,6 +422,11 @@ async function installFakeMap(page: Page) {
         this.markers = markers;
         markers.forEach((marker) => marker.setMap(this.options.map));
       }
+      removeMarkers(markers: Marker[]) {
+        const removed = new Set(markers);
+        markers.forEach((marker) => marker.setMap(null));
+        this.markers = this.markers.filter((marker) => !removed.has(marker));
+      }
       clear() { this.markers.forEach((marker) => marker.setMap(null)); this.markers = []; }
       redraw() {}
     }
@@ -397,6 +447,7 @@ test.beforeEach(async ({ page }, testInfo) => {
 test(NETWORK_TEST, async ({ page }) => {
   let initialRequests = 0;
   let enrichmentRequests = 0;
+  let optionalRequests = 0;
   const sdkRequests: string[] = [];
   const forbidden: string[] = [];
   const consoleErrors: string[] = [];
@@ -407,8 +458,9 @@ test(NETWORK_TEST, async ({ page }) => {
     const url = new URL(request.url());
     if (url.pathname === "/api/homepage/places/initial" && url.searchParams.get("scope") === "default") initialRequests += 1;
     if (url.pathname === "/api/homepage/places/enrichment") enrichmentRequests += 1;
+    if (url.pathname === "/api/homepage/places/optional") optionalRequests += 1;
     if (url.hostname === "dapi.kakao.com" && url.pathname === "/v2/maps/sdk.js") sdkRequests.push(url.toString());
-    if (["/api/tour/homepage", "/api/map/places", "/api/places/discovery", "/api/itineraries/generate", "/api/directions", "/api/kakao/directions"].includes(url.pathname) || url.hostname.includes("supabase")) forbidden.push(url.toString());
+    if (["/api/tour/homepage", "/api/map/places", "/api/places/discovery", "/api/itineraries/generate", "/api/directions", "/api/kakao/directions"].includes(url.pathname) || url.hostname.includes("supabase") || url.hostname.includes("apis.data.go.kr")) forbidden.push(url.toString());
   });
   await mockHomepage(page);
   await page.route("https://dapi.kakao.com/v2/maps/sdk.js**", (route) => route.fulfill({
@@ -420,6 +472,7 @@ test(NETWORK_TEST, async ({ page }) => {
   await expect(page.locator(".homepage-live-ready")).toBeVisible();
   await expect.poll(() => initialRequests).toBe(1);
   await expect.poll(() => enrichmentRequests).toBe(1);
+  expect(optionalRequests).toBe(0);
   await expect.poll(() => sdkRequests.length).toBe(1);
   await expect.poll(() => page.evaluate(() =>
     performance.getEntriesByType("measure")
@@ -436,6 +489,108 @@ test(NETWORK_TEST, async ({ page }) => {
   expect(new Set(sdk.searchParams.get("libraries")?.split(","))).toEqual(new Set(["services", "clusterer"]));
   expect(forbidden).toEqual([]);
   expect(consoleErrors).toEqual([]);
+});
+
+test("loads Shopping once, keeps the usable map visible, and reselects from browser memory", async ({ page }, testInfo) => {
+  let optionalRequests = 0;
+  const optionalCookieHeaders: Array<string | undefined> = [];
+  const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.stack ?? error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  let releaseShopping!: () => void;
+  const shoppingGate = new Promise<void>((resolve) => { releaseShopping = resolve; });
+  await page.route(HOMEPAGE_INITIAL_API, (route) => fulfillInitial(route));
+  await page.route(HOMEPAGE_ENRICHMENT_API, (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      data: enrichmentSnapshot(),
+      requestId: "homepage-shopping-enrichment",
+    }),
+  }));
+  await page.route(HOMEPAGE_OPTIONAL_API, async (route) => {
+    optionalRequests += 1;
+    optionalCookieHeaders.push(route.request().headers().cookie);
+    const dataset = new URL(route.request().url()).searchParams.get("dataset") as HomepageOptionalDatasetId;
+    if (dataset === "optional-kto-shopping") await shoppingGate;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        data: optionalSnapshot(SNAPSHOT, dataset),
+        requestId: "homepage-shopping-optional",
+      }),
+    });
+  });
+
+  await page.context().addCookies([{
+    name: "petpass-test-session",
+    value: "private",
+    url: "http://localhost:3000",
+  }]);
+  await page.goto("/");
+  const mapCanvas = page.locator(".homepage-map-canvas-wrap .map-canvas");
+  await expect(mapCanvas).toHaveAttribute("data-location-count", "3");
+  expect(optionalRequests).toBe(0);
+
+  const filterButton = page.getByRole("button", { name: "필터", exact: true });
+  await filterButton.click();
+  const filters = page.getByRole("region", { name: "지도 장소 필터" });
+  await filters.getByRole("button", { name: /^쇼핑/u }).click();
+  await expect(filters.getByText("쇼핑 데이터를 불러오는 중", { exact: true })).toBeVisible();
+  await expect(page.locator(".homepage-live-loading")).toHaveCount(0);
+  await expect(mapCanvas).toHaveAttribute("data-location-count", "3");
+  await filters.getByRole("button", { name: "적용하기" }).click();
+  expect(optionalRequests).toBe(1);
+  expect(optionalCookieHeaders).toEqual([undefined]);
+
+  releaseShopping();
+  await expect(mapCanvas).toHaveAttribute("data-location-count", "4");
+  await filterButton.click();
+  await expect(filters.getByRole("button", { name: /^쇼핑/u })).toHaveAttribute("aria-pressed", "true");
+  await filters.getByRole("button", { name: "적용하기" }).click();
+  await expect(mapCanvas).toHaveAttribute("data-location-count", "4");
+  expect(optionalRequests).toBe(1);
+
+  await filterButton.click();
+  await filters.getByRole("button", { name: /^쇼핑/u }).click();
+  await expect(filters.getByRole("button", { name: /^쇼핑/u })).toHaveAttribute("aria-pressed", "false");
+  await filters.getByRole("button", { name: "적용하기" }).click();
+  await expect.poll(() => pageErrors).toEqual([]);
+  await expect.poll(() => consoleErrors).toEqual([]);
+  await expect(mapCanvas).toHaveAttribute("data-location-count", "3");
+  await filterButton.click();
+  await filters.getByRole("button", { name: /^쇼핑/u }).click();
+  await expect(filters.getByRole("button", { name: /^쇼핑/u })).toHaveAttribute("aria-pressed", "true");
+  await filters.getByRole("button", { name: "적용하기" }).click();
+  await expect(mapCanvas).toHaveAttribute("data-location-count", "4");
+  expect(optionalRequests).toBe(1);
+  await expect.poll(() => page.evaluate(() => {
+    const entries = performance.getEntriesByName("weekendog:homepage:filter:feedback", "measure");
+    return entries.length > 0 && entries.every((entry) => entry.duration < 150);
+  })).toBe(true);
+  const browserMetrics = await page.evaluate(() => ({
+    measures: Object.fromEntries(
+      performance.getEntriesByType("measure")
+        .filter(({ name }) => name.startsWith("weekendog:homepage:optional:") ||
+          name.startsWith("weekendog:homepage:filter:") ||
+          name.startsWith("weekendog:homepage:map:"))
+        .map(({ name, duration }) => [name, Number(duration.toFixed(2))]),
+    ),
+    markerUpdateMs: Number(
+      document.querySelector("[data-marker-update-ms]")?.getAttribute("data-marker-update-ms"),
+    ),
+  }));
+  const metrics = { ...browserMetrics, optionalRequests };
+  await testInfo.attach("homepage-shopping-metrics.json", {
+    body: JSON.stringify(metrics, null, 2),
+    contentType: "application/json",
+  });
 });
 
 test("renders the base map while KTO enrichment is delayed by ten seconds", async ({ page }, testInfo) => {

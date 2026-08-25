@@ -13,13 +13,21 @@ import {
   ShoppingBag,
   SlidersHorizontal,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type SetStateAction,
+} from "react";
 import { HomepagePlaceCarousel } from "@/components/home/official-place-carousel";
 import { MapPanel } from "@/components/map/map-panel";
 import { PlaceImage } from "@/components/places/place-image";
 import { PlaceCategoryToggleGroup } from "@/components/places/place-category-toggle-group";
 import { createHomepageMapLocations } from "@/lib/homepage/homepage-map-locations";
 import { HomepageCatalogIndex } from "@/lib/homepage/homepage-catalog-index";
+import { getHomepageCatalogDatasets } from "@/lib/homepage/catalog-datasets";
 import {
   recordHomepageBrowserTiming,
   type HomepageBrowserTimingStage,
@@ -34,6 +42,7 @@ import {
 import { getRegionConfig } from "@/lib/regions/config";
 import {
   DEFAULT_PLACE_CATEGORIES,
+  OPTIONAL_PLACE_CATEGORIES,
   PLACE_CATEGORIES,
   PLACE_CATEGORY_LABELS,
   type PlaceCategory,
@@ -53,8 +62,8 @@ import {
 } from "@/types/homepage-initial";
 import {
   isHomepageOptionalSnapshot,
+  type HomepageOptionalDatasetId,
   type HomepageOptionalSnapshot,
-  type HomepageStoredOptionalDatasetId,
 } from "@/types/homepage-optional";
 import {
   HOMEPAGE_PLACE_LAYERS,
@@ -66,10 +75,17 @@ import type { RegionId } from "@/types/region";
 
 const EMPTY_ROUTE_COORDINATES: [] = [];
 const STRICT_EFFECT_ABORT_GRACE_MS = 50;
-const OPTIONAL_DATASET_BY_CATEGORY = {
-  veterinary: "optional-veterinary",
-  pet_shop: "optional-pet-shop",
-} as const satisfies Record<"veterinary" | "pet_shop", HomepageStoredOptionalDatasetId>;
+type HomepageOptionalCategory = (typeof OPTIONAL_PLACE_CATEGORIES)[number];
+type HomepageOptionalLoadState = Record<
+  HomepageOptionalCategory,
+  "idle" | "loading" | "ready" | "error"
+>;
+const EMPTY_OPTIONAL_LOAD_STATE: HomepageOptionalLoadState = {
+  shopping: "idle",
+  veterinary: "idle",
+  pet_shop: "idle",
+};
+const browserOptionalDatasetCache = new Map<string, HomepageOptionalSnapshot>();
 
 const API_ERROR_CODES = new Set<ApiError["code"]>([
   "CONFIGURATION_REQUIRED",
@@ -135,6 +151,7 @@ async function requestHomepageData<T>({
   const requestStartedAt = performance.now();
   const response = await fetch(url, {
     signal,
+    credentials: "omit",
     headers: { Accept: "application/json" },
   });
   recordHomepageBrowserTiming(stage, "headers", requestStartedAt);
@@ -179,7 +196,7 @@ function requestHomepageInitial(
 
 function requestHomepageOptional(
   region: RegionId,
-  dataset: HomepageStoredOptionalDatasetId,
+  dataset: HomepageOptionalDatasetId,
   signal?: AbortSignal,
 ): Promise<ApiResult<HomepageOptionalSnapshot>> {
   const params = new URLSearchParams({ version: "1", region, scope: "optional", dataset });
@@ -305,7 +322,25 @@ export function HomepageLiveExperience({
   regionId?: RegionId;
 }) {
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
-  const [snapshot, setSnapshot] = useState<HomepagePlacesSnapshot | null>(null);
+  const [catalogState, setCatalogState] = useState(() => ({
+    snapshot: null as HomepagePlacesSnapshot | null,
+    index: new HomepageCatalogIndex(regionId, []),
+  }));
+  const snapshot = catalogState.snapshot;
+  const catalogIndex = catalogState.index;
+  const setSnapshot = useCallback((update: SetStateAction<HomepagePlacesSnapshot | null>) => {
+    setCatalogState((current) => {
+      const nextSnapshot = typeof update === "function" ? update(current.snapshot) : update;
+      return {
+        snapshot: nextSnapshot,
+        index: new HomepageCatalogIndex(
+          regionId,
+          nextSnapshot?.markers ?? [],
+          current.index,
+        ),
+      };
+    });
+  }, [regionId]);
   const [error, setError] = useState<ApiError>(GENERIC_ERROR);
   const [retryToken, setRetryToken] = useState(0);
   const initialKey = `${regionId}:${retryToken}`;
@@ -316,16 +351,27 @@ export function HomepageLiveExperience({
   const [draftCategories, setDraftCategories] = useState<PlaceCategory[]>([...DEFAULT_PLACE_CATEGORIES]);
   const [filterOpen, setFilterOpen] = useState(false);
   const [completionState, setCompletionState] = useState<"initial" | "loading" | "complete" | "partial">("initial");
-  const [optionalLoadState, setOptionalLoadState] = useState<Record<"veterinary" | "pet_shop", "idle" | "loading" | "ready" | "error">>({
-    veterinary: "idle",
-    pet_shop: "idle",
-  });
-  const [filterPending, startFilterTransition] = useTransition();
+  const [optionalLoadState, setOptionalLoadState] = useState<HomepageOptionalLoadState>(EMPTY_OPTIONAL_LOAD_STATE);
+  const [readyOptionalDatasets, setReadyOptionalDatasets] = useState<HomepageOptionalDatasetId[]>([]);
   const region = getRegionConfig(regionId);
+  const optionalDatasetByCategory = useMemo(() => {
+    const entries = (region ? getHomepageCatalogDatasets(region, "optional") : [])
+      .flatMap((dataset) => dataset.categories.map((category) => [
+        category,
+        dataset.id as HomepageOptionalDatasetId,
+      ] as const));
+    return new Map<PlaceCategory, HomepageOptionalDatasetId>(entries);
+  }, [region]);
+  const availableCategories = useMemo(
+    () => PLACE_CATEGORIES.filter((category) =>
+      !OPTIONAL_PLACE_CATEGORIES.includes(category as HomepageOptionalCategory) ||
+      optionalDatasetByCategory.has(category)),
+    [optionalDatasetByCategory],
+  );
   const initialRequestRef = useRef<PendingRequest<HomepageInitialPlacesSnapshot> | null>(null);
   const completionRequestRef = useRef<PendingRequest<HomepageCompletionSnapshot> | null>(null);
   const enrichmentRequestRef = useRef<PendingRequest<HomepageEnrichmentSnapshot> | null>(null);
-  const optionalRequestsRef = useRef(new Map<HomepageStoredOptionalDatasetId, PendingRequest<HomepageOptionalSnapshot>>());
+  const optionalRequestsRef = useRef(new Map<HomepageOptionalDatasetId, PendingRequest<HomepageOptionalSnapshot>>());
   const initialAbortTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const enrichmentAbortTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const completionAbortTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -337,7 +383,7 @@ export function HomepageLiveExperience({
   const baseInitialRef = useRef<HomepageInitialPlacesSnapshot | null>(null);
   const filterUpdateStartedAtRef = useRef<number | null>(null);
   const pendingFilterCategoriesRef = useRef<PlaceCategory[] | null>(null);
-  const readyOptionalDatasetsRef = useRef(new Set<HomepageStoredOptionalDatasetId>());
+  const readyOptionalDatasetsRef = useRef(new Set<HomepageOptionalDatasetId>());
   const filterDropdownRef = useRef<HTMLElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -418,7 +464,8 @@ export function HomepageLiveExperience({
       setBaseRequestKey(requestKey);
       setActiveCategories([...DEFAULT_PLACE_CATEGORIES]);
       setDraftCategories([...DEFAULT_PLACE_CATEGORIES]);
-      setOptionalLoadState({ veterinary: "idle", pet_shop: "idle" });
+      setOptionalLoadState(EMPTY_OPTIONAL_LOAD_STATE);
+      setReadyOptionalDatasets([]);
       setLoadState("ready");
     }).catch(() => {
       if (!active || pending.controller.signal.aborted) return;
@@ -435,7 +482,7 @@ export function HomepageLiveExperience({
         initialRequestRef.current = null;
       }, STRICT_EFFECT_ABORT_GRACE_MS);
     };
-  }, [initialKey, regionId]);
+  }, [initialKey, regionId, setSnapshot]);
 
   useEffect(() => {
     if (loadState !== "ready" || !snapshot || stateUpdateStartedAtRef.current === null) return;
@@ -506,7 +553,7 @@ export function HomepageLiveExperience({
         completionRequestRef.current = null;
       }, STRICT_EFFECT_ABORT_GRACE_MS);
     };
-  }, [baseRequestKey, loadState, regionId]);
+  }, [baseRequestKey, loadState, regionId, setSnapshot]);
 
   useEffect(() => {
     if (completionUpdateStartedAtRef.current === null) return;
@@ -566,7 +613,7 @@ export function HomepageLiveExperience({
         enrichmentRequestRef.current = null;
       }, STRICT_EFFECT_ABORT_GRACE_MS);
     };
-  }, [baseRequestKey, region?.homepageFeaturedEnabled, regionId]);
+  }, [baseRequestKey, region?.homepageFeaturedEnabled, regionId, setSnapshot]);
 
   useEffect(() => () => {
     enrichmentRequestRef.current?.controller.abort();
@@ -593,6 +640,7 @@ export function HomepageLiveExperience({
     completionMapUpdatePendingRef.current = false;
     pendingFilterCategoriesRef.current = null;
     readyOptionalDatasetsRef.current.clear();
+    setReadyOptionalDatasets([]);
     activeRequestKeyRef.current = null;
     if (initialAbortTimerRef.current) clearTimeout(initialAbortTimerRef.current);
     if (enrichmentAbortTimerRef.current) clearTimeout(enrichmentAbortTimerRef.current);
@@ -602,16 +650,12 @@ export function HomepageLiveExperience({
     setBaseRequestKey(null);
     setSnapshot(null);
     setCompletionState("initial");
-    setOptionalLoadState({ veterinary: "idle", pet_shop: "idle" });
+    setOptionalLoadState(EMPTY_OPTIONAL_LOAD_STATE);
     setRequestedSelectionId(null);
     setLoadState("loading");
     setRetryToken((current) => current + 1);
   };
 
-  const catalogIndex = useMemo(
-    () => new HomepageCatalogIndex(regionId, snapshot?.markers ?? []),
-    [regionId, snapshot?.markers],
-  );
   const visibleMarkers = useMemo(
     () => catalogIndex.filter({ categories: activeCategories }).markers,
     [activeCategories, catalogIndex],
@@ -651,8 +695,10 @@ export function HomepageLiveExperience({
   }
 
   const categoryCounts = Object.fromEntries(PLACE_CATEGORIES.map((category) => {
+    const dataset = optionalDatasetByCategory.get(category);
     const optionalLayer = category === "veterinary" ? "veterinary" : category === "pet_shop" ? "pet_shop" : null;
-    if (optionalLayer && snapshot.layers[optionalLayer].state !== "ready" && snapshot.layers[optionalLayer].state !== "empty") {
+    if (dataset && !readyOptionalDatasets.includes(dataset) &&
+      (!optionalLayer || (snapshot.layers[optionalLayer].state !== "ready" && snapshot.layers[optionalLayer].state !== "empty"))) {
       return [category, null];
     }
     return [category, catalogIndex.countCategory(category)];
@@ -664,12 +710,29 @@ export function HomepageLiveExperience({
   const loadOptionalPlaces = (categories: readonly PlaceCategory[]) => {
     if (!baseRequestKey) return;
     const requestedCategories = categories.filter(
-      (category): category is "veterinary" | "pet_shop" => category === "veterinary" || category === "pet_shop",
+      (category): category is HomepageOptionalCategory =>
+        OPTIONAL_PLACE_CATEGORIES.includes(category as HomepageOptionalCategory) &&
+        optionalDatasetByCategory.has(category),
     );
     for (const category of requestedCategories) {
-      if (["ready", "empty"].includes(snapshot.layers[category].state)) continue;
-      const dataset = OPTIONAL_DATASET_BY_CATEGORY[category];
+      const dataset = optionalDatasetByCategory.get(category);
+      if (!dataset || readyOptionalDatasetsRef.current.has(dataset)) continue;
       const requestKey = `${baseRequestKey}:${dataset}`;
+      const browserCacheKey = `${regionId}:${dataset}`;
+      const retained = browserOptionalDatasetCache.get(browserCacheKey);
+      if (retained) {
+        const mergeStartedAt = performance.now();
+        setSnapshot((current) => current
+          ? mergeHomepageOptionalInitial(current, retained, regionId)
+          : current);
+        recordHomepageBrowserTiming("optional", "deduplication", mergeStartedAt);
+        readyOptionalDatasetsRef.current.add(dataset);
+        setReadyOptionalDatasets((current) => current.includes(dataset)
+          ? current
+          : [...current, dataset]);
+        setOptionalLoadState((current) => ({ ...current, [category]: "ready" }));
+        continue;
+      }
       const currentPending = optionalRequestsRef.current.get(dataset);
       if (currentPending && currentPending.key !== requestKey) {
         currentPending.controller.abort();
@@ -702,17 +765,19 @@ export function HomepageLiveExperience({
           ? mergeHomepageOptionalInitial(current, result.data, regionId)
           : current);
         recordHomepageBrowserTiming("optional", "deduplication", mergeStartedAt);
+        browserOptionalDatasetCache.set(browserCacheKey, result.data);
         readyOptionalDatasetsRef.current.add(dataset);
+        setReadyOptionalDatasets((current) => current.includes(dataset)
+          ? current
+          : [...current, dataset]);
         setOptionalLoadState((current) => ({ ...current, [category]: "ready" }));
         const pendingCategories = pendingFilterCategoriesRef.current;
         const pendingDatasets = pendingCategories?.flatMap((pendingCategory) =>
-          pendingCategory === "veterinary" || pendingCategory === "pet_shop"
-            ? [OPTIONAL_DATASET_BY_CATEGORY[pendingCategory]]
-            : []);
+          optionalDatasetByCategory.get(pendingCategory) ?? []);
         if (pendingCategories && pendingDatasets?.every((pendingDataset) =>
           readyOptionalDatasetsRef.current.has(pendingDataset))) {
           pendingFilterCategoriesRef.current = null;
-          startFilterTransition(() => setActiveCategories(pendingCategories));
+          setActiveCategories(pendingCategories);
         }
       }).catch(() => {
         if (!pending.controller.signal.aborted &&
@@ -745,14 +810,13 @@ export function HomepageLiveExperience({
     setFilterOpen(false);
     requestAnimationFrame(() => recordHomepageBrowserTiming("filter", "feedback", startedAt));
     const unresolvedOptional = draftCategories.flatMap((category) =>
-      category === "veterinary" || category === "pet_shop"
-        ? [OPTIONAL_DATASET_BY_CATEGORY[category]]
-        : []).filter((dataset) => !readyOptionalDatasetsRef.current.has(dataset));
+      optionalDatasetByCategory.get(category) ?? [])
+      .filter((dataset) => !readyOptionalDatasetsRef.current.has(dataset));
     if (unresolvedOptional.length > 0) {
       pendingFilterCategoriesRef.current = [...draftCategories];
     } else {
       pendingFilterCategoriesRef.current = null;
-      startFilterTransition(() => setActiveCategories([...draftCategories]));
+      setActiveCategories([...draftCategories]);
     }
     loadOptionalPlaces(draftCategories);
   };
@@ -798,7 +862,7 @@ export function HomepageLiveExperience({
                     </div>
                     <PlaceCategoryToggleGroup
                       title="장소 유형"
-                      categories={PLACE_CATEGORIES}
+                      categories={availableCategories}
                       active={draftCategories}
                       counts={categoryCounts}
                       onToggle={toggleDraftCategory}
@@ -808,7 +872,9 @@ export function HomepageLiveExperience({
                         일부 카카오 장소 데이터 준비 중
                       </p>
                     ) : null}
-                    {(["veterinary", "pet_shop"] as const).map((category) =>
+                    {([...OPTIONAL_PLACE_CATEGORIES] as HomepageOptionalCategory[])
+                      .filter((category) => optionalDatasetByCategory.has(category))
+                      .map((category) =>
                       optionalLoadState[category] === "loading" ? (
                         <p key={category} className="homepage-map-provider-status" role="status">
                           {PLACE_CATEGORY_LABELS[category]} 데이터를 불러오는 중
@@ -851,9 +917,9 @@ export function HomepageLiveExperience({
             />
           </div>
 
-          {completionState === "loading" || filterPending ? (
+          {completionState === "loading" ? (
             <p className="homepage-map-provider-status" role="status">
-              {filterPending ? "선택한 필터를 지도에 적용 중" : "나머지 저장 장소를 지도에 추가 중"}
+              나머지 저장 장소를 지도에 추가 중
             </p>
           ) : completionState === "partial" ? (
             <p className="homepage-map-provider-status" role="status">

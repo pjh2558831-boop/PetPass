@@ -36,7 +36,7 @@ function marker(index: number): HomepageMapMarker {
 describe("region-generic homepage catalog descriptors", () => {
   it("derives provider datasets from capabilities without a named-region branch", () => {
     expect(getHomepageCatalogDatasets(BUSAN_REGION_CONFIG).map(({ id }) => id)).toEqual([
-      "default-tour", "default-kakao", "optional-veterinary", "optional-pet-shop",
+      "optional-kto-shopping", "default-tour", "default-kakao", "optional-veterinary", "optional-pet-shop",
     ]);
     expect(getHomepageCatalogDatasets(JEJU_REGION_CONFIG).map(({ id }) => id)).toEqual(["default-tour"]);
   });
@@ -95,5 +95,15 @@ describe("homepage catalog indexes", () => {
     const result = new HomepageCatalogIndex("busan", markers).filter({ categories: ["cafe"] });
     expect(result.markers).toEqual(markers.filter(({ category }) => category === "cafe"));
     expect(result.markers[0]).toBe(markers[0]);
+  });
+
+  it("extends an existing index without reconstructing unchanged marker entries", () => {
+    const initial = Array.from({ length: 700 }, (_, index) => marker(index));
+    const first = new HomepageCatalogIndex("busan", initial);
+    const nextMarker = marker(701);
+    const extended = new HomepageCatalogIndex("busan", [...initial, nextMarker], first);
+    expect(extended.reusedMarkerCount).toBe(700);
+    expect(extended.byId.get(initial[42].id)).toBe(initial[42]);
+    expect(extended.byId.get(nextMarker.id)).toBe(nextMarker);
   });
 });

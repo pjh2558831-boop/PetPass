@@ -19,6 +19,7 @@ import type {
   HomepagePlaceLayer,
   HomepagePlacesSnapshot,
 } from "@/types/homepage-places";
+import type { HomepageOptionalSnapshot } from "@/types/homepage-optional";
 
 const LAYER_MAP: Record<HomepageInitialLayer, HomepagePlaceLayer> = {
   tourism: "official",
@@ -239,7 +240,7 @@ function uniqueById<T extends { id: string }>(values: readonly T[]): T[] {
 
 export function mergeHomepageOptionalInitial(
   current: HomepagePlacesSnapshot,
-  optional: HomepageInitialPlacesSnapshot,
+  optional: HomepageOptionalSnapshot,
   activeRegion: RegionId,
 ): HomepagePlacesSnapshot {
   if (optional.region !== activeRegion || optional.scope !== "optional") {
@@ -252,6 +253,47 @@ export function mergeHomepageOptionalInitial(
   const petShop = projected.layers.pet_shop.state === "deferred"
     ? current.layers.pet_shop
     : projected.layers.pet_shop;
+  const markers = uniqueById([...current.markers, ...projected.markers]);
+  if (optional.providers === "tour") {
+    const optionalCategories = new Map(
+      optional.categoryCounts.map(([, category, count]) => [category, count] as const),
+    );
+    const currentCategories = new Map(
+      current.official.categoryCounts.map((entry) => [entry.category, entry] as const),
+    );
+    let replacedCount = 0;
+    for (const [category, count] of optionalCategories) {
+      replacedCount += currentCategories.get(category)?.count ?? 0;
+      currentCategories.set(category, {
+        category,
+        label: PLACE_CATEGORY_LABELS[category],
+        count,
+      });
+    }
+    const officialMarkerCount = markers.filter(({ layer }) => layer === "official").length;
+    const officialTotalCount = current.official.totalCount - replacedCount + optional.totalCount;
+    return {
+      ...current,
+      official: {
+        ...current.official,
+        totalCount: officialTotalCount,
+        markerCount: officialMarkerCount,
+        omittedCoordinateCount: Math.max(0, officialTotalCount - officialMarkerCount),
+        categoryCounts: [...currentCategories.values()],
+        retrievedAt: optional.retrievedAt,
+      },
+      layers: {
+        ...current.layers,
+        official: {
+          ...current.layers.official,
+          state: officialTotalCount === 0 ? "empty" : "ready",
+          count: officialTotalCount,
+          markerCount: officialMarkerCount,
+        },
+      },
+      markers,
+    };
+  }
   return {
     ...current,
     layers: {
@@ -259,7 +301,7 @@ export function mergeHomepageOptionalInitial(
       veterinary,
       pet_shop: petShop,
     },
-    markers: uniqueById([...current.markers, ...projected.markers]),
+    markers,
     cards: uniqueById([...current.cards, ...projected.cards]),
   };
 }

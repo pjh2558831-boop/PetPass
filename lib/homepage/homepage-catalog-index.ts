@@ -58,15 +58,28 @@ export class HomepageCatalogIndex {
   readonly byProvider: ReadonlyMap<HomepageCatalogProvider, ReadonlySet<string>>;
   readonly byDistrict: ReadonlyMap<string, ReadonlySet<string>>;
   readonly byDataset: ReadonlyMap<HomepageDatasetId, ReadonlySet<string>>;
+  readonly reusedMarkerCount: number;
 
-  constructor(regionId: RegionId, markers: readonly HomepageMapMarker[]) {
+  constructor(
+    regionId: RegionId,
+    markers: readonly HomepageMapMarker[],
+    previous?: HomepageCatalogIndex | null,
+  ) {
     this.regionId = regionId;
-    const byId = new Map<string, HomepageMapMarker>();
-    const byCategory = new Map<PlaceCategory, Set<string>>();
-    const byProvider = new Map<HomepageCatalogProvider, Set<string>>();
-    const byDistrict = new Map<string, Set<string>>();
-    const byDataset = new Map<HomepageDatasetId, Set<string>>();
-    for (const marker of markers) {
+    const canReuse = previous?.regionId === regionId &&
+      previous.orderedIds.length <= markers.length &&
+      previous.orderedIds.every((id, index) => previous.byId.get(id) === markers[index]);
+    const byId = canReuse
+      ? new Map(previous.byId)
+      : new Map<string, HomepageMapMarker>();
+    const cloneIndex = <K>(source?: ReadonlyMap<K, ReadonlySet<string>>) =>
+      new Map([...(source ?? [])].map(([key, ids]) => [key, new Set(ids)] as const));
+    const byCategory = cloneIndex(canReuse ? previous.byCategory : undefined);
+    const byProvider = cloneIndex(canReuse ? previous.byProvider : undefined);
+    const byDistrict = cloneIndex(canReuse ? previous.byDistrict : undefined);
+    const byDataset = cloneIndex(canReuse ? previous.byDataset : undefined);
+    const reusedMarkerCount = canReuse ? previous.orderedIds.length : 0;
+    for (const marker of markers.slice(reusedMarkerCount)) {
       if (byId.has(marker.id)) throw new Error("Homepage canonical catalog contains duplicate stable IDs.");
       byId.set(marker.id, marker);
       addToIndex(byCategory, marker.category, marker.id);
@@ -80,6 +93,7 @@ export class HomepageCatalogIndex {
     this.byProvider = byProvider;
     this.byDistrict = byDistrict;
     this.byDataset = byDataset;
+    this.reusedMarkerCount = reusedMarkerCount;
   }
 
   filter(filter: HomepageCatalogFilter): HomepageCatalogFilterResult {
