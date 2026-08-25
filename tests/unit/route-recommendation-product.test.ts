@@ -176,6 +176,7 @@ describe("Stage 5 recommendation product contract", () => {
       preferredCategories: ["RESTAURANT", "CAFE", "WALK"],
       includeShopping: true,
       roundTrip: true,
+      environmentPreference: "indoor_preferred",
       departure: {
         label: "지도 출발지",
         source: "map_selection",
@@ -198,6 +199,8 @@ describe("Stage 5 recommendation product contract", () => {
         tripPace: "packed",
         selectedCategories: ["food", "leisure", "shopping"],
         roundTrip: true,
+        environmentPreference: "indoor_preferred",
+        travelMode: "driving",
       },
       pet: {
         name: "보리",
@@ -206,7 +209,49 @@ describe("Stage 5 recommendation product contract", () => {
         availableEquipment: { carrier: true, leash: true, muzzle: false },
         acceptsOutdoorOnlyPlaces: false,
       },
+      personalization: {
+        petCount: 1,
+        petActivityLevel: "moderate",
+        walkingTolerance: "moderate",
+        crowdPreference: "any",
+        tripMood: "balanced",
+        categoryPriorities: {},
+        recentRouteSignatures: [],
+        recentlySelectedCandidateIds: [],
+        explicitlyExcludedPlaceIds: [],
+        rerollVariant: 0,
+      },
     });
+  });
+
+  it("defaults indoor and outdoor preference to neutral any", () => {
+    const request = createRouteRecommendationRequest(
+      {
+        id: "pet",
+        name: "보리",
+        species: "DOG",
+        size: "SMALL",
+        hasCarrier: true,
+        hasLeash: true,
+        hasMuzzle: false,
+        acceptsOutdoorOnly: false,
+      },
+      {
+        regionCode: "26",
+        regionName: "부산",
+        tripDate: "2026-08-15",
+        tripType: "DAY_TRIP",
+        tripPace: "balanced",
+        startTime: "10:00",
+        preferredCategories: ["WALK"],
+        departure: {
+          label: "부산역",
+          coordinates: { latitude: 35.115, longitude: 129.04 },
+        },
+      },
+    );
+
+    expect(request.trip.environmentPreference).toBe("any");
   });
 
   it("requires a resolved departure before submission", () => {
@@ -254,7 +299,29 @@ describe("Stage 5 recommendation product contract", () => {
     expect(generate).not.toHaveBeenCalled();
   });
 
-  it("coalesces identical in-flight requests without caching personalized results", async () => {
+  it.each([
+    ["Seoul", 37.5665, 126.978],
+    ["Tokyo", 35.6812, 139.7671],
+  ])("rejects an out-of-region %s origin before generation", async (_label, latitude, longitude) => {
+    const generate = vi.fn(async () => READY);
+    const response = await createRouteRecommendationHandler({
+      enabled: true,
+      generate,
+      rateLimit: () => ({ allowed: true, limit: 8, remaining: 7, retryAfterSeconds: 0 }),
+    })(request({
+      ...VALID_REQUEST,
+      departure: { ...VALID_REQUEST.departure, latitude, longitude },
+    }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      status: "invalid_request",
+      reasonCodes: ["DEPARTURE_OUTSIDE_ITINERARY_REGION"],
+    });
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("does not coalesce personalized requests under a catalog-incomplete in-flight key", async () => {
     let release: ((value: RouteRecommendationReadyResponseV1) => void) | undefined;
     const pending = new Promise<RouteRecommendationReadyResponseV1>((resolve) => {
       release = resolve;
@@ -263,15 +330,38 @@ describe("Stage 5 recommendation product contract", () => {
     const handler = createRouteRecommendationHandler({ enabled: true, generate });
     const first = handler(request(VALID_REQUEST));
     const second = handler(request(VALID_REQUEST));
-    await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(2));
     release!(READY);
     await expect(Promise.all([first, second]).then((values) => values.map(({ status }) => status))).resolves.toEqual([200, 200]);
     await handler(request(VALID_REQUEST));
-    expect(generate).toHaveBeenCalledTimes(2);
+    expect(generate).toHaveBeenCalledTimes(3);
+  });
+
+  it("propagates client cancellation into recommendation work", async () => {
+    const controller = new AbortController();
+    let observedSignal: AbortSignal | undefined;
+    const generate = vi.fn(async (_request, dependencies) => {
+      observedSignal = dependencies?.signal;
+      await Promise.resolve();
+      dependencies?.signal?.throwIfAborted();
+      return READY;
+    });
+    const handler = createRouteRecommendationHandler({ enabled: true, generate });
+
+    controller.abort();
+    const abortedRequest = request(VALID_REQUEST);
+    Object.defineProperty(abortedRequest, "signal", { value: controller.signal });
+    await expect(handler(abortedRequest)).rejects.toMatchObject({
+      name: "AbortError",
+    });
+    expect(observedSignal?.aborted).toBe(true);
   });
 
   it("returns typed disabled, rate-limited, invalid, and safely normalized error states", async () => {
-    const disabled = await createRouteRecommendationHandler({ enabled: false })(request(VALID_REQUEST));
+    const disabled = await createRouteRecommendationHandler({
+      enabled: false,
+      rateLimit: () => ({ allowed: true, limit: 8, remaining: 7, retryAfterSeconds: 0 }),
+    })(request(VALID_REQUEST));
     expect(disabled.status).toBe(503);
     await expect(disabled.json()).resolves.toMatchObject({ status: "route_engine_disabled" });
 
@@ -282,11 +372,15 @@ describe("Stage 5 recommendation product contract", () => {
     expect(limited.status).toBe(429);
     expect(limited.headers.get("Retry-After")).toBe("12");
 
-    const invalid = await createRouteRecommendationHandler({ enabled: true })(request({ ...VALID_REQUEST, upstreamUrl: "https://evil.invalid" }));
+    const invalid = await createRouteRecommendationHandler({
+      enabled: true,
+      rateLimit: () => ({ allowed: true, limit: 8, remaining: 7, retryAfterSeconds: 0 }),
+    })(request({ ...VALID_REQUEST, upstreamUrl: "https://evil.invalid" }));
     expect(invalid.status).toBe(400);
 
     const failed = await createRouteRecommendationHandler({
       enabled: true,
+      rateLimit: () => ({ allowed: true, limit: 8, remaining: 7, retryAfterSeconds: 0 }),
       generate: async () => { throw new Error("serviceKey=SECRET https://provider.invalid/raw"); },
     })(request(VALID_REQUEST));
     const serialized = JSON.stringify(await failed.json());

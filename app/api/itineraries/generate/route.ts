@@ -24,31 +24,6 @@ import {
   generateRouteRecommendation,
   type RecommendationServiceDependencies,
 } from "@/lib/recommendation/recommendation-service";
-import type { RouteRecommendationResponseV1 } from "@/types/recommendation";
-
-const inFlightRecommendations = new Map<
-  string,
-  Promise<RouteRecommendationResponseV1>
->();
-
-function generateOnce(
-  fingerprint: string,
-  generate: typeof generateRouteRecommendation,
-  request: Parameters<typeof generateRouteRecommendation>[0],
-  dependencies?: RecommendationServiceDependencies,
-): Promise<RouteRecommendationResponseV1> {
-  const existing = inFlightRecommendations.get(fingerprint);
-  if (existing) return existing;
-  const pending = generate(request, dependencies);
-  inFlightRecommendations.set(fingerprint, pending);
-  const clean = () => {
-    if (inFlightRecommendations.get(fingerprint) === pending) {
-      inFlightRecommendations.delete(fingerprint);
-    }
-  };
-  void pending.then(clean, clean);
-  return pending;
-}
 
 export function createItineraryGenerationHandler(
   dependencies: ItineraryGenerationDependencies = {},
@@ -168,8 +143,13 @@ export function createRouteRecommendationHandler(
     }
     const parsed = routeRecommendationRequestSchema.safeParse(body);
     if (!parsed.success) {
+      const departureOutsideRegion = parsed.error.issues.some(
+        ({ message }) => message === "DEPARTURE_OUTSIDE_ITINERARY_REGION",
+      );
       const failure = recommendationFailure("invalid_request", [
-        "route_recommendation_schema_invalid",
+        departureOutsideRegion
+          ? "DEPARTURE_OUTSIDE_ITINERARY_REGION"
+          : "route_recommendation_schema_invalid",
       ]);
       return Response.json(failure, {
         status: recommendationHttpStatus(failure.status),
@@ -178,13 +158,12 @@ export function createRouteRecommendationHandler(
     }
     let result;
     try {
-      result = await generateOnce(
-        JSON.stringify(parsed.data),
-        options.generate ?? generateRouteRecommendation,
+      result = await (options.generate ?? generateRouteRecommendation)(
         parsed.data,
-        options.dependencies,
+        { ...options.dependencies, signal: request.signal },
       );
-    } catch {
+    } catch (error) {
+      if (request.signal.aborted) throw error;
       result = recommendationFailure("internal_error", [
         "recommendation_handler_failed",
       ]);

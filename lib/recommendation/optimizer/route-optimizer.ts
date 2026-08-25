@@ -89,12 +89,16 @@ function validateOptimizationInput(input: RouteOptimizationInput): string[] {
   if (new Set(input.candidates.map((item) => item.node.id)).size !== input.candidates.length) reasons.push("duplicate_candidate_id");
   if (
     input.candidates.some(
-      (item) =>
-        !item.place.eligibility.eligible ||
-        item.place.eligibility.status !== "eligible" ||
-        item.place.eligibility.reasonCodes.length !== 0 ||
-        !["allowed", "conditional"].includes(item.place.assessment.verdict) ||
-        item.place.source !== "tourism_service2",
+      (item) => {
+        const tier = item.eligibilityTier ?? item.place?.eligibility.tier;
+        const verdict = item.petAssessment ?? item.place?.assessment.verdict;
+        const source = item.source ?? item.place?.source;
+        return (
+          tier === "explicitly_ineligible" ||
+          verdict === "not_allowed" ||
+          !["tourism_service2", "kakao_catalog"].includes(source ?? "")
+        );
+      },
     )
   ) {
     reasons.push("non_strict_candidate_rejected");

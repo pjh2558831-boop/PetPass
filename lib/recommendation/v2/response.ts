@@ -1,0 +1,140 @@
+import "server-only";
+
+import { createHash } from "node:crypto";
+import type { normalizeRecommendationRequest } from "@/lib/recommendation/recommendation-request";
+import type { DetailedEligibleCandidate } from "@/lib/recommendation/types";
+import type { RecommendedRouteStop, RouteOptimizationInput } from "@/lib/recommendation/types/route-optimizer";
+import type { CanonicalRecommendationCandidateV2 } from "@/lib/recommendation/v2/candidate-fusion";
+import { routeOptionScheduleV2, type OptimizedRouteOptionV2 } from "@/lib/recommendation/v2/route-optimizer";
+import type { ProductRouteV1, RecommendedRouteStopV1 } from "@/types/recommendation";
+import { ROUTE_RECOMMENDATION_CONTRACT_V2 } from "@/types/recommendation";
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, child]) => `${JSON.stringify(key)}:${stableJson(child)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+export function requestFingerprintV2(input: {
+  normalized: ReturnType<typeof normalizeRecommendationRequest>;
+  catalogVersion: string;
+  candidates: readonly CanonicalRecommendationCandidateV2[];
+}): string {
+  return createHash("sha256").update(stableJson({
+    contractVersion: ROUTE_RECOMMENDATION_CONTRACT_V2,
+    providerContracts: {
+      kto: "KorPetTourService2",
+      kakaoCatalog: "map-places-snapshot-v1",
+      mobility: "travel-matrix-v1",
+    },
+    routeStyles: ["comfort", "preference", "efficient"],
+    request: input.normalized,
+    catalogVersion: input.catalogVersion,
+    candidateGeneration: input.candidates.map((candidate) => ({
+      id: candidate.canonicalId,
+      providerIdentities: candidate.providerIdentities,
+      retrievedAt: candidate.retrievedAt,
+    })),
+  }), "utf8").digest("hex");
+}
+
+function productStopV2(
+  stop: RecommendedRouteStop,
+  candidate: CanonicalRecommendationCandidateV2,
+  licensingStatus: (candidate: DetailedEligibleCandidate) => RecommendedRouteStopV1["licensingStatus"],
+): RecommendedRouteStopV1 {
+  const kto = candidate.ktoCandidate;
+  return {
+    placeId: candidate.canonicalId,
+    sequence: stop.sequence,
+    title: candidate.title,
+    address: candidate.address,
+    coordinates: candidate.coordinates,
+    category: candidate.category,
+    arrivalAt: stop.arrivalAt,
+    visitStartsAt: stop.visitStartsAt,
+    departureAt: stop.departureAt,
+    dwellMinutes: stop.dwellMinutes,
+    driveSecondsFromPrevious: stop.driveSecondsFromPrevious,
+    distanceMetersFromPrevious: stop.distanceMetersFromPrevious,
+    source: candidate.source,
+    sourceLabel: candidate.sourceLabel,
+    petAssessment: candidate.petVerdict,
+    evidenceStatus: candidate.evidenceStatus,
+    retrievedAt: candidate.retrievedAt,
+    providerIdentities: candidate.providerIdentities,
+    mandatoryConditions: kto?.assessment.conditions.map((condition) => ({
+      type: condition.type,
+      label: condition.label,
+      manualConfirmationRecommended: condition.manualConfirmationRecommended,
+    })) ?? [],
+    informationTrust: stop.informationTrust,
+    licensingStatus: kto ? licensingStatus(kto) : "not_applicable",
+    operatingHoursWarnings: kto?.scheduleCompatibility.warningCodes ?? ["operating_hours_unverified"],
+    inclusionReasonCodes: stop.inclusionReasonCodes,
+    orderingReasonCodes: stop.orderingReasonCodes,
+    warningCodes: stop.warningCodes,
+    evidence: kto?.assessment.evidence.slice(0, 9).map((evidence) => ({
+      field: evidence.field,
+      label: evidence.fieldLabel,
+      originalText: evidence.originalText,
+    })) ?? [],
+  };
+}
+
+export function routeFromOptionV2(input: {
+  option: OptimizedRouteOptionV2;
+  optimization: RouteOptimizationInput;
+  candidates: Map<string, CanonicalRecommendationCandidateV2>;
+  requestedTarget: number;
+  licensingStatus: (candidate: DetailedEligibleCandidate) => RecommendedRouteStopV1["licensingStatus"];
+}): ProductRouteV1 {
+  const schedule = routeOptionScheduleV2(input.option, input.optimization);
+  const stopCount = input.option.stops.length;
+  const reductionStatus = stopCount === 1
+    ? "single_stop" as const
+    : stopCount < input.requestedTarget
+      ? "reduced" as const
+      : "complete" as const;
+  const labels = {
+    comfort: "편안함 우선",
+    preference: "취향 우선",
+    efficient: "이동 최소",
+  } as const;
+  return {
+    id: `optimized:${input.option.style}:${input.option.route.signature}`,
+    kind: "optimized",
+    label: labels[input.option.style],
+    style: input.option.style,
+    routeSignature: input.option.route.signature,
+    requestedTarget: input.requestedTarget,
+    reductionStatus,
+    personalizationExplanationCodes: input.option.explanationCodes,
+    routeSummary: {
+      startAt: schedule.startAt,
+      endAt: schedule.endAt,
+      stopCount,
+      totalDistanceMeters: schedule.totalDistanceMeters,
+      totalDrivingSeconds: schedule.totalDrivingSeconds,
+      totalVisitSeconds: schedule.totalVisitSeconds,
+      totalWaitSeconds: schedule.totalWaitSeconds,
+    },
+    temporalBasis: {
+      searchMatrix: schedule.matrixTemporalBasis,
+      finalRoute: schedule.finalValidationTemporalBasis,
+    },
+    stops: input.option.stops.map((stop) => {
+      const candidate = input.candidates.get(stop.placeId);
+      if (!candidate) {
+        throw new TypeError("Final V2 route stop is outside the validated canonical candidate map.");
+      }
+      return productStopV2(stop, candidate, input.licensingStatus);
+    }),
+    geometry: input.option.geometry,
+  };
+}
