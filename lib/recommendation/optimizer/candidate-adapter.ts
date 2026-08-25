@@ -11,7 +11,7 @@ import type {
 
 const RANGE_PATTERN = /(?:^|\D)([01]?\d|2[0-3]):([0-5]\d)\s*(?:~|-|–|—)\s*([01]?\d|2[0-3]):([0-5]\d)(?=\D|$)/g;
 
-function normalizeSchedule(candidate: DetailedEligibleCandidate): NormalizedVisitSchedule {
+export function normalizeSchedule(candidate: DetailedEligibleCandidate): NormalizedVisitSchedule {
   if (candidate.scheduleCompatibility.status === "unknown") {
     return {
       status: "unknown",
@@ -67,7 +67,7 @@ function normalizeSchedule(candidate: DetailedEligibleCandidate): NormalizedVisi
   };
 }
 
-function visitRole(candidate: DetailedEligibleCandidate): RouteVisitRole {
+export function visitRole(candidate: DetailedEligibleCandidate): RouteVisitRole {
   switch (candidate.travelSuitability.travelRole) {
     case "meal":
       return "meal";
@@ -94,7 +94,7 @@ function visitRole(candidate: DetailedEligibleCandidate): RouteVisitRole {
   }
 }
 
-function isHighActivity(candidate: DetailedEligibleCandidate): boolean {
+export function isHighActivity(candidate: DetailedEligibleCandidate): boolean {
   return (
     candidate.category === "leisure" ||
     ["beach", "park", "walking_trail", "experience", "outdoor_activity"].includes(
@@ -147,5 +147,13 @@ export function adaptEligibleCandidateForRouteV1(input: {
       status: "not_available",
       score: null,
     },
+    source: "tourism_service2",
+    petAssessment: candidate.assessment.verdict as "allowed" | "conditional" | "unknown",
+    evidenceStatus:
+      candidate.eligibility.tier === "verified" ? "verified" :
+      candidate.eligibility.tier === "unverified" ? "unverified" : "conditional",
+    eligibilityTier:
+      candidate.eligibility.tier === "verified" ? "verified" :
+      candidate.eligibility.tier === "unverified" ? "unverified" : "conditional",
   };
 }
