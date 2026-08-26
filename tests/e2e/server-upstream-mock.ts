@@ -7,7 +7,7 @@ type Scenario = {
   petResponse?: "empty" | "unavailable";
   unknownHours?: boolean;
   imageUrl?: string;
-  legalRegionCode?: "26" | "50";
+  legalRegionCode?: "11" | "26" | "50";
   districtCode?: string;
   latitude?: number;
   longitude?: number;
@@ -155,6 +155,20 @@ const catalogScenarios: CatalogScenario[] = [
 ];
 
 const scenarios: Record<string, Scenario> = {
+  "6110001": {
+    title: "서울 UI 검증 상세 장소",
+    address: "서울특별시 종로구 검증로 1",
+    contentTypeId: "12",
+    petPolicy: {
+      acmpyPsblCpam: "반려동물 동반 가능",
+      acmpyNeedMtr: "방문 전 운영 조건 확인",
+    },
+    imageUrl: "https://tong.visitkorea.or.kr/cms/resource/fixture-seoul-01.jpg",
+    legalRegionCode: "11",
+    districtCode: "110",
+    latitude: 37.43,
+    longitude: 126.79,
+  },
   "5010001": {
     title: "제주 UI 검증 상세 장소",
     address: "제주특별자치도 제주시 검증로 1",

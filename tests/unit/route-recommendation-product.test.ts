@@ -299,6 +299,39 @@ describe("Stage 5 recommendation product contract", () => {
     expect(generate).not.toHaveBeenCalled();
   });
 
+  it("rejects Seoul before KTO, Kakao discovery, matrix, or solver work", async () => {
+    const calls = {
+      kto: vi.fn(),
+      kakaoDiscovery: vi.fn(),
+      matrix: vi.fn(),
+      solver: vi.fn(),
+    };
+    const generate = vi.fn(async () => {
+      calls.kto();
+      calls.kakaoDiscovery();
+      calls.matrix();
+      calls.solver();
+      return READY;
+    });
+    const response = await createRouteRecommendationHandler({ enabled: true, generate })(request({
+      ...VALID_REQUEST,
+      trip: { ...VALID_REQUEST.trip, regionId: "seoul", districtId: "110" },
+      departure: { ...VALID_REQUEST.departure, latitude: 37.5665, longitude: 126.978 },
+    }));
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      status: "region_not_supported_for_itinerary",
+      reasonCodes: ["REGION_NOT_SUPPORTED_FOR_ITINERARY"],
+      retryable: false,
+    });
+    expect(generate).not.toHaveBeenCalled();
+    expect(calls.kto).not.toHaveBeenCalled();
+    expect(calls.kakaoDiscovery).not.toHaveBeenCalled();
+    expect(calls.matrix).not.toHaveBeenCalled();
+    expect(calls.solver).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["Seoul", 37.5665, 126.978],
     ["Tokyo", 35.6812, 139.7671],

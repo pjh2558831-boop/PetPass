@@ -38,10 +38,32 @@ describe("public catalog URL state", () => {
       .toMatchObject({ region: "jeju", district: "110" });
     expect(parsePublicCatalogUrlState({ region: "jeju", district: "500", page: "3" }))
       .toMatchObject({ region: "jeju", district: "all", page: 3 });
+    expect(parsePublicCatalogUrlState({ region: "seoul", district: "110" }))
+      .toMatchObject({ region: "seoul", district: "110" });
+    expect(parsePublicCatalogUrlState({ region: "seoul", district: "130" }))
+      .toMatchObject({ region: "seoul", district: "all" });
+  });
+
+  it("rejects an explicit unknown or unavailable region instead of defaulting to Busan", () => {
+    expect(parsePublicCatalogUrlState({ region: "seoul-preview" })).toBeNull();
+    expect(parsePublicCatalogUrlState({ region: ["seoul", "busan"] })).toBeNull();
+    expect(parsePublicCatalogUrlState({ regionId: "seoul" })).toBeNull();
+    expect(parsePublicCatalogUrlState({ selectedRegion: "seoul" })).toBeNull();
+    expect(parsePublicCatalogUrlState({})).toMatchObject({ region: "busan" });
+  });
+
+  it("includes non-deferred Seoul shopping in the local default selection", () => {
+    expect(parsePublicCatalogUrlState({ region: "seoul" })?.categories).toEqual([
+      "attraction",
+      "food",
+      "cafe",
+      "accommodation",
+      "shopping",
+    ]);
   });
 
   it("restores an explicit all-layers-off state", () => {
-    expect(parsePublicCatalogUrlState({ layers: "none" }).layers).toEqual([]);
+    expect(parsePublicCatalogUrlState({ layers: "none" })?.layers).toEqual([]);
   });
 
   it("serializes a canonical shareable results URL that round-trips", () => {
@@ -55,9 +77,9 @@ describe("public catalog URL state", () => {
     };
     const url = serializeResultsUrl("catalog", state);
 
-    expect(url).toBe("/results?tab=catalog&region=jeju&district=110&categories=attraction%2Ccafe&sort=popularity&page=3");
+    expect(url).toBe("/results?tab=catalog&region=jeju&district=110&categories=attraction%2Ccafe&layers=tourism&sort=popularity&page=3");
     expect(parsePublicCatalogUrlState(Object.fromEntries(new URL(url, "http://localhost").searchParams)))
-      .toEqual({ ...state, layers: [...PUBLIC_CATALOG_LAYERS] });
+      .toEqual(state);
   });
 });
 

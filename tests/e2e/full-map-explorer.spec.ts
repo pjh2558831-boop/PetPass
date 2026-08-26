@@ -2,6 +2,8 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { JEJU_PUBLIC_MAP_UI_FIXTURE } from "@/fixtures/jeju-public-map-ui";
+import { SEOUL_PUBLIC_MAP_UI_FIXTURE } from "../fixtures/seoul-public-map-ui";
+import { liveDetail } from "./license-mock";
 
 const EVIDENCE_DIRECTORY = path.resolve("verification-evidence/weekendog-full-map-2026-08-16");
 
@@ -79,10 +81,11 @@ const busanSnapshotItems = [
   },
 ] as const;
 
-function snapshotBody(region: "busan" | "jeju") {
-  const items = region === "busan" ? busanSnapshotItems : JEJU_PUBLIC_MAP_UI_FIXTURE.map((place) => ({
+function snapshotBody(region: "busan" | "jeju" | "seoul", freshness: "fresh" | "stale" = "fresh") {
+  const fixture = region === "jeju" ? JEJU_PUBLIC_MAP_UI_FIXTURE : SEOUL_PUBLIC_MAP_UI_FIXTURE;
+  const items = region === "busan" ? busanSnapshotItems : fixture.map((place) => ({
     id: place.id,
-    regionId: "jeju",
+    regionId: region,
     providerPlaceId: place.providerPlaceId,
     name: place.name,
     layer: "tourism",
@@ -112,11 +115,15 @@ function snapshotBody(region: "busan" | "jeju") {
       region,
       scope: "default",
       generatedAt: "2026-08-24T00:00:00.000Z",
-      dataVersion: region === "busan" ? "v1-1111111111111111" : "v1-2222222222222222",
+      dataVersion: region === "busan"
+        ? "v1-1111111111111111"
+        : region === "jeju" ? "v1-2222222222222222" : "v1-4444444444444444",
       totalCount: items.length,
       providerCounts: region === "busan" ? { tour: 25, kakao: 1 } : { tour: items.length, kakao: 0 },
       categoryCounts,
-      freshness: { status: "fresh" },
+      freshness: freshness === "fresh"
+        ? { status: "fresh" }
+        : { status: "stale", staleAt: "2026-08-26T00:05:00.000Z" },
       items,
     },
     requestId: `full-map-${region}-snapshot`,
@@ -124,16 +131,43 @@ function snapshotBody(region: "busan" | "jeju") {
 }
 
 async function mockCatalogApis(page: Page) {
+  await page.route("**/api/tour/places/5010001?**", async (route) => {
+    const detail = liveDetail("not_applicable");
+    detail.summary = {
+      ...detail.summary,
+      contentId: "5010001",
+      contentTypeId: "12",
+      providerContentTypeId: "12",
+      title: "제주 UI 검증 상세 장소",
+      address: "제주특별자치도 제주시 검증로 1",
+      longitude: 126.25,
+      latitude: 33.44,
+      legalRegionCode: "50",
+      legalDistrictCode: "110",
+      phone: null,
+      source: { ...detail.summary.source, contentId: "5010001" },
+    };
+    detail.petAccessAssessment = {
+      ...detail.petAccessAssessment,
+      verdict: "conditional",
+    };
+    detail.source = { ...detail.source, contentId: "5010001" };
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, data: detail, requestId: "jeju-detail-test-only" }),
+    });
+  });
   await page.route("**/api/map/places/snapshot?**", async (route) => {
     const url = new URL(route.request().url());
     const region = url.searchParams.get("region");
     expect(url.searchParams.get("version")).toBe("1");
     expect(url.searchParams.get("scope")).toBe("default");
-    expect(region === "busan" || region === "jeju").toBe(true);
+    expect(region === "busan" || region === "jeju" || region === "seoul").toBe(true);
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: snapshotBody(region === "jeju" ? "jeju" : "busan"),
+      body: snapshotBody(region === "jeju" ? "jeju" : region === "seoul" ? "seoul" : "busan"),
     });
   });
   await page.route("**/api/tour/places?**", async (route) => {
@@ -147,20 +181,21 @@ async function mockCatalogApis(page: Page) {
   await page.route("**/api/map/places?**", async (route) => {
     const url = new URL(route.request().url());
     const region = url.searchParams.get("region");
-    if (region === "jeju") {
+    if (region === "jeju" || region === "seoul") {
       expect(url.searchParams.get("providers")).toBe("tour");
       expect(url.searchParams.get("kinds")).toBe("tourism_place");
+      const fixture = region === "jeju" ? JEJU_PUBLIC_MAP_UI_FIXTURE : SEOUL_PUBLIC_MAP_UI_FIXTURE;
       const district = url.searchParams.get("district");
       const items = district
-        ? JEJU_PUBLIC_MAP_UI_FIXTURE.filter((place) => place.district.code === district)
-        : JEJU_PUBLIC_MAP_UI_FIXTURE;
+        ? fixture.filter((place) => place.district.code === district)
+        : fixture;
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
           ok: true,
           data: {
-            region: { id: "jeju", displayName: "제주" },
+            region: { id: region, displayName: region === "jeju" ? "제주" : "서울" },
             items,
             page: 1,
             pageSize: 200,
@@ -168,7 +203,7 @@ async function mockCatalogApis(page: Page) {
             hasNext: false,
             nextCursor: null,
           },
-          requestId: "full-map-jeju-kto",
+          requestId: `full-map-${region}-kto`,
         }),
       });
       return;
@@ -708,7 +743,7 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
   await page.getByRole("button", { name: "5", exact: true }).click();
   await expect(page.locator('.explorer-pagination [aria-current="page"]')).toHaveText("5");
   await expect(page.locator('.catalog-result-card [data-image-kind="category_placeholder"]')).toHaveCount(6);
-  await expect(page.locator(".catalog-result-card").getByText("동반 정보 확인 필요", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".catalog-result-card").getByText("동반 정보 확인 필요", { exact: true })).not.toHaveCount(0);
 
   const districtSelect = page.getByLabel("제주 세부 지역");
   await districtSelect.selectOption("110");
@@ -754,7 +789,10 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
   for (const viewport of [{ width: 768, height: 1024 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(viewport);
     await page.getByRole("button", { name: "지도", exact: true }).click();
+    const jejuNavigation = page.waitForURL(/region=jeju/u, { waitUntil: "load" });
     await page.getByRole("button", { name: "제주", exact: true }).click();
+    await jejuNavigation;
+    await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "54");
     await expect(page.locator(".explorer-filter-dropdown")).toHaveCount(0);
     await page.getByRole("button", { name: "지도", exact: true }).click();
     await expect(page.locator(".full-map-explorer__map")).toBeVisible();
@@ -779,6 +817,306 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
     await page.getByRole("button", { name: "목록", exact: true }).click();
     await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
   }
+});
+
+test("loads the complete 76-place Seoul KTO snapshot with local filters and scoped detail navigation", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === "mobile-chrome", "The Seoul flow explicitly verifies all required viewport widths once in desktop Chromium.");
+  test.setTimeout(45_000);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const apiRequests: string[] = [];
+  const rscRequests: string[] = [];
+  const consoleErrors: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.startsWith("/api/")) apiRequests.push(request.url());
+    if (url.searchParams.has("_rsc")) rscRequests.push(request.url());
+  });
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  await page.route("**/api/tour/places/6110001?**", async (route) => {
+    const detail = liveDetail("not_applicable");
+    detail.summary = {
+      ...detail.summary,
+      contentId: "6110001",
+      contentTypeId: "12",
+      providerContentTypeId: "12",
+      title: "서울 UI 검증 상세 장소",
+      address: "서울특별시 종로구 검증로 1",
+      longitude: 126.79,
+      latitude: 37.43,
+      legalRegionCode: "11",
+      legalDistrictCode: "110",
+      phone: null,
+      source: { ...detail.summary.source, contentId: "6110001" },
+    };
+    detail.source = { ...detail.source, contentId: "6110001" };
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, data: detail, requestId: "seoul-detail-test-only" }),
+    });
+  });
+
+  await page.goto("/results?tab=catalog&region=seoul&page=1");
+  await expect(page.getByRole("heading", { name: "총 76곳" })).toBeVisible();
+  const mapRoot = page.locator("[data-marker-registry-size]");
+  await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "76");
+  await expect(mapRoot).toHaveAttribute("data-active-marker-count", "76");
+  await expect(mapRoot).toHaveAttribute("data-clusterer-instance-count", "1");
+  await expect(page.locator(".fake-kakao-native-marker")).toHaveCount(76);
+  await expect(page.getByRole("tab", { name: "서울 경로 추천은 준비 중입니다." })).toBeDisabled();
+  await expect(page.getByText("한국관광공사 공식 장소만 표시합니다.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "서울", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByLabel("서울 세부 지역").locator("option")).toHaveCount(26);
+  await expect(page.getByRole("group", { name: "장소 출처 범례" }).getByRole("button"))
+    .toHaveCount(1);
+  await expect(page.getByRole("button", { name: "한국관광공사", exact: true }))
+    .toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("카카오맵", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".catalog-result-card").first()).toContainText("한국관광공사");
+
+  const visitorRequests = apiRequests.map((value) => new URL(value));
+  expect(visitorRequests.filter(({ pathname }) => pathname === "/api/map/places/snapshot"))
+    .toHaveLength(1);
+  expect(visitorRequests.some(({ pathname }) => pathname === "/api/map/places")).toBe(false);
+  expect(visitorRequests.some(({ pathname }) => pathname === "/api/tour/places")).toBe(false);
+  expect(visitorRequests.some(({ pathname }) => [
+    "/api/itineraries/generate",
+    "/api/itineraries/revalidate",
+    "/api/directions",
+    "/api/kakao/directions",
+  ].includes(pathname))).toBe(false);
+  expect(visitorRequests.every(({ pathname, searchParams }) =>
+    pathname !== "/api/map/places/snapshot" || searchParams.get("region") === "seoul"))
+    .toBe(true);
+
+  const metricsBeforeFilters = await page.evaluate(() => ({
+    requestCount: Number(document.documentElement.dataset.mapSnapshotRequestCount),
+    firstUsefulCardsMs: Number(document.documentElement.dataset.mapFirstUsefulCardsMs),
+    completeSnapshotMs: Number(document.documentElement.dataset.mapCompleteSnapshotMs),
+    rawResponseBytes: Number(document.documentElement.dataset.mapSnapshotRawBytes),
+    compressedTransferBytes: document.documentElement.dataset.mapSnapshotCompressedBytes
+      ? Number(document.documentElement.dataset.mapSnapshotCompressedBytes)
+      : null,
+    jsonParseMs: Number(document.documentElement.dataset.mapJsonParseMs),
+    validationMs: Number(document.documentElement.dataset.mapContractValidationMs),
+    indexConstructionMs: Number(document.documentElement.dataset.mapIndexConstructionMs),
+    reactCommitMs: Number(document.documentElement.dataset.mapReactCommitMs),
+  }));
+  const markerApplicationMs = Number(await mapRoot.getAttribute("data-marker-update-ms"));
+  const clusteringMs = Number(await mapRoot.getAttribute("data-cluster-update-ms"));
+  expect(metricsBeforeFilters.requestCount).toBe(1);
+  expect(metricsBeforeFilters.rawResponseBytes).toBe(Buffer.byteLength(snapshotBody("seoul"), "utf8"));
+  expect(metricsBeforeFilters.jsonParseMs).toBeLessThan(50);
+  expect(metricsBeforeFilters.validationMs).toBeLessThan(50);
+  expect(metricsBeforeFilters.indexConstructionMs).toBeLessThan(50);
+  expect(markerApplicationMs).toBeLessThan(300);
+  expect(clusteringMs).toBeLessThan(300);
+
+  const sourceFilter = page.getByRole("button", { name: "한국관광공사", exact: true });
+  await sourceFilter.click();
+  await expect(page.getByRole("heading", { name: "총 0곳" })).toBeVisible();
+  await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "0");
+  await expect(page).toHaveURL(/layers=none/u);
+  await sourceFilter.click();
+  await expect(page.getByRole("heading", { name: "총 76곳" })).toBeVisible();
+  await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "76");
+
+  let categoryPanel = await openExplorerFilters(page);
+  await expect(categoryPanel.getByRole("button", { name: /^관광지/u })).toContainText("56");
+  await expect(categoryPanel.getByRole("button", { name: /^식당/u })).toContainText("8");
+  await expect(categoryPanel.getByRole("button", { name: /^숙소/u })).toContainText("6");
+  await expect(categoryPanel.getByRole("button", { name: /^쇼핑/u })).toContainText("6");
+  await expect(categoryPanel.getByRole("button", { name: /^카페/u })).toHaveCount(0);
+  for (const label of ["관광지", "식당", "숙소"]) {
+    await categoryPanel.getByRole("button", { name: new RegExp(`^${label}`) }).click();
+  }
+  await categoryPanel.getByRole("button", { name: "적용하기" }).click();
+  await expect(page.getByRole("heading", { name: "총 6곳" })).toBeVisible();
+  await expect(page.locator(".catalog-result-card").first()).toContainText("쇼핑");
+  await expect.poll(() => page.evaluate(() =>
+    Number(document.documentElement.dataset.mapWarmFilterFeedbackMs))).toBeLessThan(100);
+
+  categoryPanel = await openExplorerFilters(page);
+  await categoryPanel.getByRole("button", { name: "초기화" }).click();
+  await categoryPanel.getByRole("button", { name: "적용하기" }).click();
+  await expect(page.getByRole("heading", { name: "총 76곳" })).toBeVisible();
+  await page.getByRole("button", { name: "7", exact: true }).click();
+  await expect(page.locator('.explorer-pagination [aria-current="page"]')).toHaveText("7");
+  await expect(page.locator(".catalog-result-card")).toHaveCount(4);
+  await expect(page.locator(".catalog-result-card").getByText(/동반 정보 확인 필요|방문 전 확인 필요/u).first()).toBeVisible();
+  await expect(page.locator('.catalog-result-card [data-image-kind="category_placeholder"]')).not.toHaveCount(0);
+
+  const district = page.getByLabel("서울 세부 지역");
+  await district.selectOption("110");
+  await expect(page.getByRole("heading", { name: "총 4곳" })).toBeVisible();
+  await expect(page).toHaveURL(/region=seoul.*district=110/u);
+  await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "4");
+  await expect(page.locator(".catalog-result-card").first()).toContainText("종로구");
+
+  const firstCard = page.locator("#place-card-tour-6110001");
+  await firstCard.getByRole("button", { name: /지도에서 보기$/u }).click();
+  await expect(firstCard).toHaveClass(/is-selected/u);
+  await expect(page.locator('.fake-kakao-native-marker[data-marker-width="46"]')).toHaveCount(1);
+  expect(rscRequests).toHaveLength(0);
+  await firstCard.getByRole("link", { name: /원문 상세 보기$/u }).click();
+  await expect(page).toHaveURL(/\/places\/6110001\?region=seoul&contentTypeId=12/u);
+  await expect(page.getByRole("heading", { name: "서울 UI 검증 상세 장소" })).toBeVisible();
+  await expect(page.getByText("한국관광공사 원문", { exact: true })).toBeVisible();
+  await expect(page.getByText("연락처", { exact: true })).toHaveCount(0);
+  await page.getByRole("link", { name: "추천 결과로" }).click();
+  await expect(page).toHaveURL(/\/results\?tab=catalog&region=seoul/u);
+  await expect(page.getByRole("heading", { name: "총 76곳" })).toBeVisible();
+
+  for (const viewport of [
+    { width: 768, height: 1024 },
+    { width: 390, height: 844 },
+    { width: 320, height: 720 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.getByRole("button", { name: "지도", exact: true }).click();
+    await expect(page.locator(".full-map-explorer__map")).toBeVisible();
+    await page.getByRole("button", { name: "목록", exact: true }).click();
+    await expect(page.locator(".full-map-explorer__sidebar")).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  }
+
+  const metrics = {
+    ...metricsBeforeFilters,
+    markerApplicationMs,
+    clusteringMs,
+    warmFilterFeedbackMs: await page.evaluate(() =>
+      Number(document.documentElement.dataset.mapWarmFilterFeedbackMs)),
+    deterministicFixtureCount: SEOUL_PUBLIC_MAP_UI_FIXTURE.length,
+    normalPathBrowserSnapshotRequests: 1,
+    normalPathFallbackRequests: 0,
+    normalPathKtoProviderCalls: 0,
+    normalPathKakaoDiscoveryCalls: 0,
+    normalPathItineraryCalls: 0,
+  };
+  console.log(`SEOUL_MAP_METRICS ${JSON.stringify(metrics)}`);
+  await test.info().attach("seoul-map-performance.json", {
+    body: JSON.stringify(metrics, null, 2),
+    contentType: "application/json",
+  });
+  expect(consoleErrors).toHaveLength(0);
+});
+
+test("isolates Seoul across Busan and Jeju transitions, including late responses", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === "mobile-chrome", "The transition races are measured once in desktop Chromium.");
+  let delayJeju = true;
+  let delaySeoul = false;
+  let jejuStarted = false;
+  let seoulStarted = false;
+  await page.route("**/api/map/places/snapshot?**", async (route) => {
+    const region = new URL(route.request().url()).searchParams.get("region") as "busan" | "jeju" | "seoul";
+    if (region === "jeju" && delayJeju) {
+      jejuStarted = true;
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    }
+    if (region === "seoul" && delaySeoul) {
+      seoulStarted = true;
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    }
+    await route.fulfill({ status: 200, contentType: "application/json", body: snapshotBody(region) }).catch(() => undefined);
+  });
+
+  await page.goto("/results?tab=catalog&region=jeju&page=1");
+  await expect.poll(() => jejuStarted).toBe(true);
+  await page.getByRole("button", { name: "서울", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "총 76곳" })).toBeVisible();
+  await page.waitForTimeout(450);
+  await expect(page.getByRole("heading", { name: "총 76곳" })).toBeVisible();
+  await expect(page.getByText("제주시", { exact: true })).toHaveCount(0);
+
+  delayJeju = false;
+  await page.getByRole("button", { name: "제주", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "총 54곳" })).toBeVisible();
+  delaySeoul = true;
+  await page.getByRole("button", { name: "서울", exact: true }).click();
+  await expect.poll(() => seoulStarted).toBe(true);
+  await page.getByRole("button", { name: "제주", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "총 54곳" })).toBeVisible();
+  await page.waitForTimeout(450);
+  await expect(page.getByRole("heading", { name: "총 54곳" })).toBeVisible();
+  await expect(page.getByText("종로구", { exact: true })).toHaveCount(0);
+
+  delaySeoul = false;
+  await page.getByRole("button", { name: "부산", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
+  await page.getByRole("button", { name: "서울", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "총 76곳" })).toBeVisible();
+  await page.getByRole("button", { name: "부산", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
+  await expect(page.locator('.fake-kakao-native-marker[data-marker-width="46"]')).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() =>
+    Number(document.documentElement.dataset.mapWarmRegionRevisitMs))).toBeGreaterThanOrEqual(0);
+  const warmRegionRevisitMs = await page.evaluate(() =>
+    Number(document.documentElement.dataset.mapWarmRegionRevisitMs));
+  console.log(`SEOUL_WARM_REVISIT_METRICS ${JSON.stringify({ warmRegionRevisitMs })}`);
+});
+
+test("marks stale Seoul data and rejects an incomplete fallback before retrying empty", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === "mobile-chrome", "Seoul state contracts are measured once in desktop Chromium.");
+  await page.route("**/api/map/places/snapshot?**", async (route) => {
+    const region = new URL(route.request().url()).searchParams.get("region");
+    if (region !== "seoul") return route.fallback();
+    await route.fulfill({ status: 200, contentType: "application/json", body: snapshotBody("seoul", "stale") });
+  });
+  await page.goto("/results?tab=catalog&region=seoul&page=1");
+  await expect(page.getByRole("heading", { name: "총 76곳" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "저장된 장소 데이터를 표시하고 있습니다." })).toBeVisible();
+
+  let snapshotAttempt = 0;
+  await page.route("**/api/map/places/snapshot?**", async (route) => {
+    const region = new URL(route.request().url()).searchParams.get("region");
+    if (region !== "seoul") return route.fallback();
+    snapshotAttempt += 1;
+    if (snapshotAttempt === 1) {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: false, error: { code: "UPSTREAM_ERROR", message: "검증용 오류", retryable: true } }),
+      });
+      return;
+    }
+    const empty = JSON.parse(snapshotBody("seoul"));
+    empty.data.items = [];
+    empty.data.totalCount = 0;
+    empty.data.providerCounts = { tour: 0, kakao: 0 };
+    empty.data.categoryCounts = {};
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(empty) });
+  });
+  await page.route("**/api/map/places?**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("region") !== "seoul") return route.fallback();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        data: {
+          region: { id: "seoul", displayName: "서울" },
+          items: SEOUL_PUBLIC_MAP_UI_FIXTURE.slice(0, 1),
+          page: 1,
+          pageSize: 200,
+          totalCount: 76,
+          hasNext: false,
+          nextCursor: null,
+        },
+      }),
+    });
+  });
+
+  await page.reload();
+  await expect(page.getByRole("status").filter({ hasText: "장소를 불러오는 중입니다" })).toBeVisible();
+  await expect(page.locator('.explorer-results-status [role="alert"]')).toContainText("관광공사 장소를 불러오지 못했습니다.");
+  await expect(page.getByRole("heading", { name: "총 1곳" })).toHaveCount(0);
+  await page.getByRole("button", { name: "다시 시도" }).click();
+  await expect(page.getByRole("heading", { name: "총 0곳" })).toBeVisible();
+  await expect(page.getByText("선택한 조건의 장소가 없습니다.", { exact: true })).toBeVisible();
 });
 
 test("keeps Jeju error, retry, and empty states accessible in mobile list mode", async ({ page }, testInfo) => {
@@ -972,7 +1310,7 @@ test("keeps 1,824 markers complete while the sidebar stays paged by 12", async (
     layer: "tourism",
     category: "attraction",
     districtCode: place.legalDistrictCode,
-    districtName: null,
+    districtName: "해운대구",
     address: place.address,
     coordinates: { latitude: place.latitude, longitude: place.longitude },
     lastSeenAt: place.source.retrievedAt,

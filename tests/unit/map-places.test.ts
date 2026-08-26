@@ -203,6 +203,62 @@ describe("public Kakao map catalog route", () => {
     expect(query).not.toHaveBeenCalled();
   });
 
+  it("uses Seoul's authoritative district and tour-only catalog contract", async () => {
+    const seoulPlace: PublicMapPlaceDTO = {
+      ...publicPlace,
+      id: "tour:3800001",
+      provider: "tour",
+      providerPlaceId: "3800001",
+      name: "서울 공식 쇼핑 장소",
+      kind: "tourism_place",
+      category: "shopping",
+      district: { code: "110", name: "종로구" },
+      address: "서울특별시 종로구",
+      coordinates: { latitude: 37.57, longitude: 126.98 },
+      contentTypeId: "38",
+      placeUrl: "/places/3800001?region=seoul&contentTypeId=38",
+      source: "kto_official",
+      petAccessVerdict: "unknown",
+      reviewStatus: "needs_review",
+      publicLabel: "동반 정보 확인 필요",
+    };
+    const query = vi.fn(async () => ({
+      ...resultPage,
+      region: { id: "seoul" as const, displayName: "서울" },
+      items: [seoulPlace],
+    }));
+    const handler = createMapPlacesHandler({ query });
+    const response = await handler(new Request(
+      "http://localhost/api/map/places?region=seoul&district=110&providers=tour&kinds=tourism_place&categories=shopping",
+    ));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-petpass-region")).toBe("seoul");
+    await expect(response.json()).resolves.toMatchObject({
+      data: {
+        region: { id: "seoul" },
+        items: [{
+          provider: "tour",
+          category: "shopping",
+          placeUrl: "/places/3800001?region=seoul&contentTypeId=38",
+          petAccessVerdict: "unknown",
+        }],
+      },
+    });
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({
+      regionId: "seoul",
+      providers: ["tour"],
+      districtCodes: ["110"],
+      kinds: ["tourism_place"],
+      categories: ["shopping"],
+    }));
+
+    query.mockClear();
+    const kakao = await handler(new Request("http://localhost/api/map/places?region=seoul&providers=kakao"));
+    expect(kakao.status).toBe(400);
+    expect(query).not.toHaveBeenCalled();
+  });
+
   it("rejects a repository page from a different region", async () => {
     const query = vi.fn(async () => ({
       ...resultPage,
@@ -221,6 +277,7 @@ describe("public Kakao map catalog route", () => {
   it("uses the supplied cursor for exactly one RPC call without leaking database-only fields", async () => {
     const row = {
       id: 10,
+      provider: "kakao" as const,
       provider_place_id: "123",
       name: "광안 반려 카페",
       candidate_kind: "pet_travel_candidate" as const,
@@ -231,10 +288,14 @@ describe("public Kakao map catalog route", () => {
       latitude: 35.1456,
       longitude: 129.1131,
       phone: "",
+      image_url: null,
+      content_type_id: null,
       place_url: "https://place.map.kakao.com/123",
       review_status: "unreviewed" as const,
       public_label: "동반 여부 확인 필요",
       source: "kakao_search_candidate" as const,
+      pet_access_verdict: "unknown" as const,
+      pet_evidence_status: "search_candidate",
       category_group_code: null,
       last_seen_at: "2026-08-18T00:00:00.000Z",
       matched_query_count: 0,
@@ -309,9 +370,69 @@ describe("public Kakao map catalog route", () => {
     });
   });
 
+  it("derives Seoul shopping from KTO content type 38 and rejects malformed regional rows", async () => {
+    const row = {
+      id: 75,
+      provider: "tour" as const,
+      provider_place_id: "3800075",
+      name: "서울 공식 쇼핑 장소",
+      candidate_kind: "tourism_place" as const,
+      normalized_category: null,
+      content_type_id: 38,
+      district_code: "110",
+      district_name: "종로구",
+      address: "서울특별시 종로구",
+      latitude: 37.57,
+      longitude: 126.98,
+      phone: null,
+      image_url: null,
+      place_url: null,
+      review_status: "needs_review" as const,
+      public_label: "동반 정보 확인 필요",
+      source: "kto_official" as const,
+      pet_access_verdict: "unknown" as const,
+      pet_evidence_status: "unavailable",
+      category_group_code: null,
+      last_seen_at: "2026-08-26T00:00:00.000Z",
+      matched_query_count: 0,
+      category_query_agreement_count: 0,
+      total_count: 1,
+      has_more: false,
+    };
+    const result = await queryPublicMapCatalog(
+      { regionId: "seoul", providers: ["tour"], page: 1, pageSize: 200 },
+      { queryPage: vi.fn(async () => [row]) },
+    );
+
+    expect(result.items[0]).toMatchObject({
+      provider: "tour",
+      category: "shopping",
+      contentTypeId: "38",
+      placeUrl: "/places/3800075?region=seoul&contentTypeId=38",
+      petAccessVerdict: "unknown",
+    });
+
+    await expect(queryPublicMapCatalog(
+      { regionId: "seoul", providers: ["tour"], page: 1, pageSize: 200 },
+      { queryPage: vi.fn(async () => [{ ...row, district_name: "중구" }]) },
+    )).rejects.toThrow(/regional contract/iu);
+    await expect(queryPublicMapCatalog(
+      { regionId: "seoul", providers: ["tour"], page: 1, pageSize: 200 },
+      { queryPage: vi.fn(async () => [{ ...row, provider: "kakao" as const }]) },
+    )).rejects.toThrow(/regional contract/iu);
+    await expect(queryPublicMapCatalog(
+      { regionId: "seoul", providers: ["tour"], page: 1, pageSize: 200 },
+      { queryPage: vi.fn(async () => [
+        { ...row, id: 76, provider_place_id: "3800076", total_count: 2 },
+        { ...row, id: 75, total_count: 2 },
+      ]) },
+    )).rejects.toThrow(/regional contract/iu);
+  });
+
   it("fetches the same 1,824-row fixture with 10 RPC calls instead of page replay's 55", async () => {
     const rows = Array.from({ length: 1_824 }, (_, index) => ({
       id: index + 1,
+      provider: "kakao" as const,
       provider_place_id: String(20_000 + index),
       name: `장소 ${index + 1}`,
       candidate_kind: "pet_travel_candidate" as const,
@@ -322,20 +443,26 @@ describe("public Kakao map catalog route", () => {
       latitude: 35.02 + Math.floor(index / 48) * 0.007,
       longitude: 128.9 + (index % 48) * 0.008,
       phone: null,
+      image_url: null,
+      content_type_id: null,
       place_url: `https://place.map.kakao.com/${20_000 + index}`,
       review_status: "unreviewed" as const,
       public_label: "동반 여부 확인 필요",
       source: "kakao_search_candidate" as const,
+      pet_access_verdict: "unknown" as const,
+      pet_evidence_status: "search_candidate",
       category_group_code: null,
       last_seen_at: "2026-08-19T00:00:00.000Z",
       matched_query_count: 1,
       category_query_agreement_count: 1,
       total_count: 1_824,
-      has_more: index < 1_823,
+      has_more: false,
     }));
     const queryPage = vi.fn(async (_input: Parameters<typeof queryPublicMapCatalog>[0], afterId: number | null) => {
       const start = afterId ?? 0;
-      return rows.slice(start, start + 200);
+      const pageRows = rows.slice(start, start + 200);
+      const hasMore = start + pageRows.length < rows.length;
+      return pageRows.map((row) => ({ ...row, has_more: hasMore }));
     });
     const ids: string[] = [];
     let afterId: number | undefined;

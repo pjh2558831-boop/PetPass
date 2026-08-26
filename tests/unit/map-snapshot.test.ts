@@ -15,6 +15,9 @@ function place(
   category: PublicMapPlaceDTO["category"] = "attraction",
 ): PublicMapPlaceDTO {
   const isTour = provider === "tour";
+  const contentTypeId = category === "shopping"
+    ? "38"
+    : category === "accommodation" ? "32" : category === "food" ? "39" : "12";
   return {
     id: `${provider}:${id}`,
     provider,
@@ -22,16 +25,23 @@ function place(
     name: `${region}-${provider}-${id}`,
     kind: isTour ? "tourism_place" : "pet_travel_candidate",
     category,
-    district: { code: "110", name: region === "jeju" ? "제주시" : "중구" },
-    address: region === "jeju" ? "제주특별자치도 제주시" : "부산광역시 중구",
+    district: {
+      code: "110",
+      name: region === "jeju" ? "제주시" : region === "seoul" ? "종로구" : "중구",
+    },
+    address: region === "jeju"
+      ? "제주특별자치도 제주시"
+      : region === "seoul" ? "서울특별시 종로구" : "부산광역시 중구",
     coordinates: region === "jeju"
       ? { latitude: 33.49, longitude: 126.53 }
-      : { latitude: 35.1, longitude: 129.03 },
+      : region === "seoul"
+        ? { latitude: 37.57, longitude: 126.98 }
+        : { latitude: 35.1, longitude: 129.03 },
     phone: "051-000-0000",
     imageUrl: isTour ? "https://example.com/official.jpg" : null,
-    contentTypeId: isTour ? "12" : null,
+    contentTypeId: isTour ? contentTypeId : null,
     placeUrl: isTour
-      ? `/places/${id}?region=${region}&contentTypeId=12`
+      ? `/places/${id}?region=${region}&contentTypeId=${contentTypeId}`
       : `https://place.map.kakao.com/${id}`,
     source: isTour ? "kto_official" : "kakao_search_candidate",
     petAccessVerdict: isTour ? "conditional" : "unknown",
@@ -52,7 +62,10 @@ function page(
   nextCursor: number | null = null,
 ): PublicMapPlacePage {
   return {
-    region: { id: region, displayName: region === "jeju" ? "제주" : "부산" },
+    region: {
+      id: region,
+      displayName: region === "jeju" ? "제주" : region === "seoul" ? "서울" : "부산",
+    },
     items,
     page: 1,
     pageSize: 200,
@@ -121,11 +134,91 @@ describe("public map snapshot assembly", () => {
     expect(isMapPlacesSnapshot({ ...valid, items: [{ ...valid.items[0], regionId: "busan" }] })).toBe(false);
     expect(isMapPlacesSnapshot({ ...valid, totalCount: 2 })).toBe(false);
     expect(isMapPlacesSnapshot({ ...valid, providerCounts: { tour: 0, kakao: 1 } })).toBe(false);
+    expect(isMapPlacesSnapshot({ ...valid, providerCounts: { ...valid.providerCounts, hidden: 0 } })).toBe(false);
+    expect(isMapPlacesSnapshot({ ...valid, categoryCounts: { ...valid.categoryCounts, hidden: 0 } })).toBe(false);
+    expect(isMapPlacesSnapshot({
+      ...valid,
+      items: [{ ...valid.items[0], id: "tour:not-the-provider-id" }],
+    })).toBe(false);
+  });
+
+  it("assembles every Seoul KTO record, including shopping, without a page cap", async () => {
+    const totalCount = 2_001;
+    const query = vi.fn(async ({ page: pageNumber }: { page: number }) => {
+      const start = (pageNumber - 1) * 200;
+      const count = Math.min(200, totalCount - start);
+      const items = Array.from({ length: count }, (_, index) =>
+        place("tour", "seoul", String(start + index + 1), start + index === totalCount - 1 ? "shopping" : "attraction"));
+      return page(
+        "seoul",
+        items,
+        totalCount,
+        start + count < totalCount,
+        start + count < totalCount ? start + count : null,
+      );
+    });
+
+    const snapshot = await assembleMapPlacesSnapshot(request("seoul"), { query });
+
+    expect(query).toHaveBeenCalledTimes(11);
+    expect(query).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      regionId: "seoul",
+      providers: ["tour"],
+      kinds: ["tourism_place"],
+      categories: undefined,
+    }));
+    expect(snapshot.totalCount).toBe(totalCount);
+    expect(snapshot.providerCounts).toEqual({ tour: totalCount, kakao: 0 });
+    expect(snapshot.categoryCounts).toMatchObject({ attraction: 2_000, shopping: 1 });
+    expect(snapshot.items.at(-1)).toMatchObject({
+      regionId: "seoul",
+      layer: "tourism",
+      category: "shopping",
+      placeUrl: "/places/2001?region=seoul&contentTypeId=38",
+    });
+  });
+
+  it("assembles the audited 76-record Seoul snapshot with one catalog RPC page", async () => {
+    const items = Array.from({ length: 76 }, (_, index) =>
+      place("tour", "seoul", String(index + 1), index >= 70 ? "shopping" : "attraction"));
+    const query = vi.fn(async () => page("seoul", items, items.length, false, null));
+
+    const snapshot = await assembleMapPlacesSnapshot(request("seoul"), { query });
+
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(snapshot).toMatchObject({
+      region: "seoul",
+      totalCount: 76,
+      providerCounts: { tour: 76, kakao: 0 },
+      categoryCounts: { attraction: 70, shopping: 6 },
+    });
+  });
+
+  it("rejects cursor reuse before requesting another page", async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce(page("seoul", [place("tour", "seoul", "1")], 2, true, 1))
+      .mockResolvedValueOnce(page("seoul", [place("tour", "seoul", "2")], 2, true, 1));
+
+    await expect(assembleMapPlacesSnapshot(request("seoul"), { query }))
+      .rejects.toThrow(/cursor/iu);
+    expect(query).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects a Seoul KTO category that conflicts with its content type", async () => {
+    const mismatched = {
+      ...place("tour", "seoul", "38", "shopping"),
+      contentTypeId: "12",
+      placeUrl: "/places/38?region=seoul&contentTypeId=12",
+    } satisfies PublicMapPlaceDTO;
+
+    await expect(assembleMapPlacesSnapshot(request("seoul"), {
+      query: vi.fn(async () => page("seoul", [mismatched])),
+    })).rejects.toThrow(/region/iu);
   });
 });
 
 describe("public map snapshot cache", () => {
-  it("separates Busan and Jeju keys and collapses concurrent generation", async () => {
+  it("separates Busan, Jeju, and Seoul keys and collapses concurrent generation", async () => {
     let resolveBusan!: (value: Awaited<ReturnType<typeof assembleMapPlacesSnapshot>>) => void;
     const busanPromise = new Promise<Awaited<ReturnType<typeof assembleMapPlacesSnapshot>>>((resolve) => {
       resolveBusan = resolve;
@@ -133,7 +226,7 @@ describe("public map snapshot cache", () => {
     const assemble = vi.fn(async (input: ReturnType<typeof request>) => {
       if (input.region === "busan") return busanPromise;
       return assembleMapPlacesSnapshot(input, {
-        query: vi.fn(async () => page("jeju", [place("tour", "jeju", "9")])),
+        query: vi.fn(async () => page(input.region, [place("tour", input.region, "9")])),
       });
     });
     const load = createMapPlacesSnapshotLoader({ assemble });
@@ -141,16 +234,19 @@ describe("public map snapshot cache", () => {
     const first = load(request("busan"));
     const second = load(request("busan"));
     const jeju = load(request("jeju"));
+    const seoul = load(request("seoul"));
     resolveBusan(await assembleMapPlacesSnapshot(request("busan"), {
       query: vi.fn(async () => page("busan", [place("kakao", "busan", "1")])),
     }));
 
     await expect(Promise.all([first, second])).resolves.toHaveLength(2);
     await expect(jeju).resolves.toMatchObject({ region: "jeju" });
-    expect(assemble).toHaveBeenCalledTimes(2);
+    await expect(seoul).resolves.toMatchObject({ region: "seoul" });
+    expect(assemble).toHaveBeenCalledTimes(3);
     await load(request("busan"));
     await load(request("jeju"));
-    expect(assemble).toHaveBeenCalledTimes(2);
+    await load(request("seoul"));
+    expect(assemble).toHaveBeenCalledTimes(3);
   });
 
   it("returns the last valid value as stale when refresh fails", async () => {
@@ -201,6 +297,18 @@ describe("GET /api/map/places/snapshot", () => {
     expect(response.headers.get("vercel-cdn-cache-control")).toContain("max-age=300");
     await expect(response.json()).resolves.toMatchObject({ data: { contractVersion: 1, region: "busan" } });
     expect(loadSnapshot).toHaveBeenCalledWith(request("busan"));
+  });
+
+  it("returns no-store when the loader returns a malformed count contract", async () => {
+    const snapshot = await assembleMapPlacesSnapshot(request("seoul"), {
+      query: vi.fn(async () => page("seoul", [place("tour", "seoul", "1")])),
+    });
+    const response = await createMapPlacesSnapshotHandler({
+      loadSnapshot: vi.fn(async () => ({ ...snapshot, totalCount: 2 })),
+    })(new Request("http://localhost/api/map/places/snapshot?version=1&region=seoul&scope=default"));
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
   it.each([
