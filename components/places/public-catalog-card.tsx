@@ -21,6 +21,8 @@ export function PublicCatalogCard({
   const isExternal = place.placeUrl?.startsWith("http") ?? false;
   const category = mapCatalogPlaceToCategory(place);
   const image = resolvePlaceCardImage(place, { staticMapEnabled });
+  const sourceLabel = place.layer === "kakao" ? "카카오맵" : place.sourceLabel;
+  const showPublicLabel = place.layer !== "kakao" && place.publicLabel !== "동반 정보 확인 필요";
   return (
     <article
       id={`place-card-${place.id.replace(":", "-")}`}
@@ -29,8 +31,8 @@ export function PublicCatalogCard({
       <PlaceCardMedia image={image} fallbackCategory={category} className="catalog-result-card__image rounded-xl" />
       <div className="catalog-result-card__body">
         <div className="catalog-result-card__badges">
-          <span>{place.sourceLabel}</span>
-          {place.layer !== "kakao" ? <span>{place.publicLabel}</span> : null}
+          <span>{sourceLabel}</span>
+          {showPublicLabel ? <span>{place.publicLabel}</span> : null}
         </div>
         <h3>{place.name}</h3>
         <p><MapPin size={13} aria-hidden="true" />{place.address}</p>

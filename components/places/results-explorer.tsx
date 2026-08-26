@@ -68,6 +68,7 @@ import type { RegionId } from "@/types/region";
 type ExplorerTab = "catalog" | "recommendations";
 type ProviderState = "loading" | "ready" | "error";
 type MobileExplorerMode = "map" | "list";
+type FilterAnchor = "map" | "sidebar";
 
 const RecommendationPlanner = dynamic(
   () => import("@/components/itinerary/recommendation-planner").then((module) => module.RecommendationPlanner),
@@ -257,7 +258,8 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const [district, setDistrict] = useState(initialCatalogState.district);
   const [categories, setCategories] = useState<PlaceCategory[]>(initialCatalogState.categories);
   const [draftCategories, setDraftCategories] = useState<PlaceCategory[]>(initialCatalogState.categories);
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterAnchor, setFilterAnchor] = useState<FilterAnchor | null>(null);
+  const filterOpen = filterAnchor !== null;
   const [page, setPage] = useState(initialCatalogState.page);
   const [sort, setSort] = useState<ExplorerSort>(initialCatalogState.sort);
   const [mobileMode, setMobileMode] = useState<MobileExplorerMode>("map");
@@ -280,7 +282,8 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const viewportBaselineRef = useRef<KakaoCurrentMapSearch["rectangle"] | null>(null);
   const activeBoundsRef = useRef<KakaoCurrentMapSearch["rectangle"] | null>(null);
   const filterDropdownRef = useRef<HTMLElement>(null);
-  const filterButtonRef = useRef<HTMLButtonElement>(null);
+  const mapFilterButtonRef = useRef<HTMLButtonElement>(null);
+  const sidebarFilterButtonRef = useRef<HTMLButtonElement>(null);
   const hasSynchronizedUrlRef = useRef(false);
   const applyingBrowserHistoryRef = useRef(false);
   const catalogRequestRef = useRef<{
@@ -295,13 +298,18 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     if (!filterOpen) return;
     const handlePointerDown = (event: PointerEvent) => {
       if (!(event.target instanceof Node)) return;
-      if (filterDropdownRef.current?.contains(event.target) || filterButtonRef.current?.contains(event.target)) return;
-      setFilterOpen(false);
+      if (
+        filterDropdownRef.current?.contains(event.target) ||
+        mapFilterButtonRef.current?.contains(event.target) ||
+        sidebarFilterButtonRef.current?.contains(event.target)
+      ) return;
+      setFilterAnchor(null);
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      setFilterOpen(false);
-      requestAnimationFrame(() => filterButtonRef.current?.focus());
+      const returnTarget = filterAnchor === "map" ? mapFilterButtonRef : sidebarFilterButtonRef;
+      setFilterAnchor(null);
+      requestAnimationFrame(() => returnTarget.current?.focus());
     };
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
@@ -309,7 +317,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [filterOpen]);
+  }, [filterAnchor, filterOpen]);
 
   useEffect(() => {
     if (activeTab !== "catalog") return;
@@ -592,16 +600,16 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       ? current.filter((value) => value !== category)
       : PLACE_CATEGORIES.filter((value) => value === category || current.includes(value)));
   };
-  const toggleFilters = () => {
-    if (filterOpen) {
-      setFilterOpen(false);
+  const toggleFilters = (anchor: FilterAnchor) => {
+    if (filterAnchor === anchor) {
+      setFilterAnchor(null);
       return;
     }
-    setDraftCategories([...categories]);
-    setFilterOpen(true);
+    if (!filterOpen) setDraftCategories([...categories]);
+    setFilterAnchor(anchor);
   };
   const closeFilters = () => {
-    setFilterOpen(false);
+    setFilterAnchor(null);
   };
   const applyFilters = () => {
     setCategories([...draftCategories]);
@@ -660,6 +668,39 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   }
 
   const visiblePages = getVisiblePageNumbers(currentPage, totalPages);
+  const renderFilterDropdown = (anchor: FilterAnchor) => filterAnchor === anchor ? (
+    <section
+      ref={filterDropdownRef}
+      id="explorer-filter-dropdown"
+      className={`explorer-filter-dropdown explorer-filter-dropdown--${anchor}`}
+      role="region"
+      aria-label="장소 필터"
+    >
+      <form onSubmit={(event) => { event.preventDefault(); applyFilters(); }}>
+        <div className="explorer-filter-dropdown__body">
+          <div className="explorer-category-panel__heading">
+            <span aria-hidden="true"><MapPin size={28} fill="currentColor" /></span>
+            <div>
+              <h2>여행 장소</h2>
+              <p>반려견과 함께 방문 가능한 장소를 선택해보세요.</p>
+            </div>
+          </div>
+          <PlaceCategoryToggleGroup
+            title="장소 유형"
+            categories={[...visibleDefaultCategories, ...visibleOptionalCategories]}
+            active={draftCategories}
+            counts={displayedCategoryCounts}
+            onToggle={toggleDraftCategory}
+          />
+        </div>
+        <div className="explorer-filter-dropdown__actions">
+          <button type="button" className="explorer-filter-dropdown__reset" onClick={resetDraftFilters}><RotateCcw size={19} aria-hidden="true" />초기화</button>
+          <button type="submit" className="explorer-filter-dropdown__apply">적용하기 <SlidersHorizontal size={18} aria-hidden="true" /></button>
+        </div>
+      </form>
+    </section>
+  ) : null;
+
   return (
     <div className="full-map-explorer" id="catalog-panel" role="tabpanel" aria-labelledby="catalog-tab">
       <div className="full-map-explorer__toolbar">
@@ -700,6 +741,19 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
 
       <div className="full-map-explorer__main" data-mobile-mode={mobileMode}>
         <section className="full-map-explorer__map" aria-label={`${districtName} 전체 장소 지도`}>
+          <div className="explorer-map-filter">
+            <button
+              ref={mapFilterButtonRef}
+              type="button"
+              className="explorer-filter-trigger"
+              aria-expanded={filterAnchor === "map"}
+              aria-controls="explorer-filter-dropdown"
+              onClick={() => toggleFilters("map")}
+            >
+              <SlidersHorizontal size={17} aria-hidden="true" />필터
+            </button>
+            {renderFilterDropdown("map")}
+          </div>
           <div className="explorer-source-legend" aria-label="장소 출처 범례">
             {visibleLayers.map((layer) => (
               <span key={layer}><i data-color={LAYER_META[layer].color} aria-hidden="true" />{LAYER_META[layer].label}</span>
@@ -727,47 +781,16 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
           <header className="explorer-results-header">
             <div><h1>총 {filteredPlaces.length.toLocaleString("ko-KR")}곳</h1><p>카드는 페이지당 12개 <span aria-hidden="true">·</span> 지도는 현재 필터의 전체 결과</p></div>
             <button
-              ref={filterButtonRef}
+              ref={sidebarFilterButtonRef}
               type="button"
               className="explorer-filter-trigger"
-              aria-expanded={filterOpen}
+              aria-expanded={filterAnchor === "sidebar"}
               aria-controls="explorer-filter-dropdown"
-              onClick={toggleFilters}
+              onClick={() => toggleFilters("sidebar")}
             >
               <SlidersHorizontal size={17} aria-hidden="true" />필터
             </button>
-            {filterOpen ? (
-              <section
-                ref={filterDropdownRef}
-                id="explorer-filter-dropdown"
-                className="explorer-filter-dropdown"
-                role="region"
-                aria-label="장소 필터"
-              >
-                <form onSubmit={(event) => { event.preventDefault(); applyFilters(); }}>
-                  <div className="explorer-filter-dropdown__body">
-                    <div className="explorer-category-panel__heading">
-                      <span aria-hidden="true"><MapPin size={28} fill="currentColor" /></span>
-                      <div>
-                        <h2>여행 장소</h2>
-                        <p>반려견과 함께 방문 가능한 장소를 선택해보세요.</p>
-                      </div>
-                    </div>
-                    <PlaceCategoryToggleGroup
-                      title="장소 유형"
-                      categories={[...visibleDefaultCategories, ...visibleOptionalCategories]}
-                      active={draftCategories}
-                      counts={displayedCategoryCounts}
-                      onToggle={toggleDraftCategory}
-                    />
-                  </div>
-                  <div className="explorer-filter-dropdown__actions">
-                    <button type="button" className="explorer-filter-dropdown__reset" onClick={resetDraftFilters}><RotateCcw size={19} aria-hidden="true" />초기화</button>
-                    <button type="submit" className="explorer-filter-dropdown__apply">적용하기 <SlidersHorizontal size={18} aria-hidden="true" /></button>
-                  </div>
-                </form>
-              </section>
-            ) : null}
+            {renderFilterDropdown("sidebar")}
           </header>
 
           <div className="explorer-sort-row">

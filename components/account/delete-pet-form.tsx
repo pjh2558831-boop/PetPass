@@ -11,7 +11,7 @@ export function DeletePetForm({ action, petName }: { action: () => void | Promis
       }}
       className="mx-auto mt-4 flex max-w-2xl justify-end"
     >
-      <button type="submit" className="min-h-11 rounded-xl border border-red-200 bg-white px-4 text-sm font-extrabold text-red-700">반려동물 삭제</button>
+      <button type="submit" className="min-h-11 rounded-xl border border-red-200 bg-white px-4 text-sm font-extrabold text-red-700">삭제</button>
     </form>
   );
 }

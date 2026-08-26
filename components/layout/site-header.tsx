@@ -73,13 +73,13 @@ export async function SiteHeader() {
         </Link>
         <nav
           aria-label="주요 메뉴"
-          className="hidden min-w-0 items-center justify-center gap-0.5 lg:flex"
+          className="hidden min-w-0 items-center justify-center gap-2 lg:flex xl:gap-3"
         >
           {navigationItems.map((item) =>
             item.kind === "link" ? (
               <Link
                 key={item.href}
-                className="inline-flex min-h-11 items-center whitespace-nowrap rounded-lg px-2.5 text-xs font-bold text-[#486057] transition-colors hover:bg-white hover:text-[var(--brand)] xl:px-3 xl:text-sm"
+                className="inline-flex min-h-11 items-center whitespace-nowrap rounded-lg px-3 text-xs font-bold text-[#486057] transition-colors hover:bg-white hover:text-[var(--brand)] xl:px-3.5 xl:text-sm"
                 href={item.href}
               >
                 {item.label}
@@ -90,7 +90,7 @@ export async function SiteHeader() {
                 type="button"
                 aria-disabled="true"
                 title={`${item.label} 준비 중`}
-                className="inline-flex min-h-11 cursor-not-allowed items-center gap-1 whitespace-nowrap rounded-lg px-2 text-xs font-bold text-[#718078] xl:px-2.5"
+                className="inline-flex min-h-11 cursor-not-allowed items-center gap-1 whitespace-nowrap rounded-lg px-3 text-xs font-bold text-[#718078] xl:px-3.5"
               >
                 <span>{item.label}</span>
                 <span className="rounded-full bg-[#eef3ef] px-1.5 py-0.5 text-[9px] leading-none text-[#718078]">
@@ -101,13 +101,13 @@ export async function SiteHeader() {
           )}
         </nav>
         <div className="hidden shrink-0 items-center gap-1.5 lg:flex">
-          <Link href={accountHref} className="inline-flex min-h-11 max-w-48 items-center gap-2 truncate whitespace-nowrap rounded-full border border-[var(--line)] bg-white px-2.5 text-xs font-extrabold text-[#53645c]">
+          <Link href={accountHref} className="inline-flex min-h-12 max-w-56 items-center gap-2.5 truncate whitespace-nowrap rounded-full border border-[var(--line)] bg-white px-3 text-sm font-extrabold text-[#53645c]">
             {displayName ? (
-              <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--brand-soft)] text-[var(--brand)]">
+              <span className="grid size-8 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--brand-soft)] text-[var(--brand)]">
                 {avatarUrl ? (
-                  <Image src={avatarUrl} alt="" width={28} height={28} unoptimized className="size-full object-cover" />
+                  <Image src={avatarUrl} alt="" width={32} height={32} unoptimized className="size-full object-cover" />
                 ) : (
-                  <UserRound size={16} aria-hidden="true" />
+                  <UserRound size={18} aria-hidden="true" />
                 )}
               </span>
             ) : null}

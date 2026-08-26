@@ -23,6 +23,7 @@ const expectedMigrationFiles = [
   "20260823135158_combine_profile_select_policies.sql",
   "20260823142200_harden_profile_avatar_bucket.sql",
   "20260824123000_add_multi_pet_profiles_and_profile_editing.sql",
+  "20260824123100_harden_profile_cooldown_function_privileges.sql",
 ] as const;
 
 const productionStatementHashes = {

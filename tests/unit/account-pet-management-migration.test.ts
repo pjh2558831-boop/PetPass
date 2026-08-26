@@ -7,6 +7,16 @@ const migration = readFileSync(
   "utf8",
 ).toLowerCase();
 
+const privilegeHardeningMigration = readFileSync(
+  join(
+    process.cwd(),
+    "supabase",
+    "migrations",
+    "20260824123100_harden_profile_cooldown_function_privileges.sql",
+  ),
+  "utf8",
+).toLowerCase();
+
 describe("multi-pet account migration", () => {
   it("preserves existing pets while replacing the owner primary key with a pet id", () => {
     expect(migration).toContain("add column id uuid");
@@ -41,5 +51,11 @@ describe("multi-pet account migration", () => {
     expect(migration).toContain("display_name_change_cooldown");
     expect(migration).toContain("before update of display_name on public.profiles");
     expect(migration).toContain("grant update (display_name, avatar_url, onboarding_completed) on table public.profiles to authenticated");
+  });
+
+  it("keeps the cooldown trigger function unavailable to API roles", () => {
+    expect(privilegeHardeningMigration).toMatch(
+      /revoke execute on function public\.enforce_profile_display_name_cooldown\(\)[\s\S]+?from public, anon, authenticated, service_role/u,
+    );
   });
 });

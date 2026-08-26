@@ -92,7 +92,7 @@ export function MobileNavigation({
               {accountItems.map((item) =>
                 item.kind === "link" ? (
                   <Link
-                    key={item.href}
+                    key={`${item.href}-${item.label}`}
                     href={item.href}
                     onClick={() => setOpen(false)}
                     className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[var(--line)] px-2 text-xs font-extrabold text-[#385246]"

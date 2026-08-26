@@ -381,13 +381,48 @@ test.beforeEach(async ({ page }) => {
   await mockCatalogApis(page);
 });
 
-async function openExplorerFilters(page: Page) {
-  const trigger = page.getByRole("button", { name: "필터", exact: true });
+async function openExplorerFilters(page: Page, origin: "sidebar" | "map" = "sidebar") {
+  const container = page.locator(origin === "map" ? ".full-map-explorer__map" : ".full-map-explorer__sidebar");
+  const trigger = container.getByRole("button", { name: "필터", exact: true });
   if (await trigger.getAttribute("aria-expanded") !== "true") await trigger.click();
-  const dropdown = page.getByRole("region", { name: "장소 필터" });
+  const dropdown = container.getByRole("region", { name: "장소 필터" });
   await expect(dropdown).toBeVisible();
   return dropdown;
 }
+
+test("keeps map filters reachable and centers the current-area search above bottom overlays", async ({ page }, testInfo) => {
+  await page.goto("/results?tab=catalog&region=busan&page=1");
+  await expect(page.locator("[data-marker-registry-size]")).toHaveAttribute("data-marker-registry-size", "26");
+
+  const map = page.locator(".full-map-explorer__map");
+  const mapFilter = map.getByRole("button", { name: "필터", exact: true });
+  await expect(mapFilter).toBeVisible();
+  const mapBox = await map.boundingBox();
+  const filterBox = await mapFilter.boundingBox();
+  expect(mapBox).not.toBeNull();
+  expect(filterBox).not.toBeNull();
+  expect(Math.abs((filterBox?.x ?? 0) - ((mapBox?.x ?? 0) + 14))).toBeLessThanOrEqual(3);
+  expect(Math.abs((filterBox?.y ?? 0) - ((mapBox?.y ?? 0) + 14))).toBeLessThanOrEqual(3);
+
+  const filterPanel = await openExplorerFilters(page, "map");
+  const panelBox = await filterPanel.boundingBox();
+  expect(panelBox).not.toBeNull();
+  expect(panelBox?.y ?? 0).toBeGreaterThanOrEqual((filterBox?.y ?? 0) + (filterBox?.height ?? 0) - 1);
+
+  await mapFilter.click();
+  if (testInfo.project.name === "mobile-chrome") return;
+  await page.evaluate(() => (window as unknown as { __zoomExplorerMap?: () => void }).__zoomExplorerMap?.());
+  const research = map.getByRole("button", { name: "이 지역 검색 다시하기" });
+  await expect(research).toBeVisible();
+  const researchBox = await research.boundingBox();
+  const legendBox = await map.getByLabel("장소 출처 범례").boundingBox();
+  expect(researchBox).not.toBeNull();
+  expect(legendBox).not.toBeNull();
+  const researchCenter = (researchBox?.x ?? 0) + (researchBox?.width ?? 0) / 2;
+  const mapCenter = (mapBox?.x ?? 0) + (mapBox?.width ?? 0) / 2;
+  expect(Math.abs(researchCenter - mapCenter)).toBeLessThanOrEqual(3);
+  expect((researchBox?.x ?? 0)).toBeGreaterThanOrEqual((legendBox?.x ?? 0) + (legendBox?.width ?? 0) + 8);
+});
 
 test("keeps one source marker per place across pagination, selection, and viewport commit", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === "mobile-chrome", "Desktop registry flow; responsive behavior has a dedicated cross-viewport test.");
@@ -426,7 +461,7 @@ test("keeps one source marker per place across pagination, selection, and viewpo
   await expect(page.getByText(/현재 표시 \d+곳/u)).toHaveCount(0);
   await expect(page.locator(".explorer-filter-dropdown")).toHaveCount(0);
   await expect(page.getByLabel("장소 출처 범례")).toContainText("카카오맵");
-  const filterButton = page.getByRole("button", { name: "필터", exact: true });
+  const filterButton = page.locator(".full-map-explorer__sidebar").getByRole("button", { name: "필터", exact: true });
   await expect(filterButton).toHaveAttribute("aria-expanded", "false");
   await filterButton.click();
   let categoryPanel = page.getByRole("region", { name: "장소 필터" });
@@ -594,7 +629,8 @@ test("hides redundant pet-access caveats from Kakao candidate cards", async ({ p
 
   const kakaoCandidateCard = page.locator("#place-card-kakao-9101");
   await expect(kakaoCandidateCard).toBeVisible();
-  await expect(kakaoCandidateCard).toContainText("카카오 검색 후보");
+  await expect(kakaoCandidateCard).toContainText("카카오맵");
+  await expect(kakaoCandidateCard.getByText("카카오 검색 후보", { exact: true })).toHaveCount(0);
   await expect(kakaoCandidateCard.getByText("동반 여부 확인 필요", { exact: true })).toHaveCount(0);
   await expect(kakaoCandidateCard.getByText(
     "카카오 검색 후보입니다. 방문 전 반려동물 동반 가능 여부를 확인해 주세요.",
@@ -672,7 +708,7 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
   await page.getByRole("button", { name: "5", exact: true }).click();
   await expect(page.locator('.explorer-pagination [aria-current="page"]')).toHaveText("5");
   await expect(page.locator('.catalog-result-card [data-image-kind="category_placeholder"]')).toHaveCount(6);
-  await expect(page.locator(".catalog-result-card").getByText("동반 정보 확인 필요", { exact: true })).toHaveCount(5);
+  await expect(page.locator(".catalog-result-card").getByText("동반 정보 확인 필요", { exact: true })).toHaveCount(0);
 
   const districtSelect = page.getByLabel("제주 세부 지역");
   await districtSelect.selectOption("110");
@@ -733,7 +769,7 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
     await expect(responsiveDialog.getByRole("button", { name: /^관광지/u })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(responsiveDialog).not.toBeVisible();
-    await expect(page.getByRole("button", { name: "필터", exact: true })).toBeFocused();
+    await expect(page.locator(".full-map-explorer__sidebar").getByRole("button", { name: "필터", exact: true })).toBeFocused();
     await page.locator(".catalog-result-card").first().getByRole("button", { name: /지도에서 보기$/u }).click();
     await expect(page.getByRole("button", { name: "지도", exact: true })).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator(".full-map-explorer__map")).toBeVisible();

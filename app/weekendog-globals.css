@@ -501,6 +501,26 @@ select {
   border-radius: 0;
 }
 
+.explorer-map-filter {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 40;
+}
+
+.explorer-filter-dropdown--map {
+  top: calc(100% + 8px);
+  right: auto;
+  left: 0;
+  width: min(380px, calc(100vw - 64px));
+}
+
+.full-map-explorer__map .map-current-search-button {
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 .explorer-source-toolbar {
   position: absolute;
   top: 14px;
@@ -569,6 +589,12 @@ select {
   padding: 0;
   box-shadow: 0 18px 48px rgba(19, 32, 27, 0.18);
   color: var(--text);
+}
+
+.explorer-filter-dropdown.explorer-filter-dropdown--map {
+  right: auto;
+  left: 0;
+  width: min(380px, calc(100vw - 64px));
 }
 
 .explorer-filter-dropdown > form {
@@ -1233,6 +1259,12 @@ select {
     width: auto;
     max-height: calc(100dvh - 140px);
     border-radius: 18px;
+  }
+
+  .explorer-filter-dropdown--map {
+    right: auto;
+    left: 0;
+    width: min(360px, calc(100vw - 44px));
   }
 
   .explorer-filter-dropdown > form {
