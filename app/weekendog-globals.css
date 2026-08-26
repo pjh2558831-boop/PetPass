@@ -772,7 +772,7 @@ select {
 
 .explorer-source-legend {
   position: absolute;
-  bottom: 12px;
+  bottom: 64px;
   left: 14px;
   z-index: 20;
   display: flex;

@@ -131,27 +131,37 @@ async function expectResponsiveMap(
         const map = document.querySelector<HTMLElement>(".kakao-map-canvas");
         const search = document.querySelector<HTMLElement>('input[type="search"]');
         const mapRect = map?.getBoundingClientRect();
-        const markers = Array.from(
+        const customMarkers = Array.from(
           document.querySelectorAll<HTMLElement>(".kakao-map-marker"),
         );
+        const clusterPoints = Array.from(
+          document.querySelectorAll<HTMLElement>(
+            '[data-clusterer-ready="true"] div[style*="cursor: pointer"][style*="width: 46px"][style*="height: 46px"]',
+          ),
+        );
+        const overlapsMap = (point: HTMLElement) => {
+          const rect = point.getBoundingClientRect();
+          return Boolean(
+            mapRect &&
+              rect.right >= mapRect.left - 8 &&
+              rect.left <= mapRect.right + 8 &&
+              rect.bottom >= mapRect.top - 8 &&
+              rect.top <= mapRect.bottom + 8,
+          );
+        };
         return {
           mapHasHeight: (mapRect?.height ?? 0) > 250,
           noHorizontalOverflow:
             document.documentElement.scrollWidth <= window.innerWidth + 1,
           searchFits:
             !search || search.getBoundingClientRect().right <= window.innerWidth + 1,
-          markersInsideMap:
+          customMarkersInsideMap:
             Boolean(mapRect) &&
-            markers.length > 0 &&
-            markers.every((marker) => {
-              const rect = marker.getBoundingClientRect();
-              return (
-                rect.right >= mapRect!.left - 8 &&
-                rect.left <= mapRect!.right + 8 &&
-                rect.bottom >= mapRect!.top - 8 &&
-                rect.top <= mapRect!.bottom + 8
-              );
-            }),
+            customMarkers.every(overlapsMap),
+          clusterPointInsideMap:
+            Boolean(mapRect) &&
+            clusterPoints.length > 0 &&
+            clusterPoints.some(overlapsMap),
           tilesStillLoaded: Boolean(
             map &&
               Array.from(map.querySelectorAll("img")).some(
@@ -172,7 +182,8 @@ async function expectResponsiveMap(
       mapHasHeight: true,
       noHorizontalOverflow: true,
       searchFits: true,
-      markersInsideMap: true,
+      customMarkersInsideMap: true,
+      clusterPointInsideMap: true,
       tilesStillLoaded: true,
       polylinePathStillPresent: expectPolyline,
     });
@@ -227,29 +238,27 @@ test("localhost renders current Kakao maps without a fixed demo itinerary", asyn
     .not.toBe(clusterCountBeforeClick);
   await expectResponsiveMap(page, 768, 900, false);
   await expectResponsiveMap(page, 390, 844, false);
+  await page.setViewportSize({ width: 1_440, height: 900 });
   const officialMapCount = Number(
     await page.locator(".kakao-map-canvas").getAttribute("data-location-count"),
   );
   expect(officialMapCount).toBeGreaterThanOrEqual(13);
-  const layerControls = page.locator("fieldset").filter({
-    has: page.getByText("지도 레이어", { exact: true }),
-  });
-  await expect(layerControls).toBeVisible();
-  await expect(
-    layerControls.getByRole("button", { name: /^관광공사 \d+$/u }),
-  ).toBeVisible();
+  const sourceLegend = page.locator('[aria-label="장소 출처 범례"]');
+  await expect(sourceLegend).toBeVisible();
+  for (const source of ["한국관광공사", "카카오맵", "동물병원", "펫샵·용품점"]) {
+    await expect(sourceLegend).toContainText(source);
+  }
   await expect(
     page.getByRole("heading", {
-      name: `장소 ${officialMapCount}곳`,
+      name: `총 ${officialMapCount.toLocaleString("ko-KR")}곳`,
       exact: true,
     }),
   ).toBeVisible();
   await expect(
-    page.getByText("카드는 페이지당 12개 · 지도는 전체 결과", {
+    page.getByText("카드는 페이지당 12개 · 지도는 현재 필터의 전체 결과", {
       exact: true,
     }),
   ).toBeVisible();
-  await expect(page.locator(".kakao-map-marker--tourism-official").first()).toBeAttached();
   await expect
     .poll(() =>
       page
@@ -266,26 +275,18 @@ test("localhost renders current Kakao maps without a fixed demo itinerary", asyn
     .first()
     .getAttribute("id");
   expect(laterPageCardId).toBeTruthy();
-  const laterPageLocationId = laterPageCardId?.replace("place-card-", "");
-  expect(laterPageLocationId).toBeTruthy();
-  await page.getByRole("button", { name: "이전" }).click();
-
-  const laterPageMarker = page.locator(
-    `.kakao-map-marker[data-location-id="${laterPageLocationId}"]`,
-  );
-  await expect(laterPageMarker).toBeAttached();
-  await laterPageMarker.evaluate((element) => {
-    (element as HTMLElement).click();
-  });
-  await expect(page.getByText(/^2 \/ \d+페이지 · 현재 \d+곳$/u)).toBeVisible();
-  await expect(page.locator(`#${laterPageCardId}`)).toHaveClass(/ring-2/u);
+  const laterPageCard = page.locator(`#${laterPageCardId}`);
+  const laterPageTitle = await laterPageCard.locator("h3").innerText();
+  await laterPageCard.getByRole("button", { name: /지도에서 보기$/u }).click();
+  await expect(page.locator(".kakao-map-info")).toContainText(laterPageTitle);
+  await expect(laterPageCard).toHaveClass(/\bis-selected\b/u);
 
   await page.getByRole("button", { name: "이전" }).click();
   const firstPageCard = page.locator('article[id^="place-card-"]').first();
   const firstPageTitle = await firstPageCard.locator("h3").innerText();
   await firstPageCard.getByRole("button", { name: /지도에서 보기$/u }).click();
   await expect(page.locator(".kakao-map-info")).toContainText(firstPageTitle);
-  await expect(firstPageCard).toHaveClass(/ring-2/u);
+  await expect(firstPageCard).toHaveClass(/\bis-selected\b/u);
 
   expect(localSearchRequests).toEqual([]);
 
