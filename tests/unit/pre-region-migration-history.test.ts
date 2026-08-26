@@ -24,6 +24,7 @@ const expectedMigrationFiles = [
   "20260823142200_harden_profile_avatar_bucket.sql",
   "20260824123000_add_multi_pet_profiles_and_profile_editing.sql",
   "20260824123100_harden_profile_cooldown_function_privileges.sql",
+  "20260826132941_add_seoul_kto_catalog_foundation.sql",
 ] as const;
 
 const productionStatementHashes = {

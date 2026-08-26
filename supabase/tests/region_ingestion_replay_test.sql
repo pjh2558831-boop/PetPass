@@ -108,7 +108,7 @@ select extensions.throws_ok(
     )
   $invalid_scope$,
   '23514',
-  'invalid Jeju KTO district scope',
+  'invalid regional KTO district scope',
   'KTO runs require the complete Jeju administrative scope'
 );
 
@@ -286,7 +286,7 @@ select extensions.throws_ok(
     (select run_id from phase4_runs where label = 'full')
   ),
   '23514',
-  'new row for relation "map_tour_ingest_stage_places" violates check constraint "map_tour_ingest_stage_places_region_bounds_check"',
+  'KTO stage coordinates are outside the configured region bounds',
   'out-of-region KTO coordinates are rejected'
 );
 

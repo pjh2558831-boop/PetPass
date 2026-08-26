@@ -607,6 +607,13 @@ export type Database = {
           created_at: string
           display_name: string
           kakao_collection_enabled: boolean
+          kto_catalog_enabled: boolean
+          kto_collection_east: number | null
+          kto_collection_enabled: boolean
+          kto_collection_north: number | null
+          kto_collection_south: number | null
+          kto_collection_west: number | null
+          kto_registry_version: string | null
           legal_dong_code: string
           region_id: string
         }
@@ -614,6 +621,13 @@ export type Database = {
           created_at?: string
           display_name: string
           kakao_collection_enabled?: boolean
+          kto_catalog_enabled?: boolean
+          kto_collection_east?: number | null
+          kto_collection_enabled?: boolean
+          kto_collection_north?: number | null
+          kto_collection_south?: number | null
+          kto_collection_west?: number | null
+          kto_registry_version?: string | null
           legal_dong_code: string
           region_id: string
         }
@@ -621,6 +635,13 @@ export type Database = {
           created_at?: string
           display_name?: string
           kakao_collection_enabled?: boolean
+          kto_catalog_enabled?: boolean
+          kto_collection_east?: number | null
+          kto_collection_enabled?: boolean
+          kto_collection_north?: number | null
+          kto_collection_south?: number | null
+          kto_collection_west?: number | null
+          kto_registry_version?: string | null
           legal_dong_code?: string
           region_id?: string
         }
