@@ -15,18 +15,25 @@ export const PLACE_CATEGORIES = [
 export type PlaceCategory = (typeof PLACE_CATEGORIES)[number];
 export type TourCatalogCategory = Exclude<PlaceCategory, "veterinary" | "pet_shop">;
 
-export const DEFAULT_PLACE_CATEGORIES: readonly PlaceCategory[] = [
+export const DEFAULT_PLACE_CATEGORIES = [
   "attraction",
   "food",
   "cafe",
   "accommodation",
-];
+] as const satisfies readonly PlaceCategory[];
 
-export const OPTIONAL_PLACE_CATEGORIES: readonly PlaceCategory[] = [
+export const OPTIONAL_PLACE_CATEGORIES = [
   "shopping",
   "veterinary",
   "pet_shop",
-];
+] as const satisfies readonly PlaceCategory[];
+export type OptionalPlaceCategory = (typeof OPTIONAL_PLACE_CATEGORIES)[number];
+
+export function isOptionalPlaceCategory(
+  category: PlaceCategory,
+): category is OptionalPlaceCategory {
+  return (OPTIONAL_PLACE_CATEGORIES as readonly PlaceCategory[]).includes(category);
+}
 
 export const PLACE_CATEGORY_LABELS: Record<PlaceCategory, string> = {
   attraction: "관광지",

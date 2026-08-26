@@ -12,7 +12,6 @@ import {
   Clock3,
   Coffee,
   Dog,
-  House,
   Landmark,
   MapPin,
   PawPrint,
@@ -351,14 +350,25 @@ export function UnifiedPlannerForm() {
             </div>
           </fieldset>
 
-          <div>
-            <p className="mb-2 text-sm font-extrabold">야외 전용 장소 포함 여부</p>
-            <label className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-[var(--radius-control)] border px-4 text-sm font-extrabold transition ${profile.acceptsOutdoorOnly ? "border-[var(--mint-500)] bg-[var(--brand-soft)] text-[var(--brand)]" : "border-[var(--line)] bg-white text-[#607168]"}`}>
-              <input type="checkbox" checked={profile.acceptsOutdoorOnly} onChange={(event) => updateProfile("acceptsOutdoorOnly", event.target.checked)} className="size-4 accent-[var(--brand)]" />
-              <House size={18} aria-hidden="true" />
-              야외 전용 장소도 포함해요
-            </label>
-          </div>
+          <fieldset>
+            <legend className="mb-2 text-sm font-extrabold">실내·야외 선호</legend>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { value: "any" as const, label: "상관없음" },
+                { value: "indoor_preferred" as const, label: "실내 우선" },
+                { value: "outdoor_preferred" as const, label: "야외 우선" },
+              ].map((option) => {
+                const selected = (preferences.environmentPreference ?? "any") === option.value;
+                return (
+                  <label key={option.value} className={`flex min-h-12 cursor-pointer items-center justify-center rounded-[var(--radius-control)] border px-2 text-center text-xs font-extrabold transition ${selected ? "border-[var(--mint-500)] bg-[var(--brand-soft)] text-[var(--brand)]" : "border-[var(--line)] bg-white text-[#607168]"}`}>
+                    <input type="radio" name="environmentPreference" value={option.value} checked={selected} onChange={() => updatePreferences("environmentPreference", option.value)} className="sr-only" />
+                    {option.label}
+                  </label>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-xs leading-5 text-[var(--muted)]">선호만 반영하며 다른 공간의 장소도 후보에서 제외하지 않아요.</p>
+          </fieldset>
         </div>
       </section>
 

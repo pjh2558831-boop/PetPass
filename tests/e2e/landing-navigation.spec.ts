@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 const PAGE_TITLE = "WEEKENDOG | 근거 있는 반려동물 동반 여행";
 
 async function mockUnavailableHomepageData(page: Page) {
-  await page.route("**/api/homepage/places", async (route) => {
+  await page.route("**/api/homepage/places/initial?**", async (route) => {
     await route.fulfill({
       status: 503,
       contentType: "application/json",

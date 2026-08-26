@@ -25,6 +25,7 @@ const defaultPreferences: TravelPreferences = {
   tripPace: "balanced",
   startTime: "10:00",
   preferredCategories: ["ATTRACTION", "RESTAURANT", "CAFE"],
+  environmentPreference: "any",
 };
 
 const categories = [
@@ -295,10 +296,33 @@ export function TripPreferencesForm() {
         </div>
       </fieldset>
 
+      <fieldset>
+        <legend className="text-sm font-extrabold">실내·야외 선호</legend>
+        <p className="mt-1 text-xs leading-5 text-[#748078]">
+          선호 점수에만 반영하며 선택하지 않은 공간도 후보에서 제외하지 않아요.
+        </p>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          {[
+            { value: "any" as const, label: "상관없음" },
+            { value: "indoor_preferred" as const, label: "실내 우선" },
+            { value: "outdoor_preferred" as const, label: "야외 우선" },
+          ].map((option) => (
+            <label key={option.value} className={`flex min-h-12 cursor-pointer items-center justify-center rounded-2xl border px-3 text-sm font-extrabold ${
+              (preferences.environmentPreference ?? "any") === option.value
+                ? "border-[#3d8b68] bg-[#edf8f2] text-[#236148]"
+                : "border-[#d6ded9] bg-white text-[#607168]"
+            }`}>
+              <input type="radio" name="environmentPreference" value={option.value} checked={(preferences.environmentPreference ?? "any") === option.value} onChange={() => setPreferences((current) => ({ ...current, environmentPreference: option.value }))} className="sr-only" />
+              {option.label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
       <div className="rounded-2xl border border-[#e6d1bb] bg-[#fff8f1] p-4 text-sm leading-6 text-[#6a5547]">
         저장한 지역·날짜·장소 유형은 추천 코스의 기본값이 됩니다. 추천 단계에서는
-        한국관광공사 동반 근거를 확인한 실제 장소만 사용하며, 제공자 실패를 데모
-        데이터로 대체하지 않습니다.
+        한국관광공사와 저장된 카카오 후보의 출처·동반 근거 상태를 구분해 사용하며,
+        제공자 실패를 데모 데이터로 대체하지 않습니다.
       </div>
 
       {error ? (

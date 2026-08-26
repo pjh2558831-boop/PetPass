@@ -115,7 +115,7 @@ describe("PlannerStateProvider generation state", () => {
     });
     expect(getPlannerState().preferences).toMatchObject({
       ...nextPreferences,
-      indoorAccessPreference: "required",
+      environmentPreference: "any",
     });
     expect(getPlannerState().generationState.phase).toBe("idle");
   });

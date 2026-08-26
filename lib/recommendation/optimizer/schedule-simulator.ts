@@ -1,6 +1,6 @@
 import "server-only";
 
-import { ROUTE_SOLVER_V1_CONFIG } from "@/lib/recommendation/config/route-solver-v1";
+import { getRouteTripConstraints } from "@/lib/recommendation/optimizer/trip-constraints";
 import type {
   RouteOptimizationCandidate,
   RouteOptimizationTripRequest,
@@ -87,8 +87,8 @@ export function appendScheduledVisitTiming(input: {
   }
   const departureAtMs =
     visitStartsAtMs + input.candidate.dwellDurationMinutes * 60_000;
-  const pace = ROUTE_SOLVER_V1_CONFIG.pace[input.tripRequest.tripPace];
-  if (departureAtMs - input.serviceDayStartMs > pace.maxDurationMinutes * 60_000) {
+  const constraints = getRouteTripConstraints(input.tripRequest);
+  if (departureAtMs - input.serviceDayStartMs > constraints.maxDurationMinutes * 60_000) {
     return null;
   }
   if (departureAtMs >= input.serviceDayStartMs + DAY_MS) return null;

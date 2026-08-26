@@ -1,6 +1,7 @@
 import "server-only";
 
 import { ROUTE_SOLVER_V1_CONFIG } from "@/lib/recommendation/config/route-solver-v1";
+import { getRouteTripConstraints } from "@/lib/recommendation/optimizer/trip-constraints";
 import { isUsableTravelEdge } from "@/lib/recommendation/optimizer/schedule-simulator";
 import type {
   CompletedRouteCandidate,
@@ -62,8 +63,16 @@ export function explainStops(
       distanceMetersFromPrevious: visit.travelDistanceMeters,
       waitSeconds: visit.waitSeconds,
       dwellDurationSource: visit.candidate.dwellDurationSource,
-      source: "tourism_service2",
-      petAssessment: visit.candidate.place.assessment.verdict as "allowed" | "conditional",
+      source: visit.candidate.source ?? "tourism_service2",
+      petAssessment:
+        visit.candidate.petAssessment ??
+        (visit.candidate.place?.assessment.verdict === "not_allowed"
+          ? "unknown"
+          : visit.candidate.place?.assessment.verdict) ??
+        "unknown",
+      evidenceStatus:
+        visit.candidate.evidenceStatus ??
+        (visit.candidate.place?.assessment.verdict === "allowed" ? "verified" : "conditional"),
       informationTrust: visit.candidate.informationTrust.level,
       placeUtility: visit.candidate.placeUtility,
       inclusionReasonCodes: inclusion,
@@ -75,7 +84,7 @@ export function explainStops(
           ...(visit.candidate.dwellDurationSource === "category_default"
             ? ["default_dwell_duration_used"]
             : []),
-          ...(visit.candidate.place.assessment.verdict === "conditional"
+          ...((visit.candidate.petAssessment ?? visit.candidate.place?.assessment.verdict) === "conditional"
             ? ["conditional_pet_requirement"]
             : []),
         ]),
@@ -100,7 +109,7 @@ export function explainExcludedPlaces(input: {
       else if (candidate.schedule.mandatoryReservationImpossible) reasonCode = "time_window_conflict";
       else if (candidate.visitRole === "accommodation" && input.optimization.tripRequest.tripType === "day_trip") {
         reasonCode = "accommodation_position_rule";
-      } else if (input.selected.visits.length >= ROUTE_SOLVER_V1_CONFIG.pace[input.optimization.tripRequest.tripPace].maxStops) {
+      } else if (input.selected.visits.length >= getRouteTripConstraints(input.optimization.tripRequest).maxStops) {
         reasonCode = "pace_limit";
       }
       return { placeId: candidate.node.id, reasonCode, placeUtility: candidate.placeUtility.total };

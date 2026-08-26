@@ -97,13 +97,13 @@ function apportionContributions(
 export function scorePlaceUtilityV1(
   input: PlaceUtilityV1Input,
 ): PlaceUtilityBreakdown | null {
+  const eligibilityTier = input.eligibility.tier ??
+    (input.petAccessAssessment.verdict === "allowed"
+      ? "verified"
+      : "conditional");
   if (
     !input.eligibility.eligible ||
-    input.eligibility.status !== "eligible" ||
-    input.eligibility.reasonCodes.length > 0 ||
-    input.petAccessAssessment.evaluationState !== "complete" ||
-    (input.petAccessAssessment.verdict !== "allowed" &&
-      input.petAccessAssessment.verdict !== "conditional")
+    eligibilityTier === "explicitly_ineligible"
   ) {
     return null;
   }
@@ -125,9 +125,11 @@ export function scorePlaceUtilityV1(
   const components = {
     preferenceFit: normalized(input.preferenceFit, "preferenceFit"),
     petCompatibility:
-      input.petAccessAssessment.verdict === "allowed"
+      eligibilityTier === "verified"
         ? PLACE_UTILITY_V1_CONFIG.petCompatibility.allowed
-        : PLACE_UTILITY_V1_CONFIG.petCompatibility.compatibleConditional,
+        : eligibilityTier === "conditional"
+          ? PLACE_UTILITY_V1_CONFIG.petCompatibility.compatibleConditional
+          : PLACE_UTILITY_V1_CONFIG.petCompatibility.unverified,
     informationTrust: normalized(
       input.informationTrust.score / 100,
       "informationTrust.score",
@@ -139,14 +141,19 @@ export function scorePlaceUtilityV1(
   const { total, contributions } = apportionContributions(components);
   const reasonCodes = new Set(input.reasonCodes ?? []);
   reasonCodes.add(
-    input.petAccessAssessment.verdict === "allowed"
+    eligibilityTier === "verified"
       ? "pet_access_allowed"
-      : "pet_access_compatible_conditional",
+      : eligibilityTier === "conditional"
+        ? "pet_access_compatible_conditional"
+        : "pet_access_unverified_active",
   );
   reasonCodes.add("canonical_information_trust_used");
   const warningCodes = new Set(input.warningCodes ?? []);
   if (input.popularity.status === "insufficient_data") {
     warningCodes.add("popularity_insufficient_data");
+  }
+  if (eligibilityTier === "unverified") {
+    warningCodes.add("pet_evidence_unverified");
   }
 
   return {

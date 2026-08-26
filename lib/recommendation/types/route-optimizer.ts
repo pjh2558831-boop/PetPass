@@ -12,6 +12,7 @@ import type {
   TravelTimeTemporalBasis,
 } from "@/lib/travel/types";
 import type { UsefulTourCategory } from "@/lib/recommendation/types";
+import type { PersonalizationScoreV2 } from "@/lib/recommendation/v2/personalization";
 
 export type RouteVisitRole =
   | "activity"
@@ -42,7 +43,8 @@ export interface RouteExposureResult {
 }
 
 export interface RouteOptimizationCandidate {
-  place: DetailedEligibleCandidate;
+  /** Present only when the candidate has an authoritative KTO detail record. */
+  place: DetailedEligibleCandidate | null;
   node: TravelNode;
   placeUtility: PlaceUtilityBreakdown;
   dwellDurationMinutes: number;
@@ -54,6 +56,11 @@ export interface RouteOptimizationCandidate {
   popularity: PopularityResult;
   informationTrust: PlaceTrustResult;
   exposure: RouteExposureResult;
+  source?: "tourism_service2" | "kakao_catalog";
+  petAssessment?: "allowed" | "conditional" | "unknown";
+  evidenceStatus?: "verified" | "conditional" | "unverified";
+  eligibilityTier?: "verified" | "conditional" | "unverified";
+  personalization?: PersonalizationScoreV2;
 }
 
 export interface RouteOptimizationTripRequest {
@@ -64,6 +71,9 @@ export interface RouteOptimizationTripRequest {
   tripPace: "relaxed" | "balanced" | "packed";
   selectedCategories: UsefulTourCategory[];
   roundTrip: boolean;
+  desiredStopCount?: number;
+  durationMinutes?: number;
+  allowReducedStops?: boolean;
 }
 
 export interface RouteOptimizationInput {
@@ -143,8 +153,9 @@ export interface RecommendedRouteStop {
   distanceMetersFromPrevious: number;
   waitSeconds: number;
   dwellDurationSource: "provider" | "category_default";
-  source: "tourism_service2";
-  petAssessment: "allowed" | "conditional";
+  source: "tourism_service2" | "kakao_catalog";
+  petAssessment: "allowed" | "conditional" | "unknown";
+  evidenceStatus?: "verified" | "conditional" | "unverified";
   informationTrust: "high" | "medium" | "low";
   placeUtility: PlaceUtilityBreakdown;
   inclusionReasonCodes: string[];

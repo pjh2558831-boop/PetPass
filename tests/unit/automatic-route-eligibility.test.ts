@@ -284,6 +284,7 @@ describe("automatic-route eligibility V1", () => {
     expect(evaluateAutomaticRouteEligibility(input())).toEqual({
       eligible: true,
       status: "eligible",
+      tier: "verified",
       reasonCodes: [],
       warnings: ["license_no_match"],
       evidenceFieldNames: ["acmpyTypeCd"],
@@ -330,7 +331,43 @@ describe("automatic-route eligibility V1", () => {
     });
     candidate.petProfile.hasLeash = null;
     expect(evaluateAutomaticRouteEligibility(candidate)).toMatchObject({
+      eligible: true,
       status: "verification_required",
+      tier: "conditional",
+      reasonCodes: ["mandatory_condition_verification_required"],
+    });
+  });
+
+  it("keeps unknown pet evidence active as an unverified candidate", () => {
+    const candidate = input();
+    candidate.assessment = assessment({
+      verdict: "unknown",
+      evaluationState: "insufficient_evidence",
+    });
+
+    expect(evaluateAutomaticRouteEligibility(candidate)).toMatchObject({
+      eligible: true,
+      status: "verification_required",
+      tier: "unverified",
+      reasonCodes: expect.arrayContaining(["pet_access_unknown"]),
+    });
+  });
+
+  it("keeps manual confirmation conditions active as conditional candidates", () => {
+    const candidate = input();
+    candidate.assessment = assessment({
+      verdict: "conditional",
+      conditions: [
+        condition("reservation_required", {
+          manualConfirmationRecommended: true,
+        }),
+      ],
+    });
+
+    expect(evaluateAutomaticRouteEligibility(candidate)).toMatchObject({
+      eligible: true,
+      status: "verification_required",
+      tier: "conditional",
       reasonCodes: ["mandatory_condition_verification_required"],
     });
   });
@@ -470,7 +507,7 @@ describe("automatic-route eligibility V1", () => {
   it.each([
     ["not_allowed", "complete", "pet_access_not_allowed", "ineligible"],
     ["unknown", "insufficient_evidence", "pet_access_unknown", "verification_required"],
-    ["unknown", "not_applicable", "pet_access_not_applicable", "ineligible"],
+    ["unknown", "not_applicable", "pet_access_not_applicable", "verification_required"],
   ] as const)(
     "maps Phase 3 %s/%s without licensing reinterpretation",
     (verdict, evaluationState, reason, status) => {
@@ -485,14 +522,15 @@ describe("automatic-route eligibility V1", () => {
   );
 
   it.each([
-    ["not_exposed", "provider_visibility_not_exposed", "ineligible"],
-    ["unknown", "provider_visibility_unknown", "verification_required"],
+    ["not_exposed", "provider_visibility_not_exposed", "ineligible", false],
+    ["unknown", "provider_visibility_unknown", "verification_required", true],
     [
       "provider_unavailable",
       "provider_visibility_unavailable",
       "provider_unavailable",
+      true,
     ],
-  ] as const)("fail-closes visibility %s", (visibility, reason, status) => {
+  ] as const)("classifies visibility %s without inventing incompatibility", (visibility, reason, status, eligible) => {
     const candidate = input();
     const providerValue =
       visibility === "not_exposed" ? "0" : null;
@@ -507,7 +545,7 @@ describe("automatic-route eligibility V1", () => {
     candidate.summary.providerVisibility = normalizedVisibility;
     candidate.detail.summary.providerVisibility = normalizedVisibility;
     expect(evaluateAutomaticRouteEligibility(candidate)).toMatchObject({
-      eligible: false,
+      eligible,
       status,
       reasonCodes: [reason],
     });
@@ -517,7 +555,8 @@ describe("automatic-route eligibility V1", () => {
     const introNotApplicable = input();
     introNotApplicable.providerCalls.detailIntro = "not_applicable";
     expect(evaluateAutomaticRouteEligibility(introNotApplicable)).toMatchObject({
-      status: "ineligible",
+      eligible: true,
+      status: "verification_required",
       reasonCodes: ["required_intro_detail_call_unavailable"],
     });
 
@@ -833,7 +872,8 @@ describe("automatic-route eligibility V1", () => {
     candidate.assessment = assessment({ verdict: "not_allowed" });
     expect(evaluateAutomaticRouteEligibility(candidate)).toMatchObject({
       eligible: false,
-      status: "provider_unavailable",
+      status: "ineligible",
+      tier: "explicitly_ineligible",
       reasonCodes: expect.arrayContaining([
         "required_pet_detail_call_unavailable",
         "pet_access_not_allowed",

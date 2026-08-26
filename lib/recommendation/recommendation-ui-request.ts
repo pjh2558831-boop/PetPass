@@ -27,6 +27,9 @@ function selectedCategories(
 export function createRouteRecommendationRequest(
   profile: PetProfile,
   preferences: TravelPreferences,
+  personalizationOverrides: Partial<
+    NonNullable<RouteRecommendationRequest["personalization"]>
+  > = {},
 ): RouteRecommendationRequest {
   if (!preferences.departure) {
     throw new TypeError("A resolved departure is required.");
@@ -48,6 +51,15 @@ export function createRouteRecommendationRequest(
       tripPace: preferences.tripPace,
       selectedCategories: selectedCategories(preferences),
       roundTrip: preferences.roundTrip ?? false,
+      environmentPreference: preferences.environmentPreference ?? "any",
+      ...(preferences.desiredStopCount === undefined
+        ? {}
+        : { desiredStopCount: preferences.desiredStopCount }),
+      ...(preferences.planningMode === "duration" &&
+      preferences.desiredDurationMinutes !== undefined
+        ? { durationMinutes: preferences.desiredDurationMinutes }
+        : {}),
+      travelMode: "driving",
     },
     pet: {
       name: profile.name.trim() || null,
@@ -59,6 +71,19 @@ export function createRouteRecommendationRequest(
         muzzle: profile.hasMuzzle,
       },
       acceptsOutdoorOnlyPlaces: profile.acceptsOutdoorOnly,
+    },
+    personalization: {
+      petCount: 1,
+      petActivityLevel: "moderate",
+      walkingTolerance: "moderate",
+      crowdPreference: "any",
+      tripMood: "balanced",
+      categoryPriorities: {},
+      recentRouteSignatures: [],
+      recentlySelectedCandidateIds: [],
+      explicitlyExcludedPlaceIds: [],
+      rerollVariant: 0,
+      ...personalizationOverrides,
     },
   };
 }

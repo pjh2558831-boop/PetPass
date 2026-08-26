@@ -1,17 +1,29 @@
 import "server-only";
 
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { BUSAN_DISCOVERY_BOUNDS } from "@/lib/kakao/discovery";
 import { KakaoMobilityProviderError } from "@/lib/kakao/directions";
 import { KakaoTravelTimeProvider } from "@/lib/kakao/travel-time-provider";
 import { getTripPaceConfig } from "@/lib/itinerary/trip-pace";
+import { getRegionConfig } from "@/lib/regions/config";
+import { loadMapPlacesSnapshot } from "@/lib/map-places/snapshot";
 import {
   getDefaultLicenseMatchingService,
   type LicenseMatcher,
 } from "@/lib/licenses/service";
 import { runCandidatePipelineV1 } from "@/lib/recommendation/candidate-pipeline";
+import {
+  createEditSessionId,
+  parseEditSession,
+  type ManualEditCandidate,
+} from "@/lib/recommendation/edit-session";
 import { adaptEligibleCandidateForRouteV1 } from "@/lib/recommendation/optimizer/candidate-adapter";
 import { optimizeRouteV1 } from "@/lib/recommendation/optimizer/route-optimizer";
+import { adaptCanonicalCandidateForRouteV2 } from "@/lib/recommendation/v2/candidate-adapter";
+import { fuseRecommendationCandidatesV2 } from "@/lib/recommendation/v2/candidate-fusion";
+import {
+  optimizeRouteOptionsV2,
+} from "@/lib/recommendation/v2/route-optimizer";
+import { requestFingerprintV2, routeFromOptionV2 } from "@/lib/recommendation/v2/response";
 import {
   appendScheduledVisitTiming,
   tripStartMs,
@@ -21,10 +33,10 @@ import { normalizeRecommendationRequest } from "@/lib/recommendation/recommendat
 import type {
   DetailedEligibleCandidate,
   CandidatePipelineResult,
+  UsefulTourCategory,
 } from "@/lib/recommendation/types";
 import type {
   RecommendedRouteStop,
-  RouteOptimizationCandidate,
   RouteOptimizationInput,
   RouteOptimizationResult,
   RouteOptimizationTripRequest,
@@ -32,8 +44,6 @@ import type {
 import type {
   OrderedRouteValidationResult,
   TravelMatrixEdge,
-  TravelNode,
-  TravelTimeTemporalBasis,
   TravelTimeProvider,
 } from "@/lib/travel/types";
 import {
@@ -51,6 +61,7 @@ import {
   type TourRequestObservation,
 } from "@/lib/tour-api/service";
 import type { TourPlaceSummary } from "@/types/place";
+import type { MapPlacesSnapshot } from "@/types/map-places-snapshot";
 import type {
   ManualRouteValidationResponseV1,
   ProductRouteV1,
@@ -62,15 +73,15 @@ import type {
 } from "@/types/recommendation";
 import {
   ROUTE_RECOMMENDATION_API_VERSION,
+  ROUTE_RECOMMENDATION_CONTRACT_V2,
+  ROUTE_RECOMMENDATION_ENGINE_V2,
 } from "@/types/recommendation";
 
 const CATALOG_CONCURRENCY = 2;
-const EDIT_SESSION_TTL_MS = 20 * 60 * 1_000;
-const EDIT_SESSION_VERSION = "manual-route-edit-session-v1";
-const MAX_EDIT_SESSION_TOKEN_LENGTH = 256_000;
 
 type CandidatePipelineRunner = typeof runCandidatePipelineV1;
 type OptimizerRunner = typeof optimizeRouteV1;
+type RouteOptionsOptimizerRunner = typeof optimizeRouteOptionsV2;
 
 export interface RecommendationServiceDependencies {
   tourService?: TourPlaceService;
@@ -78,102 +89,13 @@ export interface RecommendationServiceDependencies {
   travelTimeProvider?: TravelTimeProvider;
   candidatePipeline?: CandidatePipelineRunner;
   optimizer?: OptimizerRunner;
+  routeOptionsOptimizer?: RouteOptionsOptimizerRunner;
+  loadCatalogSnapshot?: typeof loadMapPlacesSnapshot;
   collectCatalog?: typeof collectTourCatalog;
   now?: () => Date;
   includeDiagnostics?: boolean;
   editSessionSecret?: string;
-}
-
-interface ManualEditCandidate {
-  node: TravelNode;
-  dwellDurationMinutes: number;
-  schedule: RouteOptimizationCandidate["schedule"];
-  originalStop: RecommendedRouteStopV1;
-}
-
-interface EditSessionPayload {
-  version: typeof EDIT_SESSION_VERSION;
-  expiresAt: number;
-  departure: TravelNode;
-  tripRequest: RouteOptimizationTripRequest;
-  searchTemporalBasis: TravelTimeTemporalBasis;
-  candidates: ManualEditCandidate[];
-}
-
-function editSessionSigningKey(explicit?: string): Buffer {
-  const configured = explicit?.trim() || process.env.ROUTE_EDIT_SESSION_SECRET?.trim();
-  const providerMaterial = [
-    process.env.TOUR_API_SERVICE_KEY?.trim(),
-    process.env.KAKAO_REST_API_KEY?.trim(),
-  ];
-  const material = configured ||
-    (providerMaterial.every(Boolean) ? providerMaterial.join("\0") : "");
-  if (!material) {
-    throw new TypeError("Route edit-session signing material is unavailable.");
-  }
-  return createHash("sha256")
-    .update(`${EDIT_SESSION_VERSION}\0`, "utf8")
-    .update(material, "utf8")
-    .digest();
-}
-
-function signEditSession(payload: EditSessionPayload, secret?: string): string {
-  const encoded = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
-  const signature = createHmac("sha256", editSessionSigningKey(secret))
-    .update(encoded, "utf8")
-    .digest("base64url");
-  return `v1.${encoded}.${signature}`;
-}
-
-function parseEditSession(
-  token: string,
-  nowMs: number,
-  secret?: string,
-): EditSessionPayload | null {
-  if (!token.startsWith("v1.") || token.length > MAX_EDIT_SESSION_TOKEN_LENGTH) {
-    return null;
-  }
-  const parts = token.split(".");
-  if (parts.length !== 3) return null;
-  const encoded = parts[1]!;
-  const supplied = Buffer.from(parts[2]!, "base64url");
-  const expected = createHmac("sha256", editSessionSigningKey(secret))
-    .update(encoded, "utf8")
-    .digest();
-  if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(
-      Buffer.from(encoded, "base64url").toString("utf8"),
-    ) as Partial<EditSessionPayload>;
-    if (
-      parsed.version !== EDIT_SESSION_VERSION ||
-      typeof parsed.expiresAt !== "number" ||
-      parsed.expiresAt <= nowMs ||
-      !parsed.departure ||
-      !parsed.tripRequest ||
-      typeof parsed.searchTemporalBasis !== "string" ||
-      !Array.isArray(parsed.candidates) ||
-      parsed.candidates.length === 0 ||
-      parsed.candidates.length > 15 ||
-      parsed.candidates.some(
-        (candidate) =>
-          !candidate ||
-          typeof candidate.node?.id !== "string" ||
-          typeof candidate.dwellDurationMinutes !== "number" ||
-          !candidate.schedule ||
-          candidate.originalStop?.placeId !== candidate.node.id,
-      ) ||
-      new Set(parsed.candidates.map(({ node }) => node.id)).size !==
-        parsed.candidates.length
-    ) {
-      return null;
-    }
-    return parsed as EditSessionPayload;
-  } catch {
-    return null;
-  }
+  signal?: AbortSignal;
 }
 
 async function mapWithConcurrency<T, R>(
@@ -195,40 +117,6 @@ async function mapWithConcurrency<T, R>(
   );
   await Promise.all(workers);
   return output;
-}
-
-function createEditSessionId(
-  input: RouteOptimizationInput,
-  routes: readonly ProductRouteV1[],
-  searchTemporalBasis: TravelTimeTemporalBasis,
-  nowMs: number,
-  secret?: string,
-): string {
-  const byId = new Map(input.candidates.map((candidate) => [candidate.node.id, candidate]));
-  const originalStops = new Map(
-    routes.flatMap(({ stops }) => stops).map((stop) => [stop.placeId, stop]),
-  );
-  const candidates = [...originalStops].map(([placeId, originalStop]) => {
-    const candidate = byId.get(placeId);
-    if (!candidate) throw new TypeError("Editable route stop is missing its candidate.");
-    return {
-      node: candidate.node,
-      dwellDurationMinutes: candidate.dwellDurationMinutes,
-      schedule: candidate.schedule,
-      originalStop,
-    } satisfies ManualEditCandidate;
-  });
-  return signEditSession(
-    {
-      version: EDIT_SESSION_VERSION,
-      expiresAt: nowMs + EDIT_SESSION_TTL_MS,
-      departure: input.departure,
-      tripRequest: input.tripRequest,
-      searchTemporalBasis,
-      candidates,
-    },
-    secret,
-  );
 }
 
 function licensingStatus(
@@ -385,7 +273,7 @@ function optimizerFailure(
   }
 }
 
-export async function generateRouteRecommendation(
+async function generateRouteRecommendationLegacy(
   request: RouteRecommendationRequest,
   dependencies: RecommendationServiceDependencies = {},
 ): Promise<RouteRecommendationResponseV1> {
@@ -579,6 +467,332 @@ export async function generateRouteRecommendation(
       ]);
     }
     return recommendationFailure("internal_error", ["recommendation_orchestration_failed"]);
+  }
+}
+
+/** Production V2 orchestration. One request performs one retrieval pass and one matrix build. */
+export async function generateRouteRecommendation(
+  request: RouteRecommendationRequest,
+  dependencies: RecommendationServiceDependencies = {},
+): Promise<RouteRecommendationResponseV1> {
+  dependencies.signal?.throwIfAborted();
+  // Preserve the injectable Stage 5 seam used by legacy/manual-route unit tests.
+  if (
+    dependencies.optimizer &&
+    !dependencies.routeOptionsOptimizer &&
+    !dependencies.loadCatalogSnapshot
+  ) {
+    return generateRouteRecommendationLegacy(request, dependencies);
+  }
+
+  const normalized = normalizeRecommendationRequest(request);
+  const region = getRegionConfig(request.trip.regionId);
+  if (!region?.itineraryEnabled) {
+    return recommendationFailure("region_not_supported_for_itinerary", [
+      "itinerary_capability_disabled",
+    ]);
+  }
+
+  try {
+    const tourService = dependencies.tourService ?? getDefaultTourService();
+    const licenseMatcher = dependencies.licenseMatcher ??
+      (dependencies.tourService ? null : getDefaultLicenseMatchingService());
+    const travelTimeProvider = dependencies.travelTimeProvider ?? new KakaoTravelTimeProvider();
+    const pipelineRunner = dependencies.candidatePipeline ?? runCandidatePipelineV1;
+    const routeOptionsOptimizer = dependencies.routeOptionsOptimizer ?? optimizeRouteOptionsV2;
+    const catalogLoader = dependencies.collectCatalog ?? collectTourCatalog;
+    const now = dependencies.now ?? (() => new Date());
+    const observations: TourRequestObservation[] = [];
+    let snapshotUnavailable = false;
+    const snapshotPromise: Promise<MapPlacesSnapshot | null> = (
+      dependencies.loadCatalogSnapshot ??
+      (dependencies.tourService
+        ? async () => null
+        : loadMapPlacesSnapshot)
+    )({ version: 1, region: request.trip.regionId, scope: "default" })
+      .catch(() => {
+        snapshotUnavailable = true;
+        return null;
+      });
+
+    let pipeline: CandidatePipelineResult | null = null;
+    let ktoUnavailable = false;
+    try {
+      dependencies.signal?.throwIfAborted();
+      const catalogGroups = await mapWithConcurrency(
+        request.trip.selectedCategories,
+        CATALOG_CONCURRENCY,
+        async (category) => {
+          const contentTypeId = getCatalogContentTypeId(category as TourCatalogCategory);
+          if (!contentTypeId) return [] as TourPlaceSummary[];
+          const catalog = await catalogLoader(
+            tourService,
+            {
+              regionCode: normalized.scope.regionCode,
+              districtCode: normalized.scope.type === "district"
+                ? (normalized.scope.districtCode as BusanDistrictCode)
+                : undefined,
+              contentTypeId,
+            },
+            (event) => observations.push(event),
+          );
+          return catalog.places;
+        },
+      );
+      const catalog = [...new Map(
+        catalogGroups.flat().map((place) => [place.contentId, place]),
+      ).values()];
+      const pipelineAsOf = now();
+      const pace = getTripPaceConfig(request.trip.tripPace);
+      pipeline = await pipelineRunner({
+        context: {
+          request: normalized,
+          maxStops: pace.maxStops,
+          minStops: pace.minStops,
+          tripType: normalized.tripType,
+          petProfile: {
+            species: normalized.petSpecies,
+            size: normalized.petSize,
+            hasCarrier: normalized.petEquipment.hasCarrier,
+            hasLeash: normalized.petEquipment.hasLeash,
+            hasMuzzle: normalized.petEquipment.hasMuzzle,
+            acceptsOutdoorOnly: normalized.acceptsOutdoorOnly,
+          },
+          tripRequest: {
+            scope: {
+              regionCode: normalized.scope.regionCode,
+              districtCode: normalized.scope.type === "district"
+                ? normalized.scope.districtCode
+                : null,
+              bounds: region.mapBounds,
+            },
+            selectedCategories: normalized.selectedCategories,
+            includeShopping: normalized.includeShopping,
+            indoorAccessPreference: "any",
+          },
+        },
+        catalog,
+        tourService,
+        licenseMatcher,
+        now: () => new Date(pipelineAsOf),
+        initialObservations: observations,
+      });
+      ktoUnavailable = pipeline.status === "provider_unavailable";
+    } catch (error) {
+      if (error instanceof TourProviderError) ktoUnavailable = true;
+      else throw error;
+    }
+
+    dependencies.signal?.throwIfAborted();
+    const snapshot = await snapshotPromise;
+    const usefulCategories = normalized.selectedCategories.filter(
+      (category): category is UsefulTourCategory =>
+        category !== "transportation" && category !== "unknown",
+    );
+    const personalizationRequest = normalized.personalization ?? {
+      petCount: 1,
+      petActivityLevel: "moderate" as const,
+      walkingTolerance: "moderate" as const,
+      crowdPreference: "any" as const,
+      tripMood: "balanced" as const,
+      categoryPriorities: {},
+      recentRouteSignatures: [],
+      recentlySelectedCandidateIds: [],
+      explicitlyExcludedPlaceIds: [],
+      rerollVariant: 0,
+    };
+    const fused = fuseRecommendationCandidatesV2({
+      regionId: request.trip.regionId,
+      selectedCategories: usefulCategories,
+      ktoCandidates: pipeline?.candidates ?? [],
+      catalogCandidates: snapshot?.items ?? [],
+      explicitlyExcludedPlaceIds: personalizationRequest.explicitlyExcludedPlaceIds,
+    });
+    if (fused.candidates.length === 0) {
+      return recommendationFailure("unavailable", [
+        "no_technically_valid_candidate_across_enabled_sources",
+        ...(ktoUnavailable ? ["kto_provider_unavailable"] : []),
+        ...(snapshotUnavailable ? ["kakao_catalog_unavailable"] : []),
+      ]);
+    }
+
+    const generatedAt = now();
+    const personalization = {
+      environmentPreference: normalized.environmentPreference ?? "any",
+      petCount: personalizationRequest.petCount,
+      petActivityLevel: personalizationRequest.petActivityLevel,
+      walkingTolerance: personalizationRequest.walkingTolerance,
+      crowdPreference: personalizationRequest.crowdPreference,
+      tripMood: personalizationRequest.tripMood,
+      categoryPriorities: personalizationRequest.categoryPriorities,
+      recentlySelectedCandidateIds: personalizationRequest.recentlySelectedCandidateIds,
+      rerollVariant: personalizationRequest.rerollVariant,
+    };
+    const adapted = fused.candidates
+      .map((candidate) => adaptCanonicalCandidateForRouteV2({
+        candidate,
+        departure: request.departure,
+        personalization,
+        computedAt: generatedAt.toISOString(),
+      }))
+      .sort((left, right) =>
+        right.placeUtility.total - left.placeUtility.total ||
+        left.node.id.localeCompare(right.node.id))
+      .slice(0, 15);
+    const adaptedIds = new Set(adapted.map(({ node }) => node.id));
+    const candidateById = new Map(
+      fused.candidates
+        .filter(({ canonicalId }) => adaptedIds.has(canonicalId))
+        .map((candidate) => [candidate.canonicalId, candidate]),
+    );
+    const departure = {
+      id: "departure",
+      kind: "departure" as const,
+      name: request.departure.label,
+      latitude: request.departure.latitude,
+      longitude: request.departure.longitude,
+    };
+    const matrix = await travelTimeProvider.buildMatrix({
+      departure,
+      candidates: adapted.map(({ node }) => node),
+      travelMode: "driving",
+      priority: "TIME",
+      avoid: [],
+      requestedDepartureAt: null,
+    });
+    dependencies.signal?.throwIfAborted();
+    const tripRequest: RouteOptimizationTripRequest = {
+      date: request.trip.date,
+      startTime: request.trip.startTime,
+      timezone: "Asia/Seoul",
+      tripType: request.trip.tripType,
+      tripPace: request.trip.tripPace,
+      selectedCategories: usefulCategories,
+      roundTrip: request.trip.roundTrip,
+      desiredStopCount: request.trip.desiredStopCount,
+      durationMinutes: request.trip.durationMinutes,
+      allowReducedStops: true,
+    };
+    const optimizationInput: RouteOptimizationInput = {
+      departure,
+      candidates: adapted,
+      matrix,
+      tripRequest,
+    };
+    const optimized = await routeOptionsOptimizer(optimizationInput, {
+      travelTimeProvider,
+      recentRouteSignatures: normalized.recentRouteSignatures,
+      rerollVariant: personalizationRequest.rerollVariant,
+    });
+    dependencies.signal?.throwIfAborted();
+    if (optimized.status !== "ready") {
+      return optimizerFailure({
+        ...optimized,
+        status: optimized.status,
+      } as Exclude<RouteOptimizationResult, { status: "ready" }>);
+    }
+    const requestedTarget = request.trip.desiredStopCount ??
+      getTripPaceConfig(request.trip.tripPace).desiredStopCount;
+    const routeOptions = optimized.options.map((option) => routeFromOptionV2({
+      option,
+      optimization: optimizationInput,
+      candidates: candidateById,
+      requestedTarget,
+      licensingStatus,
+    }));
+    const route = routeOptions[0]!;
+    const resultState = route.routeSummary.stopCount === 1
+      ? "single_stop_suggestion" as const
+      : route.routeSummary.stopCount < requestedTarget
+        ? "ready_with_reduced_stops" as const
+        : "ready" as const;
+    const editSessionId = createEditSessionId(
+      optimizationInput,
+      routeOptions,
+      matrix.edges[departure.id]
+        ? Object.values(matrix.edges[departure.id]!).find(({ status }) => status === "resolved")?.temporalBasis ?? "unknown"
+        : "unknown",
+      generatedAt.getTime(),
+      dependencies.editSessionSecret,
+    );
+    return {
+      status: "ready",
+      apiVersion: ROUTE_RECOMMENDATION_API_VERSION,
+      contractVersion: ROUTE_RECOMMENDATION_CONTRACT_V2,
+      engineVersion: ROUTE_RECOMMENDATION_ENGINE_V2,
+      objectiveVersion: "route-objective-v1",
+      solverVersion: "route-solver-v1",
+      editSessionId,
+      region: request.trip.regionId,
+      requestFingerprint: requestFingerprintV2({
+        normalized,
+        catalogVersion: snapshot?.dataVersion ?? "catalog-unavailable",
+        candidates: fused.candidates,
+      }),
+      resultState,
+      requestSummary: {
+        departureLabel: request.departure.label,
+        tripDate: request.trip.date,
+        startTime: request.trip.startTime,
+        tripType: request.trip.tripType,
+        tripPace: request.trip.tripPace,
+        selectedCategories: request.trip.selectedCategories,
+        roundTrip: request.trip.roundTrip,
+      },
+      optimality: optimized.optimality,
+      route,
+      routeOptions,
+      alternatives: [],
+      alternativeAvailability: optimized.alternativeAvailability,
+      candidateSourceCounts: {
+        kto: fused.diagnostics.acceptedSourceCounts.kto,
+        kakao: fused.diagnostics.acceptedSourceCounts.kakao,
+        merged: fused.diagnostics.crossProviderDuplicatesMerged,
+      },
+      excludedHighlights: optimized.excludedHighlights.map((highlight) => ({
+        placeId: highlight.placeId,
+        title: candidateById.get(highlight.placeId)?.title ?? null,
+        reasonCode: highlight.reasonCode,
+      })),
+      warnings: [
+        ...optimized.warnings,
+        ...(ktoUnavailable ? ["kto_provider_partial_failure"] : []),
+        ...(snapshotUnavailable ? ["kakao_catalog_partial_failure"] : []),
+      ],
+      ...(dependencies.includeDiagnostics ? {
+        diagnostics: {
+          candidatePipeline: {
+            stageA: pipeline?.diagnostics.stageACount ?? 0,
+            stageB: pipeline?.diagnostics.stageBCount ?? 0,
+            detailedEvaluations: pipeline?.diagnostics.detailedEvaluationCount ?? 0,
+            eligible: fused.candidates.length,
+          },
+          travelMatrix: {
+            nodes: matrix.diagnostics.nodeCount,
+            resolvedEdges: matrix.diagnostics.resolvedEdges,
+            unresolvedEdges: matrix.diagnostics.unresolvedEdges,
+          },
+          solver: {
+            durationMs: optimized.diagnostics.totalDurationMs,
+            validationAttempts: optimized.diagnostics.validationAttempts,
+            validationFailures: optimized.diagnostics.validationFailures,
+          },
+        },
+      } : {}),
+    };
+  } catch (error) {
+    if (dependencies.signal?.aborted) throw error;
+    if (error instanceof KakaoMobilityProviderError) {
+      return recommendationFailure("kakao_provider_unavailable", [
+        `kakao_${error.code.toLowerCase()}`,
+      ]);
+    }
+    if (error instanceof TourProviderError) {
+      return recommendationFailure("tourism_provider_unavailable", [
+        `tourism_${error.code.toLowerCase()}`,
+      ]);
+    }
+    return recommendationFailure("internal_error", ["recommendation_v2_orchestration_failed"]);
   }
 }
 

@@ -275,12 +275,9 @@ function conditionOutcome(
           : "unsatisfied";
     case "outdoor_only":
     case "indoor_restricted":
-      if (input.tripRequest.indoorAccessPreference === "required") {
-        return "unsatisfied";
-      }
-      return input.petProfile.acceptsOutdoorOnly
-        ? "satisfied"
-        : "unsatisfied";
+      // V2 treats environment as a route-ranking preference. These conditions
+      // remain visible in provenance but never become an implicit must-have.
+      return "satisfied";
     case "size_limit": {
       const compatibility = assessPetSizeCompatibility(
         input.assessment,
@@ -556,33 +553,36 @@ export function evaluateAutomaticRouteEligibility(
     addUnique(reasons, "shopping_not_explicitly_selected");
   }
 
-  if (providerUnavailable) {
-    return {
-      eligible: false,
-      status: "provider_unavailable",
-      reasonCodes: reasons,
-      warnings,
-      evidenceFieldNames,
-    };
-  }
-
-  const verificationReasons = new Set<AutomaticRouteEligibilityReasonCode>([
-    "provider_visibility_unknown",
-    "geographic_scope_verification_required",
-    "pet_evidence_absent",
-    "pet_evidence_empty",
-    "pet_evidence_not_consumed",
-    "pet_access_unknown",
-    "pet_access_verification_required",
-    "pet_type_verification_required",
-    "pet_size_verification_required",
-    "mandatory_condition_verification_required",
+  // Provider availability describes evidence freshness, never pet incompatibility.
+  // The hard-reason check below still excludes technically invalid records.
+  const hardIneligibleReasons = new Set<AutomaticRouteEligibilityReasonCode>([
+    "source_not_kto_service2",
+    "source_identity_mismatch",
+    "unsupported_content_type",
+    "detail_identity_mismatch",
+    "outside_requested_geographic_scope",
+    "provider_visibility_not_exposed",
+    "provider_visibility_identity_mismatch",
+    "invalid_coordinates",
+    "pet_access_not_allowed",
+    "pet_type_incompatible",
+    "pet_size_incompatible",
+    "mandatory_condition_unsatisfied",
+    "matched_license_closed",
+    "operating_time_conflict",
+    "category_not_selected",
+    "shopping_not_explicitly_selected",
   ]);
-  const hardIneligible = reasons.some((reason) => !verificationReasons.has(reason));
+  const hardIneligible = reasons.some((reason) =>
+    hardIneligibleReasons.has(reason) ||
+    (reason === "pet_evidence_identity_mismatch" &&
+      normalizedEvidence?.availability !== "provider_unavailable"),
+  );
   if (hardIneligible) {
     return {
       eligible: false,
       status: "ineligible",
+      tier: "explicitly_ineligible",
       reasonCodes: reasons,
       warnings,
       evidenceFieldNames,
@@ -590,8 +590,12 @@ export function evaluateAutomaticRouteEligibility(
   }
   if (verificationRequired || reasons.length > 0) {
     return {
-      eligible: false,
-      status: "verification_required",
+      eligible: true,
+      status: providerUnavailable ? "provider_unavailable" : "verification_required",
+      tier:
+        input.assessment.verdict === "conditional"
+          ? "conditional"
+          : "unverified",
       reasonCodes: reasons,
       warnings,
       evidenceFieldNames,
@@ -600,6 +604,10 @@ export function evaluateAutomaticRouteEligibility(
   return {
     eligible: true,
     status: "eligible",
+    tier:
+      input.assessment.verdict === "conditional"
+        ? "conditional"
+        : "verified",
     reasonCodes: [],
     warnings,
     evidenceFieldNames,

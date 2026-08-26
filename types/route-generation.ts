@@ -20,6 +20,7 @@ export const ITINERARY_PROFILES = [
 export type ItineraryProfile = (typeof ITINERARY_PROFILES)[number];
 
 export type IndoorAccessPreference = "any" | "preferred" | "required";
+export type EnvironmentPreference = "any" | "indoor_preferred" | "outdoor_preferred";
 
 export type RecommendationTier =
   | "verified"
@@ -167,11 +168,11 @@ export type ItineraryExclusionCounts = Record<ItineraryExclusionReason, number>;
 
 export interface NormalizedItineraryRequest {
   scope:
-    | { type: "busan"; regionCode: "26"; regionName: "부산 전체" }
+    | { type: "region" | "busan"; regionCode: string; regionName: string }
     | {
         type: "district";
-        regionCode: "26";
-        regionName: "부산";
+        regionCode: string;
+        regionName: string;
         districtCode: string;
         districtName: string;
       };
@@ -191,10 +192,12 @@ export interface NormalizedItineraryRequest {
   acceptsOutdoorOnly: boolean;
   petEquipment: PetEquipmentAvailability;
   indoorAccessPreference: IndoorAccessPreference;
+  environmentPreference?: EnvironmentPreference;
   selectedCategories: TourPlaceCategory[];
   includeShopping: boolean;
   generationSeed: string;
   recentRouteSignatures: string[];
+  personalization?: NonNullable<import("@/types/recommendation").RouteRecommendationRequest["personalization"]>;
 }
 
 export interface GeneratedPetAccess {

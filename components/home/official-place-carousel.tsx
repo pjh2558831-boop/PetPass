@@ -40,11 +40,13 @@ export function HomepagePlaceCarousel({
   layers,
   featuredState,
   staticMapEnabled,
+  onOptionalLayerRequest,
 }: {
   places: HomepagePlaceCard[];
   layers: Record<HomepagePlaceLayer, HomepageLayerSnapshot>;
   featuredState: HomepageFeaturedState;
   staticMapEnabled: boolean;
+  onOptionalLayerRequest?: (layer: "veterinary" | "pet_shop") => void;
 }) {
   const [activeFilter, setActiveFilter] = useState<CarouselFilter>("all");
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -145,7 +147,12 @@ export function HomepagePlaceCarousel({
             key={filter.id}
             type="button"
             aria-pressed={activeFilter === filter.id}
-            onClick={() => setActiveFilter(filter.id)}
+            onClick={() => {
+              setActiveFilter(filter.id);
+              if (filter.id === "veterinary" || filter.id === "pet_shop") {
+                onOptionalLayerRequest?.(filter.id);
+              }
+            }}
           >
             {filter.label}
           </button>
@@ -163,6 +170,11 @@ export function HomepagePlaceCarousel({
       {activeLayer?.state === "unavailable" ? (
         <p className="homepage-inline-status homepage-inline-status--warning" role="status">
           카카오 장소 데이터 준비 중
+        </p>
+      ) : null}
+      {activeLayer?.state === "deferred" ? (
+        <p className="homepage-inline-status" role="status">
+          카카오 장소 데이터를 불러오고 있어요.
         </p>
       ) : null}
 
@@ -274,6 +286,8 @@ export function HomepagePlaceCarousel({
           <strong>
             {activeLayer?.state === "unavailable"
               ? "카카오 장소 데이터 준비 중"
+              : activeLayer?.state === "deferred"
+                ? "카카오 장소 데이터를 불러오고 있어요"
               : "현재 이 분류에서 보여드릴 장소가 없어요"}
           </strong>
           <p>

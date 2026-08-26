@@ -21,6 +21,7 @@ const category = z.enum([
   "shopping",
 ]);
 const failureStatus = z.enum([
+  "unavailable",
   "invalid_request",
   "region_not_supported_for_itinerary",
   "insufficient_eligible_places",
@@ -54,9 +55,15 @@ const stop = z.object({
   dwellMinutes: z.number().int().positive(),
   driveSecondsFromPrevious: nonNegative,
   distanceMetersFromPrevious: nonNegative,
-  source: z.literal("tourism_service2"),
-  sourceLabel: z.literal("한국관광공사"),
-  petAssessment: z.enum(["allowed", "conditional"]),
+  source: z.enum(["tourism_service2", "kakao_catalog"]),
+  sourceLabel: z.enum(["한국관광공사", "카카오 검색 후보"]),
+  petAssessment: z.enum(["allowed", "conditional", "unknown"]),
+  evidenceStatus: z.enum(["verified", "conditional", "unverified"]).optional(),
+  retrievedAt: z.string().datetime().nullable().optional(),
+  providerIdentities: z.array(z.object({
+    provider: z.enum(["kto", "kakao"]),
+    id: nonEmpty,
+  }).strict()).optional(),
   mandatoryConditions: z.array(
     z.object({
       type: z.custom<TourPetAccessConditionType>(
@@ -101,6 +108,11 @@ const route = z.object({
   }).strict(),
   stops: z.array(stop).min(1).max(5),
   geometry: z.array(coordinates).min(2),
+  style: z.enum(["comfort", "preference", "efficient"]).optional(),
+  routeSignature: nonEmpty.optional(),
+  requestedTarget: z.number().int().min(1).max(5).optional(),
+  reductionStatus: z.enum(["complete", "reduced", "single_stop"]).optional(),
+  personalizationExplanationCodes: z.array(nonEmpty).optional(),
 }).strict();
 const alternative = route.extend({
   kind: z.literal("optimized"),
@@ -109,7 +121,7 @@ const alternative = route.extend({
 const ready = z.object({
   status: z.literal("ready"),
   apiVersion: z.literal("route-recommendation-response-v1"),
-  engineVersion: z.literal("petpass-route-engine-v1"),
+  engineVersion: z.enum(["petpass-route-engine-v1", "petpass-route-engine-v2"]),
   objectiveVersion: z.literal("route-objective-v1"),
   solverVersion: z.literal("route-solver-v1"),
   editSessionId: nonEmpty,
@@ -132,6 +144,17 @@ const ready = z.object({
     z.object({ placeId: nonEmpty, title: z.string().nullable(), reasonCode: nonEmpty }).strict(),
   ),
   warnings: z.array(nonEmpty),
+  contractVersion: z.literal("route-recommendation-v2").optional(),
+  region: z.enum(["busan", "jeju"]).optional(),
+  requestFingerprint: z.string().regex(/^[a-f0-9]{64}$/u).optional(),
+  resultState: z.enum(["ready", "ready_with_reduced_stops", "single_stop_suggestion"]).optional(),
+  routeOptions: z.array(route.extend({ kind: z.literal("optimized") })).min(1).max(3).optional(),
+  candidateSourceCounts: z.object({
+    kto: z.number().int().nonnegative(),
+    kakao: z.number().int().nonnegative(),
+    merged: z.number().int().nonnegative(),
+  }).strict().optional(),
+  alternativeAvailability: z.enum(["available", "limited"]).optional(),
   diagnostics: z
     .object({
       candidatePipeline: z.object({

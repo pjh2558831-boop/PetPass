@@ -133,7 +133,9 @@ test("shows one neutral combined input screen without sample selections", async 
   await expect(page.getByRole("checkbox", { name: "이동장", exact: true })).not.toBeChecked();
   await expect(page.getByRole("checkbox", { name: "목줄", exact: true })).not.toBeChecked();
   await expect(page.getByRole("checkbox", { name: "입마개", exact: true })).not.toBeChecked();
-  await expect(page.getByRole("checkbox", { name: /야외 전용 장소도 포함해요/u })).not.toBeChecked();
+  await expect(page.getByRole("radio", { name: "상관없음" })).toBeChecked();
+  await expect(page.getByRole("radio", { name: "실내 우선" })).not.toBeChecked();
+  await expect(page.getByRole("radio", { name: "야외 우선" })).not.toBeChecked();
   await expect(page.getByLabel("여행 날짜")).toHaveValue("");
   await expect(page.getByLabel("시작 시간")).toHaveValue("");
   await expect(page.locator('input[id^="category-"]:checked')).toHaveCount(0);

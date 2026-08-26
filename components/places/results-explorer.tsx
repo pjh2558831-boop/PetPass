@@ -40,6 +40,7 @@ import {
   DEFAULT_PLACE_CATEGORIES,
   OPTIONAL_PLACE_CATEGORIES,
   PLACE_CATEGORIES,
+  isOptionalPlaceCategory,
   mapCatalogPlaceToCategory,
   type PlaceCategory,
 } from "@/lib/map-places/place-categories";
@@ -368,7 +369,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   }, [activeTab, region, regionConfig.kakaoDiscoveryEnabled, retry]);
 
   const needsOptionalPlaces = regionConfig.kakaoDiscoveryEnabled &&
-    categories.some((category) => OPTIONAL_PLACE_CATEGORIES.includes(category));
+    categories.some(isOptionalPlaceCategory);
   useEffect(() => {
     const scopeKey = `${region}:${district}:${retry}`;
     if (activeTab !== "catalog" || !needsOptionalPlaces || optionalLoadedFor === scopeKey) return;
@@ -470,7 +471,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const displayedCategoryCounts = useMemo(() => Object.fromEntries(
     PLACE_CATEGORIES.map((category) => [
       category,
-      OPTIONAL_PLACE_CATEGORIES.includes(category) && optionalLoadedFor !== `${region}:${district}:${retry}`
+      isOptionalPlaceCategory(category) && optionalLoadedFor !== `${region}:${district}:${retry}`
         ? null
         : categoryCounts[category],
     ]),

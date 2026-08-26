@@ -322,7 +322,11 @@ describe("route-solver-v1", () => {
       {},
       { "departure>a": 200, "departure>b": 200, "a>b": 200, "b>a": 200 },
     ));
-    expect(result.finalists).toHaveLength(0);
+    expect(result.finalists.length).toBeGreaterThan(0);
+    expect(result.finalists.every((route) => route.orderedPlaceIds.length === 1)).toBe(true);
+    expect(result.finalists.every((route) =>
+      route.currentTimeEpochMs - Date.parse("2026-08-12T00:00:00.000Z") <= 360 * 60_000,
+    )).toBe(true);
     expect(result.diagnostics.prunedByDuration).toBeGreaterThan(0);
   });
 
@@ -444,8 +448,13 @@ describe("route-solver-v1", () => {
     const invalidCandidate = candidate("invalid", 700);
     invalidCandidate.place = {
       source: "tourism_service2",
-      assessment: { verdict: "unknown" },
-      eligibility: { eligible: false, status: "ineligible", reasonCodes: ["pet_access_not_allowed"] },
+      assessment: { verdict: "not_allowed" },
+      eligibility: {
+        eligible: false,
+        status: "ineligible",
+        tier: "explicitly_ineligible",
+        reasonCodes: ["pet_access_not_allowed"],
+      },
     } as unknown as DetailedEligibleCandidate;
     const invalid = optimization([invalidCandidate, candidate("valid", 690)]);
     const invalidResult = await optimizeRouteV1(invalid, { travelTimeProvider: provider(invalid) });

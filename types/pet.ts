@@ -15,7 +15,10 @@ export interface PetProfile {
 export type TripType = "DAY_TRIP" | "OVERNIGHT";
 export type TripPace = "relaxed" | "balanced" | "packed";
 export type PlannerPlanningMode = "stop_count" | "duration";
-export type PlannerIndoorAccessPreference = "any" | "preferred" | "required";
+export type PlannerEnvironmentPreference =
+  | "any"
+  | "indoor_preferred"
+  | "outdoor_preferred";
 export type PlaceCategory =
   | "ATTRACTION"
   | "RESTAURANT"
@@ -49,7 +52,7 @@ export interface TravelPreferences {
   planningMode?: PlannerPlanningMode;
   desiredStopCount?: number;
   desiredDurationMinutes?: number;
-  indoorAccessPreference?: PlannerIndoorAccessPreference;
+  environmentPreference?: PlannerEnvironmentPreference;
   includeShopping?: boolean;
   roundTrip?: boolean;
 }

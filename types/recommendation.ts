@@ -5,6 +5,10 @@ import type { TourPetAccessConditionType } from "@/types/tour-pet-access";
 
 export const ROUTE_RECOMMENDATION_ENGINE_VERSION =
   "petpass-route-engine-v1" as const;
+export const ROUTE_RECOMMENDATION_CONTRACT_V2 =
+  "route-recommendation-v2" as const;
+export const ROUTE_RECOMMENDATION_ENGINE_V2 =
+  "petpass-route-engine-v2" as const;
 export const ROUTE_RECOMMENDATION_API_VERSION =
   "route-recommendation-response-v1" as const;
 
@@ -31,6 +35,10 @@ export interface RouteRecommendationRequest {
       Exclude<TourPlaceCategory, "transportation" | "unknown">
     >;
     roundTrip: boolean;
+    environmentPreference?: "any" | "indoor_preferred" | "outdoor_preferred";
+    desiredStopCount?: number;
+    durationMinutes?: number;
+    travelMode?: "driving";
   };
   pet: {
     name: string | null;
@@ -43,10 +51,26 @@ export interface RouteRecommendationRequest {
     };
     acceptsOutdoorOnlyPlaces: boolean;
   };
+  personalization?: {
+    petCount: number;
+    petActivityLevel: "low" | "moderate" | "high";
+    walkingTolerance: "low" | "moderate" | "high";
+    crowdPreference: "avoid" | "any" | "enjoy";
+    tripMood: "balanced" | "scenic" | "foodie" | "active" | "restful";
+    categoryPriorities: Partial<Record<
+      Exclude<TourPlaceCategory, "transportation" | "unknown">,
+      number
+    >>;
+    recentRouteSignatures: string[];
+    recentlySelectedCandidateIds: string[];
+    explicitlyExcludedPlaceIds: string[];
+    rerollVariant: number;
+  };
 }
 
 export type RecommendationStatus =
   | "ready"
+  | "unavailable"
   | "invalid_request"
   | "region_not_supported_for_itinerary"
   | "insufficient_eligible_places"
@@ -73,9 +97,12 @@ export interface RecommendedRouteStopV1 {
   dwellMinutes: number;
   driveSecondsFromPrevious: number;
   distanceMetersFromPrevious: number;
-  source: "tourism_service2";
-  sourceLabel: "한국관광공사";
-  petAssessment: "allowed" | "conditional";
+  source: "tourism_service2" | "kakao_catalog";
+  sourceLabel: "한국관광공사" | "카카오 검색 후보";
+  petAssessment: "allowed" | "conditional" | "unknown";
+  evidenceStatus?: "verified" | "conditional" | "unverified";
+  retrievedAt?: string | null;
+  providerIdentities?: Array<{ provider: "kto" | "kakao"; id: string }>;
   mandatoryConditions: Array<{
     type: TourPetAccessConditionType;
     label: string;
@@ -119,6 +146,11 @@ export interface ProductRouteV1 {
   };
   stops: RecommendedRouteStopV1[];
   geometry: Coordinates[];
+  style?: "comfort" | "preference" | "efficient";
+  routeSignature?: string;
+  requestedTarget?: number;
+  reductionStatus?: "complete" | "reduced" | "single_stop";
+  personalizationExplanationCodes?: string[];
 }
 
 export interface RouteAlternativeV1 extends ProductRouteV1 {
@@ -148,7 +180,9 @@ export interface SafeRecommendationDiagnostics {
 export interface RouteRecommendationReadyResponseV1 {
   status: "ready";
   apiVersion: typeof ROUTE_RECOMMENDATION_API_VERSION;
-  engineVersion: typeof ROUTE_RECOMMENDATION_ENGINE_VERSION;
+  engineVersion:
+    | typeof ROUTE_RECOMMENDATION_ENGINE_VERSION
+    | typeof ROUTE_RECOMMENDATION_ENGINE_V2;
   objectiveVersion: "route-objective-v1";
   solverVersion: "route-solver-v1";
   editSessionId: string;
@@ -172,6 +206,13 @@ export interface RouteRecommendationReadyResponseV1 {
     reasonCode: string;
   }>;
   warnings: string[];
+  contractVersion?: typeof ROUTE_RECOMMENDATION_CONTRACT_V2;
+  region?: RegionId;
+  requestFingerprint?: string;
+  resultState?: "ready" | "ready_with_reduced_stops" | "single_stop_suggestion";
+  routeOptions?: ProductRouteV1[];
+  candidateSourceCounts?: { kto: number; kakao: number; merged: number };
+  alternativeAvailability?: "available" | "limited";
   diagnostics?: SafeRecommendationDiagnostics;
 }
 

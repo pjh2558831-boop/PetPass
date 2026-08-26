@@ -42,6 +42,7 @@ export interface MapPanelProps {
   routeCoordinates?: Coordinates[];
   selectedLocationId?: string | null;
   onLocationSelect?: (id: string | null) => void;
+  onDataUpdate?: () => void;
   onCurrentMapSearch?: (viewport: KakaoCurrentMapSearch) => void;
   onViewportIdle?: (
     viewport: KakaoCurrentMapSearch,
@@ -78,6 +79,7 @@ export function MapPanel({
   routeCoordinates = EMPTY_ROUTE_COORDINATES,
   selectedLocationId = null,
   onLocationSelect,
+  onDataUpdate,
   onCurrentMapSearch,
   onViewportIdle,
   viewportKey = "default",
@@ -100,6 +102,7 @@ export function MapPanel({
   const showSelectionInfoRef = useRef(showSelectionInfo);
   const latestRef = useRef({ locations, routeCoordinates, selectedLocationId });
   const selectRef = useRef(onLocationSelect);
+  const dataUpdateRef = useRef(onDataUpdate);
   const viewportIdleRef = useRef(onViewportIdle);
   const currentSearchRef = useRef(onCurrentMapSearch);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
@@ -109,11 +112,12 @@ export function MapPanel({
   useEffect(() => {
     latestRef.current = { locations, routeCoordinates, selectedLocationId };
     selectRef.current = onLocationSelect;
+    dataUpdateRef.current = onDataUpdate;
     viewportIdleRef.current = onViewportIdle;
     currentSearchRef.current = onCurrentMapSearch;
     currentViewportKeyRef.current = viewportKey;
     showSelectionInfoRef.current = showSelectionInfo;
-  }, [locations, onCurrentMapSearch, onLocationSelect, onViewportIdle, routeCoordinates, selectedLocationId, showSelectionInfo, viewportKey]);
+  }, [locations, onCurrentMapSearch, onDataUpdate, onLocationSelect, onViewportIdle, routeCoordinates, selectedLocationId, showSelectionInfo, viewportKey]);
 
   const initializeMap = useCallback(() => {
     const container = mapContainerRef.current;
@@ -132,6 +136,7 @@ export function MapPanel({
         showSelectionInfo: showSelectionInfoRef.current,
       });
       controllerRef.current.selectLocation(latest.selectedLocationId);
+      dataUpdateRef.current?.();
       viewportKeyRef.current = currentViewportKeyRef.current;
       setLoadState("ready");
       setLoadError("");
@@ -166,6 +171,7 @@ export function MapPanel({
     const fitBounds = viewportKeyRef.current !== viewportKey ||
       (locationCountRef.current === 0 && locations.length > 0);
     controller.updateData(locations, routeCoordinates, { fitBounds });
+    dataUpdateRef.current?.();
     viewportKeyRef.current = viewportKey;
     locationCountRef.current = locations.length;
   }, [locations, routeCoordinates, viewportKey]);

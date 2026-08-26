@@ -22,9 +22,9 @@ const SIZE_LABELS = {
 } as const;
 
 const INDOOR_LABELS = {
-  any: "실내 이용 상관없음",
-  preferred: "실내 가능 장소 우선",
-  required: "실내 동반 가능 장소만",
+  any: "실내·야외 상관없음",
+  indoor_preferred: "실내 장소 우선",
+  outdoor_preferred: "야외 장소 우선",
 } as const;
 
 function equipmentSummary(profile: PetProfile): string {
@@ -57,7 +57,7 @@ export function ConfirmedTripSummary({
   const categories = preferences.preferredCategories.map(
     (category) => CATEGORY_LABELS[category],
   );
-  const indoorPreference = preferences.indoorAccessPreference ?? "any";
+  const environmentPreference = preferences.environmentPreference ?? "any";
   const destination = preferences.districtName ?? preferences.regionName;
 
   return (
@@ -107,8 +107,8 @@ export function ConfirmedTripSummary({
           </dd>
           <dd className="mt-1 text-xs leading-5 text-[var(--muted)]">
             {profile.acceptsOutdoorOnly
-              ? "야외 전용 장소 포함 가능"
-              : "실내 이용 필요"}
+              ? "야외 활동 익숙함"
+              : "공간 제약 없음"}
           </dd>
         </div>
         <div className="rounded-2xl bg-[var(--surface-muted)] p-3.5">
@@ -126,7 +126,7 @@ export function ConfirmedTripSummary({
             {categories.length > 0 ? categories.join(" · ") : "선택 카테고리 없음"}
           </dd>
           <dd className="mt-1 text-xs leading-5 text-[var(--muted)]">
-            {preferences.includeShopping ? "관광형 쇼핑 포함" : "쇼핑 제외"} · {INDOOR_LABELS[indoorPreference]}
+            {preferences.includeShopping ? "관광형 쇼핑 포함" : "쇼핑 제외"} · {INDOOR_LABELS[environmentPreference]}
           </dd>
         </div>
       </dl>

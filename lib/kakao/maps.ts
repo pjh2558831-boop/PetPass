@@ -4,6 +4,7 @@ import {
   getSourceMarkerAsset,
   type SourceMarkerSource,
 } from "@/lib/kakao/marker-assets";
+import { recordHomepageBrowserTiming } from "@/lib/homepage/browser-performance";
 import type { KakaoCurrentMapSearch } from "@/types/kakao";
 import type { Coordinates } from "@/types/place";
 
@@ -932,6 +933,8 @@ export function createKakaoMapController(
       container.dataset.createdSourceMarkerCount = String(createdSourceMarkerCount);
       container.dataset.clusterUpdateMs = (performance.now() - clusterUpdateStartedAt).toFixed(2);
       container.dataset.markerUpdateMs = (performance.now() - updateStartedAt).toFixed(2);
+      recordHomepageBrowserTiming("map", "cluster_update", clusterUpdateStartedAt);
+      recordHomepageBrowserTiming("map", "marker_update", updateStartedAt);
       if (updateOptions.fitBounds !== false) controller.fitBounds();
       if (previousSelection && locationPositions.has(previousSelection)) {
         controller.selectLocation(previousSelection);

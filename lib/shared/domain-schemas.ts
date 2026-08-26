@@ -46,7 +46,11 @@ export const travelPreferencesSchema = z.object({
   desiredStopCount: z.number().int().min(1).max(5).optional(),
   desiredDurationMinutes: z.number().int().min(120).max(600).optional(),
   indoorAccessPreference: z.enum(["any", "preferred", "required"]).optional(),
+  environmentPreference: z
+    .enum(["any", "indoor_preferred", "outdoor_preferred"])
+    .default("any"),
   includeShopping: z.boolean().optional(),
+  roundTrip: z.boolean().optional(),
 });
 
 export const petPolicySchema = z.object({
