@@ -62,7 +62,9 @@ async function showListMode(page: Page) {
 
 async function openCatalogFilters(page: Page) {
   await showListMode(page);
-  const trigger = page.getByRole("button", { name: "필터", exact: true });
+  const trigger = page
+    .getByLabel("장소 검색 결과", { exact: true })
+    .getByRole("button", { name: "필터", exact: true });
   if (await trigger.getAttribute("aria-expanded") !== "true") await trigger.click();
   const dropdown = page.getByRole("region", { name: "장소 필터" });
   await expect(dropdown).toBeVisible();
