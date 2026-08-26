@@ -1,6 +1,7 @@
 import {
   BUSAN_REGION_CONFIG,
   getRegionConfig,
+  getRegionDefaultCatalogCategories,
   getRegionDistrict,
 } from "@/lib/regions/config";
 import {
@@ -27,10 +28,17 @@ export interface PublicCatalogUrlState {
 
 export function parsePublicCatalogUrlState(
   params: Record<string, string | string[] | undefined>,
-): PublicCatalogUrlState {
+): PublicCatalogUrlState | null {
   const single = (value: string | string[] | undefined) => typeof value === "string" ? value : undefined;
-  const requestedRegion = getRegionConfig(single(params.region));
-  const region = requestedRegion?.mapEnabled ? requestedRegion : BUSAN_REGION_CONFIG;
+  if (Object.keys(params).some((key) => key !== "region" && key.toLocaleLowerCase("en-US").includes("region"))) {
+    return null;
+  }
+  const rawRegion = params.region;
+  const explicitRegion = rawRegion !== undefined;
+  const requestedRegion = getRegionConfig(single(rawRegion));
+  if (explicitRegion && !requestedRegion?.mapEnabled) return null;
+  const region = requestedRegion ?? BUSAN_REGION_CONFIG;
+  const defaultCategories = getRegionDefaultCatalogCategories(region) as PlaceCategory[];
   const districtValue = single(params.district);
   const categoriesValue = single(params.categories);
   const legacyCategoryValue = single(params.category);
@@ -53,25 +61,36 @@ export function parsePublicCatalogUrlState(
     ? [...new Set(categoriesValue.split(","))].filter(isPlaceCategory)
     : legacyCategoryValue && isPlaceCategory(legacyCategoryValue)
       ? [legacyCategoryValue]
-      : [...DEFAULT_PLACE_CATEGORIES];
+    : [...defaultCategories];
   const allCategoriesValid = !categoriesValue || categoriesValue === "none" || (
     parsedCategories.length > 0 && categoriesValue.split(",").every(isPlaceCategory)
   );
   return {
     region: region.id,
     district: districtValue && getRegionDistrict(region, districtValue) ? districtValue : "all",
-    categories: allCategoriesValid ? parsedCategories : [...DEFAULT_PLACE_CATEGORIES],
+    categories: allCategoriesValid ? parsedCategories : [...defaultCategories],
     layers: allLayersValid ? layers : [...PUBLIC_CATALOG_LAYERS],
     page: Number.isInteger(pageValue) && pageValue > 0 && pageValue <= 100 ? pageValue : 1,
     sort: sortValue === "popularity" ? "popularity" : "recommendation",
   };
 }
 
-export function serializePublicCatalogCategories(categories: readonly PlaceCategory[]): string | null {
+export function serializePublicCatalogCategories(
+  categories: readonly PlaceCategory[],
+  defaultCategories: readonly PlaceCategory[] = DEFAULT_PLACE_CATEGORIES,
+): string | null {
   const canonical = PLACE_CATEGORIES.filter((category) => categories.includes(category));
   if (canonical.length === 0) return "none";
-  return canonical.length === DEFAULT_PLACE_CATEGORIES.length &&
-    canonical.every((category, index) => category === DEFAULT_PLACE_CATEGORIES[index])
+  return canonical.length === defaultCategories.length &&
+    canonical.every((category, index) => category === defaultCategories[index])
+    ? null
+    : canonical.join(",");
+}
+
+function serializePublicCatalogLayers(layers: readonly PublicCatalogLayer[]): string | null {
+  const canonical = PUBLIC_CATALOG_LAYERS.filter((layer) => layers.includes(layer));
+  if (canonical.length === 0) return "none";
+  return canonical.length === PUBLIC_CATALOG_LAYERS.length
     ? null
     : canonical.join(",");
 }
@@ -88,8 +107,14 @@ export function serializeResultsUrl(
   params.set("region", state.region);
   if (activeTab === "catalog") {
     if (state.district !== "all") params.set("district", state.district);
-    const categoryState = serializePublicCatalogCategories(state.categories);
+    const region = getRegionConfig(state.region);
+    const categoryState = serializePublicCatalogCategories(
+      state.categories,
+      getRegionDefaultCatalogCategories(region) as PlaceCategory[],
+    );
     if (categoryState) params.set("categories", categoryState);
+    const layerState = serializePublicCatalogLayers(state.layers);
+    if (layerState) params.set("layers", layerState);
     if (state.sort !== "recommendation") params.set("sort", state.sort);
     params.set("page", String(state.page));
   }

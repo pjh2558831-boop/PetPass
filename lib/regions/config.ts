@@ -4,6 +4,7 @@ import type {
   TourOperationName,
 } from "@/types/place";
 import type { RegionId } from "@/types/region";
+import type { PublicMapPlaceCategory } from "@/types/public-map-place";
 
 export { REGION_IDS } from "@/types/region";
 export type { RegionId } from "@/types/region";
@@ -49,6 +50,25 @@ export const KTO_CATALOG_CONTENT_TYPE_IDS = [
 ] as const satisfies readonly TourContentTypeId[];
 
 export type RegionMapProvider = "tour" | "kakao";
+export type RegionCatalogCategory =
+  | "attraction"
+  | "food"
+  | "cafe"
+  | "accommodation"
+  | "shopping"
+  | "veterinary"
+  | "pet_shop";
+
+export interface RegionMapCatalogConfig {
+  defaultProviders: readonly RegionMapProvider[];
+  fallbackSource: "tour_api" | "public_catalog";
+  /** Null means every normalized category returned for the allowed provider set. */
+  snapshotCategories: readonly PublicMapPlaceCategory[] | null;
+  availableCategories: readonly RegionCatalogCategory[];
+  deferredCategories: readonly RegionCatalogCategory[];
+  sourceDescription: string;
+  hideMissingPhoneOnDetail: boolean;
+}
 
 export interface KtoCollectionDatasetConfig {
   provider: "tour";
@@ -82,6 +102,7 @@ export interface RegionConfig<TId extends string = RegionId> {
   itineraryEnabled: boolean;
   kakaoDiscoveryEnabled: boolean;
   allowedMapProviders: readonly RegionMapProvider[];
+  mapCatalog: RegionMapCatalogConfig;
   homepageFeaturedEnabled: boolean;
   homepageOptionalDatasets: {
     ktoShopping: HomepageOptionalTourDatasetConfig;
@@ -126,6 +147,31 @@ export const BUSAN_REGION_CONFIG = {
   itineraryEnabled: true,
   kakaoDiscoveryEnabled: true,
   allowedMapProviders: ["tour", "kakao"],
+  mapCatalog: {
+    defaultProviders: ["kakao"],
+    fallbackSource: "tour_api",
+    snapshotCategories: [
+      "attraction",
+      "park_walk",
+      "leisure",
+      "camping",
+      "food",
+      "cafe",
+      "accommodation",
+    ],
+    availableCategories: [
+      "attraction",
+      "food",
+      "cafe",
+      "accommodation",
+      "shopping",
+      "veterinary",
+      "pet_shop",
+    ],
+    deferredCategories: ["shopping", "veterinary", "pet_shop"],
+    sourceDescription: "공식 관광 장소와 공개된 지역 후보를 함께 비교합니다.",
+    hideMissingPhoneOnDetail: false,
+  },
   homepageFeaturedEnabled: true,
   homepageOptionalDatasets: {
     ktoShopping: {
@@ -195,6 +241,23 @@ export const JEJU_REGION_CONFIG = {
   itineraryEnabled: false,
   kakaoDiscoveryEnabled: false,
   allowedMapProviders: ["tour"],
+  mapCatalog: {
+    defaultProviders: ["tour"],
+    fallbackSource: "public_catalog",
+    snapshotCategories: [
+      "attraction",
+      "park_walk",
+      "leisure",
+      "camping",
+      "food",
+      "cafe",
+      "accommodation",
+    ],
+    availableCategories: ["attraction", "food", "cafe", "accommodation"],
+    deferredCategories: [],
+    sourceDescription: "한국관광공사 공식 장소만 표시합니다.",
+    hideMissingPhoneOnDetail: true,
+  },
   homepageFeaturedEnabled: false,
   homepageOptionalDatasets: {
     ktoShopping: {
@@ -217,8 +280,8 @@ export const JEJU_REGION_CONFIG = {
   wideSearchCenters: [],
 } as const satisfies RegionConfig;
 
-// Phase 2 adds authoritative metadata and server-side KTO ingestion only.
-// Public map, itinerary, and Kakao capabilities remain explicitly disabled.
+// Phase 3 enables the public KTO map only. Itinerary generation and Kakao
+// discovery remain separate, explicitly disabled capabilities.
 export const SEOUL_REGION_CONFIG = {
   id: "seoul",
   displayName: "서울",
@@ -226,7 +289,7 @@ export const SEOUL_REGION_CONFIG = {
     korPetTourService2: { legalDongRegionCode: "11" },
     legacyTourismAreaCode: null,
   },
-  mapEnabled: false,
+  mapEnabled: true,
   ktoCatalogEnabled: true,
   ktoCollection: {
     provider: "tour",
@@ -247,6 +310,15 @@ export const SEOUL_REGION_CONFIG = {
   itineraryEnabled: false,
   kakaoDiscoveryEnabled: false,
   allowedMapProviders: ["tour"],
+  mapCatalog: {
+    defaultProviders: ["tour"],
+    fallbackSource: "public_catalog",
+    snapshotCategories: null,
+    availableCategories: ["attraction", "food", "cafe", "accommodation", "shopping"],
+    deferredCategories: [],
+    sourceDescription: "한국관광공사 공식 장소만 표시합니다.",
+    hideMissingPhoneOnDetail: true,
+  },
   homepageFeaturedEnabled: false,
   homepageOptionalDatasets: {
     ktoShopping: {
@@ -354,6 +426,13 @@ export function getKakaoDiscoveryEnabledRegionConfig(
   return region?.kakaoDiscoveryEnabled
     ? region as SearchableRegionConfig
     : null;
+}
+
+export function getRegionDefaultCatalogCategories(
+  region: RegionConfig,
+): RegionCatalogCategory[] {
+  return region.mapCatalog.availableCategories.filter((category) =>
+    !region.mapCatalog.deferredCategories.includes(category));
 }
 
 export function getKtoCollectionEnabledRegionConfig(

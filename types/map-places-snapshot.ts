@@ -91,8 +91,8 @@ function isSnapshotMarker(value: unknown, region: RegionId): value is MapPlacesS
     isFiniteNumber(coordinates.longitude) && coordinates.longitude >= -180 && coordinates.longitude <= 180
   );
   const layerAndSourceMatch =
-    (value.layer === "tourism" && value.sourceLabel === "한국관광공사" && String(value.id).startsWith("tour:")) ||
-    (value.layer === "kakao" && value.sourceLabel === "카카오 검색 후보" && String(value.id).startsWith("kakao:"));
+    (value.layer === "tourism" && value.sourceLabel === "한국관광공사" && value.id === `tour:${String(value.providerPlaceId)}`) ||
+    (value.layer === "kakao" && value.sourceLabel === "카카오 검색 후보" && value.id === `kakao:${String(value.providerPlaceId)}`);
   return typeof value.id === "string" && value.id.length > 0 &&
     value.regionId === region &&
     typeof value.providerPlaceId === "string" && value.providerPlaceId.length > 0 &&
@@ -132,8 +132,13 @@ export function isMapPlacesSnapshot(value: unknown): value is MapPlacesSnapshot 
   if (typeof value.dataVersion !== "string" || !/^v1-[a-f0-9]{16}$/u.test(value.dataVersion)) return false;
   if (!Number.isInteger(value.totalCount) || Number(value.totalCount) < 0) return false;
   if (!hasCountRecord(value.providerCounts) || !hasCountRecord(value.categoryCounts)) return false;
+  if (Object.keys(value.providerCounts).sort().join(",") !== "kakao,tour") return false;
+  if (Object.keys(value.categoryCounts).some((category) =>
+    !["cafe", "food", "accommodation", "attraction", "park_walk", "leisure", "camping", "shopping", "other"]
+      .includes(category))) return false;
   const snapshotCategoryCounts = value.categoryCounts;
   if (!isRecord(value.freshness) || !["fresh", "stale"].includes(String(value.freshness.status))) return false;
+  if (value.freshness.status === "fresh" && value.freshness.staleAt !== undefined) return false;
   if (value.freshness.status === "stale" && (
     typeof value.freshness.staleAt !== "string" || !Number.isFinite(Date.parse(value.freshness.staleAt))
   )) return false;

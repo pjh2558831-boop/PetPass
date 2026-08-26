@@ -22,7 +22,7 @@ export function PublicCatalogCard({
   const category = mapCatalogPlaceToCategory(place);
   const image = resolvePlaceCardImage(place, { staticMapEnabled });
   const sourceLabel = place.layer === "kakao" ? "카카오맵" : place.sourceLabel;
-  const showPublicLabel = place.layer !== "kakao" && place.publicLabel !== "동반 정보 확인 필요";
+  const showPublicLabel = place.layer !== "kakao" && place.publicLabel.length > 0;
   return (
     <article
       id={`place-card-${place.id.replace(":", "-")}`}

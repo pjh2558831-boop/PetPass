@@ -5,6 +5,7 @@ import { loadMapPlacesSnapshot } from "@/lib/map-places/snapshot";
 import {
   MAP_PLACES_SNAPSHOT_SCOPES,
   MAP_PLACES_SNAPSHOT_VERSION,
+  isMapPlacesSnapshot,
   type MapPlacesSnapshot,
   type MapPlacesSnapshotRequest,
 } from "@/types/map-places-snapshot";
@@ -51,7 +52,7 @@ export function createMapPlacesSnapshotHandler({
     }
     try {
       const snapshot = await loadSnapshot(input);
-      if (snapshot.region !== input.region || snapshot.contractVersion !== input.version || snapshot.scope !== input.scope) {
+      if (!isMapPlacesSnapshot(snapshot) || snapshot.region !== input.region || snapshot.contractVersion !== input.version || snapshot.scope !== input.scope) {
         throw new Error("Snapshot response does not match the request.");
       }
       return apiSuccess(snapshot, 200, {

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { PlannerProgress } from "@/components/layout/planner-progress";
 import { ResultsExplorer } from "@/components/places/results-explorer";
 import { parsePublicCatalogUrlState } from "@/lib/map-places/catalog-url";
@@ -15,6 +16,7 @@ export default async function ResultsPage({
 }) {
   const params = await searchParams;
   const initialCatalogState = parsePublicCatalogUrlState(params);
+  if (!initialCatalogState) notFound();
   return (
     <div className="results-route-shell">
       <div className="results-route-progress"><PlannerProgress current={2} /></div>

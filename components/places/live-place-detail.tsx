@@ -36,6 +36,7 @@ export function LivePlaceDetail({
   contentTypeId?: string;
   regionId: RegionId;
 }) {
+  const region = getRegionConfig(regionId);
   const [state, setState] = useState<DetailState>("loading");
   const [detail, setDetail] = useState<TourPlaceDetailResponse | null>(null);
   const [error, setError] = useState("");
@@ -140,7 +141,8 @@ export function LivePlaceDetail({
   });
   const informationCards = [
     { icon: MapPin, label: "주소", value: address || "주소 정보 없음" },
-    ...(regionId === "jeju" && !detail.contactInformation && !detail.summary.phone ? [] : [{
+    ...(region.mapCatalog.hideMissingPhoneOnDetail &&
+      !detail.contactInformation && !detail.summary.phone ? [] : [{
       icon: Phone,
       label: "연락처",
       value:

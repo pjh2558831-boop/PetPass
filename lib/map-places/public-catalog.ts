@@ -3,9 +3,16 @@ import "server-only";
 import { z } from "zod";
 import { createMapServiceSupabaseClient } from "@/lib/supabase/server";
 import {
+  coordinatesInRegion,
   getRegionConfig,
+  getRegionDistrict,
   type RegionId,
 } from "@/lib/regions/config";
+import {
+  isSupportedKtoContentTypeId,
+  ktoContentTypeCategory,
+  publicMapPlaceMatchesRegion,
+} from "@/lib/map-places/region-contract";
 import {
   PUBLIC_MAP_PLACE_CATEGORIES,
   PUBLIC_MAP_PLACE_KINDS,
@@ -21,25 +28,25 @@ import {
 
 const publicCatalogRowSchema = z.object({
   id: z.number().int().positive(),
-  provider: z.enum(PUBLIC_MAP_PLACE_PROVIDERS).default("kakao"),
+  provider: z.enum(PUBLIC_MAP_PLACE_PROVIDERS),
   provider_place_id: z.string().min(1),
   name: z.string().min(1),
   candidate_kind: z.enum(PUBLIC_MAP_PLACE_KINDS),
   normalized_category: z.enum(PUBLIC_MAP_PLACE_CATEGORIES).nullable(),
-  content_type_id: z.number().int().positive().nullable().default(null),
+  content_type_id: z.number().int().positive().nullable(),
   district_code: z.string().min(1),
   district_name: z.string().min(1),
   address: z.string().min(1),
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   phone: z.string().nullable(),
-  image_url: z.string().url().nullable().default(null),
+  image_url: z.string().url().nullable(),
   place_url: z.string().url().nullable(),
   review_status: z.enum(PUBLIC_MAP_REVIEW_STATUSES),
   public_label: z.string().min(1),
   source: z.enum(["kakao_search_candidate", "kto_official"]),
-  pet_access_verdict: z.enum(["allowed", "conditional", "not_allowed", "unknown"]).default("unknown"),
-  pet_evidence_status: z.string().min(1).default("search_candidate"),
+  pet_access_verdict: z.enum(["allowed", "conditional", "not_allowed", "unknown"]),
+  pet_evidence_status: z.string().min(1),
   category_group_code: z.string().nullable(),
   last_seen_at: z.string().min(1),
   matched_query_count: z.number().int().nonnegative(),
@@ -68,9 +75,10 @@ async function queryRpcPage(
   afterId: number | null,
 ) {
   const supabase = createMapServiceSupabaseClient();
+  const region = getRegionConfig(input.regionId);
   const { data, error } = await supabase.rpc("get_public_map_catalog_by_region_v2", {
     p_region_id: input.regionId,
-    p_providers: input.providers ?? [input.regionId === "jeju" ? "tour" : "kakao"],
+    p_providers: input.providers ?? [...region.mapCatalog.defaultProviders],
     p_candidate_kinds: input.kinds,
     p_normalized_categories: input.categories ?? (input.category ? [input.category] : undefined),
     p_district_codes: input.districtCodes,
@@ -92,10 +100,13 @@ function toDto(
   row: z.infer<typeof publicCatalogRowSchema>,
   regionId: RegionId,
 ): PublicMapPlaceDTO {
-  const provider = row.provider ?? "kakao";
+  const provider = row.provider;
   const contentTypeId = row.content_type_id == null
     ? null
     : String(row.content_type_id);
+  const category = provider === "tour" && isSupportedKtoContentTypeId(contentTypeId)
+    ? ktoContentTypeCategory(contentTypeId)
+    : row.normalized_category;
   const placeUrl = provider === "tour"
     ? `/places/${encodeURIComponent(row.provider_place_id)}?${new URLSearchParams({
         region: regionId,
@@ -108,7 +119,7 @@ function toDto(
     providerPlaceId: row.provider_place_id,
     name: row.name,
     kind: row.candidate_kind,
-    category: row.normalized_category,
+    category,
     district: { code: row.district_code, name: row.district_name },
     address: row.address,
     coordinates: { latitude: row.latitude, longitude: row.longitude },
@@ -160,15 +171,53 @@ export async function queryPublicMapCatalog(
   const pagesToWalk = input.afterId === undefined ? input.page : 1;
   for (let currentPage = 1; currentPage <= pagesToWalk; currentPage += 1) {
     rows = publicCatalogRowSchema.array().parse(await queryPage(input, afterId));
+    const region = getRegionConfig(input.regionId);
+    const rowIds = new Set<number>();
+    const providerIds = new Set<string>();
+    const expectedTotal = rows[0]?.total_count;
+    const expectedHasMore = rows[0]?.has_more;
+    let previousRowId = afterId;
+    for (const row of rows) {
+      const district = getRegionDistrict(region, row.district_code);
+      const contentTypeId = row.content_type_id === null ? null : String(row.content_type_id);
+      const providerPairIsValid = row.provider === "tour"
+        ? row.source === "kto_official" &&
+          row.candidate_kind === "tourism_place" &&
+          isSupportedKtoContentTypeId(contentTypeId)
+        : row.source === "kakao_search_candidate" &&
+          row.candidate_kind !== "tourism_place" &&
+          contentTypeId === null;
+      if (
+        !region.allowedMapProviders.includes(row.provider) ||
+        !providerPairIsValid ||
+        !district ||
+        district.name !== row.district_name ||
+        !coordinatesInRegion(region, { latitude: row.latitude, longitude: row.longitude }) ||
+        rowIds.has(row.id) ||
+        providerIds.has(`${row.provider}:${row.provider_place_id}`) ||
+        (previousRowId !== null && row.id <= previousRowId) ||
+        row.total_count !== expectedTotal ||
+        row.has_more !== expectedHasMore
+      ) {
+        throw new Error("Public map catalog row violates the regional contract.");
+      }
+      rowIds.add(row.id);
+      providerIds.add(`${row.provider}:${row.provider_place_id}`);
+      previousRowId = row.id;
+    }
     if (currentPage === pagesToWalk || rows.length === 0) break;
     afterId = rows.at(-1)?.id ?? null;
   }
 
   const totalCount = rows[0]?.total_count ?? 0;
   const region = getRegionConfig(input.regionId);
+  const items = rows.map((row) => toDto(row, input.regionId));
+  if (items.some((item) => !publicMapPlaceMatchesRegion(item, region))) {
+    throw new Error("Public map catalog response violates the regional contract.");
+  }
   return {
     region: { id: region.id, displayName: region.displayName },
-    items: rows.map((row) => toDto(row, input.regionId)),
+    items,
     page: input.page,
     pageSize: input.pageSize,
     totalCount,

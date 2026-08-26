@@ -3,6 +3,8 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { queryPublicMapCatalog, type PublicMapCatalogQuery } from "@/lib/map-places/public-catalog";
 import { normalizePublicMapCatalogMarker } from "@/types/public-catalog-place";
+import { getRegionConfig } from "@/lib/regions/config";
+import { publicMapPlaceMatchesRegion } from "@/lib/map-places/region-contract";
 import type { PublicMapPlacePage } from "@/types/public-map-place";
 import type {
   MapPlacesSnapshot,
@@ -11,7 +13,6 @@ import type {
 } from "@/types/map-places-snapshot";
 
 export const MAP_SNAPSHOT_PAGE_SIZE = 200;
-export const MAP_SNAPSHOT_MAX_PAGES = 10;
 export const MAP_SNAPSHOT_FRESH_MS = 300_000;
 export const MAP_SNAPSHOT_STALE_IF_ERROR_MS = 3_600_000;
 
@@ -56,22 +57,25 @@ export async function assembleMapPlacesSnapshot(
     now?: () => Date;
   } = {},
 ): Promise<MapPlacesSnapshot> {
-  const providers = input.region === "jeju" ? ["tour" as const] : ["tour" as const, "kakao" as const];
-  const kinds = input.region === "jeju"
-    ? ["tourism_place" as const]
-    : ["tourism_place" as const, "pet_travel_candidate" as const];
-  const categories = ["attraction", "park_walk", "leisure", "camping", "food", "cafe", "accommodation"] as const;
+  const region = getRegionConfig(input.region);
+  if (!region.mapEnabled) throw new Error("Snapshot region is not enabled for the public map.");
+  const providers = [...region.allowedMapProviders];
+  const kinds = providers.includes("kakao")
+    ? ["tourism_place" as const, "pet_travel_candidate" as const]
+    : ["tourism_place" as const];
+  const categories = region.mapCatalog.snapshotCategories;
   const items: MapPlacesSnapshotMarker[] = [];
+  const seenIds = new Set<string>();
   let afterId: number | undefined;
   let expectedTotal: number | null = null;
   let hasNext = true;
 
-  for (let pageNumber = 1; hasNext && pageNumber <= MAP_SNAPSHOT_MAX_PAGES; pageNumber += 1) {
+  for (let pageNumber = 1; hasNext; pageNumber += 1) {
     const page = await query({
       regionId: input.region,
-      providers: [...providers],
+      providers,
       kinds: [...kinds],
-      categories: [...categories],
+      categories: categories ? [...categories] : undefined,
       page: pageNumber,
       pageSize: MAP_SNAPSHOT_PAGE_SIZE,
       ...(afterId === undefined ? {} : { afterId }),
@@ -79,18 +83,33 @@ export async function assembleMapPlacesSnapshot(
     if (page.region.id !== input.region) throw new Error("Snapshot region does not match the requested region.");
     if (expectedTotal === null) expectedTotal = page.totalCount;
     if (page.totalCount !== expectedTotal) throw new Error("Snapshot count changed during assembly.");
-    if (page.items.some((place) => normalizePublicMapCatalogMarker(place, input.region).regionId !== input.region)) {
+    if (page.items.some((place) => !publicMapPlaceMatchesRegion(place, region))) {
       throw new Error("Snapshot item region does not match the requested region.");
     }
-    items.push(...page.items.map((place) => compactMarker(place, input.region)));
+    if (page.hasNext && page.items.length === 0) {
+      throw new Error("Snapshot cursor page is empty before catalog completion.");
+    }
+    const nextItems = page.items.map((place) => compactMarker(place, input.region));
+    if (nextItems.some((item) => seenIds.has(item.id))) {
+      throw new Error("Snapshot contains duplicate place identifiers.");
+    }
+    for (const item of nextItems) seenIds.add(item.id);
+    items.push(...nextItems);
+    if (items.length > (expectedTotal ?? 0)) {
+      throw new Error("Snapshot count exceeds the catalog total.");
+    }
+    const nextCursor = page.nextCursor ?? undefined;
+    if (page.hasNext && nextCursor === undefined) {
+      throw new Error("Snapshot cursor is missing before catalog completion.");
+    }
+    if (page.hasNext && afterId !== undefined && nextCursor !== undefined && nextCursor <= afterId) {
+      throw new Error("Snapshot cursor did not advance.");
+    }
     hasNext = page.hasNext;
-    afterId = page.nextCursor ?? undefined;
-    if (hasNext && afterId === undefined) throw new Error("Snapshot cursor is missing before catalog completion.");
+    afterId = nextCursor;
   }
 
-  if (hasNext) throw new Error("Snapshot exceeds the bounded page limit.");
   if (items.length !== (expectedTotal ?? 0)) throw new Error("Snapshot partial count does not match the complete catalog count.");
-  if (new Set(items.map(({ id }) => id)).size !== items.length) throw new Error("Snapshot contains duplicate place identifiers.");
 
   const providerCounts = { tour: 0, kakao: 0 };
   const categoryCounts: MapPlacesSnapshot["categoryCounts"] = {};
@@ -124,7 +143,17 @@ interface SnapshotCacheEntry {
 }
 
 function snapshotKey(input: MapPlacesSnapshotRequest): string {
-  return `${input.version}:${input.region}:${input.scope}`;
+  const region = getRegionConfig(input.region);
+  const providers = region.allowedMapProviders.join(",");
+  const categories = region.mapCatalog.snapshotCategories?.join(",") ?? "all";
+  return [
+    input.version,
+    input.region,
+    input.scope,
+    `providers=${providers}`,
+    `categories=${categories}`,
+    `fallback=${region.mapCatalog.fallbackSource}`,
+  ].join(":");
 }
 
 export function createMapPlacesSnapshotLoader({

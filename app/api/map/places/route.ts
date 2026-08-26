@@ -19,6 +19,7 @@ import {
   type PublicMapPlaceProvider,
 } from "@/types/public-map-place";
 import { normalizePublicMapCatalogMarker } from "@/types/public-catalog-place";
+import { publicMapPlaceMatchesRegion } from "@/lib/map-places/region-contract";
 
 const CACHE_HEADERS = { "Cache-Control": "private, no-store" } as const;
 const ALLOWED_PARAMETERS = new Set(["region", "district", "providers", "kinds", "category", "categories", "page", "pageSize", "afterId", "view"]);
@@ -54,13 +55,13 @@ function parseProviders(
 ): PublicMapPlaceProvider[] | null {
   const providers = value
     ? [...new Set(value.split(",").map((item) => item.trim()).filter(Boolean))]
-    : [region.id === "jeju" ? "tour" : "kakao"];
+    : [...region.mapCatalog.defaultProviders];
   if (
     providers.length === 0 ||
     !providers.every((provider): provider is PublicMapPlaceProvider =>
       PUBLIC_MAP_PLACE_PROVIDERS.includes(provider as PublicMapPlaceProvider))
   ) return null;
-  if (providers.includes("kakao") && !region.kakaoDiscoveryEnabled) return null;
+  if (!providers.every((provider) => region.allowedMapProviders.includes(provider))) return null;
   return providers;
 }
 
@@ -137,6 +138,9 @@ export function createMapPlacesHandler(dependencies: MapPlacesRouteDependencies 
       const page = await (dependencies.query ?? queryPublicMapCatalog)(parsed.input);
       if (page.region.id !== parsed.region.id) {
         throw new Error("지도 지역 응답이 요청과 일치하지 않습니다.");
+      }
+      if (page.items.some((place) => !publicMapPlaceMatchesRegion(place, parsed.region))) {
+        throw new Error("지도 장소 응답이 지역 계약과 일치하지 않습니다.");
       }
       return apiSuccess(new URL(request.url).searchParams.get("view") !== "markers"
         ? page
