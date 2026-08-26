@@ -192,7 +192,7 @@ describe("Jeju KTO catalog collection", () => {
 
   it("preserves snapshotted Busan KTO and Kakao counts across idempotent Jeju finalization", async () => {
     const catalog: Array<{
-      regionId: "busan" | "jeju";
+      regionId: string;
       provider: "tour" | "kakao";
       providerPlaceId: string;
       active: boolean;

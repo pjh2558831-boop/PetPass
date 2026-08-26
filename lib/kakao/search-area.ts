@@ -57,7 +57,7 @@ function oneCenterPlan(
   };
 }
 
-function regionPlan(region: RegionConfig): KakaoSearchPlan {
+function regionPlan(region: RegionConfig<string>): KakaoSearchPlan {
   const centers = region.wideSearchCenters.slice(
     0,
     KAKAO_MAX_REQUESTS_PER_SEARCH,

@@ -1,20 +1,33 @@
 import "server-only";
 
-import type { TourContentTypeId, TourPlaceDetail, TourPlaceSummary } from "@/types/place";
+import { JEJU_REGION_CONFIG } from "@/lib/regions/config";
+import type {
+  TourContentTypeId,
+  TourOperationName,
+  TourPlaceDetail,
+  TourPlaceSummary,
+} from "@/types/place";
 import type { TourPetAccessVerdict } from "@/types/tour-pet-access";
 
-export const JEJU_KTO_REGION_ID = "jeju" as const;
-export const JEJU_KTO_PROVIDER = "tour" as const;
-export const JEJU_KTO_LEGAL_REGION_CODE = "50" as const;
-export const JEJU_KTO_DISTRICTS = [
-  { code: "110", name: "제주시" },
-  { code: "130", name: "서귀포시" },
-] as const;
-export const JEJU_KTO_COLLECTOR_VERSION = "tour-jeju-service2-collector-v1";
-export const JEJU_KTO_REGISTRY_VERSION = "tour-jeju-service2-v1";
+export const KTO_CATALOG_PROVIDER = "tour" as const;
+export const KTO_CATALOG_RUN_SCOPES = ["full", "delta"] as const;
 
-export type JejuKtoDistrictCode = (typeof JEJU_KTO_DISTRICTS)[number]["code"];
-export type KtoCatalogRunScope = "full" | "delta";
+// Compatibility exports for Phase 3/4 callers. The generic collector itself
+// resolves every value from its supplied region descriptor.
+export const JEJU_KTO_REGION_ID = JEJU_REGION_CONFIG.id;
+export const JEJU_KTO_PROVIDER = KTO_CATALOG_PROVIDER;
+export const JEJU_KTO_LEGAL_REGION_CODE =
+  JEJU_REGION_CONFIG.providerCodes.korPetTourService2.legalDongRegionCode;
+export const JEJU_KTO_DISTRICTS = JEJU_REGION_CONFIG.districts.map(
+  ({ legalDongDistrictCode: code, name }) => ({ code, name }),
+);
+export const JEJU_KTO_COLLECTOR_VERSION =
+  JEJU_REGION_CONFIG.ktoCollection.collectorVersion;
+export const JEJU_KTO_REGISTRY_VERSION =
+  JEJU_REGION_CONFIG.ktoCollection.registryVersion;
+
+export type JejuKtoDistrictCode = "110" | "130";
+export type KtoCatalogRunScope = (typeof KTO_CATALOG_RUN_SCOPES)[number];
 export type KtoCatalogExecutionMode = "dry-run" | "apply";
 
 export interface KtoCatalogListRecord {
@@ -32,10 +45,15 @@ export interface KtoCatalogListPage {
   totalCount: number;
 }
 
+export interface KtoProviderRequestAudit {
+  liveProviderCallCount: number;
+  operationCallCounts: Partial<Record<TourOperationName, number>>;
+}
+
 export interface KtoCatalogProvider {
   listDistrict(input: {
-    regionCode: typeof JEJU_KTO_LEGAL_REGION_CODE;
-    districtCode: JejuKtoDistrictCode;
+    regionCode: string;
+    districtCode: string;
     page: number;
     pageSize: number;
   }): Promise<KtoCatalogListPage>;
@@ -43,6 +61,7 @@ export interface KtoCatalogProvider {
     contentId: string,
     contentTypeId: TourContentTypeId,
   ): Promise<TourPlaceDetail>;
+  getRequestAudit?(): KtoProviderRequestAudit;
 }
 
 export type KtoCatalogCategory = Exclude<
@@ -51,8 +70,8 @@ export type KtoCatalogCategory = Exclude<
 >;
 
 export interface KtoCatalogMapPlace {
-  region_id: typeof JEJU_KTO_REGION_ID;
-  provider: typeof JEJU_KTO_PROVIDER;
+  region_id: string;
+  provider: typeof KTO_CATALOG_PROVIDER;
   provider_place_id: string;
   name: string;
   category_group: KtoCatalogCategory;
@@ -60,7 +79,7 @@ export interface KtoCatalogMapPlace {
   content_type_id: number;
   road_address: string | null;
   lot_address: string | null;
-  district_code: JejuKtoDistrictCode;
+  district_code: string;
   district_name: string;
   latitude: number;
   longitude: number;
@@ -85,8 +104,11 @@ export type KtoCatalogRejectionCode =
   | "administrative_region_mismatch"
   | "administrative_district_missing"
   | "administrative_district_mismatch"
+  | "administrative_address_missing"
+  | "administrative_address_mismatch"
   | "detail_identity_mismatch"
   | "detail_administrative_mismatch"
+  | "detail_address_mismatch"
   | "detail_coordinate_mismatch";
 
 export interface KtoCatalogMissingFieldCounts {
@@ -97,7 +119,7 @@ export interface KtoCatalogMissingFieldCounts {
 }
 
 export interface KtoCatalogDistrictAudit {
-  districtCode: JejuKtoDistrictCode;
+  districtCode: string;
   districtName: string;
   rawCount: number;
   acceptedCount: number;
@@ -112,15 +134,19 @@ export interface KtoCatalogDistrictAudit {
   missingFieldCounts: KtoCatalogMissingFieldCounts;
 }
 
-export interface JejuKtoCatalogAudit {
-  regionId: typeof JEJU_KTO_REGION_ID;
-  legalDongRegionCode: typeof JEJU_KTO_LEGAL_REGION_CODE;
-  provider: typeof JEJU_KTO_PROVIDER;
+export interface KtoCatalogAudit {
+  regionId: string;
+  legalDongRegionCode: string;
+  provider: typeof KTO_CATALOG_PROVIDER;
+  registryVersion: string;
+  cacheNamespace: string;
   generatedAt: string;
-  districts: Record<JejuKtoDistrictCode, KtoCatalogDistrictAudit>;
+  districts: Record<string, KtoCatalogDistrictAudit>;
+  providerRequests: KtoProviderRequestAudit | null;
   totals: Omit<
     KtoCatalogDistrictAudit,
-    "districtCode" | "districtName" | "rawContentTypeCounts" | "categoryCounts" | "verdictCounts" | "rejectionCounts" | "missingFieldCounts"
+    "districtCode" | "districtName" | "rawContentTypeCounts" | "categoryCounts" |
+      "verdictCounts" | "rejectionCounts" | "missingFieldCounts"
   > & {
     rawContentTypeCounts: Record<string, number>;
     categoryCounts: Partial<Record<KtoCatalogCategory, number>>;
@@ -130,38 +156,41 @@ export interface JejuKtoCatalogAudit {
   };
 }
 
+export type JejuKtoCatalogAudit = KtoCatalogAudit;
+
 export interface KtoCatalogDistrictCollection {
-  districtCode: JejuKtoDistrictCode;
+  districtCode: string;
   rows: KtoCatalogMapPlace[];
   audit: KtoCatalogDistrictAudit;
 }
 
-export interface JejuKtoCatalogCollection {
+export interface KtoCatalogCollection {
   rows: KtoCatalogMapPlace[];
-  audit: JejuKtoCatalogAudit;
-  districts: Record<JejuKtoDistrictCode, KtoCatalogDistrictCollection>;
+  audit: KtoCatalogAudit;
+  districts: Record<string, KtoCatalogDistrictCollection>;
 }
 
+export type JejuKtoCatalogCollection = KtoCatalogCollection;
 export type KtoCatalogRunId = string | number;
 
 export interface KtoCatalogRunSession {
   runId: KtoCatalogRunId;
-  completedDistrictCodes: ReadonlySet<JejuKtoDistrictCode>;
+  completedDistrictCodes: ReadonlySet<string>;
   completedDistricts?: readonly KtoCatalogDistrictCollection[];
 }
 
 export interface KtoCatalogRunScopeInput {
-  regionId: typeof JEJU_KTO_REGION_ID;
-  provider: typeof JEJU_KTO_PROVIDER;
+  regionId: string;
+  provider: typeof KTO_CATALOG_PROVIDER;
   scope: KtoCatalogRunScope;
-  districtCodes: readonly JejuKtoDistrictCode[];
+  districtCodes: readonly string[];
+  registryVersion: string;
 }
 
 export interface KtoCatalogCollectionRepository {
   startRun(
     input: KtoCatalogRunScopeInput & {
       collectorVersion: string;
-      registryVersion: string;
       startedAt: string;
     },
   ): Promise<KtoCatalogRunSession>;
@@ -176,15 +205,15 @@ export interface KtoCatalogCollectionRepository {
   ): Promise<void>;
   markFailed(input: {
     runId: KtoCatalogRunId;
-    regionId: typeof JEJU_KTO_REGION_ID;
-    provider: typeof JEJU_KTO_PROVIDER;
+    regionId: string;
+    provider: typeof KTO_CATALOG_PROVIDER;
     errorCode: string;
     completedAt: string;
   }): Promise<void>;
   finalizeCompletedRun(
     input: KtoCatalogRunScopeInput & {
       runId: KtoCatalogRunId;
-      audit: JejuKtoCatalogAudit;
+      audit: KtoCatalogAudit;
       completedAt: string;
     },
   ): Promise<{

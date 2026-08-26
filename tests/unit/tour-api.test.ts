@@ -742,6 +742,28 @@ describe("Korea Tourism Organization provider", () => {
     });
   });
 
+  it("isolates collection cache keys by authoritative region and district", async () => {
+    const request = vi.fn(async (_operation: string, params: Record<string, string>) =>
+      parsed([{
+        contentid: `${params.lDongRegnCd}${params.lDongSignguCd}`,
+        contenttypeid: "12",
+        lDongRegnCd: params.lDongRegnCd,
+        lDongSignguCd: params.lDongSignguCd,
+      }]));
+    const service = new KoreaTourismService({ request }, new TourRequestCache());
+    const base = { districtCode: "110", page: 1, pageSize: 20 };
+
+    await service.listCollectionPlaces({ ...base, regionCode: "11" });
+    await service.listCollectionPlaces({ ...base, regionCode: "50" });
+    await service.listCollectionPlaces({ ...base, regionCode: "11" });
+
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request.mock.calls.map(([, params]) => params.lDongRegnCd)).toEqual([
+      "11",
+      "50",
+    ]);
+  });
+
   it("collects common, intro, and pet detail without a visibility-list scan", async () => {
     const request = vi.fn(async (operation: string) => {
       if (operation === "detailCommon2") {

@@ -3,11 +3,12 @@ import "server-only";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import {
-  JEJU_KTO_DISTRICTS,
-  JEJU_KTO_PROVIDER,
-  JEJU_KTO_REGION_ID,
-  JEJU_KTO_REGISTRY_VERSION,
-  type JejuKtoDistrictCode,
+  JEJU_REGION_CONFIG,
+  coordinatesInRegion,
+  type KtoCollectionEnabledRegionConfig,
+} from "@/lib/regions/config";
+import {
+  KTO_CATALOG_PROVIDER,
   type KtoCatalogCollectionRepository,
   type KtoCatalogDistrictAudit,
   type KtoCatalogDistrictCollection,
@@ -15,13 +16,13 @@ import {
   type KtoCatalogRunId,
   type KtoCatalogRunScopeInput,
 } from "@/lib/tour-api/collection/contracts";
-import { JejuKtoCollectionError } from "@/lib/tour-api/collection/errors";
+import { KtoCatalogCollectionError } from "@/lib/tour-api/collection/errors";
 
 const PETPASS_SUPABASE_PROJECT_REF = "inucorualcworpzqxjiu";
 
 const mapPlaceSchema = z.object({
-  region_id: z.literal(JEJU_KTO_REGION_ID),
-  provider: z.literal(JEJU_KTO_PROVIDER),
+  region_id: z.string().regex(/^[a-z][a-z0-9_-]*$/u),
+  provider: z.literal(KTO_CATALOG_PROVIDER),
   provider_place_id: z.string().regex(/^[1-9][0-9]*$/u),
   name: z.string().min(1),
   category_group: z.enum([
@@ -43,10 +44,10 @@ const mapPlaceSchema = z.object({
   ]),
   road_address: z.string().nullable(),
   lot_address: z.string().nullable(),
-  district_code: z.enum(["110", "130"]),
+  district_code: z.string().regex(/^\d{3}$/u),
   district_name: z.string().min(1),
-  latitude: z.number(),
-  longitude: z.number(),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
   phone: z.string().nullable(),
   image_url: z.string().nullable(),
   source_url: z.string().nullable(),
@@ -63,7 +64,7 @@ const mapPlaceSchema = z.object({
 });
 
 const districtAuditSchema = z.object({
-  districtCode: z.enum(["110", "130"]),
+  districtCode: z.string().regex(/^\d{3}$/u),
   districtName: z.string().min(1),
   rawCount: z.number().int().nonnegative(),
   acceptedCount: z.number().int().nonnegative(),
@@ -86,7 +87,7 @@ const districtAuditSchema = z.object({
 function requiredEnvironmentValue(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) {
-    throw new JejuKtoCollectionError(
+    throw new KtoCatalogCollectionError(
       "CONFIGURATION",
       `Missing required server environment variable: ${name}`,
     );
@@ -100,13 +101,13 @@ function petPassSupabaseUrl(): string {
   try {
     url = new URL(value);
   } catch {
-    throw new JejuKtoCollectionError("CONFIGURATION", "Invalid Supabase project URL.");
+    throw new KtoCatalogCollectionError("CONFIGURATION", "Invalid Supabase project URL.");
   }
   if (
     url.protocol !== "https:" ||
     url.hostname !== `${PETPASS_SUPABASE_PROJECT_REF}.supabase.co`
   ) {
-    throw new JejuKtoCollectionError("CONFIGURATION", "Unexpected Supabase project URL.");
+    throw new KtoCatalogCollectionError("CONFIGURATION", "Unexpected Supabase project URL.");
   }
   return url.origin;
 }
@@ -114,19 +115,33 @@ function petPassSupabaseUrl(): string {
 function safeRunId(value: KtoCatalogRunId): string {
   const normalized = String(value).trim();
   if (!/^[1-9][0-9]*$/u.test(normalized)) {
-    throw new JejuKtoCollectionError("CONFIGURATION", "Invalid KTO run identifier.");
+    throw new KtoCatalogCollectionError("CONFIGURATION", "Invalid KTO run identifier.");
   }
   return normalized;
 }
 
-function assertScope(input: KtoCatalogRunScopeInput): void {
+function expectedDistricts(region: KtoCollectionEnabledRegionConfig<string>) {
+  return new Map(region.districts.map((district) => [
+    district.legalDongDistrictCode,
+    district.name,
+  ]));
+}
+
+function assertScope(
+  region: KtoCollectionEnabledRegionConfig<string>,
+  input: KtoCatalogRunScopeInput,
+): void {
+  const expected = expectedDistricts(region);
+  const uniqueInput = new Set(input.districtCodes);
   if (
-    input.regionId !== JEJU_KTO_REGION_ID ||
-    input.provider !== JEJU_KTO_PROVIDER ||
-    input.districtCodes.length !== JEJU_KTO_DISTRICTS.length ||
-    JEJU_KTO_DISTRICTS.some(({ code }) => !input.districtCodes.includes(code))
+    input.regionId !== region.id ||
+    input.provider !== KTO_CATALOG_PROVIDER ||
+    input.registryVersion !== region.ktoCollection.registryVersion ||
+    input.districtCodes.length !== expected.size ||
+    uniqueInput.size !== expected.size ||
+    [...expected.keys()].some((code) => !uniqueInput.has(code))
   ) {
-    throw new JejuKtoCollectionError("CONFIGURATION", "Invalid Jeju KTO run scope.");
+    throw new KtoCatalogCollectionError("CONFIGURATION", "Invalid regional KTO run scope.");
   }
 }
 
@@ -136,14 +151,17 @@ function rowObject(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function databaseFailure(): JejuKtoCollectionError {
-  return new JejuKtoCollectionError(
+function databaseFailure(): KtoCatalogCollectionError {
+  return new KtoCatalogCollectionError(
     "DATABASE_FAILURE",
-    "The Jeju KTO catalog repository rejected the operation.",
+    "The regional KTO catalog repository rejected the operation.",
   );
 }
 
-export function createSupabaseKtoCatalogRepository(): KtoCatalogCollectionRepository {
+export function createSupabaseKtoCatalogRepository(
+  region: KtoCollectionEnabledRegionConfig<string> = JEJU_REGION_CONFIG,
+): KtoCatalogCollectionRepository {
+  const districtNames = expectedDistricts(region);
   const supabase = createClient(
     petPassSupabaseUrl(),
     requiredEnvironmentValue("SUPABASE_SECRET_KEY"),
@@ -153,7 +171,11 @@ export function createSupabaseKtoCatalogRepository(): KtoCatalogCollectionReposi
         persistSession: false,
         detectSessionInUrl: false,
       },
-      global: { headers: { "X-Client-Info": "petpass-tour-jeju-collector-v1" } },
+      global: {
+        headers: {
+          "X-Client-Info": `petpass-${region.ktoCollection.cacheNamespace}-collector`,
+        },
+      },
     },
   );
 
@@ -162,8 +184,8 @@ export function createSupabaseKtoCatalogRepository(): KtoCatalogCollectionReposi
     const { data: checkpointData, error: checkpointError } = await supabase
       .from("map_tour_ingest_checkpoints")
       .select("district_code,district_name,audit")
-      .eq("region_id", JEJU_KTO_REGION_ID)
-      .eq("provider", JEJU_KTO_PROVIDER)
+      .eq("region_id", region.id)
+      .eq("provider", KTO_CATALOG_PROVIDER)
       .eq("collection_run_id", id);
     if (checkpointError || !Array.isArray(checkpointData)) throw databaseFailure();
 
@@ -171,28 +193,44 @@ export function createSupabaseKtoCatalogRepository(): KtoCatalogCollectionReposi
     for (const checkpointValue of checkpointData) {
       const checkpoint = rowObject(checkpointValue);
       const audit = districtAuditSchema.safeParse(checkpoint?.audit);
+      const districtCode = typeof checkpoint?.district_code === "string"
+        ? checkpoint.district_code
+        : null;
+      const districtName = districtCode ? districtNames.get(districtCode) : null;
       if (
         !checkpoint ||
-        (checkpoint.district_code !== "110" && checkpoint.district_code !== "130") ||
+        !districtCode ||
+        !districtName ||
+        checkpoint.district_name !== districtName ||
         !audit.success ||
-        audit.data.districtCode !== checkpoint.district_code ||
-        audit.data.districtName !== checkpoint.district_name
+        audit.data.districtCode !== districtCode ||
+        audit.data.districtName !== districtName
       ) {
         throw databaseFailure();
       }
-      const districtCode = checkpoint.district_code;
       const { data: stageData, error: stageError } = await supabase
         .from("map_tour_ingest_stage_places")
         .select(
           "region_id,provider,provider_place_id,name,category_group,category_code,content_type_id,road_address,lot_address,district_code,district_name,latitude,longitude,phone,image_url,source_url,provider_visibility,pet_evidence_status,pet_evidence,pet_notes,fetched_at",
         )
-        .eq("region_id", JEJU_KTO_REGION_ID)
-        .eq("provider", JEJU_KTO_PROVIDER)
+        .eq("region_id", region.id)
+        .eq("provider", KTO_CATALOG_PROVIDER)
         .eq("collection_run_id", id)
         .eq("district_code", districtCode);
       if (stageError || !Array.isArray(stageData)) throw databaseFailure();
       const parsedRows = z.array(mapPlaceSchema).safeParse(stageData);
-      if (!parsedRows.success || parsedRows.data.length !== audit.data.acceptedCount) {
+      if (
+        !parsedRows.success ||
+        parsedRows.data.length !== audit.data.acceptedCount ||
+        parsedRows.data.some((row) =>
+          row.region_id !== region.id ||
+          row.district_code !== districtCode ||
+          row.district_name !== districtName ||
+          !coordinatesInRegion(region, {
+            latitude: row.latitude,
+            longitude: row.longitude,
+          }))
+      ) {
         throw databaseFailure();
       }
       completed.push({
@@ -206,7 +244,7 @@ export function createSupabaseKtoCatalogRepository(): KtoCatalogCollectionReposi
 
   return {
     async startRun(input) {
-      assertScope(input);
+      assertScope(region, input);
       const { data, error } = await supabase.rpc("start_tour_catalog_run_v1", {
         p_region_id: input.regionId,
         p_registry_version: input.registryVersion,
@@ -220,19 +258,19 @@ export function createSupabaseKtoCatalogRepository(): KtoCatalogCollectionReposi
       if (
         error ||
         (typeof runId !== "number" && typeof runId !== "string") ||
-        result?.planned_district_count !== 2
+        result?.planned_district_count !== region.districts.length
       ) {
         throw databaseFailure();
       }
       return {
         runId,
-        completedDistrictCodes: new Set<JejuKtoDistrictCode>(),
+        completedDistrictCodes: new Set<string>(),
         completedDistricts: [],
       };
     },
 
     async resumeRun(input) {
-      assertScope(input);
+      assertScope(region, input);
       const id = safeRunId(input.runId);
       const { data, error } = await supabase
         .from("map_ingest_runs")
@@ -246,8 +284,8 @@ export function createSupabaseKtoCatalogRepository(): KtoCatalogCollectionReposi
         error ||
         !run ||
         !["running", "partial", "failed"].includes(String(run.status)) ||
-        run.registry_version !== JEJU_KTO_REGISTRY_VERSION ||
-        run.planned_query_count !== 2 ||
+        run.registry_version !== input.registryVersion ||
+        run.planned_query_count !== region.districts.length ||
         run.is_full_catalog_run !== (input.scope === "full")
       ) {
         throw databaseFailure();
@@ -265,21 +303,30 @@ export function createSupabaseKtoCatalogRepository(): KtoCatalogCollectionReposi
       const completedDistricts = await loadCompletedDistricts(id);
       return {
         runId: id,
-        completedDistrictCodes: new Set(completedDistricts.map(({ districtCode }) => districtCode)),
+        completedDistrictCodes: new Set(
+          completedDistricts.map(({ districtCode }) => districtCode),
+        ),
         completedDistricts,
       };
     },
 
     async checkpointDistrict(input) {
-      assertScope(input);
+      assertScope(region, input);
+      const districtName = districtNames.get(input.districtCode);
       if (
+        !districtName ||
         input.audit.districtCode !== input.districtCode ||
-        input.rows.some(
-          (row) =>
-            row.region_id !== input.regionId ||
-            row.provider !== input.provider ||
-            row.district_code !== input.districtCode,
-        )
+        input.audit.districtName !== districtName ||
+        input.rows.length !== input.audit.acceptedCount ||
+        input.rows.some((row) =>
+          row.region_id !== input.regionId ||
+          row.provider !== input.provider ||
+          row.district_code !== input.districtCode ||
+          row.district_name !== districtName ||
+          !coordinatesInRegion(region, {
+            latitude: row.latitude,
+            longitude: row.longitude,
+          }))
       ) {
         throw databaseFailure();
       }
@@ -295,10 +342,13 @@ export function createSupabaseKtoCatalogRepository(): KtoCatalogCollectionReposi
 
     async markFailed(input) {
       if (
-        input.regionId !== JEJU_KTO_REGION_ID ||
-        input.provider !== JEJU_KTO_PROVIDER
+        input.regionId !== region.id ||
+        input.provider !== KTO_CATALOG_PROVIDER
       ) {
-        throw new JejuKtoCollectionError("CONFIGURATION", "Invalid Jeju KTO failure scope.");
+        throw new KtoCatalogCollectionError(
+          "CONFIGURATION",
+          "Invalid regional KTO failure scope.",
+        );
       }
       const { error } = await supabase.rpc("finalize_tour_catalog_run_v1", {
         p_run_id: safeRunId(input.runId),
@@ -314,7 +364,13 @@ export function createSupabaseKtoCatalogRepository(): KtoCatalogCollectionReposi
     },
 
     async finalizeCompletedRun(input) {
-      assertScope(input);
+      assertScope(region, input);
+      if (
+        input.audit.regionId !== region.id ||
+        input.audit.registryVersion !== input.registryVersion
+      ) {
+        throw databaseFailure();
+      }
       const { data, error } = await supabase.rpc("finalize_tour_catalog_run_v1", {
         p_run_id: safeRunId(input.runId),
         p_status: "completed",

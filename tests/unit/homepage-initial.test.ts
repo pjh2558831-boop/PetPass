@@ -16,6 +16,7 @@ import type {
   PublicMapPlacePage,
   PublicMapPlaceProvider,
 } from "@/types/public-map-place";
+import type { RegionId } from "@/types/region";
 
 const NOW = "2026-08-24T03:00:00.000Z";
 
@@ -32,7 +33,7 @@ function request(
 }
 
 interface TestCatalogQueryInput {
-  regionId: "busan" | "jeju";
+  regionId: RegionId;
   providers: PublicMapPlaceProvider[];
   kinds: PublicMapPlaceKind[];
   page: number;

@@ -11,7 +11,8 @@ export type { RegionId } from "@/types/region";
 export interface RegionDistrictConfig {
   legalDongDistrictCode: string;
   name: string;
-  searchCenter: Coordinates;
+  /** Required only for regions with Kakao district discovery enabled. */
+  searchCenter?: Coordinates;
 }
 
 export interface RegionBounds {
@@ -38,6 +39,34 @@ export interface HomepageOptionalTourDatasetConfig {
   maxProviderPages: number;
 }
 
+export const KTO_CATALOG_CONTENT_TYPE_IDS = [
+  "12",
+  "14",
+  "15",
+  "28",
+  "32",
+  "39",
+] as const satisfies readonly TourContentTypeId[];
+
+export type RegionMapProvider = "tour" | "kakao";
+
+export interface KtoCollectionDatasetConfig {
+  provider: "tour";
+  listOperation: Extract<TourOperationName, "areaBasedList2">;
+  acceptedContentTypeIds: readonly TourContentTypeId[];
+  administrativeAddressPrefixes: readonly string[];
+  collectorVersion: string;
+  registryVersion: string;
+  cacheNamespace: string;
+  limits: {
+    listPageSize: number;
+    maxListPages: number;
+    maxRawRecords: number;
+    maxRawRecordsPerDistrict: number;
+    maxAcceptedRecords: number;
+  };
+}
+
 export interface RegionConfig<TId extends string = RegionId> {
   id: TId;
   displayName: string;
@@ -48,8 +77,11 @@ export interface RegionConfig<TId extends string = RegionId> {
     legacyTourismAreaCode: string | null;
   };
   mapEnabled: boolean;
+  ktoCatalogEnabled: boolean;
+  ktoCollection: KtoCollectionDatasetConfig | null;
   itineraryEnabled: boolean;
   kakaoDiscoveryEnabled: boolean;
+  allowedMapProviders: readonly RegionMapProvider[];
   homepageFeaturedEnabled: boolean;
   homepageOptionalDatasets: {
     ktoShopping: HomepageOptionalTourDatasetConfig;
@@ -89,8 +121,11 @@ export const BUSAN_REGION_CONFIG = {
     legacyTourismAreaCode: null,
   },
   mapEnabled: true,
+  ktoCatalogEnabled: true,
+  ktoCollection: null,
   itineraryEnabled: true,
   kakaoDiscoveryEnabled: true,
+  allowedMapProviders: ["tour", "kakao"],
   homepageFeaturedEnabled: true,
   homepageOptionalDatasets: {
     ktoShopping: {
@@ -140,8 +175,26 @@ export const JEJU_REGION_CONFIG = {
     legacyTourismAreaCode: "39",
   },
   mapEnabled: true,
+  ktoCatalogEnabled: true,
+  ktoCollection: {
+    provider: "tour",
+    listOperation: "areaBasedList2",
+    acceptedContentTypeIds: KTO_CATALOG_CONTENT_TYPE_IDS,
+    administrativeAddressPrefixes: ["제주", "제주특별자치도"],
+    collectorVersion: "tour-service2-region-collector-v2",
+    registryVersion: "tour-jeju-service2-v1",
+    cacheNamespace: "tour-jeju-service2-v1",
+    limits: {
+      listPageSize: 500,
+      maxListPages: 4,
+      maxRawRecords: 500,
+      maxRawRecordsPerDistrict: 300,
+      maxAcceptedRecords: 100,
+    },
+  },
   itineraryEnabled: false,
   kakaoDiscoveryEnabled: false,
+  allowedMapProviders: ["tour"],
   homepageFeaturedEnabled: false,
   homepageOptionalDatasets: {
     ktoShopping: {
@@ -164,10 +217,93 @@ export const JEJU_REGION_CONFIG = {
   wideSearchCenters: [],
 } as const satisfies RegionConfig;
 
+// Phase 2 adds authoritative metadata and server-side KTO ingestion only.
+// Public map, itinerary, and Kakao capabilities remain explicitly disabled.
+export const SEOUL_REGION_CONFIG = {
+  id: "seoul",
+  displayName: "서울",
+  providerCodes: {
+    korPetTourService2: { legalDongRegionCode: "11" },
+    legacyTourismAreaCode: null,
+  },
+  mapEnabled: false,
+  ktoCatalogEnabled: true,
+  ktoCollection: {
+    provider: "tour",
+    listOperation: "areaBasedList2",
+    acceptedContentTypeIds: KTO_CATALOG_CONTENT_TYPE_IDS,
+    administrativeAddressPrefixes: ["서울", "서울특별시"],
+    collectorVersion: "tour-service2-region-collector-v2",
+    registryVersion: "tour-seoul-service2-v1",
+    cacheNamespace: "tour-seoul-service2-v1",
+    limits: {
+      listPageSize: 500,
+      maxListPages: 4,
+      maxRawRecords: 3_500,
+      maxRawRecordsPerDistrict: 500,
+      maxAcceptedRecords: 100,
+    },
+  },
+  itineraryEnabled: false,
+  kakaoDiscoveryEnabled: false,
+  allowedMapProviders: ["tour"],
+  homepageFeaturedEnabled: false,
+  homepageOptionalDatasets: {
+    ktoShopping: {
+      enabled: false,
+      listOperation: "areaBasedList2",
+      visibilityOperation: "petTourSyncList2",
+      contentTypeId: "38",
+      legalDongDistrictCode: null,
+      providerPageSize: 200,
+      maxProviderPages: 20,
+    },
+  },
+  defaultMapCenter: { latitude: 37.5665, longitude: 126.978 },
+  mapBounds: { west: 126.75, south: 37.4, east: 127.2, north: 37.72 },
+  itineraryOriginBorderToleranceMeters: 500,
+  districts: [
+    { legalDongDistrictCode: "110", name: "종로구" },
+    { legalDongDistrictCode: "140", name: "중구" },
+    { legalDongDistrictCode: "170", name: "용산구" },
+    { legalDongDistrictCode: "200", name: "성동구" },
+    { legalDongDistrictCode: "215", name: "광진구" },
+    { legalDongDistrictCode: "230", name: "동대문구" },
+    { legalDongDistrictCode: "260", name: "중랑구" },
+    { legalDongDistrictCode: "290", name: "성북구" },
+    { legalDongDistrictCode: "305", name: "강북구" },
+    { legalDongDistrictCode: "320", name: "도봉구" },
+    { legalDongDistrictCode: "350", name: "노원구" },
+    { legalDongDistrictCode: "380", name: "은평구" },
+    { legalDongDistrictCode: "410", name: "서대문구" },
+    { legalDongDistrictCode: "440", name: "마포구" },
+    { legalDongDistrictCode: "470", name: "양천구" },
+    { legalDongDistrictCode: "500", name: "강서구" },
+    { legalDongDistrictCode: "530", name: "구로구" },
+    { legalDongDistrictCode: "545", name: "금천구" },
+    { legalDongDistrictCode: "560", name: "영등포구" },
+    { legalDongDistrictCode: "590", name: "동작구" },
+    { legalDongDistrictCode: "620", name: "관악구" },
+    { legalDongDistrictCode: "650", name: "서초구" },
+    { legalDongDistrictCode: "680", name: "강남구" },
+    { legalDongDistrictCode: "710", name: "송파구" },
+    { legalDongDistrictCode: "740", name: "강동구" },
+  ],
+  wideSearchCenters: [],
+} as const satisfies RegionConfig;
+
 export const REGION_CONFIGS = [
   BUSAN_REGION_CONFIG,
   JEJU_REGION_CONFIG,
+  SEOUL_REGION_CONFIG,
 ] as const satisfies readonly RegionConfig[];
+
+export type KtoCollectionEnabledRegionConfig<TId extends string = string> =
+  RegionConfig<TId> & { ktoCollection: KtoCollectionDatasetConfig };
+export type SearchableRegionConfig<TId extends string = string> =
+  RegionConfig<TId> & {
+    districts: readonly (RegionDistrictConfig & { searchCenter: Coordinates })[];
+  };
 
 export type BusanDistrictCode =
   (typeof BUSAN_REGION_CONFIG.districts)[number]["legalDongDistrictCode"];
@@ -213,11 +349,30 @@ export function getRegionConfigByService2LegalDongCode(
 
 export function getKakaoDiscoveryEnabledRegionConfig(
   regionId: string | null | undefined,
-): RegionConfig | null {
+): SearchableRegionConfig | null {
   const region = getRegionConfig(regionId);
-  return region?.kakaoDiscoveryEnabled ? region : null;
+  return region?.kakaoDiscoveryEnabled
+    ? region as SearchableRegionConfig
+    : null;
 }
 
+export function getKtoCollectionEnabledRegionConfig(
+  regionId: string | null | undefined,
+): KtoCollectionEnabledRegionConfig | null {
+  const region = getRegionConfig(regionId);
+  return region?.ktoCollection
+    ? region as KtoCollectionEnabledRegionConfig
+    : null;
+}
+
+export function getRegionDistrict<TId extends string>(
+  region: SearchableRegionConfig<TId>,
+  districtCode: string | null | undefined,
+): (RegionDistrictConfig & { searchCenter: Coordinates }) | null;
+export function getRegionDistrict(
+  region: RegionConfig<string>,
+  districtCode: string | null | undefined,
+): RegionDistrictConfig | null;
 export function getRegionDistrict(
   region: RegionConfig<string>,
   districtCode: string | null | undefined,
