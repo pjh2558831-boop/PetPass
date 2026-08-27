@@ -10,8 +10,8 @@ select extensions.is(
     from pg_catalog.pg_proc
     where oid = 'public.get_public_map_catalog_v2(double precision,double precision,double precision,double precision,text[],text[],text[],bigint,integer)'::regprocedure
   ),
-  false,
-  'legacy catalog v2 uses SECURITY INVOKER'
+  true,
+  'legacy catalog v2 uses a constrained SECURITY DEFINER projection'
 );
 
 select extensions.ok(
@@ -29,8 +29,8 @@ select extensions.is(
     from pg_catalog.pg_proc
     where oid = 'public.get_public_map_place_location_v1(text)'::regprocedure
   ),
-  false,
-  'legacy location v1 uses SECURITY INVOKER'
+  true,
+  'legacy location v1 uses a constrained SECURITY DEFINER projection'
 );
 
 select extensions.ok(
@@ -138,8 +138,8 @@ select extensions.ok(
 );
 
 select extensions.ok(
-  has_column_privilege('anon', 'public.map_places', 'name', 'select'),
-  'anon receives a required public catalog column'
+  not has_column_privilege('anon', 'public.map_places', 'name', 'select'),
+  'anon cannot read public catalog columns directly'
 );
 
 select extensions.ok(
@@ -153,8 +153,8 @@ select extensions.ok(
 );
 
 select extensions.ok(
-  has_column_privilege('anon', 'public.map_place_query_hits', 'query_key', 'select'),
-  'anon receives the query-hit column required by legacy catalog counts'
+  not has_column_privilege('anon', 'public.map_place_query_hits', 'query_key', 'select'),
+  'anon cannot read query-hit columns directly'
 );
 
 select extensions.ok(
@@ -169,8 +169,8 @@ select extensions.is(
     where polrelid = 'public.map_place_query_hits'::regclass
       and polname = 'published Busan query hits are anon-readable'
   ),
-  1::bigint,
-  'query-hit access is constrained by an explicit RLS policy'
+  0::bigint,
+  'obsolete anon query-hit policy is removed with the raw grant'
 );
 
 select extensions.ok(
@@ -323,9 +323,12 @@ select
   count(*)
 from public.get_public_map_place_location_v1('980000002');
 
-insert into rpc_role_results (metric, value)
-select 'anon_query_hits_read', count(*)
-from public.map_place_query_hits;
+select extensions.throws_ok(
+  'select count(*) from public.map_place_query_hits',
+  '42501',
+  'permission denied for table map_place_query_hits',
+  'anon direct query-hit reads fail closed'
+);
 
 reset role;
 
@@ -361,11 +364,6 @@ select extensions.is(
   (select value from rpc_role_results where metric = 'anon_jeju_location'),
   0::bigint,
   'anon legacy location cannot return the Jeju fixture'
-);
-
-select extensions.ok(
-  (select value >= 0 from rpc_role_results where metric = 'anon_query_hits_read'),
-  'anon can read only RLS-filtered query-hit columns needed by catalog v2'
 );
 
 select extensions.is(

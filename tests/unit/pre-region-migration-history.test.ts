@@ -26,6 +26,7 @@ const expectedMigrationFiles = [
   "20260824123100_harden_profile_cooldown_function_privileges.sql",
   "20260826132941_add_seoul_kto_catalog_foundation.sql",
   "20260827034108_add_seoul_kto_shopping_dataset.sql",
+  "20260827053833_harden_legacy_map_rpc_after_shopping.sql",
 ] as const;
 
 const productionStatementHashes = {
