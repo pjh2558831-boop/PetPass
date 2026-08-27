@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createRouteRecommendationHandler } from "@/app/api/itineraries/generate/route";
+import { createRouteRecommendationHandler } from "@/app/api/itineraries/generate/handler";
 import {
   isRecommendationAnalyticsEvent,
   recordRecommendationAnalytics,

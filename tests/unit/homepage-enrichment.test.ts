@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createHomepageEnrichmentHandler } from "@/app/api/homepage/places/enrichment/route";
+import { createHomepageEnrichmentHandler } from "@/app/api/homepage/places/enrichment/handler";
 import {
   collectHomepageEnrichment,
   createHomepageEnrichmentLoader,

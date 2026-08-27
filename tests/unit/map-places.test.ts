@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createMapPlacesHandler } from "@/app/api/map/places/route";
+import { createMapPlacesHandler } from "@/app/api/map/places/handler";
 import { queryPublicMapCatalog } from "@/lib/map-places/public-catalog";
 import {
   deduplicateKakaoMapPlaces,

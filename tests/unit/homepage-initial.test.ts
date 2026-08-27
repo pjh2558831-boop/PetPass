@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createHomepageInitialPlacesHandler } from "@/app/api/homepage/places/initial/route";
+import { createHomepageInitialPlacesHandler } from "@/app/api/homepage/places/initial/handler";
 import {
   assembleHomepageInitialPlaces,
   createHomepageInitialPlacesLoader,

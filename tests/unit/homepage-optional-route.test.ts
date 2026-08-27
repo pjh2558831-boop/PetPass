@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createHomepageOptionalHandler } from "@/app/api/homepage/places/optional/route";
+import { createHomepageOptionalHandler } from "@/app/api/homepage/places/optional/handler";
 import { TourHomepageOptionalDatasetError } from "@/lib/tour-api/homepage-optional-dataset";
 import {
   homepageOptionalDataHash,

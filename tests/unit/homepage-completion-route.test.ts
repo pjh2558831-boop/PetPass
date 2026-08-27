@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createHomepageCompletionHandler } from "@/app/api/homepage/places/completion/route";
+import { createHomepageCompletionHandler } from "@/app/api/homepage/places/completion/handler";
 import type { HomepageCompletionSnapshot } from "@/types/homepage-completion";
 import type { HomepageDatasetContinuationV1 } from "@/types/homepage-completion";
 

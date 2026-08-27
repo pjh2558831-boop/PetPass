@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createTourHomepageHandler } from "@/app/api/tour/homepage/route";
+import { createTourHomepageHandler } from "@/app/api/tour/homepage/handler";
 import { TourProviderError } from "@/lib/tour-api/errors";
 import type { TourPlaceService } from "@/lib/tour-api/service";
 import type { TourHomepageSnapshot } from "@/types/homepage";

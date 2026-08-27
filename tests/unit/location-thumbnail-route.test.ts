@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createLocationThumbnailHandler } from "@/app/api/places/[placeId]/location-thumbnail/route";
+import { createLocationThumbnailHandler } from "@/app/api/places/[placeId]/location-thumbnail/handler";
 
 const allowed = { allowed: true, limit: 60, remaining: 59, retryAfterSeconds: 60 };
 

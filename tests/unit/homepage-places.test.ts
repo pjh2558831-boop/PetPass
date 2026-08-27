@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createHomepagePlacesHandler } from "@/app/api/homepage/places/route";
+import { createHomepagePlacesHandler } from "@/app/api/homepage/places/handler";
 import {
   collectHomepagePlacesSnapshot,
   type HomepagePlacesDependencies,

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createPlaceDiscoveryHandler } from "@/app/api/places/discovery/route";
+import { createPlaceDiscoveryHandler } from "@/app/api/places/discovery/handler";
 import {
   BUSAN_DISCOVERY_BOUNDS,
   KAKAO_DISCOVERY_KEYWORDS,

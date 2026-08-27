@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createItineraryGenerationHandler } from "@/app/api/itineraries/generate/route";
+import { createItineraryGenerationHandler } from "@/app/api/itineraries/generate/handler";
 import {
   generateItineraries,
   ITINERARY_GENERATION_LIMITS,

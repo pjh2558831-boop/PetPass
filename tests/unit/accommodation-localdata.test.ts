@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createTourPlaceDetailHandler } from "@/app/api/tour/places/[contentId]/route";
+import { createTourPlaceDetailHandler } from "@/app/api/tour/places/[contentId]/handler";
 import {
   type LocalDataSearchResult,
   type LocalDataSearchService,

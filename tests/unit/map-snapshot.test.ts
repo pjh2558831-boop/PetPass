@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createMapPlacesSnapshotHandler } from "@/app/api/map/places/snapshot/route";
+import { createMapPlacesSnapshotHandler } from "@/app/api/map/places/snapshot/handler";
 import {
   assembleMapPlacesSnapshot,
   createMapPlacesSnapshotLoader,

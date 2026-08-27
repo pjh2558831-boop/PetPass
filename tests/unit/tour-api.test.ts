@@ -28,8 +28,8 @@ import {
   type TourPlaceService,
 } from "@/lib/tour-api/service";
 import type { ParsedTourResponse, TourItem } from "@/lib/tour-api/schemas";
-import { createTourPlacesHandler } from "@/app/api/tour/places/route";
-import { createTourPlaceDetailHandler } from "@/app/api/tour/places/[contentId]/route";
+import { createTourPlacesHandler } from "@/app/api/tour/places/handler";
+import { createTourPlaceDetailHandler } from "@/app/api/tour/places/[contentId]/handler";
 import { createUnavailableLicenseResult } from "@/lib/licenses/service";
 import type { LicenseMatcher } from "@/lib/licenses/service";
 import { DEMO_SANITIZED_SERVICE2_TYPE_38 } from "@/fixtures/tour-service2-current-sanitized";
