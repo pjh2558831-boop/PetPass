@@ -49,6 +49,16 @@ export const KTO_CATALOG_CONTENT_TYPE_IDS = [
   "39",
 ] as const satisfies readonly TourContentTypeId[];
 
+export const KTO_CATALOG_DATASET_IDS = ["core", "shopping"] as const;
+export type KtoCatalogDataset = (typeof KTO_CATALOG_DATASET_IDS)[number];
+export type KtoEvidenceCollectionMode = "detailed" | "list_only";
+
+export interface KtoCollectionPartitionConfig {
+  id: KtoCatalogDataset;
+  evidenceCollectionMode: KtoEvidenceCollectionMode;
+  contentTypeIds: readonly TourContentTypeId[];
+}
+
 export type RegionMapProvider = "tour" | "kakao";
 export type RegionCatalogCategory =
   | "attraction"
@@ -62,6 +72,7 @@ export type RegionCatalogCategory =
 export interface RegionMapCatalogConfig {
   defaultProviders: readonly RegionMapProvider[];
   fallbackSource: "tour_api" | "public_catalog";
+  snapshotDatasets: readonly KtoCatalogDataset[];
   /** Null means every normalized category returned for the allowed provider set. */
   snapshotCategories: readonly PublicMapPlaceCategory[] | null;
   availableCategories: readonly RegionCatalogCategory[];
@@ -73,7 +84,7 @@ export interface RegionMapCatalogConfig {
 export interface KtoCollectionDatasetConfig {
   provider: "tour";
   listOperation: Extract<TourOperationName, "areaBasedList2">;
-  acceptedContentTypeIds: readonly TourContentTypeId[];
+  datasets: readonly KtoCollectionPartitionConfig[];
   administrativeAddressPrefixes: readonly string[];
   collectorVersion: string;
   registryVersion: string;
@@ -84,6 +95,7 @@ export interface KtoCollectionDatasetConfig {
     maxRawRecords: number;
     maxRawRecordsPerDistrict: number;
     maxAcceptedRecords: number;
+    maxDetailedRecords: number;
   };
 }
 
@@ -150,6 +162,7 @@ export const BUSAN_REGION_CONFIG = {
   mapCatalog: {
     defaultProviders: ["kakao"],
     fallbackSource: "tour_api",
+    snapshotDatasets: ["core"],
     snapshotCategories: [
       "attraction",
       "park_walk",
@@ -225,7 +238,11 @@ export const JEJU_REGION_CONFIG = {
   ktoCollection: {
     provider: "tour",
     listOperation: "areaBasedList2",
-    acceptedContentTypeIds: KTO_CATALOG_CONTENT_TYPE_IDS,
+    datasets: [{
+      id: "core",
+      evidenceCollectionMode: "detailed",
+      contentTypeIds: KTO_CATALOG_CONTENT_TYPE_IDS,
+    }],
     administrativeAddressPrefixes: ["제주", "제주특별자치도"],
     collectorVersion: "tour-service2-region-collector-v2",
     registryVersion: "tour-jeju-service2-v1",
@@ -236,6 +253,7 @@ export const JEJU_REGION_CONFIG = {
       maxRawRecords: 500,
       maxRawRecordsPerDistrict: 300,
       maxAcceptedRecords: 100,
+      maxDetailedRecords: 100,
     },
   },
   itineraryEnabled: false,
@@ -244,6 +262,7 @@ export const JEJU_REGION_CONFIG = {
   mapCatalog: {
     defaultProviders: ["tour"],
     fallbackSource: "public_catalog",
+    snapshotDatasets: ["core"],
     snapshotCategories: [
       "attraction",
       "park_walk",
@@ -294,17 +313,29 @@ export const SEOUL_REGION_CONFIG = {
   ktoCollection: {
     provider: "tour",
     listOperation: "areaBasedList2",
-    acceptedContentTypeIds: KTO_CATALOG_CONTENT_TYPE_IDS,
+    datasets: [
+      {
+        id: "core",
+        evidenceCollectionMode: "detailed",
+        contentTypeIds: KTO_CATALOG_CONTENT_TYPE_IDS,
+      },
+      {
+        id: "shopping",
+        evidenceCollectionMode: "list_only",
+        contentTypeIds: ["38"],
+      },
+    ],
     administrativeAddressPrefixes: ["서울", "서울특별시"],
-    collectorVersion: "tour-service2-region-collector-v2",
-    registryVersion: "tour-seoul-service2-v1",
-    cacheNamespace: "tour-seoul-service2-v1",
+    collectorVersion: "tour-service2-region-collector-v3",
+    registryVersion: "tour-seoul-service2-v2",
+    cacheNamespace: "tour-seoul-service2-v2",
     limits: {
       listPageSize: 500,
       maxListPages: 4,
       maxRawRecords: 3_500,
       maxRawRecordsPerDistrict: 500,
-      maxAcceptedRecords: 100,
+      maxAcceptedRecords: 3_500,
+      maxDetailedRecords: 100,
     },
   },
   itineraryEnabled: false,
@@ -313,9 +344,18 @@ export const SEOUL_REGION_CONFIG = {
   mapCatalog: {
     defaultProviders: ["tour"],
     fallbackSource: "public_catalog",
-    snapshotCategories: null,
+    snapshotDatasets: ["core", "shopping"],
+    snapshotCategories: [
+      "attraction",
+      "park_walk",
+      "leisure",
+      "camping",
+      "food",
+      "cafe",
+      "accommodation",
+    ],
     availableCategories: ["attraction", "food", "cafe", "accommodation", "shopping"],
-    deferredCategories: [],
+    deferredCategories: ["shopping"],
     sourceDescription: "한국관광공사 공식 장소만 표시합니다.",
     hideMissingPhoneOnDetail: true,
   },

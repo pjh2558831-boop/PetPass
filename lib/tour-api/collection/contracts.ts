@@ -1,6 +1,10 @@
 import "server-only";
 
-import { JEJU_REGION_CONFIG } from "@/lib/regions/config";
+import {
+  JEJU_REGION_CONFIG,
+  type KtoCatalogDataset,
+  type KtoEvidenceCollectionMode,
+} from "@/lib/regions/config";
 import type {
   TourContentTypeId,
   TourOperationName,
@@ -66,13 +70,15 @@ export interface KtoCatalogProvider {
 
 export type KtoCatalogCategory = Exclude<
   TourPlaceSummary["category"],
-  "shopping" | "transportation" | "unknown"
+  "transportation" | "unknown"
 >;
 
 export interface KtoCatalogMapPlace {
   region_id: string;
   provider: typeof KTO_CATALOG_PROVIDER;
   provider_place_id: string;
+  catalog_dataset: KtoCatalogDataset;
+  evidence_collection_mode: KtoEvidenceCollectionMode;
   name: string;
   category_group: KtoCatalogCategory;
   category_code: string | null;
@@ -127,6 +133,9 @@ export interface KtoCatalogDistrictAudit {
   duplicateCount: number;
   imageCoveredCount: number;
   detailPetTourCoveredCount: number;
+  detailedRecordCount: number;
+  listOnlyRecordCount: number;
+  datasetCounts: Record<KtoCatalogDataset, number>;
   rawContentTypeCounts: Record<string, number>;
   categoryCounts: Partial<Record<KtoCatalogCategory, number>>;
   verdictCounts: Partial<Record<TourPetAccessVerdict, number>>;
@@ -149,6 +158,7 @@ export interface KtoCatalogAudit {
       "verdictCounts" | "rejectionCounts" | "missingFieldCounts"
   > & {
     rawContentTypeCounts: Record<string, number>;
+    datasetCounts: Record<KtoCatalogDataset, number>;
     categoryCounts: Partial<Record<KtoCatalogCategory, number>>;
     verdictCounts: Partial<Record<TourPetAccessVerdict, number>>;
     rejectionCounts: Partial<Record<KtoCatalogRejectionCode, number>>;

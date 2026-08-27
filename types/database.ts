@@ -412,6 +412,7 @@ export type Database = {
       map_places: {
         Row: {
           candidate_kind: string | null
+          catalog_dataset: string
           category_code: string | null
           category_group: string | null
           category_group_code: string | null
@@ -421,6 +422,7 @@ export type Database = {
           created_at: string
           district_code: string | null
           district_name: string | null
+          evidence_collection_mode: string
           expires_at: string | null
           fetched_at: string
           first_seen_at: string
@@ -456,6 +458,7 @@ export type Database = {
         }
         Insert: {
           candidate_kind?: string | null
+          catalog_dataset?: string
           category_code?: string | null
           category_group?: string | null
           category_group_code?: string | null
@@ -465,6 +468,7 @@ export type Database = {
           created_at?: string
           district_code?: string | null
           district_name?: string | null
+          evidence_collection_mode?: string
           expires_at?: string | null
           fetched_at?: string
           first_seen_at?: string
@@ -500,6 +504,7 @@ export type Database = {
         }
         Update: {
           candidate_kind?: string | null
+          catalog_dataset?: string
           category_code?: string | null
           category_group?: string | null
           category_group_code?: string | null
@@ -509,6 +514,7 @@ export type Database = {
           created_at?: string
           district_code?: string | null
           district_name?: string | null
+          evidence_collection_mode?: string
           expires_at?: string | null
           fetched_at?: string
           first_seen_at?: string
@@ -608,11 +614,13 @@ export type Database = {
           display_name: string
           kakao_collection_enabled: boolean
           kto_catalog_enabled: boolean
+          kto_catalog_datasets: string[]
           kto_collection_east: number | null
           kto_collection_enabled: boolean
           kto_collection_north: number | null
           kto_collection_south: number | null
           kto_collection_west: number | null
+          kto_list_only_content_type_ids: number[]
           kto_registry_version: string | null
           legal_dong_code: string
           region_id: string
@@ -622,11 +630,13 @@ export type Database = {
           display_name: string
           kakao_collection_enabled?: boolean
           kto_catalog_enabled?: boolean
+          kto_catalog_datasets?: string[]
           kto_collection_east?: number | null
           kto_collection_enabled?: boolean
           kto_collection_north?: number | null
           kto_collection_south?: number | null
           kto_collection_west?: number | null
+          kto_list_only_content_type_ids?: number[]
           kto_registry_version?: string | null
           legal_dong_code: string
           region_id: string
@@ -636,11 +646,13 @@ export type Database = {
           display_name?: string
           kakao_collection_enabled?: boolean
           kto_catalog_enabled?: boolean
+          kto_catalog_datasets?: string[]
           kto_collection_east?: number | null
           kto_collection_enabled?: boolean
           kto_collection_north?: number | null
           kto_collection_south?: number | null
           kto_collection_west?: number | null
+          kto_list_only_content_type_ids?: number[]
           kto_registry_version?: string | null
           legal_dong_code?: string
           region_id?: string
@@ -742,6 +754,46 @@ export type Database = {
         Args: {
           p_after_id?: number
           p_candidate_kinds?: string[]
+          p_district_codes?: string[]
+          p_normalized_categories?: string[]
+          p_providers: string[]
+          p_region_id: string
+          p_result_limit?: number
+        }
+        Returns: {
+          address: string
+          candidate_kind: string
+          category_group_code: string | null
+          category_query_agreement_count: number
+          content_type_id: number | null
+          district_code: string
+          district_name: string
+          has_more: boolean
+          id: number
+          image_url: string | null
+          last_seen_at: string
+          latitude: number
+          longitude: number
+          matched_query_count: number
+          name: string
+          normalized_category: string
+          pet_access_verdict: string
+          pet_evidence_status: string
+          phone: string | null
+          place_url: string | null
+          provider: string
+          provider_place_id: string
+          public_label: string
+          review_status: string
+          source: string
+          total_count: number
+        }[]
+      }
+      get_public_map_catalog_by_region_v3: {
+        Args: {
+          p_after_id?: number
+          p_candidate_kinds?: string[]
+          p_catalog_dataset: string
           p_district_codes?: string[]
           p_normalized_categories?: string[]
           p_providers: string[]

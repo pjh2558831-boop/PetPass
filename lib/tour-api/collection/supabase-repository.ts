@@ -24,6 +24,8 @@ const mapPlaceSchema = z.object({
   region_id: z.string().regex(/^[a-z][a-z0-9_-]*$/u),
   provider: z.literal(KTO_CATALOG_PROVIDER),
   provider_place_id: z.string().regex(/^[1-9][0-9]*$/u),
+  catalog_dataset: z.enum(["core", "shopping"]),
+  evidence_collection_mode: z.enum(["detailed", "list_only"]),
   name: z.string().min(1),
   category_group: z.enum([
     "attraction",
@@ -32,6 +34,7 @@ const mapPlaceSchema = z.object({
     "leisure",
     "accommodation",
     "food",
+    "shopping",
   ]),
   category_code: z.string().nullable(),
   content_type_id: z.union([
@@ -40,6 +43,7 @@ const mapPlaceSchema = z.object({
     z.literal(15),
     z.literal(28),
     z.literal(32),
+    z.literal(38),
     z.literal(39),
   ]),
   road_address: z.string().nullable(),
@@ -61,6 +65,19 @@ const mapPlaceSchema = z.object({
   pet_evidence: z.record(z.unknown()),
   pet_notes: z.string(),
   fetched_at: z.string().datetime({ offset: true }),
+}).superRefine((row, context) => {
+  const shopping = row.catalog_dataset === "shopping";
+  if (
+    shopping !== (row.evidence_collection_mode === "list_only") ||
+    shopping !== (row.category_group === "shopping") ||
+    shopping !== (row.content_type_id === 38) ||
+    (shopping && row.pet_evidence_status !== "official_unknown")
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "KTO catalog dataset and evidence mode do not match.",
+    });
+  }
 });
 
 const districtAuditSchema = z.object({
@@ -72,6 +89,12 @@ const districtAuditSchema = z.object({
   duplicateCount: z.number().int().nonnegative(),
   imageCoveredCount: z.number().int().nonnegative(),
   detailPetTourCoveredCount: z.number().int().nonnegative(),
+  detailedRecordCount: z.number().int().nonnegative(),
+  listOnlyRecordCount: z.number().int().nonnegative(),
+  datasetCounts: z.object({
+    core: z.number().int().nonnegative(),
+    shopping: z.number().int().nonnegative(),
+  }),
   rawContentTypeCounts: z.record(z.number().int().nonnegative()),
   categoryCounts: z.record(z.number().int().nonnegative()),
   verdictCounts: z.record(z.number().int().nonnegative()),
@@ -211,7 +234,7 @@ export function createSupabaseKtoCatalogRepository(
       const { data: stageData, error: stageError } = await supabase
         .from("map_tour_ingest_stage_places")
         .select(
-          "region_id,provider,provider_place_id,name,category_group,category_code,content_type_id,road_address,lot_address,district_code,district_name,latitude,longitude,phone,image_url,source_url,provider_visibility,pet_evidence_status,pet_evidence,pet_notes,fetched_at",
+          "region_id,provider,provider_place_id,catalog_dataset,evidence_collection_mode,name,category_group,category_code,content_type_id,road_address,lot_address,district_code,district_name,latitude,longitude,phone,image_url,source_url,provider_visibility,pet_evidence_status,pet_evidence,pet_notes,fetched_at",
         )
         .eq("region_id", region.id)
         .eq("provider", KTO_CATALOG_PROVIDER)

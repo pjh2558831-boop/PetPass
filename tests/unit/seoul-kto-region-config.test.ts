@@ -83,9 +83,12 @@ describe("Seoul regional KTO foundation", () => {
       mapCatalog: {
         defaultProviders: ["tour"],
         fallbackSource: "public_catalog",
-        snapshotCategories: null,
+        snapshotDatasets: ["core", "shopping"],
+        snapshotCategories: [
+          "attraction", "park_walk", "leisure", "camping", "food", "cafe", "accommodation",
+        ],
         availableCategories: ["attraction", "food", "cafe", "accommodation", "shopping"],
-        deferredCategories: [],
+        deferredCategories: ["shopping"],
         hideMissingPhoneOnDetail: true,
       },
     });
@@ -125,12 +128,24 @@ describe("Seoul regional KTO foundation", () => {
     expect(seoul?.ktoCollection).toMatchObject({
       provider: "tour",
       listOperation: "areaBasedList2",
-      registryVersion: "tour-seoul-service2-v1",
-      cacheNamespace: "tour-seoul-service2-v1",
-      acceptedContentTypeIds: ["12", "14", "15", "28", "32", "39"],
+      registryVersion: "tour-seoul-service2-v2",
+      cacheNamespace: "tour-seoul-service2-v2",
+      datasets: [
+        {
+          id: "core",
+          evidenceCollectionMode: "detailed",
+          contentTypeIds: ["12", "14", "15", "28", "32", "39"],
+        },
+        {
+          id: "shopping",
+          evidenceCollectionMode: "list_only",
+          contentTypeIds: ["38"],
+        },
+      ],
       limits: {
         listPageSize: 500,
-        maxAcceptedRecords: 100,
+        maxAcceptedRecords: 3_500,
+        maxDetailedRecords: 100,
       },
     });
     expect(jeju?.ktoCollection?.cacheNamespace).not.toBe(

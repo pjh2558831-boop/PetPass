@@ -394,6 +394,7 @@ describe("generic regional KTO collector", () => {
           ...SEOUL_REGION_CONFIG.ktoCollection.limits,
           maxRawRecords: 10,
           maxAcceptedRecords: 10,
+          maxDetailedRecords: 10,
         },
       },
     } satisfies KtoCollectionEnabledRegionConfig<"future-city">;

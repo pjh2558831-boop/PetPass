@@ -7,6 +7,7 @@ import {
 import {
   JEJU_REGION_CONFIG,
   coordinatesInRegion,
+  type KtoCollectionPartitionConfig,
   type KtoCollectionEnabledRegionConfig,
 } from "@/lib/regions/config";
 import {
@@ -37,6 +38,12 @@ import type { TourPetAccessVerdict } from "@/types/tour-pet-access";
 interface CollectionBudget {
   rawCount: number;
   acceptedCount: number;
+  detailedCount: number;
+}
+
+interface ValidatedListRecord {
+  summary: TourPlaceSummary;
+  dataset: KtoCollectionPartitionConfig;
 }
 
 function increment<T extends string>(counts: Partial<Record<T, number>>, key: T): void {
@@ -57,6 +64,9 @@ function emptyAudit(districtCode: string, districtName: string): KtoCatalogDistr
     duplicateCount: 0,
     imageCoveredCount: 0,
     detailPetTourCoveredCount: 0,
+    detailedRecordCount: 0,
+    listOnlyRecordCount: 0,
+    datasetCounts: { core: 0, shopping: 0 },
     rawContentTypeCounts: {},
     categoryCounts: {},
     verdictCounts: {},
@@ -97,7 +107,7 @@ function primaryValidation(
   districtCode: string,
   districtName: string,
   audit: KtoCatalogDistrictAudit,
-): TourPlaceSummary | null {
+): ValidatedListRecord | null {
   const { summary } = record;
   if (!summary || !/^[1-9][0-9]*$/u.test(summary.contentId)) {
     return reject(audit, "invalid_content_id");
@@ -116,15 +126,18 @@ function primaryValidation(
   if (record.authoritativeLegalDistrictCode !== districtCode) {
     return reject(audit, "administrative_district_mismatch");
   }
-  if (summary.providerContentTypeId === "38") {
+  const dataset = region.ktoCollection.datasets.find(({ contentTypeIds }) =>
+    summary.contentTypeId !== null && contentTypeIds.includes(summary.contentTypeId));
+  if (!dataset && summary.providerContentTypeId === "38") {
     return reject(audit, "shopping_content_type");
   }
   if (
     !summary.contentTypeId ||
-    !region.ktoCollection.acceptedContentTypeIds.includes(summary.contentTypeId) ||
+    !dataset ||
     summary.category === "unknown" ||
     summary.category === "transportation" ||
-    summary.category === "shopping"
+    (dataset.id === "shopping" && summary.category !== "shopping") ||
+    (dataset.id === "core" && summary.category === "shopping")
   ) {
     return reject(audit, "unsupported_content_type");
   }
@@ -146,7 +159,7 @@ function primaryValidation(
   );
   if (addressResult === "missing") return reject(audit, "administrative_address_missing");
   if (addressResult === "mismatch") return reject(audit, "administrative_address_mismatch");
-  return summary;
+  return { summary, dataset };
 }
 
 function validateDetail(
@@ -231,6 +244,8 @@ function mapRow(
       region_id: region.id,
       provider: KTO_CATALOG_PROVIDER,
       provider_place_id: list.contentId,
+      catalog_dataset: "core",
+      evidence_collection_mode: "detailed",
       name: list.title as string,
       category_group: category,
       category_code:
@@ -267,6 +282,57 @@ function mapRow(
   };
 }
 
+function mapListOnlyRow(
+  region: KtoCollectionEnabledRegionConfig<string>,
+  list: TourPlaceSummary,
+  districtCode: string,
+  districtName: string,
+  fetchedAt: string,
+): KtoCatalogMapPlace {
+  return {
+    region_id: region.id,
+    provider: KTO_CATALOG_PROVIDER,
+    provider_place_id: list.contentId,
+    catalog_dataset: "shopping",
+    evidence_collection_mode: "list_only",
+    name: list.title as string,
+    category_group: "shopping",
+    category_code:
+      list.classificationCodes.smallCategory ??
+      list.classificationCodes.tertiary,
+    content_type_id: 38,
+    road_address: list.address,
+    lot_address: list.detailAddress,
+    district_code: districtCode,
+    district_name: districtName,
+    latitude: list.latitude as number,
+    longitude: list.longitude as number,
+    phone: list.phone,
+    image_url: list.imageUrl ?? list.thumbnailUrl ?? null,
+    source_url: null,
+    provider_visibility: list.providerVisibility?.status ?? "unknown",
+    pet_evidence_status: "official_unknown",
+    pet_evidence: {
+      source: {
+        provider: "Korea Tourism Organization",
+        operations: ["areaBasedList2"],
+        contentId: list.contentId,
+        retrievedAt: list.source.retrievedAt,
+        providerModifiedTime: list.modifiedTime,
+      },
+      collectionMode: "list_only",
+      verificationStatus: "verification_required",
+      assessment: {
+        verdict: "unknown",
+        summary: "반려동물 동반 정책을 확인하지 못했습니다.",
+        reasonCodes: ["KTO_LIST_METADATA_ONLY"],
+      },
+    },
+    pet_notes: "반려동물 동반 정책을 확인하지 못해 방문 전 확인이 필요합니다.",
+    fetched_at: fetchedAt,
+  };
+}
+
 function assertRegionDescriptor(
   region: KtoCollectionEnabledRegionConfig<string>,
 ): void {
@@ -279,6 +345,9 @@ function assertRegionDescriptor(
     ({ legalDongDistrictCode, name }) => `${legalDongDistrictCode}:${name}`,
   );
   const limits = region.ktoCollection.limits;
+  const datasets = region.ktoCollection.datasets;
+  const datasetIds = datasets.map(({ id }) => id);
+  const contentTypeIds = datasets.flatMap(({ contentTypeIds: ids }) => ids);
   if (
     !/^[a-z][a-z0-9_-]*$/u.test(region.id) ||
     !/^\d{2}$/u.test(legalRegionCode) ||
@@ -290,12 +359,27 @@ function assertRegionDescriptor(
     new Set(districtPairs).size !== districtPairs.length ||
     region.districts.some(({ legalDongDistrictCode, name }) =>
       !/^\d{3}$/u.test(legalDongDistrictCode) || !name.trim()) ||
+    datasets.length === 0 ||
+    new Set(datasetIds).size !== datasetIds.length ||
+    new Set(contentTypeIds).size !== contentTypeIds.length ||
+    datasets.some(({ id, evidenceCollectionMode, contentTypeIds: ids }) =>
+      ids.length === 0 ||
+      (id === "core" && (
+        evidenceCollectionMode !== "detailed" || ids.includes("38")
+      )) ||
+      (id === "shopping" && (
+        evidenceCollectionMode !== "list_only" ||
+        ids.length !== 1 ||
+        ids[0] !== "38"
+      ))) ||
     !Number.isInteger(limits.listPageSize) || limits.listPageSize <= 0 ||
     !Number.isInteger(limits.maxListPages) || limits.maxListPages <= 0 ||
     !Number.isInteger(limits.maxRawRecords) || limits.maxRawRecords <= 0 ||
     !Number.isInteger(limits.maxRawRecordsPerDistrict) ||
       limits.maxRawRecordsPerDistrict <= 0 ||
-    !Number.isInteger(limits.maxAcceptedRecords) || limits.maxAcceptedRecords <= 0
+    !Number.isInteger(limits.maxAcceptedRecords) || limits.maxAcceptedRecords <= 0 ||
+    !Number.isInteger(limits.maxDetailedRecords) || limits.maxDetailedRecords <= 0 ||
+    limits.maxDetailedRecords > limits.maxAcceptedRecords
   ) {
     throw new KtoCatalogCollectionError(
       "CONFIGURATION",
@@ -406,7 +490,7 @@ async function collectDistrict(
       `KTO ${region.id} catalog exceeded the audited regional row limit.`,
     );
   }
-  const accepted: TourPlaceSummary[] = [];
+  const accepted: ValidatedListRecord[] = [];
   for (const record of raw) {
     increment(
       audit.rawContentTypeCounts,
@@ -420,15 +504,24 @@ async function collectDistrict(
       audit,
     );
     if (!value) continue;
-    if (globallySeen.has(value.contentId)) {
+    if (globallySeen.has(value.summary.contentId)) {
       audit.duplicateCount += 1;
       continue;
     }
-    globallySeen.add(value.contentId);
+    globallySeen.add(value.summary.contentId);
     accepted.push(value);
   }
   budget.acceptedCount += accepted.length;
   if (budget.acceptedCount > region.ktoCollection.limits.maxAcceptedRecords) {
+    throw new KtoCatalogCollectionError(
+      "INVALID_PROVIDER_RESULT",
+      `KTO ${region.id} catalog exceeded the approved accepted-record limit.`,
+    );
+  }
+  budget.detailedCount += accepted.filter(
+    ({ dataset }) => dataset.evidenceCollectionMode === "detailed",
+  ).length;
+  if (budget.detailedCount > region.ktoCollection.limits.maxDetailedRecords) {
     throw new KtoCatalogCollectionError(
       "INVALID_PROVIDER_RESULT",
       `KTO ${region.id} catalog exceeded the approved detail traversal limit.`,
@@ -436,7 +529,29 @@ async function collectDistrict(
   }
 
   const rows: KtoCatalogMapPlace[] = [];
-  for (const list of accepted) {
+  for (const { summary: list, dataset } of accepted) {
+    if (dataset.evidenceCollectionMode === "list_only") {
+      const row = mapListOnlyRow(
+        region,
+        list,
+        districtCode,
+        district.name,
+        fetchedAt,
+      );
+      rows.push(row);
+      audit.acceptedCount += 1;
+      audit.listOnlyRecordCount += 1;
+      audit.datasetCounts[row.catalog_dataset] += 1;
+      increment(audit.categoryCounts, row.category_group);
+      increment(audit.verdictCounts, "unknown");
+      if (row.image_url) audit.imageCoveredCount += 1;
+      else audit.missingFieldCounts.image += 1;
+      if (!row.road_address && !row.lot_address) {
+        audit.missingFieldCounts.address += 1;
+      }
+      if (!row.phone) audit.missingFieldCounts.phone += 1;
+      continue;
+    }
     let detail: TourPlaceDetail;
     try {
       detail = await provider.getPlaceDetail(
@@ -463,6 +578,8 @@ async function collectDistrict(
     );
     rows.push(mapped.row);
     audit.acceptedCount += 1;
+    audit.detailedRecordCount += 1;
+    audit.datasetCounts[mapped.row.catalog_dataset] += 1;
     increment(audit.categoryCounts, mapped.row.category_group);
     increment(audit.verdictCounts, mapped.verdict);
     if (mapped.row.image_url) audit.imageCoveredCount += 1;
@@ -496,7 +613,7 @@ function validatedProviderRequestAudit(
   const values = Object.values(counts);
   const maxListCalls =
     region.districts.length * region.ktoCollection.limits.maxListPages;
-  const maxDetailCalls = region.ktoCollection.limits.maxAcceptedRecords;
+  const maxDetailCalls = region.ktoCollection.limits.maxDetailedRecords;
   if (
     !Number.isInteger(audit.liveProviderCallCount) ||
     audit.liveProviderCallCount < 0 ||
@@ -531,6 +648,9 @@ function combinedAudit(
     duplicateCount: 0,
     imageCoveredCount: 0,
     detailPetTourCoveredCount: 0,
+    detailedRecordCount: 0,
+    listOnlyRecordCount: 0,
+    datasetCounts: { core: 0, shopping: 0 },
     rawContentTypeCounts: {},
     categoryCounts: {},
     verdictCounts: {},
@@ -547,6 +667,10 @@ function combinedAudit(
     totals.duplicateCount += audit.duplicateCount;
     totals.imageCoveredCount += audit.imageCoveredCount;
     totals.detailPetTourCoveredCount += audit.detailPetTourCoveredCount;
+    totals.detailedRecordCount += audit.detailedRecordCount;
+    totals.listOnlyRecordCount += audit.listOnlyRecordCount;
+    totals.datasetCounts.core += audit.datasetCounts.core;
+    totals.datasetCounts.shopping += audit.datasetCounts.shopping;
     mergeCounts(totals.rawContentTypeCounts, audit.rawContentTypeCounts);
     mergeCounts(totals.categoryCounts, audit.categoryCounts);
     mergeCounts(totals.verdictCounts, audit.verdictCounts);
@@ -591,6 +715,10 @@ function assertCompletedDistricts(
       completed.rows.some((row) =>
         row.region_id !== region.id ||
         row.provider !== KTO_CATALOG_PROVIDER ||
+        !region.ktoCollection.datasets.some((dataset) =>
+          dataset.id === row.catalog_dataset &&
+          dataset.evidenceCollectionMode === row.evidence_collection_mode &&
+          dataset.contentTypeIds.includes(String(row.content_type_id) as TourContentTypeId)) ||
         row.district_code !== completed.districtCode ||
         row.district_name !== districtName)
     ) {
@@ -628,6 +756,10 @@ export async function collectKtoCatalog(input: {
     ),
     acceptedCount: [...completed.values()].reduce(
       (total, district) => total + district.audit.acceptedCount,
+      0,
+    ),
+    detailedCount: [...completed.values()].reduce(
+      (total, district) => total + district.audit.detailedRecordCount,
       0,
     ),
   };

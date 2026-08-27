@@ -25,6 +25,7 @@ const expectedMigrationFiles = [
   "20260824123000_add_multi_pet_profiles_and_profile_editing.sql",
   "20260824123100_harden_profile_cooldown_function_privileges.sql",
   "20260826132941_add_seoul_kto_catalog_foundation.sql",
+  "20260827034108_add_seoul_kto_shopping_dataset.sql",
 ] as const;
 
 const productionStatementHashes = {

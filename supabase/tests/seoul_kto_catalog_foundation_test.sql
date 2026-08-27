@@ -22,7 +22,7 @@ select extensions.ok(
       kto_catalog_enabled
       and kto_collection_enabled
       and not kakao_collection_enabled
-      and kto_registry_version = 'tour-seoul-service2-v1'
+      and kto_registry_version = 'tour-seoul-service2-v2'
     from public.regions
     where region_id = 'seoul'
   ),
@@ -142,8 +142,8 @@ select extensions.ok(
 select extensions.ok(
   not has_function_privilege('anon', 'public.set_map_ingest_run_region_v1()', 'execute')
   and not has_function_privilege('authenticated', 'public.set_map_ingest_run_region_v1()', 'execute')
-  and not has_function_privilege('anon', 'public.map_tour_stage_validate_region_v2()', 'execute')
-  and not has_function_privilege('authenticated', 'public.map_tour_stage_validate_region_v2()', 'execute'),
+  and not has_function_privilege('anon', 'public.map_tour_stage_validate_region_v3()', 'execute')
+  and not has_function_privilege('authenticated', 'public.map_tour_stage_validate_region_v3()', 'execute'),
   'browser roles cannot directly execute ingestion trigger functions'
 );
 
@@ -190,7 +190,7 @@ select extensions.throws_ok(
 select extensions.throws_ok(
   $invalid_seoul_scope$
     select * from public.start_tour_catalog_run_v1(
-      'seoul', 'tour-seoul-service2-v1', 'phase2-test', 'full',
+      'seoul', 'tour-seoul-service2-v2', 'phase2-test', 'full',
       array['110', '999'], '2026-08-26T01:00:00Z'
     )
   $invalid_seoul_scope$,
@@ -311,7 +311,7 @@ set local role service_role;
 insert into phase2_runs (label, run_id, planned_count)
 select 'seoul-full', run_id, planned_district_count
 from public.start_tour_catalog_run_v1(
-  'seoul', 'tour-seoul-service2-v1', 'phase2-test', 'full',
+  'seoul', 'tour-seoul-service2-v2', 'phase2-test', 'full',
   (select array_agg(district_code order by district_code) from public.region_districts where region_id = 'seoul'),
   '2026-08-26T01:00:00Z'
 );
@@ -445,7 +445,7 @@ set local role service_role;
 insert into phase2_runs (label, run_id, planned_count)
 select 'seoul-collision', run_id, planned_district_count
 from public.start_tour_catalog_run_v1(
-  'seoul', 'tour-seoul-service2-v1', 'phase2-test', 'full',
+  'seoul', 'tour-seoul-service2-v2', 'phase2-test', 'full',
   (select array_agg(district_code order by district_code) from public.region_districts where region_id = 'seoul'),
   '2026-08-26T02:00:00Z'
 );
@@ -501,7 +501,7 @@ set local role service_role;
 insert into phase2_runs (label, run_id, planned_count)
 select 'seoul-delta', run_id, planned_district_count
 from public.start_tour_catalog_run_v1(
-  'seoul', 'tour-seoul-service2-v1', 'phase2-test', 'delta',
+  'seoul', 'tour-seoul-service2-v2', 'phase2-test', 'delta',
   (select array_agg(district_code order by district_code) from public.region_districts where region_id = 'seoul'),
   '2026-08-26T03:00:00Z'
 );
@@ -544,7 +544,7 @@ set local role service_role;
 insert into phase2_runs (label, run_id, planned_count)
 select 'seoul-failed', run_id, planned_district_count
 from public.start_tour_catalog_run_v1(
-  'seoul', 'tour-seoul-service2-v1', 'phase2-test', 'full',
+  'seoul', 'tour-seoul-service2-v2', 'phase2-test', 'full',
   (select array_agg(district_code order by district_code) from public.region_districts where region_id = 'seoul'),
   '2026-08-26T04:00:00Z'
 );
@@ -579,7 +579,7 @@ set local role service_role;
 insert into phase2_runs (label, run_id, planned_count)
 select 'seoul-partial', run_id, planned_district_count
 from public.start_tour_catalog_run_v1(
-  'seoul', 'tour-seoul-service2-v1', 'phase2-test', 'full',
+  'seoul', 'tour-seoul-service2-v2', 'phase2-test', 'full',
   (select array_agg(district_code order by district_code) from public.region_districts where region_id = 'seoul'),
   '2026-08-26T05:00:00Z'
 );
