@@ -97,6 +97,8 @@ describe("Seoul regional KTO foundation", () => {
       "busan",
       "jeju",
       "seoul",
+      "incheon",
+      "gyeonggi",
     ]);
     expect(getItineraryEnabledRegionConfigs().map(({ id }) => id)).toEqual([
       "busan",

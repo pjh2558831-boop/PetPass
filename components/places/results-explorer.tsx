@@ -23,6 +23,7 @@ import {
   PUBLIC_CATALOG_PAGE_SIZE,
   getPublicCatalogDistrictName,
   parsePublicCatalogUrlState,
+  resolvePublicCatalogDistrictQuery,
   serializeResultsUrl,
   type PublicCatalogUrlState,
 } from "@/lib/map-places/catalog-url";
@@ -291,6 +292,8 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       ? "catalog"
       : initialTab);
   const [district, setDistrict] = useState(initialCatalogState.district);
+  const [districtQuery, setDistrictQuery] = useState(() =>
+    getPublicCatalogDistrictName(initialCatalogState.region, initialCatalogState.district));
   const [categories, setCategories] = useState<PlaceCategory[]>(initialCatalogState.categories);
   const [layers, setLayers] = useState<PublicCatalogLayer[]>(initialCatalogState.layers);
   const [draftCategories, setDraftCategories] = useState<PlaceCategory[]>(initialCatalogState.categories);
@@ -736,6 +739,9 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       setOptionalLoadedFor(null);
     });
   };
+  useEffect(() => {
+    setDistrictQuery(getPublicCatalogDistrictName(region, district));
+  }, [district, region]);
   const toggleDraftCategory = (category: PlaceCategory) => {
     setDraftCategories((current) => current.includes(category)
       ? current.filter((value) => value !== category)
@@ -880,10 +886,26 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
         </div>
         <label className="explorer-district-control">
           <span className="sr-only">{regionConfig.displayName} 세부 지역</span>
-          <select value={district} onChange={(event) => changeDistrict(event.target.value)}>
-            <option value="all">{regionConfig.displayName} 전체</option>
-            {regionConfig.districts.map((item) => <option key={item.legalDongDistrictCode} value={item.legalDongDistrictCode}>{item.name}</option>)}
-          </select>
+          <input
+            type="search"
+            list={`district-options-${region}`}
+            value={districtQuery}
+            aria-label={`${regionConfig.displayName} 세부 지역 검색`}
+            autoComplete="off"
+            onChange={(event) => {
+              const value = event.target.value;
+              setDistrictQuery(value);
+              const resolved = resolvePublicCatalogDistrictQuery(region, value);
+              if (resolved !== null) changeDistrict(resolved);
+            }}
+            onBlur={() => setDistrictQuery(getPublicCatalogDistrictName(region, district))}
+          />
+          <datalist id={`district-options-${region}`}>
+            <option value={`${regionConfig.displayName} 전체`} />
+            {regionConfig.districts.map((item) => (
+              <option key={item.legalDongDistrictCode} value={item.name} />
+            ))}
+          </datalist>
         </label>
         <p className="full-map-explorer__scope"><span>{regionConfig.mapCatalog.sourceDescription}</span></p>
       </div>

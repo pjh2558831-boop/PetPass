@@ -143,6 +143,55 @@ describe("map snapshot browser fallback", () => {
     expect(request).toHaveBeenCalledTimes(1);
   });
 
+  it("isolates warm snapshot entries by both region and dataset", async () => {
+    const request = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input), "http://localhost");
+      const region = url.searchParams.get("region") as "incheon" | "gyeonggi";
+      const dataset = url.searchParams.get("dataset") as "core" | "shopping";
+      const incheon = region === "incheon";
+      const category = dataset === "shopping" ? "shopping" : "attraction";
+      return Response.json({
+        ok: true,
+        data: {
+          ...seoulSnapshot,
+          region,
+          dataset,
+          categoryCounts: { [category]: 1 },
+          items: [{
+            ...seoulSnapshot.items[0],
+            id: `tour:${region}-${dataset}`,
+            regionId: region,
+            providerPlaceId: `${region}-${dataset}`,
+            category,
+            placeUrl: dataset === "shopping"
+              ? null
+              : `/places/${region}-${dataset}?region=${region}`,
+            districtCode: incheon ? "185" : "110",
+            districtName: incheon ? "연수구" : "수원시",
+            address: incheon ? "인천광역시 연수구" : "경기도 수원시",
+            coordinates: incheon
+              ? { latitude: 37.41, longitude: 126.68 }
+              : { latitude: 37.26, longitude: 127.03 },
+          }],
+        },
+      });
+    });
+    const client = createMapPlacesSnapshotBrowserClient({ request: request as typeof fetch });
+    const signal = new AbortController().signal;
+
+    await client.load("incheon", "core", signal);
+    await client.load("incheon", "shopping", signal);
+    await client.load("gyeonggi", "core", signal);
+    await client.load("incheon", "core", signal);
+
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(request.mock.calls.map(([input]) => String(input))).toEqual([
+      expect.stringMatching(/region=incheon.*dataset=core/u),
+      expect.stringMatching(/region=incheon.*dataset=shopping/u),
+      expect.stringMatching(/region=gyeonggi.*dataset=core/u),
+    ]);
+  });
+
   it("aborts a region request with no subscribers and never caches its late response", async () => {
     let resolveResponse!: (response: Response) => void;
     const request = vi.fn()

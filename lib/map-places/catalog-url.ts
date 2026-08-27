@@ -127,3 +127,14 @@ export function getPublicCatalogDistrictName(regionId: RegionId, code: string): 
     ? `${region.displayName} 전체`
     : getRegionDistrict(region, code)?.name ?? `${region.displayName} 전체`;
 }
+
+export function resolvePublicCatalogDistrictQuery(
+  regionId: RegionId,
+  query: string,
+): string | "all" | null {
+  const region = getRegionConfig(regionId);
+  const normalized = query.trim();
+  if (normalized === "전체" || normalized === `${region.displayName} 전체`) return "all";
+  return region.districts.find(({ name }) => name === normalized)
+    ?.legalDongDistrictCode ?? null;
+}

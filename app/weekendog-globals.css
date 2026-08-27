@@ -447,13 +447,13 @@ select {
   flex: 0 0 auto;
 }
 
-.explorer-district-control select {
+.explorer-district-control input {
   min-width: 112px;
   min-height: 44px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: white;
-  padding: 0 34px 0 12px;
+  padding: 0 12px;
   color: var(--text);
   font-size: 13px;
   font-weight: 850;
@@ -1245,7 +1245,7 @@ select {
     width: 100%;
   }
 
-  .explorer-district-control select {
+  .explorer-district-control input {
     width: 100%;
   }
 

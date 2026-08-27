@@ -104,7 +104,7 @@ function addressMatchesDistrict(
 function primaryValidation(
   region: KtoCollectionEnabledRegionConfig<string>,
   record: KtoCatalogListRecord,
-  districtCode: string,
+  providerDistrictCodes: readonly string[],
   districtName: string,
   audit: KtoCatalogDistrictAudit,
 ): ValidatedListRecord | null {
@@ -123,7 +123,7 @@ function primaryValidation(
   if (!record.authoritativeLegalDistrictCode) {
     return reject(audit, "administrative_district_missing");
   }
-  if (record.authoritativeLegalDistrictCode !== districtCode) {
+  if (!providerDistrictCodes.includes(record.authoritativeLegalDistrictCode)) {
     return reject(audit, "administrative_district_mismatch");
   }
   const dataset = region.ktoCollection.datasets.find(({ contentTypeIds }) =>
@@ -166,7 +166,7 @@ function validateDetail(
   region: KtoCollectionEnabledRegionConfig<string>,
   list: TourPlaceSummary,
   detail: TourPlaceDetail,
-  districtCode: string,
+  providerDistrictCodes: readonly string[],
   districtName: string,
   audit: KtoCatalogDistrictAudit,
 ): boolean {
@@ -181,7 +181,9 @@ function validateDetail(
   if (
     summary.legalRegionCode !==
       region.providerCodes.korPetTourService2.legalDongRegionCode ||
-    summary.legalDistrictCode !== districtCode
+    !summary.legalDistrictCode ||
+    !providerDistrictCodes.includes(summary.legalDistrictCode) ||
+    summary.legalDistrictCode !== list.legalDistrictCode
   ) {
     reject(audit, "detail_administrative_mismatch");
     return false;
@@ -344,6 +346,10 @@ function assertRegionDescriptor(
   const districtPairs = region.districts.map(
     ({ legalDongDistrictCode, name }) => `${legalDongDistrictCode}:${name}`,
   );
+  const collectionDistrictCodes = region.districts.flatMap(
+    ({ legalDongDistrictCode, collectionLegalDongDistrictCodes }) =>
+      collectionLegalDongDistrictCodes ?? [legalDongDistrictCode],
+  );
   const limits = region.ktoCollection.limits;
   const datasets = region.ktoCollection.datasets;
   const datasetIds = datasets.map(({ id }) => id);
@@ -357,8 +363,16 @@ function assertRegionDescriptor(
     region.districts.length === 0 ||
     new Set(districtCodes).size !== districtCodes.length ||
     new Set(districtPairs).size !== districtPairs.length ||
-    region.districts.some(({ legalDongDistrictCode, name }) =>
-      !/^\d{3}$/u.test(legalDongDistrictCode) || !name.trim()) ||
+    new Set(collectionDistrictCodes).size !== collectionDistrictCodes.length ||
+    region.districts.some(({
+      legalDongDistrictCode,
+      name,
+      collectionLegalDongDistrictCodes,
+    }) =>
+      !/^\d{3}$/u.test(legalDongDistrictCode) ||
+      !name.trim() ||
+      collectionLegalDongDistrictCodes?.length === 0 ||
+      collectionLegalDongDistrictCodes?.some((code) => !/^\d{3}$/u.test(code))) ||
     datasets.length === 0 ||
     new Set(datasetIds).size !== datasetIds.length ||
     new Set(contentTypeIds).size !== contentTypeIds.length ||
@@ -392,6 +406,7 @@ async function listAllDistrictRecords(
   region: KtoCollectionEnabledRegionConfig<string>,
   provider: KtoCatalogProvider,
   districtCode: string,
+  allowEmpty: boolean,
 ): Promise<KtoCatalogListRecord[]> {
   const records: KtoCatalogListRecord[] = [];
   const limits = region.ktoCollection.limits;
@@ -435,7 +450,10 @@ async function listAllDistrictRecords(
           `KTO ${region.id} district ${districtCode} exceeded the audited row limit.`,
         );
       }
-      if (expectedTotal === 0 || response.records.length === 0) {
+      if (
+        (!allowEmpty && expectedTotal === 0) ||
+        (expectedTotal > 0 && response.records.length === 0)
+      ) {
         throw new KtoCatalogCollectionError(
           "SUSPICIOUS_EMPTY_RESULT",
           `KTO returned a structurally empty ${region.id} district ${districtCode} catalog.`,
@@ -481,7 +499,23 @@ async function collectDistrict(
 ): Promise<KtoCatalogDistrictCollection> {
   const districtCode = district.legalDongDistrictCode;
   const audit = emptyAudit(districtCode, district.name);
-  const raw = await listAllDistrictRecords(region, provider, districtCode);
+  const providerDistrictCodes =
+    district.collectionLegalDongDistrictCodes ?? [districtCode];
+  const raw: KtoCatalogListRecord[] = [];
+  for (const providerDistrictCode of providerDistrictCodes) {
+    raw.push(...await listAllDistrictRecords(
+      region,
+      provider,
+      providerDistrictCode,
+      providerDistrictCodes.length > 1,
+    ));
+  }
+  if (raw.length === 0) {
+    throw new KtoCatalogCollectionError(
+      "SUSPICIOUS_EMPTY_RESULT",
+      `KTO returned no acceptable ${region.id} ${district.name} catalog records.`,
+    );
+  }
   audit.rawCount = raw.length;
   budget.rawCount += raw.length;
   if (budget.rawCount > region.ktoCollection.limits.maxRawRecords) {
@@ -499,7 +533,7 @@ async function collectDistrict(
     const value = primaryValidation(
       region,
       record,
-      districtCode,
+      providerDistrictCodes,
       district.name,
       audit,
     );
@@ -565,7 +599,14 @@ async function collectDistrict(
         error,
       );
     }
-    if (!validateDetail(region, list, detail, districtCode, district.name, audit)) {
+    if (!validateDetail(
+      region,
+      list,
+      detail,
+      providerDistrictCodes,
+      district.name,
+      audit,
+    )) {
       continue;
     }
     const mapped = mapRow(
@@ -612,7 +653,11 @@ function validatedProviderRequestAudit(
   const counts = audit.operationCallCounts;
   const values = Object.values(counts);
   const maxListCalls =
-    region.districts.length * region.ktoCollection.limits.maxListPages;
+    region.districts.reduce(
+      (total, district) =>
+        total + (district.collectionLegalDongDistrictCodes?.length ?? 1),
+      0,
+    ) * region.ktoCollection.limits.maxListPages;
   const maxDetailCalls = region.ktoCollection.limits.maxDetailedRecords;
   if (
     !Number.isInteger(audit.liveProviderCallCount) ||

@@ -12,6 +12,8 @@ export type { RegionId } from "@/types/region";
 export interface RegionDistrictConfig {
   legalDongDistrictCode: string;
   name: string;
+  /** Leaf legal-dong codes queried when KTO stores city records by subordinate gu. */
+  collectionLegalDongDistrictCodes?: readonly string[];
   /** Required only for regions with Kakao district discovery enabled. */
   searchCenter?: Coordinates;
 }
@@ -404,10 +406,212 @@ export const SEOUL_REGION_CONFIG = {
   wideSearchCenters: [],
 } as const satisfies RegionConfig;
 
+function createProgressiveKtoMapRegion<TId extends RegionId>(input: {
+  id: TId;
+  displayName: string;
+  legalDongRegionCode: string;
+  legacyTourismAreaCode: string;
+  administrativeAddressPrefixes: readonly string[];
+  defaultMapCenter: Coordinates;
+  mapBounds: RegionBounds;
+  districts: readonly RegionDistrictConfig[];
+  maxRawRecords: number;
+  maxRawRecordsPerDistrict: number;
+  maxDetailedRecords: number;
+}) {
+  const registryVersion = `tour-${input.id}-service2-v1`;
+  return {
+    id: input.id,
+    displayName: input.displayName,
+    providerCodes: {
+      korPetTourService2: { legalDongRegionCode: input.legalDongRegionCode },
+      legacyTourismAreaCode: input.legacyTourismAreaCode,
+    },
+    mapEnabled: true,
+    ktoCatalogEnabled: true,
+    ktoCollection: {
+      provider: "tour",
+      listOperation: "areaBasedList2",
+      datasets: [
+        {
+          id: "core",
+          evidenceCollectionMode: "detailed",
+          contentTypeIds: KTO_CATALOG_CONTENT_TYPE_IDS,
+        },
+        {
+          id: "shopping",
+          evidenceCollectionMode: "list_only",
+          contentTypeIds: ["38"],
+        },
+      ],
+      administrativeAddressPrefixes: input.administrativeAddressPrefixes,
+      collectorVersion: "tour-service2-region-collector-v3",
+      registryVersion,
+      cacheNamespace: registryVersion,
+      limits: {
+        listPageSize: 500,
+        maxListPages: 4,
+        maxRawRecords: input.maxRawRecords,
+        maxRawRecordsPerDistrict: input.maxRawRecordsPerDistrict,
+        maxAcceptedRecords: input.maxRawRecords,
+        maxDetailedRecords: input.maxDetailedRecords,
+      },
+    },
+    itineraryEnabled: false,
+    kakaoDiscoveryEnabled: false,
+    allowedMapProviders: ["tour"],
+    mapCatalog: {
+      defaultProviders: ["tour"],
+      fallbackSource: "public_catalog",
+      snapshotDatasets: ["core", "shopping"],
+      snapshotCategories: [
+        "attraction",
+        "park_walk",
+        "leisure",
+        "camping",
+        "food",
+        "cafe",
+        "accommodation",
+      ],
+      availableCategories: ["attraction", "food", "cafe", "accommodation", "shopping"],
+      deferredCategories: ["shopping"],
+      sourceDescription: "한국관광공사 공식 장소만 표시합니다.",
+      hideMissingPhoneOnDetail: true,
+    },
+    homepageFeaturedEnabled: false,
+    homepageOptionalDatasets: {
+      ktoShopping: {
+        enabled: false,
+        listOperation: "areaBasedList2",
+        visibilityOperation: "petTourSyncList2",
+        contentTypeId: "38",
+        legalDongDistrictCode: null,
+        providerPageSize: 200,
+        maxProviderPages: 20,
+      },
+    },
+    defaultMapCenter: input.defaultMapCenter,
+    mapBounds: input.mapBounds,
+    itineraryOriginBorderToleranceMeters: 500,
+    districts: input.districts,
+    wideSearchCenters: [],
+  } as const satisfies RegionConfig<TId>;
+}
+
+const INCHEON_DISTRICT_CONFIGS = [
+  { legalDongDistrictCode: "125", name: "제물포구" },
+  { legalDongDistrictCode: "155", name: "영종구" },
+  { legalDongDistrictCode: "177", name: "미추홀구" },
+  { legalDongDistrictCode: "185", name: "연수구" },
+  { legalDongDistrictCode: "200", name: "남동구" },
+  { legalDongDistrictCode: "237", name: "부평구" },
+  { legalDongDistrictCode: "245", name: "계양구" },
+  { legalDongDistrictCode: "275", name: "서해구" },
+  { legalDongDistrictCode: "290", name: "검단구" },
+  { legalDongDistrictCode: "710", name: "강화군" },
+  { legalDongDistrictCode: "720", name: "옹진군" },
+] as const satisfies readonly RegionDistrictConfig[];
+
+export const INCHEON_REGION_CONFIG = createProgressiveKtoMapRegion({
+  id: "incheon",
+  displayName: "인천",
+  legalDongRegionCode: "28",
+  legacyTourismAreaCode: "2",
+  administrativeAddressPrefixes: ["인천", "인천광역시"],
+  defaultMapCenter: { latitude: 37.4563, longitude: 126.7052 },
+  mapBounds: { west: 124.4, south: 36.9, east: 126.9, north: 38.0 },
+  districts: INCHEON_DISTRICT_CONFIGS,
+  maxRawRecords: 6_000,
+  maxRawRecordsPerDistrict: 2_000,
+  maxDetailedRecords: 300,
+});
+
+const GYEONGGI_DISTRICT_CONFIGS = [
+  {
+    legalDongDistrictCode: "110",
+    name: "수원시",
+    collectionLegalDongDistrictCodes: ["111", "113", "115", "117"],
+  },
+  {
+    legalDongDistrictCode: "130",
+    name: "성남시",
+    collectionLegalDongDistrictCodes: ["131", "133", "135"],
+  },
+  { legalDongDistrictCode: "150", name: "의정부시" },
+  {
+    legalDongDistrictCode: "170",
+    name: "안양시",
+    collectionLegalDongDistrictCodes: ["171", "173"],
+  },
+  {
+    legalDongDistrictCode: "190",
+    name: "부천시",
+    collectionLegalDongDistrictCodes: ["192", "194", "196"],
+  },
+  { legalDongDistrictCode: "210", name: "광명시" },
+  { legalDongDistrictCode: "220", name: "평택시" },
+  { legalDongDistrictCode: "250", name: "동두천시" },
+  {
+    legalDongDistrictCode: "270",
+    name: "안산시",
+    collectionLegalDongDistrictCodes: ["271", "273"],
+  },
+  {
+    legalDongDistrictCode: "280",
+    name: "고양시",
+    collectionLegalDongDistrictCodes: ["281", "285", "287"],
+  },
+  { legalDongDistrictCode: "290", name: "과천시" },
+  { legalDongDistrictCode: "310", name: "구리시" },
+  { legalDongDistrictCode: "360", name: "남양주시" },
+  { legalDongDistrictCode: "370", name: "오산시" },
+  { legalDongDistrictCode: "390", name: "시흥시" },
+  { legalDongDistrictCode: "410", name: "군포시" },
+  { legalDongDistrictCode: "430", name: "의왕시" },
+  { legalDongDistrictCode: "450", name: "하남시" },
+  {
+    legalDongDistrictCode: "460",
+    name: "용인시",
+    collectionLegalDongDistrictCodes: ["461", "463", "465"],
+  },
+  { legalDongDistrictCode: "480", name: "파주시" },
+  { legalDongDistrictCode: "500", name: "이천시" },
+  { legalDongDistrictCode: "550", name: "안성시" },
+  { legalDongDistrictCode: "570", name: "김포시" },
+  {
+    legalDongDistrictCode: "590",
+    name: "화성시",
+    collectionLegalDongDistrictCodes: ["591", "593", "595", "597"],
+  },
+  { legalDongDistrictCode: "610", name: "광주시" },
+  { legalDongDistrictCode: "630", name: "양주시" },
+  { legalDongDistrictCode: "650", name: "포천시" },
+  { legalDongDistrictCode: "670", name: "여주시" },
+  { legalDongDistrictCode: "800", name: "연천군" },
+  { legalDongDistrictCode: "820", name: "가평군" },
+  { legalDongDistrictCode: "830", name: "양평군" },
+] as const satisfies readonly RegionDistrictConfig[];
+
+export const GYEONGGI_REGION_CONFIG = createProgressiveKtoMapRegion({
+  id: "gyeonggi",
+  displayName: "경기",
+  legalDongRegionCode: "41",
+  legacyTourismAreaCode: "31",
+  administrativeAddressPrefixes: ["경기", "경기도"],
+  defaultMapCenter: { latitude: 37.4138, longitude: 127.5183 },
+  mapBounds: { west: 126.45, south: 36.8, east: 127.9, north: 38.35 },
+  districts: GYEONGGI_DISTRICT_CONFIGS,
+  maxRawRecords: 18_000,
+  maxRawRecordsPerDistrict: 2_000,
+  maxDetailedRecords: 700,
+});
+
 export const REGION_CONFIGS = [
   BUSAN_REGION_CONFIG,
   JEJU_REGION_CONFIG,
   SEOUL_REGION_CONFIG,
+  INCHEON_REGION_CONFIG,
+  GYEONGGI_REGION_CONFIG,
 ] as const satisfies readonly RegionConfig[];
 
 export type KtoCollectionEnabledRegionConfig<TId extends string = string> =

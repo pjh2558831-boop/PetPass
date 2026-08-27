@@ -1,4 +1,8 @@
 import { mapTourSummaryToPlaceCategory } from "@/lib/map-places/place-categories";
+import {
+  BUSAN_REGION_CONFIG,
+  getRegionConfigByService2LegalDongCode,
+} from "@/lib/regions/config";
 import type { PublicMapPlaceCategory, PublicMapPlaceDTO } from "@/types/public-map-place";
 import type { TourPlaceSummary } from "@/types/place";
 import type { RegionId } from "@/types/region";
@@ -152,7 +156,10 @@ export function markerToCatalogCard(marker: PublicCatalogMarker): PublicCatalogP
 
 export function normalizeTourCatalogPlace(place: TourPlaceSummary): PublicCatalogPlace {
   const category = mapTourSummaryToPlaceCategory(place);
-  const regionId: RegionId = place.legalRegionCode === "50" ? "jeju" : "busan";
+  const regionId: RegionId = (
+    getRegionConfigByService2LegalDongCode(place.legalRegionCode) ??
+    BUSAN_REGION_CONFIG
+  ).id;
   const query = new URLSearchParams({
     region: regionId,
     ...(place.contentTypeId ? { contentTypeId: place.contentTypeId } : {}),
