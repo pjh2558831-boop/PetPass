@@ -81,6 +81,8 @@ create temporary table shopping_test_runs (
   planned_count integer not null
 ) on commit drop;
 
+grant insert, select, update on table shopping_test_runs to service_role;
+
 create or replace function pg_temp.checkpoint_seoul_datasets(p_run_id bigint)
 returns void
 language plpgsql

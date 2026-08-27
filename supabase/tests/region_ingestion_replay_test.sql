@@ -90,6 +90,7 @@ select extensions.is(
     select count(*)
     from public.region_districts
     where district_code = '110'
+      and region_id in ('busan', 'jeju')
   ),
   2::bigint,
   'Busan Jung-gu and Jeju City retain separate composite district identities'
@@ -323,7 +324,7 @@ select extensions.throws_ok(
     (select run_id from phase4_runs where label = 'full')
   ),
   '23514',
-  'new row for relation "map_tour_ingest_stage_places" violates check constraint "map_tour_ingest_stage_places_content_type_id_check"',
+  'new row for relation "map_tour_ingest_stage_places" violates check constraint "map_tour_ingest_stage_places_dataset_shape_check"',
   'shopping content type 38 cannot enter KTO staging'
 );
 

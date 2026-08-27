@@ -9,6 +9,7 @@ select extensions.is(
     select count(*)
     from public.region_districts
     where district_code = '110'
+      and region_id in ('busan', 'jeju')
   ),
   2::bigint,
   'Busan and Jeju district code 110 coexist'
@@ -172,38 +173,14 @@ select extensions.is(
   'a Jeju row is excluded from the Busan public catalog query'
 );
 
-create temporary table test_anon_region_visibility (
-  region_id text primary key,
-  visible_count bigint not null
-) on commit drop;
-grant insert, select on table test_anon_region_visibility to anon;
-
-set local role anon;
-insert into test_anon_region_visibility (region_id, visible_count)
-select region_id, count(*)
-from public.map_places
-where provider_place_id in ('900000001', '900000002')
-group by region_id;
-reset role;
-
-select extensions.is(
-  (
-    select visible_count
-    from test_anon_region_visibility
-    where region_id = 'busan'
-  ),
-  1::bigint,
-  'anonymous direct reads retain the existing Busan RLS behavior'
+select extensions.ok(
+  not has_column_privilege('anon', 'public.map_places', 'name', 'select'),
+  'anonymous callers cannot read raw Busan catalog columns directly'
 );
 
-select extensions.is(
-  (
-    select count(*)
-    from test_anon_region_visibility
-    where region_id = 'jeju'
-  ),
-  0::bigint,
-  'anonymous direct reads cannot expose Jeju rows in Phase 1'
+select extensions.ok(
+  not has_column_privilege('authenticated', 'public.map_places', 'name', 'select'),
+  'authenticated callers cannot read raw regional catalog columns directly'
 );
 
 create temporary table test_region_runs (

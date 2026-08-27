@@ -241,25 +241,60 @@ begin
     where region_id = p_region_id
     order by district_code
   loop
-    v_count := case when v_district.district_code = p_selected_district_code then 1 else 0 end;
-    v_rows := case when v_count = 1 then jsonb_build_array(jsonb_build_object(
-      'region_id', p_region_id,
-      'provider', 'tour',
-      'provider_place_id', p_provider_place_id,
-      'name', p_name,
-      'category_group', 'attraction',
-      'content_type_id', 12,
-      'road_address', p_name || ' address',
-      'district_code', v_district.district_code,
-      'district_name', v_district.district_name,
-      'longitude', p_longitude,
-      'latitude', p_latitude,
-      'provider_visibility', 'unknown',
-      'pet_evidence_status', 'official_unknown',
-      'pet_evidence', jsonb_build_object('assessment', jsonb_build_object('verdict', 'unknown')),
-      'pet_notes', '확인 필요',
-      'fetched_at', '2026-08-26T01:10:00Z'
-    )) else '[]'::jsonb end;
+    if v_district.district_code = p_selected_district_code then
+      v_count := case when p_region_id = 'seoul' then 2 else 1 end;
+      v_rows := jsonb_build_array(jsonb_build_object(
+        'region_id', p_region_id,
+        'provider', 'tour',
+        'provider_place_id', p_provider_place_id,
+        'catalog_dataset', 'core',
+        'evidence_collection_mode', 'detailed',
+        'name', p_name,
+        'category_group', 'attraction',
+        'content_type_id', 12,
+        'road_address', p_name || ' address',
+        'district_code', v_district.district_code,
+        'district_name', v_district.district_name,
+        'longitude', p_longitude,
+        'latitude', p_latitude,
+        'provider_visibility', 'unknown',
+        'pet_evidence_status', 'official_unknown',
+        'pet_evidence', jsonb_build_object('assessment', jsonb_build_object('verdict', 'unknown')),
+        'pet_notes', '확인 필요',
+        'fetched_at', '2026-08-26T01:10:00Z'
+      ));
+
+      if p_region_id = 'seoul' then
+        v_rows := v_rows || jsonb_build_array(jsonb_build_object(
+          'region_id', p_region_id,
+          'provider', 'tour',
+          'provider_place_id', p_provider_place_id || '38',
+          'catalog_dataset', 'shopping',
+          'evidence_collection_mode', 'list_only',
+          'name', p_name || ' shopping',
+          'category_group', 'shopping',
+          'content_type_id', 38,
+          'road_address', p_name || ' shopping address',
+          'district_code', v_district.district_code,
+          'district_name', v_district.district_name,
+          'longitude', p_longitude + 0.001,
+          'latitude', p_latitude + 0.001,
+          'provider_visibility', 'unknown',
+          'pet_evidence_status', 'official_unknown',
+          'pet_evidence', jsonb_build_object(
+            'verificationStatus', 'verification_required',
+            'collectionMode', 'list_only',
+            'source', jsonb_build_object('operations', jsonb_build_array('areaBasedList2')),
+            'assessment', jsonb_build_object('verdict', 'unknown')
+          ),
+          'pet_notes', '반려동물 동반 정책을 확인하지 못해 방문 전 확인이 필요합니다.',
+          'fetched_at', '2026-08-26T01:10:00Z'
+        ));
+      end if;
+    else
+      v_count := 0;
+      v_rows := '[]'::jsonb;
+    end if;
 
     perform public.commit_tour_catalog_checkpoint_v1(
       p_run_id,
@@ -271,7 +306,13 @@ begin
         'rawCount', v_count,
         'acceptedCount', v_count,
         'rejectedCount', 0,
-        'duplicateCount', 0
+        'duplicateCount', 0,
+        'detailedRecordCount', case when v_count > 0 then 1 else 0 end,
+        'listOnlyRecordCount', case when p_region_id = 'seoul' and v_count > 0 then 1 else 0 end,
+        'datasetCounts', jsonb_build_object(
+          'core', case when v_count > 0 then 1 else 0 end,
+          'shopping', case when p_region_id = 'seoul' and v_count > 0 then 1 else 0 end
+        )
       ),
       '2026-08-26T01:10:00Z'
     );
@@ -373,8 +414,8 @@ select extensions.is(
     select count(*) from public.map_tour_ingest_stage_places
     where collection_run_id = (select run_id from phase2_runs where label = 'seoul-full')
   ),
-  1::bigint,
-  'only accepted projected fields enter Seoul staging'
+  2::bigint,
+  'accepted core and shopping projections enter the same Seoul staging run'
 );
 
 set local role service_role;
@@ -419,8 +460,8 @@ select extensions.ok(
 select extensions.ok(
   (
     select completed_query_count = 25
-      and unique_place_count = 1
-      and accepted_result_count = 1
+      and unique_place_count = 2
+      and accepted_result_count = 2
       and status = 'completed'
     from public.map_ingest_runs
     where id = (select run_id from phase2_runs where label = 'seoul-full')
