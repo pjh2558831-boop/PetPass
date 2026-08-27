@@ -4,6 +4,7 @@ import { apiFailure, apiSuccess } from "@/lib/shared/api-response";
 import { loadMapPlacesSnapshot } from "@/lib/map-places/snapshot";
 import {
   MAP_PLACES_SNAPSHOT_SCOPES,
+  MAP_PLACES_SNAPSHOT_DATASETS,
   MAP_PLACES_SNAPSHOT_VERSION,
   isMapPlacesSnapshot,
   type MapPlacesSnapshot,
@@ -11,11 +12,12 @@ import {
 } from "@/types/map-places-snapshot";
 import { REGION_IDS } from "@/types/region";
 
-const ALLOWED_PARAMETERS = new Set(["version", "region", "scope"]);
+const ALLOWED_PARAMETERS = new Set(["version", "region", "scope", "dataset"]);
 const querySchema = z.object({
   version: z.coerce.number().int().pipe(z.literal(MAP_PLACES_SNAPSHOT_VERSION)),
   region: z.enum(REGION_IDS),
   scope: z.enum(MAP_PLACES_SNAPSHOT_SCOPES),
+  dataset: z.enum(MAP_PLACES_SNAPSHOT_DATASETS),
 });
 const PUBLIC_CACHE_HEADERS = {
   "Cache-Control": "public, max-age=60, stale-while-revalidate=60",
@@ -33,7 +35,9 @@ function parseRequest(request: Request): MapPlacesSnapshotRequest | null {
   const parsed = querySchema.safeParse(Object.fromEntries(params));
   if (!parsed.success) return null;
   const region = getRegionConfig(parsed.data.region);
-  return region?.mapEnabled ? parsed.data : null;
+  return region?.mapEnabled && region.mapCatalog.snapshotDatasets.includes(parsed.data.dataset)
+    ? parsed.data
+    : null;
 }
 
 export function createMapPlacesSnapshotHandler({
@@ -52,7 +56,7 @@ export function createMapPlacesSnapshotHandler({
     }
     try {
       const snapshot = await loadSnapshot(input);
-      if (!isMapPlacesSnapshot(snapshot) || snapshot.region !== input.region || snapshot.contractVersion !== input.version || snapshot.scope !== input.scope) {
+      if (!isMapPlacesSnapshot(snapshot) || snapshot.region !== input.region || snapshot.contractVersion !== input.version || snapshot.scope !== input.scope || snapshot.dataset !== input.dataset) {
         throw new Error("Snapshot response does not match the request.");
       }
       return apiSuccess(snapshot, 200, {

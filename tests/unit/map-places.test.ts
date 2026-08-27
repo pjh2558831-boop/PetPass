@@ -388,10 +388,10 @@ describe("public Kakao map catalog route", () => {
       image_url: null,
       place_url: null,
       review_status: "needs_review" as const,
-      public_label: "동반 정보 확인 필요",
+      public_label: "반려동물 동반 정보 확인 필요",
       source: "kto_official" as const,
       pet_access_verdict: "unknown" as const,
-      pet_evidence_status: "unavailable",
+      pet_evidence_status: "official_unknown",
       category_group_code: null,
       last_seen_at: "2026-08-26T00:00:00.000Z",
       matched_query_count: 0,
@@ -400,7 +400,7 @@ describe("public Kakao map catalog route", () => {
       has_more: false,
     };
     const result = await queryPublicMapCatalog(
-      { regionId: "seoul", providers: ["tour"], page: 1, pageSize: 200 },
+      { regionId: "seoul", dataset: "shopping", providers: ["tour"], categories: ["shopping"], page: 1, pageSize: 200 },
       { queryPage: vi.fn(async () => [row]) },
     );
 
@@ -408,20 +408,21 @@ describe("public Kakao map catalog route", () => {
       provider: "tour",
       category: "shopping",
       contentTypeId: "38",
-      placeUrl: "/places/3800075?region=seoul&contentTypeId=38",
+      placeUrl: null,
+      publicLabel: "반려동물 동반 정보 확인 필요",
       petAccessVerdict: "unknown",
     });
 
     await expect(queryPublicMapCatalog(
-      { regionId: "seoul", providers: ["tour"], page: 1, pageSize: 200 },
+      { regionId: "seoul", dataset: "shopping", providers: ["tour"], categories: ["shopping"], page: 1, pageSize: 200 },
       { queryPage: vi.fn(async () => [{ ...row, district_name: "중구" }]) },
     )).rejects.toThrow(/regional contract/iu);
     await expect(queryPublicMapCatalog(
-      { regionId: "seoul", providers: ["tour"], page: 1, pageSize: 200 },
+      { regionId: "seoul", dataset: "shopping", providers: ["tour"], categories: ["shopping"], page: 1, pageSize: 200 },
       { queryPage: vi.fn(async () => [{ ...row, provider: "kakao" as const }]) },
     )).rejects.toThrow(/regional contract/iu);
     await expect(queryPublicMapCatalog(
-      { regionId: "seoul", providers: ["tour"], page: 1, pageSize: 200 },
+      { regionId: "seoul", dataset: "shopping", providers: ["tour"], categories: ["shopping"], page: 1, pageSize: 200 },
       { queryPage: vi.fn(async () => [
         { ...row, id: 76, provider_place_id: "3800076", total_count: 2 },
         { ...row, id: 75, total_count: 2 },

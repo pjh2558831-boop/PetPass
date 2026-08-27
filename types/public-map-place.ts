@@ -55,7 +55,7 @@ export const publicMapPlaceSchema = z.object({
   phone: z.string().min(1).nullable(),
   imageUrl: z.string().url().nullable().default(null),
   contentTypeId: z.string().regex(/^[0-9]+$/u).nullable().default(null),
-  placeUrl: z.union([z.string().url(), z.string().startsWith("/")]),
+  placeUrl: z.union([z.string().url(), z.string().startsWith("/")]).nullable(),
   source: z.enum(["kakao_search_candidate", "kto_official"]),
   petAccessVerdict: z.enum(PUBLIC_MAP_PET_ACCESS_VERDICTS).default("unknown"),
   reviewStatus: z.enum(PUBLIC_MAP_REVIEW_STATUSES),

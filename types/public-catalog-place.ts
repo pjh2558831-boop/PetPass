@@ -138,9 +138,11 @@ export function markerToCatalogCard(marker: PublicCatalogMarker): PublicCatalogP
     phone: marker.phone ?? null,
     imageUrl: marker.imageUrl ?? null,
     approvedImageUrl: marker.approvedImageUrl ?? null,
-    placeUrl: marker.placeUrl ?? (isTour
-      ? `/places/${marker.providerPlaceId}?region=${marker.regionId}`
-      : `https://place.map.kakao.com/${marker.providerPlaceId}`),
+    placeUrl: "placeUrl" in marker
+      ? marker.placeUrl ?? null
+      : isTour
+        ? `/places/${marker.providerPlaceId}?region=${marker.regionId}`
+        : `https://place.map.kakao.com/${marker.providerPlaceId}`,
     warning: marker.layer === "kakao"
       ? "카카오 검색 후보입니다. 방문 전 반려동물 동반 가능 여부를 확인해 주세요."
       : null,

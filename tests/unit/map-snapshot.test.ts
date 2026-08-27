@@ -40,9 +40,9 @@ function place(
     phone: "051-000-0000",
     imageUrl: isTour ? "https://example.com/official.jpg" : null,
     contentTypeId: isTour ? contentTypeId : null,
-    placeUrl: isTour
+    placeUrl: isTour && category !== "shopping"
       ? `/places/${id}?region=${region}&contentTypeId=${contentTypeId}`
-      : `https://place.map.kakao.com/${id}`,
+      : isTour ? null : `https://place.map.kakao.com/${id}`,
     source: isTour ? "kto_official" : "kakao_search_candidate",
     petAccessVerdict: isTour ? "conditional" : "unknown",
     reviewStatus: isTour ? "confirmed" : "unreviewed",
@@ -75,7 +75,10 @@ function page(
   };
 }
 
-const request = (region: RegionId) => ({ version: 1 as const, region, scope: "default" as const });
+const request = (
+  region: RegionId,
+  dataset: "core" | "shopping" = "core",
+) => ({ version: 1 as const, region, scope: "default" as const, dataset });
 
 describe("public map snapshot assembly", () => {
   it("walks the bounded catalog once and preserves compact provider/category semantics", async () => {
@@ -101,6 +104,7 @@ describe("public map snapshot assembly", () => {
       contractVersion: 1,
       region: "busan",
       scope: "default",
+      dataset: "core",
       totalCount: 2,
       providerCounts: { tour: 1, kakao: 1 },
       categoryCounts: { attraction: 1, cafe: 1 },
@@ -142,13 +146,13 @@ describe("public map snapshot assembly", () => {
     })).toBe(false);
   });
 
-  it("assembles every Seoul KTO record, including shopping, without a page cap", async () => {
-    const totalCount = 2_001;
+  it("assembles every Seoul shopping record on demand without a page cap", async () => {
+    const totalCount = 3_090;
     const query = vi.fn(async ({ page: pageNumber }: { page: number }) => {
       const start = (pageNumber - 1) * 200;
       const count = Math.min(200, totalCount - start);
       const items = Array.from({ length: count }, (_, index) =>
-        place("tour", "seoul", String(start + index + 1), start + index === totalCount - 1 ? "shopping" : "attraction"));
+        place("tour", "seoul", String(start + index + 1), "shopping"));
       return page(
         "seoul",
         items,
@@ -158,29 +162,36 @@ describe("public map snapshot assembly", () => {
       );
     });
 
-    const snapshot = await assembleMapPlacesSnapshot(request("seoul"), { query });
+    const snapshot = await assembleMapPlacesSnapshot(request("seoul", "shopping"), { query });
 
-    expect(query).toHaveBeenCalledTimes(11);
+    expect(query).toHaveBeenCalledTimes(16);
     expect(query).toHaveBeenNthCalledWith(1, expect.objectContaining({
       regionId: "seoul",
       providers: ["tour"],
       kinds: ["tourism_place"],
-      categories: undefined,
+      categories: ["shopping"],
+      dataset: "shopping",
     }));
     expect(snapshot.totalCount).toBe(totalCount);
     expect(snapshot.providerCounts).toEqual({ tour: totalCount, kakao: 0 });
-    expect(snapshot.categoryCounts).toMatchObject({ attraction: 2_000, shopping: 1 });
+    expect(snapshot.categoryCounts).toEqual({ shopping: totalCount });
     expect(snapshot.items.at(-1)).toMatchObject({
       regionId: "seoul",
       layer: "tourism",
       category: "shopping",
-      placeUrl: "/places/2001?region=seoul&contentTypeId=38",
+      placeUrl: null,
     });
   });
 
-  it("assembles the audited 76-record Seoul snapshot with one catalog RPC page", async () => {
-    const items = Array.from({ length: 76 }, (_, index) =>
-      place("tour", "seoul", String(index + 1), index >= 70 ? "shopping" : "attraction"));
+  it("assembles the audited 76-record Seoul core snapshot without shopping", async () => {
+    const items = [
+      ...Array.from({ length: 56 }, (_, index) =>
+        place("tour", "seoul", String(index + 1), "attraction")),
+      ...Array.from({ length: 14 }, (_, index) =>
+        place("tour", "seoul", String(index + 57), "accommodation")),
+      ...Array.from({ length: 6 }, (_, index) =>
+        place("tour", "seoul", String(index + 71), "food")),
+    ];
     const query = vi.fn(async () => page("seoul", items, items.length, false, null));
 
     const snapshot = await assembleMapPlacesSnapshot(request("seoul"), { query });
@@ -188,10 +199,18 @@ describe("public map snapshot assembly", () => {
     expect(query).toHaveBeenCalledTimes(1);
     expect(snapshot).toMatchObject({
       region: "seoul",
+      dataset: "core",
       totalCount: 76,
       providerCounts: { tour: 76, kakao: 0 },
-      categoryCounts: { attraction: 70, shopping: 6 },
+      categoryCounts: { attraction: 56, accommodation: 14, food: 6 },
     });
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({
+      dataset: "core",
+      categories: [
+        "attraction", "park_walk", "leisure", "camping", "food", "cafe", "accommodation",
+      ],
+    }));
+    expect(snapshot.items.some(({ category }) => category === "shopping")).toBe(false);
   });
 
   it("rejects cursor reuse before requesting another page", async () => {
@@ -208,7 +227,7 @@ describe("public map snapshot assembly", () => {
     const mismatched = {
       ...place("tour", "seoul", "38", "shopping"),
       contentTypeId: "12",
-      placeUrl: "/places/38?region=seoul&contentTypeId=12",
+      placeUrl: null,
     } satisfies PublicMapPlaceDTO;
 
     await expect(assembleMapPlacesSnapshot(request("seoul"), {
@@ -288,7 +307,7 @@ describe("GET /api/map/places/snapshot", () => {
     });
     const loadSnapshot = vi.fn(async () => snapshot);
     const response = await createMapPlacesSnapshotHandler({ loadSnapshot })(
-      new Request("http://localhost/api/map/places/snapshot?version=1&region=busan&scope=default"),
+      new Request("http://localhost/api/map/places/snapshot?version=1&region=busan&scope=default&dataset=core"),
     );
 
     expect(response.status).toBe(200);
@@ -305,7 +324,7 @@ describe("GET /api/map/places/snapshot", () => {
     });
     const response = await createMapPlacesSnapshotHandler({
       loadSnapshot: vi.fn(async () => ({ ...snapshot, totalCount: 2 })),
-    })(new Request("http://localhost/api/map/places/snapshot?version=1&region=seoul&scope=default"));
+    })(new Request("http://localhost/api/map/places/snapshot?version=1&region=seoul&scope=default&dataset=core"));
 
     expect(response.status).toBe(503);
     expect(response.headers.get("cache-control")).toBe("no-store");
@@ -313,11 +332,13 @@ describe("GET /api/map/places/snapshot", () => {
 
   it.each([
     "region=busan&scope=default",
+    "version=1&region=busan&scope=default",
     "version=2&region=busan&scope=default",
-    "version=1&region=unknown&scope=default",
-    "version=1&region=busan&scope=optional",
-    "version=1&region=busan&scope=default&district=110",
-    "version=1&version=1&region=busan&scope=default",
+    "version=1&region=unknown&scope=default&dataset=core",
+    "version=1&region=busan&scope=optional&dataset=core",
+    "version=1&region=busan&scope=default&dataset=shopping",
+    "version=1&region=busan&scope=default&dataset=core&district=110",
+    "version=1&version=1&region=busan&scope=default&dataset=core",
   ])("rejects an invalid snapshot query without loading: %s", async (parameters) => {
     const loadSnapshot = vi.fn();
     const response = await createMapPlacesSnapshotHandler({ loadSnapshot })(

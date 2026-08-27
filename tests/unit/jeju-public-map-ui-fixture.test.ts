@@ -19,7 +19,7 @@ describe("Jeju public map UI fixture", () => {
       place.source === "kto_official" &&
       place.phone === null &&
       ["110", "130"].includes(place.district.code) &&
-      place.placeUrl.includes("region=jeju"),
+      place.placeUrl?.includes("region=jeju") === true,
     )).toBe(true);
     expect(JEJU_PUBLIC_MAP_UI_FIXTURE.some(({ category }) => category === "shopping")).toBe(false);
   });

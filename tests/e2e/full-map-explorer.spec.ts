@@ -1,8 +1,13 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { brotliCompressSync, gzipSync } from "node:zlib";
 import { expect, test, type Page } from "@playwright/test";
 import { JEJU_PUBLIC_MAP_UI_FIXTURE } from "@/fixtures/jeju-public-map-ui";
 import { SEOUL_PUBLIC_MAP_UI_FIXTURE } from "../fixtures/seoul-public-map-ui";
+import {
+  SEOUL_SHOPPING_MAP_UI_FIXTURE,
+  SEOUL_SHOPPING_MAP_UI_FIXTURE_TOTAL,
+} from "../fixtures/seoul-shopping-map-ui";
 import { liveDetail } from "./license-mock";
 
 const EVIDENCE_DIRECTORY = path.resolve("verification-evidence/weekendog-full-map-2026-08-16");
@@ -81,8 +86,14 @@ const busanSnapshotItems = [
   },
 ] as const;
 
-function snapshotBody(region: "busan" | "jeju" | "seoul", freshness: "fresh" | "stale" = "fresh") {
-  const fixture = region === "jeju" ? JEJU_PUBLIC_MAP_UI_FIXTURE : SEOUL_PUBLIC_MAP_UI_FIXTURE;
+function snapshotBody(
+  region: "busan" | "jeju" | "seoul",
+  freshness: "fresh" | "stale" = "fresh",
+  dataset: "core" | "shopping" = "core",
+) {
+  const fixture = region === "jeju"
+    ? JEJU_PUBLIC_MAP_UI_FIXTURE
+    : dataset === "shopping" ? SEOUL_SHOPPING_MAP_UI_FIXTURE : SEOUL_PUBLIC_MAP_UI_FIXTURE;
   const items = region === "busan" ? busanSnapshotItems : fixture.map((place) => ({
     id: place.id,
     regionId: region,
@@ -114,10 +125,13 @@ function snapshotBody(region: "busan" | "jeju" | "seoul", freshness: "fresh" | "
       contractVersion: 1,
       region,
       scope: "default",
+      dataset,
       generatedAt: "2026-08-24T00:00:00.000Z",
       dataVersion: region === "busan"
         ? "v1-1111111111111111"
-        : region === "jeju" ? "v1-2222222222222222" : "v1-4444444444444444",
+        : region === "jeju"
+          ? "v1-2222222222222222"
+          : dataset === "shopping" ? "v1-5555555555555555" : "v1-4444444444444444",
       totalCount: items.length,
       providerCounts: region === "busan" ? { tour: 25, kakao: 1 } : { tour: items.length, kakao: 0 },
       categoryCounts,
@@ -126,7 +140,7 @@ function snapshotBody(region: "busan" | "jeju" | "seoul", freshness: "fresh" | "
         : { status: "stale", staleAt: "2026-08-26T00:05:00.000Z" },
       items,
     },
-    requestId: `full-map-${region}-snapshot`,
+    requestId: `full-map-${region}-${dataset}-snapshot`,
   });
 }
 
@@ -161,13 +175,19 @@ async function mockCatalogApis(page: Page) {
   await page.route("**/api/map/places/snapshot?**", async (route) => {
     const url = new URL(route.request().url());
     const region = url.searchParams.get("region");
+    const dataset = url.searchParams.get("dataset");
     expect(url.searchParams.get("version")).toBe("1");
     expect(url.searchParams.get("scope")).toBe("default");
+    expect(dataset === "core" || (region === "seoul" && dataset === "shopping")).toBe(true);
     expect(region === "busan" || region === "jeju" || region === "seoul").toBe(true);
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: snapshotBody(region === "jeju" ? "jeju" : region === "seoul" ? "seoul" : "busan"),
+      body: snapshotBody(
+        region === "jeju" ? "jeju" : region === "seoul" ? "seoul" : "busan",
+        "fresh",
+        dataset === "shopping" ? "shopping" : "core",
+      ),
     });
   });
   await page.route("**/api/tour/places?**", async (route) => {
@@ -819,7 +839,7 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
   }
 });
 
-test("loads the complete 76-place Seoul KTO snapshot with local filters and scoped detail navigation", async ({ page }, testInfo) => {
+test("loads Seoul core once and fetches the complete shopping dataset only on first selection", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === "mobile-chrome", "The Seoul flow explicitly verifies all required viewport widths once in desktop Chromium.");
   test.setTimeout(45_000);
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -875,10 +895,20 @@ test("loads the complete 76-place Seoul KTO snapshot with local filters and scop
     .toHaveAttribute("aria-pressed", "true");
   await expect(page.getByText("카카오맵", { exact: true })).toHaveCount(0);
   await expect(page.locator(".catalog-result-card").first()).toContainText("한국관광공사");
+  const imageTiming = await page.evaluate(() => ({
+    mapReadyAt: Number(document.documentElement.dataset.mapReadyAt),
+    imageStarts: performance.getEntriesByType("resource")
+      .filter((entry) => entry.name.includes("/_next/image"))
+      .map((entry) => entry.startTime),
+  }));
+  expect(imageTiming.mapReadyAt).toBeGreaterThan(0);
+  expect(imageTiming.imageStarts.every((startedAt) => startedAt >= imageTiming.mapReadyAt)).toBe(true);
 
   const visitorRequests = apiRequests.map((value) => new URL(value));
   expect(visitorRequests.filter(({ pathname }) => pathname === "/api/map/places/snapshot"))
     .toHaveLength(1);
+  expect(visitorRequests.find(({ pathname }) => pathname === "/api/map/places/snapshot")
+    ?.searchParams.get("dataset")).toBe("core");
   expect(visitorRequests.some(({ pathname }) => pathname === "/api/map/places")).toBe(false);
   expect(visitorRequests.some(({ pathname }) => pathname === "/api/tour/places")).toBe(false);
   expect(visitorRequests.some(({ pathname }) => [
@@ -907,7 +937,7 @@ test("loads the complete 76-place Seoul KTO snapshot with local filters and scop
   const markerApplicationMs = Number(await mapRoot.getAttribute("data-marker-update-ms"));
   const clusteringMs = Number(await mapRoot.getAttribute("data-cluster-update-ms"));
   expect(metricsBeforeFilters.requestCount).toBe(1);
-  expect(metricsBeforeFilters.rawResponseBytes).toBe(Buffer.byteLength(snapshotBody("seoul"), "utf8"));
+  expect(metricsBeforeFilters.rawResponseBytes).toBe(Buffer.byteLength(snapshotBody("seoul", "fresh", "core"), "utf8"));
   expect(metricsBeforeFilters.jsonParseMs).toBeLessThan(50);
   expect(metricsBeforeFilters.validationMs).toBeLessThan(50);
   expect(metricsBeforeFilters.indexConstructionMs).toBeLessThan(50);
@@ -924,20 +954,58 @@ test("loads the complete 76-place Seoul KTO snapshot with local filters and scop
   await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "76");
 
   let categoryPanel = await openExplorerFilters(page);
+  expect(apiRequests.filter((value) => new URL(value).pathname === "/api/map/places/snapshot"))
+    .toHaveLength(1);
   await expect(categoryPanel.getByRole("button", { name: /^관광지/u })).toContainText("56");
-  await expect(categoryPanel.getByRole("button", { name: /^식당/u })).toContainText("8");
-  await expect(categoryPanel.getByRole("button", { name: /^숙소/u })).toContainText("6");
-  await expect(categoryPanel.getByRole("button", { name: /^쇼핑/u })).toContainText("6");
+  await expect(categoryPanel.getByRole("button", { name: /^식당/u })).toContainText("6");
+  await expect(categoryPanel.getByRole("button", { name: /^숙소/u })).toContainText("14");
+  await expect(categoryPanel.getByRole("button", { name: /^쇼핑/u })).toContainText("…");
   await expect(categoryPanel.getByRole("button", { name: /^카페/u })).toHaveCount(0);
   for (const label of ["관광지", "식당", "숙소"]) {
     await categoryPanel.getByRole("button", { name: new RegExp(`^${label}`) }).click();
   }
+  await categoryPanel.getByRole("button", { name: /^쇼핑/u }).click();
   await categoryPanel.getByRole("button", { name: "적용하기" }).click();
-  await expect(page.getByRole("heading", { name: "총 6곳" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "총 3,090곳" })).toBeVisible();
+  await expect(mapRoot).toHaveAttribute("data-marker-registry-size", String(SEOUL_SHOPPING_MAP_UI_FIXTURE_TOTAL));
   await expect(page.locator(".catalog-result-card").first()).toContainText("쇼핑");
+  await expect(page.locator(".catalog-result-card").first()).toContainText("반려동물 동반 정보 확인 필요");
+  await expect(page.locator(".catalog-result-card").getByRole("link", { name: /원문 상세 보기$/u })).toHaveCount(0);
+  expect(apiRequests.filter((value) => {
+    const url = new URL(value);
+    return url.pathname === "/api/map/places/snapshot" && url.searchParams.get("dataset") === "shopping";
+  })).toHaveLength(1);
+  const shoppingPerformance = {
+    jsonParseMs: await page.evaluate(() => Number(document.documentElement.dataset.mapJsonParseMs)),
+    validationMs: await page.evaluate(() => Number(document.documentElement.dataset.mapContractValidationMs)),
+    indexConstructionMs: await page.evaluate(() => Number(document.documentElement.dataset.mapIndexConstructionMs)),
+    reactCommitMs: await page.evaluate(() => Number(document.documentElement.dataset.mapReactCommitMs)),
+    markerApplicationMs: Number(await mapRoot.getAttribute("data-marker-update-ms")),
+    clusteringMs: Number(await mapRoot.getAttribute("data-cluster-update-ms")),
+  };
+  expect(shoppingPerformance.jsonParseMs).toBeLessThan(1_000);
+  expect(shoppingPerformance.validationMs).toBeLessThan(1_000);
+  expect(shoppingPerformance.indexConstructionMs).toBeLessThan(1_000);
+  expect(shoppingPerformance.markerApplicationMs).toBeLessThan(5_000);
+  expect(shoppingPerformance.clusteringMs).toBeLessThan(5_000);
   await expect.poll(() => page.evaluate(() =>
     Number(document.documentElement.dataset.mapWarmFilterFeedbackMs))).toBeLessThan(100);
 
+  categoryPanel = await openExplorerFilters(page);
+  await categoryPanel.getByRole("button", { name: "초기화" }).click();
+  await categoryPanel.getByRole("button", { name: "적용하기" }).click();
+  await expect(page.getByRole("heading", { name: "총 76곳" })).toBeVisible();
+  categoryPanel = await openExplorerFilters(page);
+  for (const label of ["관광지", "식당", "숙소"]) {
+    await categoryPanel.getByRole("button", { name: new RegExp(`^${label}`) }).click();
+  }
+  await categoryPanel.getByRole("button", { name: /^쇼핑/u }).click();
+  await categoryPanel.getByRole("button", { name: "적용하기" }).click();
+  await expect(page.getByRole("heading", { name: "총 3,090곳" })).toBeVisible();
+  expect(apiRequests.filter((value) => {
+    const url = new URL(value);
+    return url.pathname === "/api/map/places/snapshot" && url.searchParams.get("dataset") === "shopping";
+  })).toHaveLength(1);
   categoryPanel = await openExplorerFilters(page);
   await categoryPanel.getByRole("button", { name: "초기화" }).click();
   await categoryPanel.getByRole("button", { name: "적용하기" }).click();
@@ -969,17 +1037,23 @@ test("loads the complete 76-place Seoul KTO snapshot with local filters and scop
   await expect(page).toHaveURL(/\/results\?tab=catalog&region=seoul/u);
   await expect(page.getByRole("heading", { name: "총 76곳" })).toBeVisible();
 
+  const responsivePerformance: Array<{ width: number; interactionMs: number }> = [];
   for (const viewport of [
     { width: 768, height: 1024 },
     { width: 390, height: 844 },
     { width: 320, height: 720 },
   ]) {
     await page.setViewportSize(viewport);
+    const interactionStartedAt = performance.now();
     await page.getByRole("button", { name: "지도", exact: true }).click();
     await expect(page.locator(".full-map-explorer__map")).toBeVisible();
     await page.getByRole("button", { name: "목록", exact: true }).click();
     await expect(page.locator(".full-map-explorer__sidebar")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    responsivePerformance.push({
+      width: viewport.width,
+      interactionMs: Number((performance.now() - interactionStartedAt).toFixed(1)),
+    });
   }
 
   const metrics = {
@@ -989,7 +1063,28 @@ test("loads the complete 76-place Seoul KTO snapshot with local filters and scop
     warmFilterFeedbackMs: await page.evaluate(() =>
       Number(document.documentElement.dataset.mapWarmFilterFeedbackMs)),
     deterministicFixtureCount: SEOUL_PUBLIC_MAP_UI_FIXTURE.length,
+    deterministicShoppingFixtureCount: SEOUL_SHOPPING_MAP_UI_FIXTURE_TOTAL,
     normalPathBrowserSnapshotRequests: 1,
+    firstShoppingSelectionRequests: 1,
+    warmShoppingReselectionRequests: 0,
+    payloadBytes: {
+      core: {
+        raw: Buffer.byteLength(snapshotBody("seoul", "fresh", "core"), "utf8"),
+        gzip: gzipSync(snapshotBody("seoul", "fresh", "core")).byteLength,
+        brotli: brotliCompressSync(snapshotBody("seoul", "fresh", "core")).byteLength,
+      },
+      shopping: {
+        raw: Buffer.byteLength(snapshotBody("seoul", "fresh", "shopping"), "utf8"),
+        gzip: gzipSync(snapshotBody("seoul", "fresh", "shopping")).byteLength,
+        brotli: brotliCompressSync(snapshotBody("seoul", "fresh", "shopping")).byteLength,
+      },
+    },
+    shoppingPerformance,
+    responsivePerformance: [
+      { width: 1440, interactionMs: Number(metricsBeforeFilters.firstUsefulCardsMs.toFixed(1)) },
+      ...responsivePerformance,
+    ],
+    supabaseRpcPages: { core: 1, shopping: 16 },
     normalPathFallbackRequests: 0,
     normalPathKtoProviderCalls: 0,
     normalPathKakaoDiscoveryCalls: 0,
@@ -1030,8 +1125,8 @@ test("isolates Seoul across Busan and Jeju transitions, including late responses
   await expect(page.getByRole("heading", { name: "총 76곳" })).toBeVisible();
   await expect(page.getByText("제주시", { exact: true })).toHaveCount(0);
 
+  await page.goto("/results?tab=catalog&region=jeju&page=1");
   delayJeju = false;
-  await page.getByRole("button", { name: "제주", exact: true }).click();
   await expect(page.getByRole("heading", { name: "총 54곳" })).toBeVisible();
   delaySeoul = true;
   await page.getByRole("button", { name: "서울", exact: true }).click();
@@ -1057,7 +1152,54 @@ test("isolates Seoul across Busan and Jeju transitions, including late responses
   console.log(`SEOUL_WARM_REVISIT_METRICS ${JSON.stringify({ warmRegionRevisitMs })}`);
 });
 
-test("marks stale Seoul data and rejects an incomplete fallback before retrying empty", async ({ page }, testInfo) => {
+test("keeps Seoul core usable when the on-demand shopping dataset fails", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === "mobile-chrome", "Dataset failure behavior is verified once in desktop Chromium.");
+  const snapshotRequests: string[] = [];
+  await page.route("**/api/map/places/snapshot?**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("region") !== "seoul") return route.fallback();
+    snapshotRequests.push(route.request().url());
+    if (url.searchParams.get("dataset") === "shopping") {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        headers: { "Cache-Control": "no-store" },
+        body: JSON.stringify({
+          ok: false,
+          error: { code: "UPSTREAM_ERROR", message: "검증용 쇼핑 오류", retryable: true },
+        }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: snapshotBody("seoul", "fresh", "core"),
+    });
+  });
+
+  await page.goto("/results?tab=catalog&region=seoul&page=1");
+  await expect(page.getByRole("heading", { name: "총 76곳" })).toBeVisible();
+  let categoryPanel = await openExplorerFilters(page);
+  for (const label of ["관광지", "식당", "숙소"]) {
+    await categoryPanel.getByRole("button", { name: new RegExp(`^${label}`) }).click();
+  }
+  await categoryPanel.getByRole("button", { name: /^쇼핑/u }).click();
+  await categoryPanel.getByRole("button", { name: "적용하기" }).click();
+  await expect(page.locator('.explorer-results-status [role="alert"]'))
+    .toContainText("쇼핑 장소를 불러오지 못했습니다.");
+
+  categoryPanel = await openExplorerFilters(page);
+  await categoryPanel.getByRole("button", { name: "초기화" }).click();
+  await categoryPanel.getByRole("button", { name: "적용하기" }).click();
+  await expect(page.getByRole("heading", { name: "총 76곳" })).toBeVisible();
+  expect(snapshotRequests.filter((value) => new URL(value).searchParams.get("dataset") === "core"))
+    .toHaveLength(1);
+  expect(snapshotRequests.filter((value) => new URL(value).searchParams.get("dataset") === "shopping"))
+    .toHaveLength(1);
+});
+
+test("marks stale Seoul data and retries without a legacy fallback", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === "mobile-chrome", "Seoul state contracts are measured once in desktop Chromium.");
   await page.route("**/api/map/places/snapshot?**", async (route) => {
     const region = new URL(route.request().url()).searchParams.get("region");
@@ -1089,31 +1231,16 @@ test("marks stale Seoul data and rejects an incomplete fallback before retrying 
     empty.data.categoryCounts = {};
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(empty) });
   });
-  await page.route("**/api/map/places?**", async (route) => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.get("region") !== "seoul") return route.fallback();
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        ok: true,
-        data: {
-          region: { id: "seoul", displayName: "서울" },
-          items: SEOUL_PUBLIC_MAP_UI_FIXTURE.slice(0, 1),
-          page: 1,
-          pageSize: 200,
-          totalCount: 76,
-          hasNext: false,
-          nextCursor: null,
-        },
-      }),
-    });
+  const legacyRequests: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/map/places") legacyRequests.push(request.url());
   });
 
   await page.reload();
   await expect(page.getByRole("status").filter({ hasText: "장소를 불러오는 중입니다" })).toBeVisible();
   await expect(page.locator('.explorer-results-status [role="alert"]')).toContainText("관광공사 장소를 불러오지 못했습니다.");
   await expect(page.getByRole("heading", { name: "총 1곳" })).toHaveCount(0);
+  expect(legacyRequests).toHaveLength(0);
   await page.getByRole("button", { name: "다시 시도" }).click();
   await expect(page.getByRole("heading", { name: "총 0곳" })).toBeVisible();
   await expect(page.getByText("선택한 조건의 장소가 없습니다.", { exact: true })).toBeVisible();
@@ -1126,6 +1253,7 @@ test("keeps Jeju error, retry, and empty states accessible in mobile list mode",
     const url = new URL(route.request().url());
     if (url.searchParams.get("region") !== "jeju") return route.fallback();
     if (firstJejuRequest) {
+      firstJejuRequest = false;
       await route.fulfill({
         status: 503,
         contentType: "application/json",
@@ -1154,7 +1282,6 @@ test("keeps Jeju error, retry, and empty states accessible in mobile list mode",
     const url = new URL(route.request().url());
     if (url.searchParams.get("region") !== "jeju") return route.fallback();
     if (firstJejuRequest) {
-      firstJejuRequest = false;
       await route.fulfill({
         status: 503,
         contentType: "application/json",
@@ -1385,6 +1512,7 @@ test("keeps 1,824 markers complete while the sidebar stays paged by 12", async (
         contractVersion: 1,
         region: "busan",
         scope: "default",
+        dataset: "core",
         generatedAt: "2026-08-24T00:00:00.000Z",
         dataVersion: "v1-3333333333333333",
         totalCount: markerItems.length,

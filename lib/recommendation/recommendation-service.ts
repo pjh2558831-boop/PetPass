@@ -509,7 +509,7 @@ export async function generateRouteRecommendation(
       (dependencies.tourService
         ? async () => null
         : loadMapPlacesSnapshot)
-    )({ version: 1, region: request.trip.regionId, scope: "default" })
+    )({ version: 1, region: request.trip.regionId, scope: "default", dataset: "core" })
       .catch(() => {
         snapshotUnavailable = true;
         return null;

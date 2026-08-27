@@ -59,11 +59,18 @@ export async function assembleMapPlacesSnapshot(
 ): Promise<MapPlacesSnapshot> {
   const region = getRegionConfig(input.region);
   if (!region.mapEnabled) throw new Error("Snapshot region is not enabled for the public map.");
-  const providers = [...region.allowedMapProviders];
+  if (!region.mapCatalog.snapshotDatasets.includes(input.dataset)) {
+    throw new Error("Snapshot dataset is not enabled for the public map region.");
+  }
+  const providers = input.dataset === "shopping"
+    ? ["tour" as const]
+    : [...region.allowedMapProviders];
   const kinds = providers.includes("kakao")
     ? ["tourism_place" as const, "pet_travel_candidate" as const]
     : ["tourism_place" as const];
-  const categories = region.mapCatalog.snapshotCategories;
+  const categories = input.dataset === "shopping"
+    ? ["shopping" as const]
+    : region.mapCatalog.snapshotCategories;
   const items: MapPlacesSnapshotMarker[] = [];
   const seenIds = new Set<string>();
   let afterId: number | undefined;
@@ -73,6 +80,7 @@ export async function assembleMapPlacesSnapshot(
   for (let pageNumber = 1; hasNext; pageNumber += 1) {
     const page = await query({
       regionId: input.region,
+      dataset: input.dataset,
       providers,
       kinds: [...kinds],
       categories: categories ? [...categories] : undefined,
@@ -118,13 +126,14 @@ export async function assembleMapPlacesSnapshot(
     categoryCounts[item.category] = (categoryCounts[item.category] ?? 0) + 1;
   }
   const dataHash = createHash("sha256");
-  dataHash.update(`${input.version}:${input.region}:${input.scope}\n`);
+  dataHash.update(`${input.version}:${input.region}:${input.scope}:${input.dataset}\n`);
   for (const item of items) dataHash.update(`${JSON.stringify(item)}\n`);
   const generatedAt = now().toISOString();
   return {
     contractVersion: input.version,
     region: input.region,
     scope: input.scope,
+    dataset: input.dataset,
     generatedAt,
     dataVersion: `v1-${dataHash.digest("hex").slice(0, 16)}`,
     totalCount: items.length,
@@ -144,12 +153,17 @@ interface SnapshotCacheEntry {
 
 function snapshotKey(input: MapPlacesSnapshotRequest): string {
   const region = getRegionConfig(input.region);
-  const providers = region.allowedMapProviders.join(",");
-  const categories = region.mapCatalog.snapshotCategories?.join(",") ?? "all";
+  const providers = input.dataset === "shopping"
+    ? "tour"
+    : region.allowedMapProviders.join(",");
+  const categories = input.dataset === "shopping"
+    ? "shopping"
+    : region.mapCatalog.snapshotCategories?.join(",") ?? "all";
   return [
     input.version,
     input.region,
     input.scope,
+    input.dataset,
     `providers=${providers}`,
     `categories=${categories}`,
     `fallback=${region.mapCatalog.fallbackSource}`,

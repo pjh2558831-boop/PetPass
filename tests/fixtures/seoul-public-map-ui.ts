@@ -18,11 +18,10 @@ const SEOUL_DISTRICTS = [
 
 function categoryFor(index: number): {
   category: PublicMapPlaceCategory;
-  contentTypeId: "12" | "32" | "38" | "39";
+  contentTypeId: "12" | "32" | "39";
 } {
-  if (index >= 70) return { category: "shopping", contentTypeId: "38" };
-  if (index >= 64) return { category: "accommodation", contentTypeId: "32" };
-  if (index >= 56) return { category: "food", contentTypeId: "39" };
+  if (index >= 70) return { category: "food", contentTypeId: "39" };
+  if (index >= 56) return { category: "accommodation", contentTypeId: "32" };
   return { category: "attraction", contentTypeId: "12" };
 }
 

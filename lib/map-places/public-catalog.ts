@@ -25,6 +25,7 @@ import {
   type PublicMapPlacePage,
   type PublicMapPlaceProvider,
 } from "@/types/public-map-place";
+import type { MapPlacesSnapshotDataset } from "@/types/map-places-snapshot";
 
 const publicCatalogRowSchema = z.object({
   id: z.number().int().positive(),
@@ -57,6 +58,7 @@ const publicCatalogRowSchema = z.object({
 
 export interface PublicMapCatalogQuery {
   regionId: RegionId;
+  dataset?: MapPlacesSnapshotDataset;
   providers?: PublicMapPlaceProvider[];
   districtCodes?: string[];
   kinds?: PublicMapPlaceKind[];
@@ -76,8 +78,9 @@ async function queryRpcPage(
 ) {
   const supabase = createMapServiceSupabaseClient();
   const region = getRegionConfig(input.regionId);
-  const { data, error } = await supabase.rpc("get_public_map_catalog_by_region_v2", {
+  const { data, error } = await supabase.rpc("get_public_map_catalog_by_region_v3", {
     p_region_id: input.regionId,
+    p_catalog_dataset: input.dataset ?? "core",
     p_providers: input.providers ?? [...region.mapCatalog.defaultProviders],
     p_candidate_kinds: input.kinds,
     p_normalized_categories: input.categories ?? (input.category ? [input.category] : undefined),
@@ -99,6 +102,7 @@ export interface PublicCatalogRepositoryDependencies {
 function toDto(
   row: z.infer<typeof publicCatalogRowSchema>,
   regionId: RegionId,
+  dataset: MapPlacesSnapshotDataset,
 ): PublicMapPlaceDTO {
   const provider = row.provider;
   const contentTypeId = row.content_type_id == null
@@ -107,7 +111,7 @@ function toDto(
   const category = provider === "tour" && isSupportedKtoContentTypeId(contentTypeId)
     ? ktoContentTypeCategory(contentTypeId)
     : row.normalized_category;
-  const placeUrl = provider === "tour"
+  const placeUrl = provider === "tour" && dataset !== "shopping"
     ? `/places/${encodeURIComponent(row.provider_place_id)}?${new URLSearchParams({
         region: regionId,
         ...(contentTypeId ? { contentTypeId } : {}),
@@ -165,6 +169,19 @@ export async function queryPublicMapCatalog(
   dependencies: PublicCatalogRepositoryDependencies = {},
 ): Promise<PublicMapPlacePage> {
   const queryPage = dependencies.queryPage ?? queryRpcPage;
+  const dataset = input.dataset ?? "core";
+  const regionConfig = getRegionConfig(input.regionId);
+  if (!regionConfig.mapCatalog.snapshotDatasets.includes(dataset)) {
+    throw new Error("Public map catalog dataset is not enabled for the region.");
+  }
+  if (
+    dataset === "shopping" &&
+    ((input.providers ?? []).some((provider) => provider !== "tour") ||
+      (input.categories ?? []).some((category) => category !== "shopping") ||
+      (input.category !== undefined && input.category !== "shopping"))
+  ) {
+    throw new Error("Public map shopping dataset query is invalid.");
+  }
   let afterId: number | null = input.afterId ?? null;
   let rows: RpcPage = [];
 
@@ -211,7 +228,15 @@ export async function queryPublicMapCatalog(
 
   const totalCount = rows[0]?.total_count ?? 0;
   const region = getRegionConfig(input.regionId);
-  const items = rows.map((row) => toDto(row, input.regionId));
+  const items = rows.map((row) => toDto(row, input.regionId, dataset));
+  if (dataset === "shopping" && items.some((item) =>
+    item.provider !== "tour" ||
+    item.category !== "shopping" ||
+    item.petAccessVerdict !== "unknown" ||
+    item.publicLabel !== "반려동물 동반 정보 확인 필요" ||
+    item.placeUrl !== null)) {
+    throw new Error("Public map shopping row violates the dataset contract.");
+  }
   if (items.some((item) => !publicMapPlaceMatchesRegion(item, region))) {
     throw new Error("Public map catalog response violates the regional contract.");
   }

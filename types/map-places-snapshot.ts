@@ -8,12 +8,15 @@ import { REGION_IDS, type RegionId } from "@/types/region";
 
 export const MAP_PLACES_SNAPSHOT_VERSION = 1 as const;
 export const MAP_PLACES_SNAPSHOT_SCOPES = ["default"] as const;
+export const MAP_PLACES_SNAPSHOT_DATASETS = ["core", "shopping"] as const;
 export type MapPlacesSnapshotScope = (typeof MAP_PLACES_SNAPSHOT_SCOPES)[number];
+export type MapPlacesSnapshotDataset = (typeof MAP_PLACES_SNAPSHOT_DATASETS)[number];
 
 export interface MapPlacesSnapshotRequest {
   version: typeof MAP_PLACES_SNAPSHOT_VERSION;
   region: RegionId;
   scope: MapPlacesSnapshotScope;
+  dataset: MapPlacesSnapshotDataset;
 }
 
 export interface MapPlacesSnapshotMarker {
@@ -42,6 +45,7 @@ export interface MapPlacesSnapshot {
   contractVersion: typeof MAP_PLACES_SNAPSHOT_VERSION;
   region: RegionId;
   scope: MapPlacesSnapshotScope;
+  dataset: MapPlacesSnapshotDataset;
   generatedAt: string;
   dataVersion: string;
   totalCount: number;
@@ -127,7 +131,11 @@ function hasCountRecord(value: unknown): value is Record<string, number> {
 
 export function isMapPlacesSnapshot(value: unknown): value is MapPlacesSnapshot {
   if (!isRecord(value) || value.contractVersion !== MAP_PLACES_SNAPSHOT_VERSION) return false;
-  if (!REGION_IDS.includes(value.region as RegionId) || value.scope !== "default") return false;
+  if (
+    !REGION_IDS.includes(value.region as RegionId) ||
+    value.scope !== "default" ||
+    !MAP_PLACES_SNAPSHOT_DATASETS.includes(value.dataset as MapPlacesSnapshotDataset)
+  ) return false;
   if (typeof value.generatedAt !== "string" || !Number.isFinite(Date.parse(value.generatedAt))) return false;
   if (typeof value.dataVersion !== "string" || !/^v1-[a-f0-9]{16}$/u.test(value.dataVersion)) return false;
   if (!Number.isInteger(value.totalCount) || Number(value.totalCount) < 0) return false;
@@ -145,6 +153,17 @@ export function isMapPlacesSnapshot(value: unknown): value is MapPlacesSnapshot 
   if (!Array.isArray(value.items) || value.items.length !== value.totalCount) return false;
   const region = value.region as RegionId;
   if (!value.items.every((item) => isSnapshotMarker(item, region))) return false;
+  if (
+    value.dataset === "shopping" && value.items.some((item) =>
+      item.layer !== "tourism" ||
+      item.category !== "shopping" ||
+      item.petAccessVerdict !== "unknown" ||
+      item.publicLabel !== "반려동물 동반 정보 확인 필요" ||
+      item.placeUrl !== null)
+  ) return false;
+  if (value.dataset === "core" && value.items.some((item) => item.category === "shopping")) {
+    return false;
+  }
   const providers = value.providerCounts;
   const providerCounts = value.items.reduce<Record<PublicMapPlaceProvider, number>>(
     (counts, item) => {

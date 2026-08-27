@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  createMapPlacesSnapshotBrowserClient,
   loadSnapshotWithFallback,
   requestMapPlacesSnapshot,
 } from "@/lib/map-places/snapshot-client";
@@ -8,6 +9,7 @@ const seoulSnapshot = {
   contractVersion: 1,
   region: "seoul",
   scope: "default",
+  dataset: "shopping",
   generatedAt: "2026-08-26T00:00:00.000Z",
   dataVersion: "v1-0123456789abcdef",
   totalCount: 1,
@@ -26,9 +28,9 @@ const seoulSnapshot = {
     address: "서울특별시 종로구",
     coordinates: { latitude: 37.57, longitude: 126.98 },
     imageUrl: null,
-    placeUrl: "/places/3800001?region=seoul&contentTypeId=38",
+    placeUrl: null,
     petAccessVerdict: "unknown",
-    publicLabel: "동반 정보 확인 필요",
+    publicLabel: "반려동물 동반 정보 확인 필요",
     sourceLabel: "한국관광공사",
   }],
 } as const;
@@ -80,6 +82,7 @@ describe("map snapshot browser fallback", () => {
 
     const snapshot = await requestMapPlacesSnapshot(
       "seoul",
+      "shopping",
       new AbortController().signal,
       request as typeof fetch,
     );
@@ -114,9 +117,62 @@ describe("map snapshot browser fallback", () => {
 
     await expect(requestMapPlacesSnapshot(
       "seoul",
+      "shopping",
       new AbortController().signal,
       request as typeof fetch,
-    )).rejects.toThrow(/지역 계약/iu);
+    )).rejects.toThrow(/스냅샷|지역 계약/iu);
     expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it("collapses concurrent identical requests and serves a warm off/on selection from memory", async () => {
+    let resolveResponse!: (response: Response) => void;
+    const request = vi.fn()
+      .mockImplementationOnce(async () => new Promise<Response>((resolve) => {
+        resolveResponse = resolve;
+      }))
+      .mockResolvedValueOnce(Response.json({ ok: true, data: seoulSnapshot }));
+    const client = createMapPlacesSnapshotBrowserClient({ request: request as typeof fetch });
+    const first = client.load("seoul", "shopping", new AbortController().signal);
+    const second = client.load("seoul", "shopping", new AbortController().signal);
+
+    expect(request).toHaveBeenCalledTimes(1);
+    resolveResponse(Response.json({ ok: true, data: seoulSnapshot }));
+    await expect(Promise.all([first, second])).resolves.toHaveLength(2);
+    await expect(client.load("seoul", "shopping", new AbortController().signal))
+      .resolves.toMatchObject({ dataset: "shopping" });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it("aborts a region request with no subscribers and never caches its late response", async () => {
+    let resolveResponse!: (response: Response) => void;
+    const request = vi.fn()
+      .mockImplementationOnce(async () => new Promise<Response>((resolve) => {
+        resolveResponse = resolve;
+      }))
+      .mockResolvedValueOnce(Response.json({ ok: true, data: seoulSnapshot }));
+    const client = createMapPlacesSnapshotBrowserClient({ request: request as typeof fetch });
+    const controller = new AbortController();
+    const pending = client.load("seoul", "shopping", controller.signal);
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    resolveResponse(Response.json({ ok: true, data: seoulSnapshot }));
+    await Promise.resolve();
+
+    const retry = client.load("seoul", "shopping", new AbortController().signal);
+    expect(request).toHaveBeenCalledTimes(2);
+    await expect(retry).resolves.toMatchObject({ dataset: "shopping" });
+  });
+
+  it("does not cache malformed shopping responses", async () => {
+    const request = vi.fn()
+      .mockResolvedValueOnce(Response.json({ ok: true, data: { ...seoulSnapshot, totalCount: 2 } }))
+      .mockResolvedValueOnce(Response.json({ ok: true, data: seoulSnapshot }));
+    const client = createMapPlacesSnapshotBrowserClient({ request: request as typeof fetch });
+
+    await expect(client.load("seoul", "shopping", new AbortController().signal))
+      .rejects.toThrow(/스냅샷/u);
+    await expect(client.load("seoul", "shopping", new AbortController().signal))
+      .resolves.toMatchObject({ totalCount: 1 });
+    expect(request).toHaveBeenCalledTimes(2);
   });
 });

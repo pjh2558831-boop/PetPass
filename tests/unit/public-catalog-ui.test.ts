@@ -4,7 +4,11 @@ import {
   PUBLIC_CATALOG_LAYERS,
   serializeResultsUrl,
 } from "@/lib/map-places/catalog-url";
-import { normalizeKakaoCatalogPlace, normalizeTourCatalogPlace } from "@/types/public-catalog-place";
+import {
+  markerToCatalogCard,
+  normalizeKakaoCatalogPlace,
+  normalizeTourCatalogPlace,
+} from "@/types/public-catalog-place";
 import type { PublicMapPlaceDTO } from "@/types/public-map-place";
 import type { TourPlaceSummary } from "@/types/place";
 
@@ -52,13 +56,12 @@ describe("public catalog URL state", () => {
     expect(parsePublicCatalogUrlState({})).toMatchObject({ region: "busan" });
   });
 
-  it("includes non-deferred Seoul shopping in the local default selection", () => {
+  it("keeps deferred Seoul shopping out of the local default selection", () => {
     expect(parsePublicCatalogUrlState({ region: "seoul" })?.categories).toEqual([
       "attraction",
       "food",
       "cafe",
       "accommodation",
-      "shopping",
     ]);
   });
 
@@ -99,6 +102,26 @@ describe("public catalog normalization", () => {
       id: "tour:tour-1", layer: "tourism", category: "shopping",
       publicLabel: "동반 정보 확인 필요", warning: null,
     });
+  });
+
+  it("preserves an explicit missing source URL for list-only shopping cards", () => {
+    const card = markerToCatalogCard({
+      id: "tour:shopping-1",
+      regionId: "seoul",
+      providerPlaceId: "shopping-1",
+      name: "확인 필요 쇼핑 장소",
+      layer: "tourism",
+      category: "shopping",
+      districtCode: "110",
+      districtName: "종로구",
+      address: "서울특별시 종로구",
+      coordinates: { latitude: 37.57, longitude: 126.98 },
+      placeUrl: null,
+      publicLabel: "반려동물 동반 정보 확인 필요",
+      sourceLabel: "한국관광공사",
+    });
+
+    expect(card.placeUrl).toBeNull();
   });
 
   it("always gives Kakao candidates a pre-visit warning and no access badge", () => {

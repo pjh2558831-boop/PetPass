@@ -71,6 +71,11 @@ export function snapshotMarkerMatchesRegion(
   const district = getRegionDistrict(region, marker.districtCode);
   if (!district || district.name !== marker.districtName) return false;
   if (marker.layer === "tourism") {
+    if (marker.category === "shopping") {
+      return marker.placeUrl === null &&
+        marker.petAccessVerdict === "unknown" &&
+        marker.publicLabel === "반려동물 동반 정보 확인 필요";
+    }
     if (!marker.placeUrl?.startsWith("/places/")) return false;
     try {
       return new URL(marker.placeUrl, "https://petpass.local").searchParams.get("region") === region.id;

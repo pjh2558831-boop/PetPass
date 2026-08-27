@@ -28,7 +28,7 @@ import {
 } from "@/lib/map-places/catalog-url";
 import {
   loadSnapshotWithFallback,
-  requestMapPlacesSnapshot,
+  mapPlacesSnapshotBrowserClient,
 } from "@/lib/map-places/snapshot-client";
 import {
   buildMeasuredMapPlaceIndex,
@@ -228,15 +228,19 @@ async function requestDefaultCatalog(
   region: RegionConfig,
   signal: AbortSignal,
 ): Promise<DefaultCatalogResult> {
-  const loaded = await loadSnapshotWithFallback<Omit<DefaultCatalogResult, "delivery">>({
-    requestSnapshot: async () => {
-      const snapshot = await requestMapPlacesSnapshot(region.id, signal);
+  const requestSnapshot = async () => {
+      const snapshot = await mapPlacesSnapshotBrowserClient.load(region.id, "core", signal);
       return {
         tour: snapshot.items.filter(({ layer }) => layer === "tourism"),
         kakao: snapshot.items.filter(({ layer }) => layer === "kakao"),
         freshness: snapshot.freshness.status,
       };
-    },
+  };
+  if (region.mapCatalog.fallbackSource === "public_catalog") {
+    return { ...(await requestSnapshot()), delivery: "snapshot" };
+  }
+  const loaded = await loadSnapshotWithFallback<Omit<DefaultCatalogResult, "delivery">>({
+    requestSnapshot,
     requestFallback: async () => {
       const results = await Promise.allSettled([
         region.mapCatalog.fallbackSource === "public_catalog"
@@ -300,6 +304,9 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const [optionalTourPlaces, setOptionalTourPlaces] = useState<PublicCatalogMarker[]>([]);
   const [optionalKakaoPlaces, setOptionalKakaoPlaces] = useState<PublicCatalogMarker[]>([]);
   const [optionalLoadedFor, setOptionalLoadedFor] = useState<string | null>(null);
+  const [optionalTourState, setOptionalTourState] = useState<ProviderState>("ready");
+  const [optionalTourError, setOptionalTourError] = useState("");
+  const [optionalRetry, setOptionalRetry] = useState(0);
   const [tourState, setTourState] = useState<ProviderState>("loading");
   const [kakaoState, setKakaoState] = useState<ProviderState>(() =>
     regionConfig.kakaoDiscoveryEnabled ? "loading" : "ready");
@@ -309,6 +316,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const [tourCardsById, setTourCardsById] = useState<Map<string, PublicCatalogPlace>>(() => new Map());
   const [retry, setRetry] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mapReadyForRegion, setMapReadyForRegion] = useState<RegionId | null>(null);
   const [activeBounds, setActiveBounds] = useState<KakaoCurrentMapSearch["rectangle"] | null>(null);
   const [viewportDirty, setViewportDirty] = useState(false);
   const latestViewportRef = useRef<KakaoCurrentMapSearch | null>(null);
@@ -328,6 +336,12 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     key: string;
     controller: AbortController;
     promise: Promise<DefaultCatalogResult>;
+    abortTimer: ReturnType<typeof setTimeout> | null;
+  } | null>(null);
+  const optionalRequestRef = useRef<{
+    key: string;
+    controller: AbortController;
+    promise: Promise<{ tour: PublicCatalogMarker[]; kakao: PublicCatalogMarker[] }>;
     abortTimer: ReturnType<typeof setTimeout> | null;
   } | null>(null);
   const [rankingAsOf] = useState(() => new Date().toISOString());
@@ -410,22 +424,61 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
 
   const needsOptionalPlaces = categories.some((category) =>
     regionConfig.mapCatalog.deferredCategories.includes(category));
+  const optionalScopeKey = regionConfig.mapCatalog.snapshotDatasets.includes("shopping")
+    ? `${region}:shopping:${optionalRetry}`
+    : `${region}:${district}:${retry}`;
   useEffect(() => {
-    const scopeKey = `${region}:${district}:${retry}`;
-    if (activeTab !== "catalog" || !needsOptionalPlaces || optionalLoadedFor === scopeKey) return;
-    const controller = new AbortController();
-    void Promise.all([
-      fetchAllBusanTourPlaces(district, controller.signal, ["shopping"]),
-      fetchAllKakaoPlaces(region, district, controller.signal, "optional"),
-    ]).then(([tour, kakao]) => {
+    if (activeTab !== "catalog" || !needsOptionalPlaces || optionalLoadedFor === optionalScopeKey) return;
+    let pending = optionalRequestRef.current;
+    if (pending?.key === optionalScopeKey) {
+      if (pending.abortTimer) clearTimeout(pending.abortTimer);
+      pending.abortTimer = null;
+    } else {
+      if (pending?.abortTimer) clearTimeout(pending.abortTimer);
+      pending?.controller.abort();
+      const controller = new AbortController();
+      pending = {
+        key: optionalScopeKey,
+        controller,
+        promise: regionConfig.mapCatalog.snapshotDatasets.includes("shopping")
+          ? mapPlacesSnapshotBrowserClient.load(region, "shopping", controller.signal).then((snapshot) => ({
+              tour: snapshot.items.filter(({ layer }) => layer === "tourism"),
+              kakao: [],
+            }))
+          : Promise.all([
+              fetchAllBusanTourPlaces(district, controller.signal, ["shopping"]),
+              fetchAllKakaoPlaces(region, district, controller.signal, "optional"),
+            ]).then(([tour, kakao]) => ({ tour, kakao })),
+        abortTimer: null,
+      };
+      optionalRequestRef.current = pending;
+    }
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      setOptionalTourState("loading");
+      setOptionalTourError("");
+    });
+    void pending.promise.then(({ tour, kakao }) => {
+      if (!active) return;
       setOptionalTourPlaces(tour);
       setOptionalKakaoPlaces(kakao);
-      setOptionalLoadedFor(scopeKey);
+      setOptionalLoadedFor(optionalScopeKey);
+      setOptionalTourState("ready");
     }).catch((error: unknown) => {
-      if (!controller.signal.aborted) setKakaoError(error instanceof Error ? error.message : "추가 장소 오류");
+      if (!active || pending.controller.signal.aborted) return;
+      setOptionalTourState("error");
+      setOptionalTourError(error instanceof Error ? error.message : "추가 장소 오류");
     });
-    return () => controller.abort();
-  }, [activeTab, district, needsOptionalPlaces, optionalLoadedFor, region, retry]);
+    return () => {
+      active = false;
+      pending.abortTimer = setTimeout(() => {
+        if (optionalRequestRef.current !== pending) return;
+        pending.controller.abort();
+        optionalRequestRef.current = null;
+      }, STRICT_EFFECT_ABORT_GRACE_MS);
+    };
+  }, [activeTab, district, needsOptionalPlaces, optionalLoadedFor, optionalScopeKey, region, regionConfig.mapCatalog.snapshotDatasets, retry]);
 
   useEffect(() => {
     const restoreFromHistory = () => {
@@ -482,14 +535,14 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
 
   const allPlaces = useMemo(() => {
     const unique = new Map<string, PublicCatalogMarker>();
-    const optionalPlaces = optionalLoadedFor === `${region}:${district}:${retry}`
+    const optionalPlaces = optionalLoadedFor === optionalScopeKey
       ? [...optionalTourPlaces, ...optionalKakaoPlaces]
       : [];
     for (const place of [...tourPlaces, ...kakaoPlaces, ...optionalPlaces]) {
       if (place.regionId === region && !unique.has(place.id)) unique.set(place.id, place);
     }
     return [...unique.values()];
-  }, [district, kakaoPlaces, optionalKakaoPlaces, optionalLoadedFor, optionalTourPlaces, region, retry, tourPlaces]);
+  }, [kakaoPlaces, optionalKakaoPlaces, optionalLoadedFor, optionalScopeKey, optionalTourPlaces, region, tourPlaces]);
 
   const rankingCenter = useMemo(() => activeBounds ? ({
     latitude: (activeBounds.south + activeBounds.north) / 2,
@@ -517,11 +570,11 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     PLACE_CATEGORIES.map((category) => [
       category,
       regionConfig.mapCatalog.deferredCategories.includes(category) &&
-        optionalLoadedFor !== `${region}:${district}:${retry}`
+        optionalLoadedFor !== optionalScopeKey
         ? null
         : categoryCounts[category],
     ]),
-  ) as Record<PlaceCategory, number | null>, [categoryCounts, district, optionalLoadedFor, region, regionConfig.mapCatalog.deferredCategories, retry]);
+  ) as Record<PlaceCategory, number | null>, [categoryCounts, optionalLoadedFor, optionalScopeKey, regionConfig.mapCatalog.deferredCategories]);
   const visibleLayers = useMemo<PublicCatalogLayer[]>(() => [
     ...(regionConfig.allowedMapProviders.includes("tour") ? ["tourism" as const] : []),
     ...(regionConfig.allowedMapProviders.includes("kakao")
@@ -546,9 +599,10 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     const offset = (currentPage - 1) * PUBLIC_CATALOG_PAGE_SIZE;
     return filteredPlaces.slice(offset, offset + PUBLIC_CATALOG_PAGE_SIZE);
   }, [currentPage, filteredPlaces]);
-  const pagedPlaces = useMemo(() => pagedMarkers.map((marker) =>
-    tourCardsById.get(marker.id) ?? markerToCatalogCard(marker)
-  ), [pagedMarkers, tourCardsById]);
+  const pagedPlaces = useMemo(() => pagedMarkers.map((marker) => {
+    const card = tourCardsById.get(marker.id) ?? markerToCatalogCard(marker);
+    return mapReadyForRegion === region ? card : { ...card, imageUrl: null };
+  }), [mapReadyForRegion, pagedMarkers, region, tourCardsById]);
 
   useEffect(() => {
     if (regionConfig.mapCatalog.fallbackSource !== "tour_api") return;
@@ -602,7 +656,8 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const allPopularityInsufficient = filteredPlaces.length > 0;
   const availableCategories = regionConfig.mapCatalog.availableCategories as readonly PlaceCategory[];
   const presentCategories = !regionConfig.kakaoDiscoveryEnabled && tourState === "ready"
-    ? availableCategories.filter((category) => categoryCounts[category] > 0)
+    ? availableCategories.filter((category) =>
+        regionConfig.mapCatalog.deferredCategories.includes(category) || categoryCounts[category] > 0)
     : [...availableCategories];
   const visibleDefaultCategories = presentCategories.filter((category) => !isOptionalPlaceCategory(category));
   const visibleOptionalCategories = presentCategories.filter(isOptionalPlaceCategory);
@@ -860,6 +915,12 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
             locations={mapLocations}
             selectedLocationId={selectedId}
             onLocationSelect={selectPlace}
+            onDataUpdate={() => {
+              if (mapReadyForRegion !== region) {
+                document.documentElement.dataset.mapReadyAt = String(performance.now());
+                setMapReadyForRegion(region);
+              }
+            }}
             onViewportIdle={handleViewportIdle}
             onCurrentMapSearch={commitCurrentViewport}
             showCurrentMapSearch={viewportDirty}
@@ -898,9 +959,11 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
           <div className="explorer-results-status">
             {tourState === "error" ? <div role="alert"><b>관광공사 장소를 불러오지 못했습니다.</b> {tourError}</div> : null}
             {regionConfig.kakaoDiscoveryEnabled && kakaoState === "error" ? <div role="alert"><b>Kakao 장소를 불러오지 못했습니다.</b> {kakaoError}</div> : null}
+            {needsOptionalPlaces && optionalTourState === "error" ? <div role="alert"><b>쇼핑 장소를 불러오지 못했습니다.</b> {optionalTourError} <button type="button" onClick={() => { setOptionalTourState("loading"); setOptionalRetry((value) => value + 1); }}><RefreshCw size={15} aria-hidden="true" />쇼핑 다시 시도</button></div> : null}
             {catalogFreshness === "stale" ? <div role="status"><b>저장된 장소 데이터를 표시하고 있습니다.</b> 최신 데이터 확인이 지연되고 있어요.</div> : null}
             {catalogFreshness === "fallback" ? <div role="status"><b>호환 조회로 장소를 표시하고 있습니다.</b> 지역 스냅샷을 확인하지 못했어요.</div> : null}
             {tourState === "loading" || (regionConfig.kakaoDiscoveryEnabled && kakaoState === "loading") ? <p role="status">장소를 불러오는 중입니다…</p> : null}
+            {needsOptionalPlaces && optionalTourState === "loading" ? <p role="status">쇼핑 장소를 불러오는 중입니다…</p> : null}
             {!anyReady && tourState === "error" && (!regionConfig.kakaoDiscoveryEnabled || kakaoState === "error") ? <button type="button" onClick={() => { setTourState("loading"); setKakaoState(regionConfig.kakaoDiscoveryEnabled ? "loading" : "ready"); setRetry((value) => value + 1); }}><RefreshCw size={15} aria-hidden="true" />다시 시도</button> : null}
           </div>
           <div className="explorer-results-list">

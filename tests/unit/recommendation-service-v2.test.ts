@@ -183,6 +183,7 @@ function snapshot(items: MapPlacesSnapshotMarker[]): MapPlacesSnapshot {
     contractVersion: 1,
     region: "busan",
     scope: "default",
+    dataset: "core",
     generatedAt: "2026-08-15T00:00:00.000Z",
     dataVersion: "v1-0123456789abcdef",
     totalCount: items.length,
