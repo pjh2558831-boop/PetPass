@@ -436,6 +436,32 @@ test.beforeEach(async ({ page }) => {
   await mockCatalogApis(page);
 });
 
+test("shows map loading copy instead of an empty result while place data is pending", async ({ page }) => {
+  let releaseSnapshot!: () => void;
+  const snapshotPending = new Promise<void>((resolve) => {
+    releaseSnapshot = resolve;
+  });
+  await page.route("**/api/map/places/snapshot?**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("region") !== "busan") return route.fallback();
+    await snapshotPending;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: snapshotBody("busan"),
+    });
+  });
+
+  await page.goto("/results?tab=catalog&region=busan&page=17");
+  const map = page.locator(".full-map-explorer__map");
+  await expect(map.getByText("지도를 불러오는 중입니다…", { exact: true })).toBeVisible();
+  await expect(map.getByText("선택한 조건에 표시할 장소가 없습니다.", { exact: true })).toHaveCount(0);
+
+  releaseSnapshot();
+  await expect(map.locator('[data-location-count="26"]')).toBeVisible();
+  await expect(map.getByText("지도를 불러오는 중입니다…", { exact: true })).toHaveCount(0);
+});
+
 async function openExplorerFilters(page: Page, origin: "sidebar" | "map" = "sidebar") {
   const container = page.locator(origin === "map" ? ".full-map-explorer__map" : ".full-map-explorer__sidebar");
   const trigger = container.getByRole("button", { name: "필터", exact: true });

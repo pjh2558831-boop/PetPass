@@ -653,6 +653,11 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const districtName = getPublicCatalogDistrictName(region, district);
   const anyReady = tourState === "ready" ||
     (regionConfig.kakaoDiscoveryEnabled && kakaoState === "ready");
+  const mapDataPending = mapLocations.length === 0 && (
+    tourState === "loading" ||
+    (regionConfig.kakaoDiscoveryEnabled && kakaoState === "loading") ||
+    (needsOptionalPlaces && optionalTourState === "loading")
+  );
   const allPopularityInsufficient = filteredPlaces.length > 0;
   const availableCategories = regionConfig.mapCatalog.availableCategories as readonly PlaceCategory[];
   const presentCategories = !regionConfig.kakaoDiscoveryEnabled && tourState === "ready"
@@ -930,6 +935,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
             title={`${districtName} 장소 지도`}
             locationLabel={districtName}
             emptyMessage="선택한 조건에 표시할 장소가 없습니다."
+            isDataLoading={mapDataPending}
           />
           <p className="sr-only" aria-live="polite">{viewportDirty ? "지도 범위가 변경되었습니다. 이 지역 검색 다시하기를 선택하면 결과에 반영됩니다." : ""}</p>
         </section>
