@@ -37,7 +37,13 @@ function toPlannerPetOption(
   };
 }
 
-export default async function PetProfilePage() {
+export default async function PetProfilePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const selectedMode = params.mode === "selected";
   const supabase = await createAuthServerClient();
   const { data: claimsData } = await supabase.auth.getClaims();
   const userId = claimsData?.claims?.sub;
@@ -85,15 +91,19 @@ export default async function PetProfilePage() {
 
   return (
     <PlannerShell
-      currentStep={1}
-      eyebrow="한 번에 입력"
-      title="여행 정보 입력"
-      description="반려동물 정보와 여행 조건을 한 화면에서 입력하고 바로 맞춤 경로를 추천받으세요."
+      currentStep={selectedMode ? 2 : 1}
+      progressVariant={selectedMode ? "selected" : "automatic"}
+      eyebrow={selectedMode ? "선택 장소 일정" : "한 번에 입력"}
+      title={selectedMode ? "선택한 장소의 여행 조건 확인" : "여행 정보 입력"}
+      description={selectedMode
+        ? "고른 장소는 일정에 고정하고, 출발지와 반려동물 조건을 반영해 실제 이동 순서를 계산합니다."
+        : "반려동물 정보와 여행 조건을 한 화면에서 입력하고 바로 맞춤 경로를 추천받으세요."}
     >
       <UnifiedPlannerForm
         initialSavedPets={initialSavedPets}
         isSignedIn={Boolean(userId)}
         savedPetsUnavailable={savedPetsUnavailable}
+        mode={selectedMode ? "selected" : "automatic"}
       />
     </PlannerShell>
   );

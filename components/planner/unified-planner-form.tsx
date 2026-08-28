@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
+  AlertTriangle,
   Backpack,
   BedDouble,
   CalendarDays,
@@ -15,6 +16,7 @@ import {
   Coffee,
   Dog,
   Landmark,
+  LockKeyhole,
   MapPin,
   PawPrint,
   RotateCcw,
@@ -37,6 +39,13 @@ import {
   TRIP_PACE_OPTIONS,
 } from "@/lib/itinerary/trip-pace";
 import { BUSAN_DISTRICTS, BUSAN_REGION } from "@/lib/tour-api/catalog";
+import {
+  getSelectedItineraryCategories,
+  loadSelectedItinerary,
+  saveSelectedItinerary,
+  selectedItineraryNeedsWarning,
+  type SelectedItinerarySnapshot,
+} from "@/lib/storage/selected-itinerary-storage";
 import type {
   PetProfile,
   PetSize,
@@ -66,6 +75,7 @@ const equipmentOptions = [
   { key: "hasCarrier" as const, label: "이동장", icon: Backpack },
   { key: "hasLeash" as const, label: "목줄", icon: ShieldCheck },
   { key: "hasMuzzle" as const, label: "입마개", icon: Dog },
+  { key: "acceptsOutdoorOnly" as const, label: "야외 공간 가능", icon: Trees },
 ];
 
 const tripTypeOptions: Array<{
@@ -103,7 +113,8 @@ type FieldErrors = Partial<
     | "tripDate"
     | "startTime"
     | "planning"
-    | "categories",
+    | "categories"
+    | "selection",
     string
   >
 >;
@@ -117,6 +128,7 @@ interface UnifiedPlannerFormProps {
   initialSavedPets?: SavedPetPlannerOption[];
   isSignedIn?: boolean;
   savedPetsUnavailable?: boolean;
+  mode?: "automatic" | "selected";
 }
 
 function isValidIsoDate(value: string): boolean {
@@ -137,6 +149,7 @@ export function UnifiedPlannerForm({
   initialSavedPets = [],
   isSignedIn = false,
   savedPetsUnavailable = false,
+  mode = "automatic",
 }: UnifiedPlannerFormProps) {
   const router = useRouter();
   const submittingRef = useRef(false);
@@ -162,6 +175,25 @@ export function UnifiedPlannerForm({
       ? profile.id
       : null,
   );
+  const [selectedItinerary, setSelectedItinerary] = useState<SelectedItinerarySnapshot | null>(null);
+  const [selectionError, setSelectionError] = useState("");
+  const selectedMode = mode === "selected";
+
+  useEffect(() => {
+    if (!selectedMode) return;
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      const stored = loadSelectedItinerary();
+      setSelectedItinerary(stored);
+      if (!stored || stored.places.length === 0) {
+        setSelectionError("일정에 담은 장소가 없습니다. 장소 찾기에서 먼저 방문지를 골라 주세요.");
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [selectedMode]);
 
   const updateProfile = <K extends keyof PetProfile>(
     key: K,
@@ -239,6 +271,21 @@ export function UnifiedPlannerForm({
 
         const nextErrors: FieldErrors = {};
         const trimmedName = profile.name.trim();
+        const selectedPlaces = selectedItinerary?.places ?? [];
+        const autoFill = selectedItinerary?.autoFill ?? true;
+        const selectedCategories = getSelectedItineraryCategories(selectedPlaces);
+        if (selectedMode && selectedPlaces.length === 0) {
+          nextErrors.selection = "일정에 담은 장소가 없습니다. 장소를 한 곳 이상 골라 주세요.";
+        } else if (selectedMode && !autoFill && selectedPlaces.length < 2) {
+          nextErrors.selection = "자동 채우기를 끄려면 장소를 두 곳 이상 골라 주세요.";
+        } else if (
+          selectedMode &&
+          !autoFill &&
+          preferences.tripType === "OVERNIGHT" &&
+          !selectedCategories.includes("accommodation")
+        ) {
+          nextErrors.selection = "자동 채우기를 끈 1박 여행에는 숙소를 직접 담아 주세요.";
+        }
         if (!trimmedName || trimmedName.length > 30) {
           nextErrors.name = "반려동물 이름을 1자 이상 30자 이하로 입력해 주세요.";
         }
@@ -265,9 +312,9 @@ export function UnifiedPlannerForm({
         } else if (desiredStopCount < 1 || desiredStopCount > 5) {
           nextErrors.planning = "방문 장소 수는 1곳에서 5곳 사이여야 합니다.";
         }
-        if (preferences.preferredCategories.length === 0 && !includeShopping) {
+        if (!selectedMode && preferences.preferredCategories.length === 0 && !includeShopping) {
           nextErrors.categories = "방문하고 싶은 장소 유형을 하나 이상 선택해 주세요.";
-        } else if (
+        } else if (!selectedMode &&
           preferences.tripType === "OVERNIGHT" &&
           !preferences.preferredCategories.includes("ACCOMMODATION")
         ) {
@@ -276,7 +323,9 @@ export function UnifiedPlannerForm({
 
         if (Object.keys(nextErrors).length > 0) {
           setErrors(nextErrors);
+          setSelectionError(nextErrors.selection ?? "");
           const firstField = [
+            ["selection", "selected-itinerary-summary"],
             ["name", "pet-name"],
             ["species", "pet-species-DOG"],
             ["size", "pet-size-SMALL"],
@@ -303,11 +352,86 @@ export function UnifiedPlannerForm({
         submittingRef.current = true;
         setSubmitting(true);
         setErrors({});
+        setSelectionError("");
 
-        confirmPlannerAndRequestGeneration(confirmedProfile, preferences);
-        router.push("/results?tab=recommendations&region=busan");
+        const confirmedPreferences = selectedMode
+          ? {
+              ...preferences,
+              districtCode: undefined,
+              districtName: undefined,
+            }
+          : preferences;
+        confirmPlannerAndRequestGeneration(confirmedProfile, confirmedPreferences);
+        router.push(selectedMode
+          ? "/results?tab=recommendations&region=busan&mode=selected"
+          : "/results?tab=recommendations&region=busan");
       }}
     >
+      {selectedMode ? (
+        <section
+          id="selected-itinerary-summary"
+          tabIndex={-1}
+          className="surface-panel p-5 sm:p-7 lg:p-8"
+          aria-labelledby="selected-itinerary-summary-heading"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--line)] pb-5">
+            <div>
+              <p className="eyebrow">일정에 고정할 장소</p>
+              <h2 id="selected-itinerary-summary-heading" className="mt-1 text-xl font-black">
+                선택한 장소 {selectedItinerary?.places.length ?? 0}곳
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">이 장소들은 결과에서 ‘직접 고른 장소’로 표시되고 기본적으로 일정에 고정됩니다.</p>
+            </div>
+            <Link href="/results?tab=catalog&region=busan&mode=select" className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--brand-border)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">장소 다시 선택</Link>
+          </div>
+
+          {selectedItinerary?.places.length ? (
+            <ul className="mt-5 grid gap-3 sm:grid-cols-2" aria-label="고정할 선택 장소">
+              {selectedItinerary.places.map((place) => (
+                <li key={place.id} className="rounded-[var(--radius-control)] border border-[var(--line)] bg-[#f8faf7] p-4">
+                  <span className="flex items-center gap-2 text-xs font-extrabold text-[var(--brand)]"><LockKeyhole size={14} aria-hidden="true" /> 일정에 고정</span>
+                  <strong className="mt-2 block text-base font-black">{place.name}</strong>
+                  <span className="mt-1 block text-xs font-semibold text-[var(--muted)]">{place.sourceLabel} · {place.publicLabel}</span>
+                  {selectedItineraryNeedsWarning(place) ? (
+                    <small className="mt-2 flex items-start gap-1 text-xs font-bold leading-5 text-[#76542f]"><AlertTriangle className="mt-0.5 shrink-0" size={13} aria-hidden="true" /> 방문 전 실제 동반 조건을 확인해 주세요.</small>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-5 rounded-xl bg-[#fff8ec] p-4 text-sm font-bold text-[#76542f]">선택한 장소를 불러오지 못했습니다.</p>
+          )}
+
+          <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-[var(--radius-control)] border border-[var(--brand-border)] bg-[var(--brand-soft)] p-4">
+            <input
+              type="checkbox"
+              checked={selectedItinerary?.autoFill ?? true}
+              disabled={!selectedItinerary}
+              onChange={(event) => {
+                if (!selectedItinerary) return;
+                const next = { ...selectedItinerary, autoFill: event.target.checked };
+                setSelectedItinerary(next);
+                setSelectionError("");
+                clearError("selection");
+                if (!saveSelectedItinerary(next)) {
+                  setSelectionError("자동 채우기 설정을 저장하지 못했습니다.");
+                }
+              }}
+              className="mt-1 size-4 accent-[var(--brand)]"
+            />
+            <span>
+              <b className="block text-sm font-black">선택한 장소 사이를 WEEKENDOG가 자동으로 채우기</b>
+              <span className="mt-1 block text-xs leading-5 text-[var(--muted)]">켜면 선택한 장소는 유지하면서 이동 동선과 조건에 맞는 장소를 추가합니다. 끄면 직접 고른 2곳 이상만으로 일정을 계산합니다.</span>
+            </span>
+          </label>
+          <p className="mt-3 text-sm font-bold text-[#52665b]">
+            예상 결과: {selectedItinerary?.autoFill ?? true
+              ? "고른 장소를 고정하고 실제 동선에 맞는 장소를 더한 일정"
+              : "직접 고른 장소만 정렬한 일정"}
+          </p>
+          {selectionError ? <p className="mt-3 rounded-xl border border-[#e5bdb7] bg-[#fff1ef] p-3 text-sm font-bold text-[#823f36]" role="alert">{selectionError}</p> : null}
+        </section>
+      ) : null}
       <section className="surface-panel p-5 sm:p-7 lg:p-8" aria-labelledby="pet-section-heading">
         <div className="flex items-center gap-3 border-b border-[var(--line)] pb-5 text-[var(--brand)]">
           <PawPrint size={22} aria-hidden="true" />
@@ -418,8 +542,8 @@ export function UnifiedPlannerForm({
 
         <div className="mt-7 grid gap-6 lg:grid-cols-[1.3fr_0.9fr]">
           <fieldset>
-            <legend className="mb-2 text-sm font-extrabold">준비 가능한 물품 <span className="font-semibold text-[var(--muted)]">(선택)</span></legend>
-            <div className="grid grid-cols-3 gap-3">
+            <legend className="mb-2 text-sm font-extrabold">준비 및 이용 조건 <span className="font-semibold text-[var(--muted)]">(선택)</span></legend>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {equipmentOptions.map(({ key, label, icon: Icon }) => {
                 const selected = profile[key];
                 return (
@@ -471,18 +595,18 @@ export function UnifiedPlannerForm({
           <DepartureMapPicker value={preferences.departure} onChange={(departure) => { updatePreferences("departure", departure); clearError("departure"); setSearchVersion((value) => value + 1); }} />
         </div>
 
-        <div className="mt-7 grid gap-4 border-t border-[var(--line)] pt-7 sm:grid-cols-2 lg:grid-cols-4">
+        <div className={`mt-7 grid gap-4 border-t border-[var(--line)] pt-7 sm:grid-cols-2 ${selectedMode ? "lg:grid-cols-3" : "lg:grid-cols-4"}`}>
           <div>
             <label htmlFor="region" className="mb-2 block text-sm font-extrabold">여행 지역</label>
             <select id="region" value={BUSAN_REGION.code} disabled className="min-h-12 w-full rounded-[var(--radius-control)] border border-[var(--line)] bg-[#f4f7f4] px-4 font-semibold text-[#52645b] disabled:opacity-100"><option value={BUSAN_REGION.code}>{BUSAN_REGION.name}</option></select>
           </div>
-          <div>
+          {!selectedMode ? <div>
             <label htmlFor="district" className="mb-2 block text-sm font-extrabold">세부 지역</label>
             <select id="district" value={preferences.districtCode ?? "all"} onChange={(event) => { const district = BUSAN_DISTRICTS.find(({ code }) => code === event.target.value); setPreferences((current) => ({ ...current, regionCode: BUSAN_REGION.code, regionName: BUSAN_REGION.name, districtCode: district?.code, districtName: district?.name })); }} className="min-h-12 w-full rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-4 font-semibold">
               <option value="all">부산 전체</option>
               {BUSAN_DISTRICTS.map((district) => <option key={district.code} value={district.code}>{district.name}</option>)}
             </select>
-          </div>
+          </div> : null}
           <div>
             <label htmlFor="trip-date" className="mb-2 block text-sm font-extrabold">여행 날짜</label>
             <div className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--brand)]" size={17} aria-hidden="true" /><input id="trip-date" type="date" value={preferences.tripDate} aria-invalid={Boolean(errors.tripDate)} aria-describedby={errors.tripDate ? "trip-date-error" : undefined} onChange={(event) => { updatePreferences("tripDate", event.target.value); clearError("tripDate"); }} className="min-h-12 w-full rounded-[var(--radius-control)] border border-[var(--line)] bg-white pl-10 pr-3 font-semibold" /></div>
@@ -554,21 +678,21 @@ export function UnifiedPlannerForm({
           {errors.planning ? <p id="planning-error" className="mt-2 text-sm font-bold text-[#a44537]" role="alert">{errors.planning}</p> : null}
         </fieldset>
 
-        <fieldset className="mt-7 border-t border-[var(--line)] pt-7" aria-describedby={errors.categories ? "categories-error" : undefined}>
+        {!selectedMode ? <fieldset className="mt-7 border-t border-[var(--line)] pt-7" aria-describedby={errors.categories ? "categories-error" : undefined}>
           <legend className="text-sm font-extrabold">방문하고 싶은 장소 <span className="font-semibold text-[var(--muted)]">(복수 선택)</span></legend>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             {categoryOptions.map((option) => { const selected = preferences.preferredCategories.includes(option.value); const Icon = option.icon; return <label key={option.value} className={`flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-control)] border px-3 text-sm font-extrabold transition ${selected ? "border-[var(--mint-500)] bg-[var(--brand-soft)] text-[var(--brand)]" : "border-[var(--line)] bg-white text-[#607168]"}`}><input id={`category-${option.value}`} type="checkbox" checked={selected} onChange={() => toggleCategory(option.value)} className="sr-only" /><Icon size={17} aria-hidden="true" />{option.label}</label>; })}
             <label className={`flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-control)] border px-3 text-sm font-extrabold transition ${includeShopping ? "border-[var(--mint-500)] bg-[var(--brand-soft)] text-[var(--brand)]" : "border-[var(--line)] bg-white text-[#607168]"}`}><input type="checkbox" checked={includeShopping} onChange={(event) => { updatePreferences("includeShopping", event.target.checked); clearError("categories"); }} className="sr-only" /><ShoppingBag size={17} aria-hidden="true" />쇼핑</label>
           </div>
           {errors.categories ? <p id="categories-error" className="mt-2 text-sm font-bold text-[#a44537]" role="alert">{errors.categories}</p> : null}
-        </fieldset>
+        </fieldset> : null}
       </section>
 
       <div className="surface-panel flex flex-col-reverse gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <button type="button" onClick={resetForm} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] px-4 text-sm font-extrabold text-[#52645b] hover:bg-[var(--brand-soft)]"><RotateCcw size={18} aria-hidden="true" />초기화</button>
         <Button type="submit" variant="brand" className="w-full sm:w-auto" disabled={submitting}>
           <Route size={18} aria-hidden="true" />
-          {submitting ? "추천 준비 중" : "여행 추천 받기"}
+          {submitting ? "일정 준비 중" : selectedMode ? "선택한 장소로 일정 만들기" : "여행 추천 받기"}
           <ArrowRight size={18} aria-hidden="true" />
         </Button>
       </div>

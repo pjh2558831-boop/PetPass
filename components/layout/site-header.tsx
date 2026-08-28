@@ -8,12 +8,12 @@ import {
 import { createAuthServerClient } from "@/lib/supabase/server";
 
 const navigationItems = [
-  { kind: "link", href: "/planner/pet", label: "여행 만들기" },
+  { kind: "link", href: "/results?tab=catalog&region=busan&mode=select", label: "일정 만들기" },
   { kind: "link", href: "/results?tab=catalog&region=busan", label: "장소 찾기" },
   {
     kind: "link",
-    href: "/results?tab=recommendations&region=busan",
-    label: "추천 코스",
+    href: "/planner/pet",
+    label: "자동 추천",
   },
   { kind: "future", label: "커뮤니티" },
   { kind: "link", href: "/account", label: "마이페이지" },

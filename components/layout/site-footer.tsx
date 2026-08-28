@@ -12,10 +12,10 @@ export function SiteFooter() {
         </div>
         <nav aria-label="하단 메뉴" className="flex flex-wrap gap-x-4 gap-y-1">
           <Link
-            href="/planner/pet"
+            href="/results?tab=catalog&region=busan&mode=select"
             className="inline-flex min-h-11 items-center font-semibold hover:text-[var(--brand)]"
           >
-            여행 만들기
+            일정 만들기
           </Link>
           <Link
             href="/results?tab=catalog&region=busan"
@@ -24,10 +24,10 @@ export function SiteFooter() {
             장소 찾기
           </Link>
           <Link
-            href="/itinerary"
+            href="/planner/pet"
             className="inline-flex min-h-11 items-center font-semibold hover:text-[var(--brand)]"
           >
-            내 일정
+            자동 추천
           </Link>
         </nav>
       </div>

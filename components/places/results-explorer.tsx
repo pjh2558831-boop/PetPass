@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
@@ -17,7 +19,9 @@ import {
 import { MapPanel } from "@/components/map/map-panel";
 import { PlaceCategoryToggleGroup } from "@/components/places/place-category-toggle-group";
 import { PublicCatalogCard } from "@/components/places/public-catalog-card";
+import { SelectedItineraryTray } from "@/components/places/selected-itinerary-tray";
 import { usePlannerState } from "@/components/planner/planner-state";
+import { AppDialog } from "@/components/ui/app-dialog";
 import {
   PUBLIC_CATALOG_LAYERS,
   PUBLIC_CATALOG_PAGE_SIZE,
@@ -71,6 +75,17 @@ import {
 import type { PublicMapPlacePage } from "@/types/public-map-place";
 import type { TourPlaceList } from "@/types/place";
 import type { RegionId } from "@/types/region";
+import {
+  MAX_SELECTED_ITINERARY_PLACES,
+  addSelectedItineraryPlace,
+  createSelectedItinerarySnapshot,
+  loadSelectedItinerary,
+  removeSelectedItineraryPlace,
+  requiresSelectionRegionClear,
+  saveSelectedItinerary,
+  selectedItineraryPlaceFromCatalog,
+  type SelectedItinerarySnapshot,
+} from "@/lib/storage/selected-itinerary-storage";
 
 type ExplorerTab = "catalog" | "recommendations";
 type ProviderState = "loading" | "ready" | "error";
@@ -279,16 +294,22 @@ function getVisiblePageNumbers(currentPage: number, totalPages: number): number[
   return Array.from({ length: 5 }, (_, index) => start + index);
 }
 
-export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, staticMapEnabled = false }: {
+export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, staticMapEnabled = false, itineraryMode = "browse" }: {
   initialTab?: ExplorerTab;
   initialCatalogState: PublicCatalogUrlState;
   staticMapEnabled?: boolean;
+  itineraryMode?: "browse" | "selection" | "hybrid";
 }) {
+  const router = useRouter();
   const { generationRequested, consumeGenerationRequest } = usePlannerState();
   const [region, setRegion] = useState<RegionId>(initialCatalogState.region);
   const regionConfig = getRegionConfig(region);
   const [activeTab, setActiveTab] = useState<ExplorerTab>(() =>
-    initialTab === "recommendations" && !regionConfig.itineraryEnabled
+    itineraryMode === "selection"
+      ? "catalog"
+      : itineraryMode === "hybrid"
+        ? "recommendations"
+        : initialTab === "recommendations" && !regionConfig.itineraryEnabled
       ? "catalog"
       : initialTab);
   const [district, setDistrict] = useState(initialCatalogState.district);
@@ -322,6 +343,14 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const [mapReadyForRegion, setMapReadyForRegion] = useState<RegionId | null>(null);
   const [activeBounds, setActiveBounds] = useState<KakaoCurrentMapSearch["rectangle"] | null>(null);
   const [viewportDirty, setViewportDirty] = useState(false);
+  const [selectionSnapshot, setSelectionSnapshot] = useState<SelectedItinerarySnapshot>(() =>
+    createSelectedItinerarySnapshot(initialCatalogState.region));
+  const [selectionHydrated, setSelectionHydrated] = useState(itineraryMode === "browse");
+  const [selectionMessage, setSelectionMessage] = useState("");
+  const [pendingRegionChange, setPendingRegionChange] = useState<{
+    regionId: RegionId;
+    startedAt: number;
+  } | null>(null);
   const latestViewportRef = useRef<KakaoCurrentMapSearch | null>(null);
   const viewportBaselineRef = useRef<KakaoCurrentMapSearch["rectangle"] | null>(null);
   const activeBoundsRef = useRef<KakaoCurrentMapSearch["rectangle"] | null>(null);
@@ -348,6 +377,20 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     abortTimer: ReturnType<typeof setTimeout> | null;
   } | null>(null);
   const [rankingAsOf] = useState(() => new Date().toISOString());
+
+  useEffect(() => {
+    if (itineraryMode === "browse") return;
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      const stored = loadSelectedItinerary();
+      setSelectionSnapshot(stored ?? createSelectedItinerarySnapshot(region));
+      setSelectionHydrated(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [itineraryMode, region]);
 
   useEffect(() => {
     if (!filterOpen) return;
@@ -495,14 +538,19 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       applyingBrowserHistoryRef.current = true;
       setRegion(restored.region);
       setDistrict(restored.district);
+      setDistrictQuery(getPublicCatalogDistrictName(restored.region, restored.district));
       setCategories(restored.categories);
       setDraftCategories(restored.categories);
       setLayers(restored.layers);
       setPage(restored.page);
       setSort(restored.sort);
-      setActiveTab(params.tab === "recommendations" && restoredRegion.itineraryEnabled
-        ? "recommendations"
-        : "catalog");
+      setActiveTab(itineraryMode === "selection"
+        ? "catalog"
+        : itineraryMode === "hybrid"
+          ? "recommendations"
+          : params.tab === "recommendations" && restoredRegion.itineraryEnabled
+            ? "recommendations"
+            : "catalog");
       setSelectedId(null);
       activeBoundsRef.current = null;
       setActiveBounds(null);
@@ -510,10 +558,10 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     };
     window.addEventListener("popstate", restoreFromHistory);
     return () => window.removeEventListener("popstate", restoreFromHistory);
-  }, []);
+  }, [itineraryMode]);
 
   useEffect(() => {
-    const desiredUrl = serializeResultsUrl(activeTab, {
+    const baseUrl = serializeResultsUrl(activeTab, {
       region,
       district,
       categories,
@@ -521,6 +569,11 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       page,
       sort,
     });
+    const desiredUrl = itineraryMode === "selection"
+      ? `${baseUrl}&mode=select`
+      : itineraryMode === "hybrid"
+        ? `${baseUrl}&mode=selected`
+        : baseUrl;
     const currentUrl = `${window.location.pathname}${window.location.search}`;
     const isInitialSync = !hasSynchronizedUrlRef.current;
     hasSynchronizedUrlRef.current = true;
@@ -534,7 +587,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       window.history.pushState(null, "", desiredUrl);
     }
     applyingBrowserHistoryRef.current = false;
-  }, [activeTab, categories, district, layers, page, region, sort]);
+  }, [activeTab, categories, district, itineraryMode, layers, page, region, sort]);
 
   const allPlaces = useMemo(() => {
     const unique = new Map<string, PublicCatalogMarker>();
@@ -706,6 +759,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     setRegion(nextRegion);
     setActiveTab("catalog");
     setDistrict("all");
+    setDistrictQuery(getPublicCatalogDistrictName(nextRegion, "all"));
     const nextDefaultCategories = getRegionDefaultCatalogCategories(nextConfig) as PlaceCategory[];
     setCategories([...nextDefaultCategories]);
     setDraftCategories([...nextDefaultCategories]);
@@ -730,18 +784,38 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     setKakaoState(nextConfig.kakaoDiscoveryEnabled ? "loading" : "ready");
     resetViewportScope();
   };
+  const requestRegionChange = (nextRegion: RegionId, startedAt: number) => {
+    if (nextRegion === region) return;
+    if (
+      itineraryMode === "selection" &&
+      requiresSelectionRegionClear(selectionSnapshot, nextRegion)
+    ) {
+      setPendingRegionChange({ regionId: nextRegion, startedAt });
+      return;
+    }
+    if (itineraryMode === "selection" && selectionSnapshot.regionId !== nextRegion) {
+      persistSelection({ ...selectionSnapshot, regionId: nextRegion, places: [] });
+    }
+    changeRegion(nextRegion, startedAt);
+  };
+  const confirmRegionChange = () => {
+    if (!pendingRegionChange) return;
+    const nextSnapshot = createSelectedItinerarySnapshot(pendingRegionChange.regionId);
+    persistSelection(nextSnapshot);
+    setSelectionMessage("선택한 장소를 비우고 지역을 변경했습니다.");
+    changeRegion(pendingRegionChange.regionId, pendingRegionChange.startedAt);
+    setPendingRegionChange(null);
+  };
   const changeFilter = (update: () => void) => {
     update(); setPage(1); setSelectedId(null); resetViewportScope();
   };
   const changeDistrict = (nextDistrict: string) => {
     changeFilter(() => {
       setDistrict(nextDistrict);
+      setDistrictQuery(getPublicCatalogDistrictName(region, nextDistrict));
       setOptionalLoadedFor(null);
     });
   };
-  useEffect(() => {
-    setDistrictQuery(getPublicCatalogDistrictName(region, district));
-  }, [district, region]);
   const toggleDraftCategory = (category: PlaceCategory) => {
     setDraftCategories((current) => current.includes(category)
       ? current.filter((value) => value !== category)
@@ -775,6 +849,46 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     const index = placeIndex.get(id);
     if (index !== undefined) setPage(Math.floor(index / PUBLIC_CATALOG_PAGE_SIZE) + 1);
     requestAnimationFrame(() => document.getElementById(`place-card-${id.replace(":", "-")}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+  };
+  const persistSelection = (snapshot: SelectedItinerarySnapshot) => {
+    setSelectionSnapshot(snapshot);
+    if (!saveSelectedItinerary(snapshot)) {
+      setSelectionMessage("선택을 저장하지 못했습니다. 브라우저 저장 공간을 확인해 주세요.");
+    }
+  };
+  const toggleItineraryPlace = (place: PublicCatalogPlace) => {
+    if (selectionSnapshot.places.some(({ id }) => id === place.id)) {
+      persistSelection(removeSelectedItineraryPlace(selectionSnapshot, place.id));
+      setSelectionMessage(`${place.name}을(를) 일정에서 뺐습니다.`);
+      return;
+    }
+    const result = addSelectedItineraryPlace(
+      selectionSnapshot,
+      selectedItineraryPlaceFromCatalog(place),
+    );
+    if (result.status === "selected") {
+      persistSelection(result.snapshot);
+      setSelectionMessage(`${place.name}을(를) 일정에 담았습니다.`);
+      selectPlace(place.id);
+      return;
+    }
+    const message = result.status === "limit_reached"
+      ? "일정에는 최대 5곳까지 담을 수 있습니다."
+      : result.status === "blocked_not_allowed"
+        ? "동반 불가로 확인된 장소는 일정에 담을 수 없습니다."
+        : result.status === "blocked_unsupported"
+          ? "동물병원과 펫샵은 여행 일정 방문지로 담을 수 없습니다."
+          : "현재 지역의 장소만 함께 담을 수 있습니다.";
+    setSelectionMessage(message);
+  };
+  const removeItineraryPlace = (placeId: string) => {
+    const place = selectionSnapshot.places.find(({ id }) => id === placeId);
+    persistSelection(removeSelectedItineraryPlace(selectionSnapshot, placeId));
+    setSelectionMessage(place ? `${place.name}을(를) 일정에서 뺐습니다.` : "장소를 일정에서 뺐습니다.");
+  };
+  const continueSelectedItinerary = () => {
+    if (selectionSnapshot.places.length === 0) return;
+    router.push("/planner/pet?mode=selected");
   };
   const toggleLayer = (layer: PublicCatalogLayer) => {
     setLayers((current) => visibleLayers.filter((value) =>
@@ -814,10 +928,14 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     return (
       <div className="page-shell py-8">
         <div className="mb-6 inline-flex rounded-2xl border border-[#d7e0da] bg-white p-1" role="tablist" aria-label="장소 및 추천 보기">
-          <button id="catalog-tab" type="button" role="tab" aria-selected="false" onClick={() => setActiveTab("catalog")} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-5 text-sm font-extrabold text-[#52665b]"><Rows3 size={16} aria-hidden="true" />전체 장소</button>
-          <button id="recommendations-tab" type="button" role="tab" aria-selected="true" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#236148] px-5 text-sm font-extrabold text-white"><Route size={16} aria-hidden="true" />추천 코스</button>
+          {itineraryMode === "hybrid" ? (
+            <Link href="/results?tab=catalog&region=busan&mode=select" role="tab" aria-selected="false" className="inline-flex min-h-11 items-center gap-2 rounded-xl px-5 text-sm font-extrabold text-[#52665b]"><Rows3 size={16} aria-hidden="true" />장소 다시 선택</Link>
+          ) : (
+            <button id="catalog-tab" type="button" role="tab" aria-selected="false" onClick={() => setActiveTab("catalog")} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-5 text-sm font-extrabold text-[#52665b]"><Rows3 size={16} aria-hidden="true" />전체 장소</button>
+          )}
+          <button id="recommendations-tab" type="button" role="tab" aria-selected="true" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#236148] px-5 text-sm font-extrabold text-white"><Route size={16} aria-hidden="true" />{itineraryMode === "hybrid" ? "선택 장소 일정" : "자동 추천"}</button>
         </div>
-        <div id="recommendations-panel" role="tabpanel" aria-labelledby="recommendations-tab"><RecommendationPlanner autoGenerate={generationRequested} onAutoGenerateStart={consumeGenerationRequest} /></div>
+        <div id="recommendations-panel" role="tabpanel" aria-labelledby="recommendations-tab"><RecommendationPlanner autoGenerate={generationRequested} onAutoGenerateStart={consumeGenerationRequest} selectionMode={itineraryMode === "hybrid" ? "hybrid" : "automatic"} /></div>
       </div>
     );
   }
@@ -857,16 +975,23 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   ) : null;
 
   return (
-    <div className="full-map-explorer" id="catalog-panel" role="tabpanel" aria-labelledby="catalog-tab">
+    <div className={`full-map-explorer ${itineraryMode === "selection" ? "is-itinerary-selection" : ""}`} id="catalog-panel" role="tabpanel" aria-labelledby="catalog-tab">
       <div className="full-map-explorer__toolbar">
-        <div className="inline-flex rounded-xl border border-[#d7e0da] bg-white p-1" role="tablist" aria-label="장소 및 추천 보기">
-          <button id="catalog-tab" type="button" role="tab" aria-selected="true" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#236148] px-4 text-sm font-extrabold text-white"><Rows3 size={16} aria-hidden="true" />장소 찾기</button>
-          {regionConfig.itineraryEnabled ? (
-            <button id="recommendations-tab" type="button" role="tab" aria-selected="false" onClick={() => setActiveTab("recommendations")} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-extrabold text-[#52665b]"><Route size={16} aria-hidden="true" />추천 코스</button>
-          ) : (
-            <button id="recommendations-tab" type="button" role="tab" aria-selected="false" aria-disabled="true" disabled className="inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-extrabold text-[#7a8780]"><Route size={16} aria-hidden="true" />{regionConfig.displayName} 경로 추천은 준비 중입니다.</button>
-          )}
-        </div>
+        {itineraryMode === "selection" ? (
+          <div className="selected-itinerary-mode-label" aria-label="선택 장소 일정 만들기">
+            <Rows3 size={16} aria-hidden="true" />
+            <span><b>장소 선택</b><small>카드에서 방문지를 담아보세요</small></span>
+          </div>
+        ) : (
+          <div className="inline-flex rounded-xl border border-[#d7e0da] bg-white p-1" role="tablist" aria-label="장소 및 추천 보기">
+            <button id="catalog-tab" type="button" role="tab" aria-selected="true" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#236148] px-4 text-sm font-extrabold text-white"><Rows3 size={16} aria-hidden="true" />장소 찾기</button>
+            {regionConfig.itineraryEnabled ? (
+              <Link href="/planner/pet" role="tab" aria-selected="false" className="inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-extrabold text-[#52665b]"><Route size={16} aria-hidden="true" />자동 추천</Link>
+            ) : (
+              <button id="recommendations-tab" type="button" role="tab" aria-selected="false" aria-disabled="true" disabled className="inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-extrabold text-[#7a8780]"><Route size={16} aria-hidden="true" />{regionConfig.displayName} 경로 추천은 준비 중입니다.</button>
+            )}
+          </div>
+        )}
         <fieldset className="explorer-region-selector">
           <legend className="sr-only">지역 선택</legend>
           {MAP_ENABLED_REGIONS.map((item) => (
@@ -874,7 +999,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
               key={item.id}
               type="button"
               aria-pressed={region === item.id}
-              onClick={(event) => changeRegion(item.id, event.timeStamp)}
+              onClick={(event) => requestRegionChange(item.id, event.timeStamp)}
             >
               {item.displayName}
             </button>
@@ -909,6 +1034,12 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
         </label>
         <p className="full-map-explorer__scope"><span>{regionConfig.mapCatalog.sourceDescription}</span></p>
       </div>
+
+      {itineraryMode === "selection" && !regionConfig.itineraryEnabled ? (
+        <p className="selected-itinerary-region-notice" role="status">
+          {regionConfig.displayName}은 장소 탐색만 제공하며, 선택 장소 일정 만들기는 아직 준비 중입니다.
+        </p>
+      ) : null}
 
       <div className="full-map-explorer__main" data-mobile-mode={mobileMode}>
         <section className="full-map-explorer__map" aria-label={`${districtName} 전체 장소 지도`}>
@@ -963,6 +1094,14 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
         </section>
 
         <aside className="full-map-explorer__sidebar" aria-label="장소 검색 결과">
+          {itineraryMode === "selection" && regionConfig.itineraryEnabled && selectionHydrated ? (
+            <SelectedItineraryTray
+              variant="desktop"
+              snapshot={selectionSnapshot}
+              onRemove={removeItineraryPlace}
+              onContinue={continueSelectedItinerary}
+            />
+          ) : null}
           <header className="explorer-results-header">
             <div><h1>총 {filteredPlaces.length.toLocaleString("ko-KR")}곳</h1><p>카드는 페이지당 12개 <span aria-hidden="true">·</span> 지도는 현재 필터의 전체 결과</p></div>
             <button
@@ -1006,6 +1145,21 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
                   setMobileMode("map");
                 }}
                 staticMapEnabled={staticMapEnabled}
+                itinerarySelection={itineraryMode === "selection" && regionConfig.itineraryEnabled ? {
+                  selected: selectionSnapshot.places.some(({ id }) => id === place.id),
+                  disabledReason: selectionSnapshot.places.some(({ id }) => id === place.id)
+                    ? undefined
+                    : place.petAccessVerdict === "not_allowed"
+                      ? "동반 불가로 확인된 장소"
+                      : place.layer === "veterinary" || place.layer === "pet_shop"
+                        ? "편의시설은 방문 일정에서 제외"
+                        : place.category === "other"
+                          ? "장소 유형 확인 후 담을 수 있어요"
+                          : selectionSnapshot.places.length >= MAX_SELECTED_ITINERARY_PLACES
+                            ? `최대 ${MAX_SELECTED_ITINERARY_PLACES}곳까지 담을 수 있어요`
+                            : undefined,
+                  onToggle: () => toggleItineraryPlace(place),
+                } : undefined}
               />
             ))}
           </div>
@@ -1018,6 +1172,26 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
           </nav>
         </aside>
       </div>
+      {itineraryMode === "selection" && regionConfig.itineraryEnabled && selectionHydrated ? (
+        <SelectedItineraryTray
+          variant="mobile"
+          snapshot={selectionSnapshot}
+          onRemove={removeItineraryPlace}
+          onContinue={continueSelectedItinerary}
+        />
+      ) : null}
+      <p className="sr-only" aria-live="polite" aria-atomic="true">{selectionMessage}</p>
+      <AppDialog
+        open={Boolean(pendingRegionChange)}
+        onClose={() => setPendingRegionChange(null)}
+        title="선택한 장소를 비우고 지역을 바꿀까요?"
+        description="일정에는 한 지역의 장소만 담을 수 있습니다. 지역을 변경하면 현재 선택한 장소가 모두 해제됩니다."
+      >
+        <div className="app-confirm-dialog__actions">
+          <button type="button" onClick={() => setPendingRegionChange(null)}>선택 유지</button>
+          <button type="button" className="is-warning" onClick={confirmRegionChange}>비우고 지역 변경</button>
+        </div>
+      </AppDialog>
     </div>
   );
 }

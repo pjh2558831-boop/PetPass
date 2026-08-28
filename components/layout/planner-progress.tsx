@@ -1,8 +1,16 @@
 import { Check } from "lucide-react";
 
-const steps = ["정보 입력", "추천 확인", "상세 일정"];
+const automaticSteps = ["정보 입력", "추천 확인", "상세 일정"];
+const selectedSteps = ["장소 선택", "조건 확인", "일정 완성"];
 
-export function PlannerProgress({ current }: { current: number }) {
+export function PlannerProgress({
+  current,
+  variant = "automatic",
+}: {
+  current: number;
+  variant?: "automatic" | "selected";
+}) {
+  const steps = variant === "selected" ? selectedSteps : automaticSteps;
   const safeCurrent = Math.min(steps.length, Math.max(1, current));
 
   return (

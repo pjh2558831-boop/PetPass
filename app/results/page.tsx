@@ -17,13 +17,28 @@ export default async function ResultsPage({
   const params = await searchParams;
   const initialCatalogState = parsePublicCatalogUrlState(params);
   if (!initialCatalogState) notFound();
+  const itineraryMode = params.mode === "select"
+    ? "selection"
+    : params.mode === "selected"
+      ? "hybrid"
+      : "browse";
+  const initialTab = itineraryMode === "selection"
+    ? "catalog"
+    : itineraryMode === "hybrid" || params.tab === "recommendations"
+      ? "recommendations"
+      : "catalog";
   return (
     <div className="results-route-shell">
-      <div className="results-route-progress"><PlannerProgress current={2} /></div>
+      {itineraryMode === "selection" ? (
+        <div className="results-route-progress is-selected"><PlannerProgress current={1} variant="selected" /></div>
+      ) : initialTab === "recommendations" ? (
+        <div className={`results-route-progress ${itineraryMode === "hybrid" ? "is-selected" : ""}`}><PlannerProgress current={itineraryMode === "hybrid" ? 3 : 2} variant={itineraryMode === "hybrid" ? "selected" : "automatic"} /></div>
+      ) : null}
       <ResultsExplorer
-        initialTab={params.tab === "recommendations" ? "recommendations" : "catalog"}
+        initialTab={initialTab}
         initialCatalogState={initialCatalogState}
         staticMapEnabled={staticMapThumbnailsEnabled()}
+        itineraryMode={itineraryMode}
       />
     </div>
   );

@@ -30,6 +30,11 @@ export function createRouteRecommendationRequest(
   personalizationOverrides: Partial<
     NonNullable<RouteRecommendationRequest["personalization"]>
   > = {},
+  selection?: {
+    selectedPlaceIds: string[];
+    autoFill: boolean;
+    selectedCategories: RouteRecommendationRequest["trip"]["selectedCategories"];
+  },
 ): RouteRecommendationRequest {
   if (!preferences.departure) {
     throw new TypeError("A resolved departure is required.");
@@ -49,7 +54,7 @@ export function createRouteRecommendationRequest(
       tripType:
         preferences.tripType === "OVERNIGHT" ? "overnight" : "day_trip",
       tripPace: preferences.tripPace,
-      selectedCategories: selectedCategories(preferences),
+      selectedCategories: selection?.selectedCategories ?? selectedCategories(preferences),
       roundTrip: preferences.roundTrip ?? false,
       environmentPreference: preferences.environmentPreference ?? "any",
       ...(preferences.desiredStopCount === undefined
@@ -72,6 +77,10 @@ export function createRouteRecommendationRequest(
       },
       acceptsOutdoorOnlyPlaces: profile.acceptsOutdoorOnly,
     },
+    ...(selection ? {
+      selectedPlaceIds: selection.selectedPlaceIds,
+      autoFill: selection.autoFill,
+    } : {}),
     personalization: {
       petCount: 1,
       petActivityLevel: "moderate",

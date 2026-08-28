@@ -1,7 +1,5 @@
-import { ArrowRight, PawPrint } from "lucide-react";
 import { HeroPhotoCarousel } from "@/components/home/hero-photo-carousel";
 import { HeroPlannerLauncher } from "@/components/home/hero-planner-launcher";
-import { ButtonLink } from "@/components/ui/button";
 
 export function WeekendoogHero() {
   return (
@@ -18,15 +16,6 @@ export function WeekendoogHero() {
               <br />
               가장 자연스러운 하루 일정을 제안해드려요.
             </p>
-            <ButtonLink
-              href="/planner/pet"
-              variant="brand"
-              className="weekendoog-hero-direct-cta mt-6 w-full sm:w-auto"
-            >
-              <PawPrint size={17} aria-hidden="true" />
-              여행 일정 만들기
-              <ArrowRight size={17} aria-hidden="true" />
-            </ButtonLink>
         </div>
 
         <div className="weekendoog-hero-media">

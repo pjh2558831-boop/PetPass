@@ -9,6 +9,8 @@
   --foreground: #13201b;
   --muted: #5d6963;
   --muted-subtle: #7e8883;
+  --text-secondary: var(--muted);
+  --text-muted: var(--muted-subtle);
   --line: #e1e7e2;
   --brand: #0b503a;
   --brand-deep: #073f2e;
@@ -29,6 +31,11 @@
   --shadow-button: 0 8px 20px rgba(11, 80, 58, 0.18);
   --shadow: var(--shadow-card);
   --homepage-section-gap: 72px;
+  --z-sticky: 150;
+  --z-backdrop: 500;
+  --z-dialog: 600;
+  --z-sheet: 700;
+  --z-toast: 900;
 }
 
 * {
@@ -827,6 +834,194 @@ select {
   background: #fcfdfb;
 }
 
+.selected-itinerary-mode-label {
+  display: inline-flex;
+  min-height: 50px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--brand-border);
+  border-radius: 12px;
+  background: var(--brand-soft);
+  padding: 7px 14px;
+  color: var(--brand);
+}
+
+.selected-itinerary-mode-label span,
+.selected-itinerary-mode-label small {
+  display: block;
+}
+
+.selected-itinerary-mode-label b {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.selected-itinerary-mode-label small {
+  margin-top: 1px;
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.selected-itinerary-region-notice {
+  flex: 0 0 auto;
+  border: 1px solid #eed8ae;
+  border-radius: 12px;
+  background: #fff8ec;
+  padding: 10px 14px;
+  color: #76542f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.selected-itinerary-tray {
+  position: relative;
+  z-index: var(--z-sticky);
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--brand-border);
+  background: #f1f7f2;
+  padding: 13px 14px;
+}
+
+.selected-itinerary-tray > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.selected-itinerary-tray > header p {
+  color: var(--brand);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.selected-itinerary-tray > header h2 {
+  margin-top: 2px;
+  font-size: 17px;
+  font-weight: 950;
+  letter-spacing: -0.04em;
+}
+
+.selected-itinerary-tray > header button {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid var(--brand-border);
+  border-radius: 12px;
+  background: white;
+  color: var(--brand);
+}
+
+.selected-itinerary-tray__list {
+  display: grid;
+  max-height: 174px;
+  gap: 7px;
+  overflow-y: auto;
+  margin-top: 10px;
+  padding-right: 3px;
+  scrollbar-gutter: stable;
+}
+
+.selected-itinerary-tray__list li {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: white;
+  padding: 9px 10px;
+}
+
+.selected-itinerary-tray__list strong,
+.selected-itinerary-tray__list span,
+.selected-itinerary-tray__list small {
+  display: block;
+}
+
+.selected-itinerary-tray__list strong {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selected-itinerary-tray__list span {
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.selected-itinerary-tray__list small {
+  display: flex;
+  margin-top: 3px;
+  align-items: center;
+  gap: 3px;
+  color: #76542f;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.selected-itinerary-tray__list li > button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 10px;
+  color: #8d3838;
+}
+
+.selected-itinerary-tray__empty {
+  margin-top: 10px;
+  border: 1px dashed var(--brand-border);
+  border-radius: 12px;
+  background: white;
+  padding: 12px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.55;
+}
+
+.selected-itinerary-tray__continue {
+  display: flex;
+  width: 100%;
+  min-height: 42px;
+  margin-top: 10px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 12px;
+  background: var(--brand);
+  color: white;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.selected-itinerary-tray__continue:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.selected-itinerary-tray__hint {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.selected-itinerary-mobile-bar {
+  display: none;
+}
+
 .explorer-results-header {
   position: relative;
   z-index: 25;
@@ -1103,6 +1298,134 @@ select {
   gap: 8px;
 }
 
+.catalog-result-card__selection {
+  margin-top: 8px;
+}
+
+.catalog-result-card__selection > button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid var(--brand);
+  border-radius: 10px;
+  background: white;
+  padding: 0 10px;
+  color: var(--brand);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.catalog-result-card__selection > button[aria-pressed="true"] {
+  background: var(--brand);
+  color: white;
+}
+
+.catalog-result-card__selection > button:disabled {
+  cursor: not-allowed;
+  border-color: var(--line);
+  color: var(--text-muted);
+  opacity: 0.72;
+}
+
+.catalog-result-card__selection > small {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 8px;
+  font-weight: 750;
+}
+
+.app-dialog-layer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-backdrop);
+}
+
+.app-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(19, 32, 27, 0.48);
+}
+
+.app-dialog-surface {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: var(--z-dialog);
+  width: min(460px, calc(100vw - 32px));
+  max-height: min(680px, calc(100dvh - 32px));
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-section);
+  background: white;
+  box-shadow: 0 24px 70px rgba(19, 32, 27, 0.24);
+  transform: translate(-50%, -50%);
+}
+
+.app-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  padding: 20px;
+}
+
+.app-dialog-header h2 {
+  font-size: 19px;
+  font-weight: 950;
+  letter-spacing: -0.035em;
+}
+
+.app-dialog-header p {
+  margin-top: 5px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.55;
+}
+
+.app-dialog-header > button {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--text-secondary);
+}
+
+.app-confirm-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 18px 20px 20px;
+}
+
+.app-confirm-dialog__actions button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0 16px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.app-confirm-dialog__actions .is-warning {
+  border-color: #a44537;
+  background: #a44537;
+  color: white;
+}
+
+.selected-itinerary-sheet__body {
+  padding: 4px 18px 24px;
+}
+
 .catalog-result-card__actions button,
 .catalog-result-card__actions a {
   display: inline-flex;
@@ -1214,6 +1537,73 @@ select {
   .full-map-explorer__sidebar {
     height: 100%;
   }
+
+  .selected-itinerary-tray {
+    display: none;
+  }
+
+  .full-map-explorer.is-itinerary-selection .full-map-explorer__main {
+    margin-bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+
+  .selected-itinerary-mobile-bar {
+    position: fixed;
+    right: 10px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: 10px;
+    z-index: var(--z-sticky);
+    display: grid;
+    min-height: 56px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    border: 1px solid var(--brand-border);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.97);
+    padding: 7px;
+    box-shadow: 0 14px 38px rgba(19, 32, 27, 0.2);
+  }
+
+  .selected-itinerary-mobile-bar button {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border-radius: 11px;
+    color: var(--brand);
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  .selected-itinerary-mobile-bar button:first-child {
+    justify-content: space-between;
+    padding-inline: 12px;
+  }
+
+  .selected-itinerary-mobile-bar button:last-child {
+    min-width: 88px;
+    background: var(--brand);
+    padding-inline: 14px;
+    color: white;
+  }
+
+  .selected-itinerary-mobile-bar button:disabled {
+    cursor: not-allowed;
+    opacity: 0.42;
+  }
+
+  .app-dialog-surface--sheet {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: var(--z-sheet);
+    width: 100%;
+    max-height: min(78dvh, 680px);
+    border-radius: 24px 24px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    transform: none;
+  }
 }
 
 @media (max-width: 767px) {
@@ -1223,6 +1613,10 @@ select {
 
   .results-route-progress {
     display: none;
+  }
+
+  .results-route-progress.is-selected {
+    display: block;
   }
 
   .full-map-explorer__toolbar {

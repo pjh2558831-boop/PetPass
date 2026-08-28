@@ -23,6 +23,7 @@ import {
   useState,
 } from "react";
 import { MapPanel } from "@/components/map/map-panel";
+import { RecommendationStopProvenance } from "@/components/itinerary/recommendation-stop-provenance";
 import { usePlannerState } from "@/components/planner/planner-state";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,11 +32,18 @@ import {
   recommendationWarningCopy,
 } from "@/lib/recommendation/recommendation-copy";
 import { createRouteRecommendationRequest } from "@/lib/recommendation/recommendation-ui-request";
+import { getRecommendationStopEditCopy } from "@/lib/recommendation/recommendation-stop-ui";
 import {
   manualRouteValidationResponseSchema,
   routeRecommendationResponseSchema,
 } from "@/lib/recommendation/recommendation-response";
 import { saveRouteRecommendation } from "@/lib/storage/recommendation-storage";
+import {
+  getSelectedItineraryCategories,
+  loadSelectedItinerary,
+  removeSelectedItineraryPlace,
+  saveSelectedItinerary,
+} from "@/lib/storage/selected-itinerary-storage";
 import type { KakaoMapLocation } from "@/lib/kakao/maps";
 import type {
   ProductRouteV1,
@@ -113,13 +121,31 @@ const ROUTE_STYLE_COPY = {
   efficient: "실제 이동시간과 거리가 가장 작은 실용적인 동선을 우선했어요.",
 } as const;
 
-function EmptyResult() {
+const SELECTION_ISSUE_COPY: Record<string, string> = {
+  selected_place_not_found_in_region: "선택한 장소를 현재 지역 데이터에서 찾지 못했습니다.",
+  selected_place_cross_region: "다른 지역의 장소가 포함되어 있습니다.",
+  selected_place_missing_coordinates: "선택한 장소의 좌표를 확인하지 못했습니다.",
+  selected_place_not_allowed: "동반 불가로 확인된 장소가 포함되어 있습니다.",
+  selected_place_condition_unsatisfied: "반려동물 준비 조건과 맞지 않는 장소가 있습니다.",
+  selected_place_trip_incompatible: "여행 형태와 맞지 않는 선택 장소가 있습니다.",
+  selected_place_explicitly_excluded: "제외한 장소가 선택 목록에도 포함되어 있습니다.",
+  selected_anchor_large_detour: "직접 고른 장소를 유지해 이동 거리가 길어졌습니다.",
+};
+
+function EmptyResult({ selectionMode }: { selectionMode: "automatic" | "hybrid" }) {
   return (
     <section className="surface-panel mx-auto max-w-3xl p-8 text-center" aria-labelledby="route-empty-heading">
       <PawPrint className="mx-auto text-[var(--brand)]" aria-hidden="true" />
       <h1 id="route-empty-heading" className="mt-4 text-2xl font-black">여행 조건이 아직 확정되지 않았어요.</h1>
       <p className="mt-3 text-sm leading-7 text-[var(--muted)]">반려동물과 여행 조건을 입력하면 공식 동반 근거와 실제 이동 경로를 확인해 일정을 만듭니다.</p>
-      <Link href="/planner/pet" className="mt-6 inline-flex min-h-12 items-center rounded-[var(--radius-control)] bg-[var(--brand)] px-5 text-sm font-extrabold text-white">여행 정보 입력하기</Link>
+      {selectionMode === "hybrid" ? (
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <Link href="/results?tab=catalog&region=busan&mode=select" className="inline-flex min-h-12 items-center rounded-[var(--radius-control)] bg-[var(--brand)] px-5 text-sm font-extrabold text-white">장소를 직접 골라 시작</Link>
+          <Link href="/planner/pet" className="inline-flex min-h-12 items-center rounded-[var(--radius-control)] border border-[var(--brand-border)] bg-white px-5 text-sm font-extrabold text-[var(--brand)]">전체 자동 추천 받기</Link>
+        </div>
+      ) : (
+        <Link href="/planner/pet" className="mt-6 inline-flex min-h-12 items-center rounded-[var(--radius-control)] bg-[var(--brand)] px-5 text-sm font-extrabold text-white">여행 정보 입력하기</Link>
+      )}
     </section>
   );
 }
@@ -150,9 +176,11 @@ function LoadingResult({ slow }: { slow: boolean }) {
 function FailureResult({
   response,
   onRetry,
+  selectionMode,
 }: {
   response: Exclude<RouteRecommendationResponseV1, { status: "ready" }>;
   onRetry: () => void;
+  selectionMode: "automatic" | "hybrid";
 }) {
   return (
     <section className="surface-panel p-6" role="alert" aria-labelledby="route-error-heading">
@@ -164,8 +192,9 @@ function FailureResult({
       </ul>
       <div className="mt-5 flex flex-wrap gap-2">
         {response.retryable ? <Button type="button" variant="brand" onClick={onRetry}><RefreshCw size={16} aria-hidden="true" /> 다시 시도</Button> : null}
-        <Link href="/planner/pet" className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">여행 조건 수정</Link>
-        <Link href="/results?tab=catalog&region=busan" className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">방문 가능한 장소 보기</Link>
+        <Link href={selectionMode === "hybrid" ? "/planner/pet?mode=selected" : "/planner/pet"} className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">여행 조건 수정</Link>
+        <Link href={selectionMode === "hybrid" ? "/results?tab=catalog&region=busan&mode=select" : "/results?tab=catalog&region=busan"} className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">{selectionMode === "hybrid" ? "장소 다시 선택" : "방문 가능한 장소 보기"}</Link>
+        {selectionMode === "hybrid" ? <Link href="/planner/pet" className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">전체 자동 추천</Link> : null}
       </div>
     </section>
   );
@@ -178,6 +207,8 @@ function Timeline({
   onSelect,
   onMove,
   onRemove,
+  onReplace,
+  replacementSupported,
 }: {
   route: ProductRouteV1;
   validated: boolean;
@@ -185,10 +216,13 @@ function Timeline({
   onSelect: (id: string) => void;
   onMove: (id: string, direction: -1 | 1) => void;
   onRemove: (id: string) => void;
+  onReplace: (id: string) => void;
+  replacementSupported: boolean;
 }) {
   return (
     <ol className="space-y-4" aria-label={`${route.label} 방문 순서`}>
       {route.stops.map((stop, index) => {
+        const editCopy = getRecommendationStopEditCopy(stop, replacementSupported);
         const inclusion = stop.inclusionReasonCodes.flatMap((code) => {
           const copy = recommendationReasonCopy(code);
           return copy ? [copy] : [];
@@ -223,6 +257,11 @@ function Timeline({
               </div>
               {validated && stop.driveSecondsFromPrevious > 0 ? <p className="mt-3 text-xs font-bold text-[#607168]">이전 지점에서 {formatDistance(stop.distanceMetersFromPrevious)} · 약 {formatDuration(stop.driveSecondsFromPrevious)}</p> : null}
             </button>
+            <RecommendationStopProvenance
+              stop={stop}
+              replacementSupported={editCopy.canReplace}
+              onReplace={editCopy.canReplace ? () => onReplace(stop.placeId) : undefined}
+            />
             {stop.mandatoryConditions.length > 0 ? (
               <ul className="mt-4 space-y-1 rounded-xl bg-[#f4f7f4] p-3 text-sm font-semibold text-[#52665b]">
                 {stop.mandatoryConditions.map((condition) => <li key={`${condition.type}:${condition.label}`}>· {condition.label}</li>)}
@@ -240,7 +279,7 @@ function Timeline({
             <div className="mt-4 flex flex-wrap gap-2" aria-label={`${stop.title} 순서 편집`}>
               <button type="button" disabled={index === 0} onClick={() => onMove(stop.placeId, -1)} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[var(--line)] px-3 text-xs font-extrabold disabled:opacity-40"><ArrowUp size={15} aria-hidden="true" /> 앞으로</button>
               <button type="button" disabled={index === route.stops.length - 1} onClick={() => onMove(stop.placeId, 1)} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[var(--line)] px-3 text-xs font-extrabold disabled:opacity-40"><ArrowDown size={15} aria-hidden="true" /> 뒤로</button>
-              <button type="button" disabled={route.stops.length <= 1} onClick={() => onRemove(stop.placeId)} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[#e5bdb7] px-3 text-xs font-extrabold text-[#8d3838] disabled:opacity-40"><Trash2 size={15} aria-hidden="true" /> 제외</button>
+              <button type="button" disabled={route.stops.length <= 1} onClick={() => onRemove(stop.placeId)} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[#e5bdb7] px-3 text-xs font-extrabold text-[#8d3838] disabled:opacity-40"><Trash2 size={15} aria-hidden="true" /> {editCopy.removeLabel}</button>
             </div>
           </li>
         );
@@ -252,9 +291,11 @@ function Timeline({
 export function RecommendationPlanner({
   autoGenerate = false,
   onAutoGenerateStart,
+  selectionMode = "automatic",
 }: {
   autoGenerate?: boolean;
   onAutoGenerateStart?: () => void;
+  selectionMode?: "automatic" | "hybrid";
 }) {
   const { profile, preferences, profileConfirmed, preferencesConfirmed } = usePlannerState();
   const [response, setResponse] = useState<RouteRecommendationResponseV1 | null>(null);
@@ -274,8 +315,13 @@ export function RecommendationPlanner({
   const recentSignaturesRef = useRef<string[]>([]);
   const recentCandidateIdsRef = useRef<string[]>([]);
   const errorRef = useRef<HTMLDivElement>(null);
+  const [hybridSelection, setHybridSelection] = useState(() =>
+    selectionMode === "hybrid" ? loadSelectedItinerary() : null);
 
-  const runRecommendation = useCallback(async (mode: "initial" | "reroll" = "initial") => {
+  const runRecommendation = useCallback(async (
+    mode: "initial" | "reroll" = "initial",
+    excludedAutoPlaceId?: string,
+  ) => {
     if (!profileConfirmed || !preferencesConfirmed) return;
     const requestSequence = requestSequenceRef.current + 1;
     requestSequenceRef.current = requestSequence;
@@ -293,7 +339,29 @@ export function RecommendationPlanner({
         rerollVariant: rerollVariantRef.current,
         recentRouteSignatures: recentSignaturesRef.current,
         recentlySelectedCandidateIds: recentCandidateIdsRef.current,
-      });
+        explicitlyExcludedPlaceIds: excludedAutoPlaceId ? [excludedAutoPlaceId] : [],
+      }, selectionMode === "hybrid" ? (() => {
+        const selection = hybridSelection;
+        if (!selection || selection.places.length === 0) {
+          throw new Error("선택한 장소를 불러오지 못했습니다. 장소를 다시 선택해 주세요.");
+        }
+        const categories = getSelectedItineraryCategories(selection.places);
+        if (
+          selection.autoFill &&
+          preferences.tripType === "OVERNIGHT" &&
+          !categories.includes("accommodation")
+        ) {
+          categories.push("accommodation");
+        }
+        if (categories.length === 0) {
+          throw new Error("선택한 장소 유형을 일정 후보로 변환하지 못했습니다.");
+        }
+        return {
+          selectedPlaceIds: selection.places.map(({ id }) => id),
+          autoFill: selection.autoFill,
+          selectedCategories: categories,
+        };
+      })() : undefined);
       const result = await fetch("/api/itineraries/generate", {
         method: "POST",
         headers: { Accept: "application/json", "Content-Type": "application/json" },
@@ -338,7 +406,7 @@ export function RecommendationPlanner({
       if (controllerRef.current === controller) controllerRef.current = null;
       if (requestSequenceRef.current === requestSequence) setLoading(false);
     }
-  }, [preferences, preferencesConfirmed, profile, profileConfirmed]);
+  }, [hybridSelection, preferences, preferencesConfirmed, profile, profileConfirmed, selectionMode]);
 
   useEffect(() => {
     if (!autoGenerate || startedRef.current) return;
@@ -439,6 +507,25 @@ export function RecommendationPlanner({
     setManualError("");
   };
 
+  const removeStop = (id: string) => {
+    const removedStop = displayedRoute?.stops.find(({ placeId }) => placeId === id);
+    let persistenceError = "";
+    if (
+      selectionMode === "hybrid" &&
+      removedStop?.provenance === "user_selected" &&
+      hybridSelection
+    ) {
+      const nextSelection = removeSelectedItineraryPlace(hybridSelection, id);
+      setHybridSelection(nextSelection);
+      if (!saveSelectedItinerary(nextSelection)) {
+        persistenceError = "선택 해제를 저장하지 못했습니다. 현재 결과에서는 제외되지만 새로 열면 다시 나타날 수 있습니다.";
+      }
+    }
+    setEditableIds((current) => current.filter((value) => value !== id));
+    setEditDirty(true);
+    setManualError(persistenceError);
+  };
+
   const revalidate = async () => {
     if (!ready || !editDirty || revalidating) return;
     setRevalidating(true);
@@ -466,10 +553,10 @@ export function RecommendationPlanner({
     }
   };
 
-  if (!profileConfirmed || !preferencesConfirmed) return <EmptyResult />;
+  if (!profileConfirmed || !preferencesConfirmed) return <EmptyResult selectionMode={selectionMode} />;
   if (loading) return <LoadingResult slow={slow} />;
   if (response && response.status !== "ready") {
-    return <div ref={errorRef} tabIndex={-1}><FailureResult response={response} onRetry={() => void runRecommendation()} /></div>;
+    return <div ref={errorRef} tabIndex={-1}><FailureResult response={response} onRetry={() => void runRecommendation()} selectionMode={selectionMode} /></div>;
   }
   if (!ready || !displayedRoute) {
     return <section className="surface-panel p-8 text-center"><h1 className="text-2xl font-black">추천 일정을 만들어 볼까요?</h1><Button type="button" variant="brand" className="mt-5" onClick={() => void runRecommendation()}>추천 일정 만들기</Button></section>;
@@ -479,6 +566,9 @@ export function RecommendationPlanner({
   const exact = ready.optimality === "optimal_within_candidate_set_current_matrix";
   const availableRoutes = ready.routeOptions ?? [ready.route, ...ready.alternatives];
   const activeStyle = displayedRoute.style;
+  const replacementSupported = ready.alternativeAvailability === "available";
+  const hybridAutoFill = selectionMode === "hybrid" && hybridSelection?.autoFill === true;
+  const hasAutoFilledStops = displayedRoute.stops.some(({ provenance }) => provenance === "auto_fill");
   const reducedCopy = ready.resultState === "single_stop_suggestion"
     ? "지금 확인된 한 곳을 중심으로 짧고 확실한 일정을 만들었어요."
     : ready.resultState === "ready_with_reduced_stops"
@@ -497,7 +587,9 @@ export function RecommendationPlanner({
           </div>
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="brandSecondary" disabled={editDirty} onClick={() => { const saved = saveRouteRecommendation(ready, displayedRoute); setSaveMessage(saved ? "현재 일정을 이 브라우저에 저장했습니다." : "저장하지 못했습니다. 브라우저 저장 공간을 확인해 주세요."); }}><Save size={16} aria-hidden="true" /> 일정 저장</Button>
-            <Button type="button" variant="brandSecondary" onClick={() => void runRecommendation("reroll")}><RefreshCw size={16} aria-hidden="true" /> 다른 조합 보기</Button>
+            {selectionMode === "automatic" || (hybridAutoFill && hasAutoFilledStops) ? (
+              <Button type="button" variant="brandSecondary" onClick={() => void runRecommendation("reroll")}><RefreshCw size={16} aria-hidden="true" /> {selectionMode === "hybrid" ? "자동 장소 다시 채우기" : "다른 조합 보기"}</Button>
+            ) : null}
           </div>
         </div>
         {saveMessage ? <p className="mt-3 text-sm font-bold text-[var(--brand)]" role="status">{saveMessage}</p> : null}
@@ -508,6 +600,15 @@ export function RecommendationPlanner({
           <div className="rounded-xl bg-[#f3f6f2] p-4"><dt className="text-xs font-bold text-[var(--muted)]">방문</dt><dd className="mt-1 font-black">{editDirty ? `총 ${summary.stopCount}곳` : `${formatDuration(summary.totalVisitSeconds)}${summary.totalWaitSeconds > 0 ? ` · 대기 ${formatDuration(summary.totalWaitSeconds)}` : ""}`}</dd></div>
         </dl>
       </header>
+
+      {ready.selectionIssues && ready.selectionIssues.length > 0 ? (
+        <section className="rounded-[var(--radius-card)] border border-[#eed8ae] bg-[#fff8ec] p-4" aria-labelledby="selection-issues-heading">
+          <h2 id="selection-issues-heading" className="flex items-center gap-2 text-sm font-black text-[#76542f]"><AlertTriangle size={17} aria-hidden="true" /> 선택 장소 확인사항</h2>
+          <ul className="mt-2 space-y-1 text-sm font-semibold leading-6 text-[#76542f]">
+            {ready.selectionIssues.map((issue) => <li key={`${issue.placeId}:${issue.code}`}>· {SELECTION_ISSUE_COPY[issue.code] ?? "선택한 장소에 추가 확인이 필요합니다."}</li>)}
+          </ul>
+        </section>
+      ) : null}
 
       {ready.routeOptions || availableRoutes.length > 1 ? (
         <section className="surface-card p-4" aria-labelledby="route-alternatives-heading">
@@ -525,7 +626,7 @@ export function RecommendationPlanner({
       <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(340px,.92fr)]">
         <section className="min-w-0" aria-labelledby="route-timeline-heading">
           <div className="mb-4"><p className="eyebrow">시간순 방문 일정</p><h2 id="route-timeline-heading" className="mt-1 text-2xl font-black">출발지부터 이어지는 실제 이동 순서</h2></div>
-          <Timeline route={displayedRoute} validated={!editDirty} selectedPlaceId={selectedPlaceId} onSelect={selectPlace} onMove={moveStop} onRemove={(id) => { setEditableIds((current) => current.filter((value) => value !== id)); setEditDirty(true); setManualError(""); }} />
+          <Timeline route={displayedRoute} validated={!editDirty} selectedPlaceId={selectedPlaceId} onSelect={selectPlace} onMove={moveStop} onRemove={removeStop} onReplace={(id) => void runRecommendation("reroll", id)} replacementSupported={replacementSupported} />
           {editDirty ? <div className="sticky bottom-3 z-10 mt-4 flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-[#aac2b4] bg-white/95 p-4 shadow-lg backdrop-blur"><p className="mr-auto text-sm font-bold text-[#52665b]">순서 또는 방문지를 바꿨습니다. 실제 경로를 다시 확인해 주세요.</p><Button type="button" variant="brand" disabled={revalidating} onClick={() => void revalidate()}>{revalidating ? <LoaderCircle className="animate-spin" size={16} aria-hidden="true" /> : <Check size={16} aria-hidden="true" />} 경로 다시 계산</Button><Button type="button" variant="brandSecondary" onClick={() => { setActiveRoute(ready.route); setEditableIds(ready.route.stops.map(({ placeId }) => placeId)); setEditDirty(false); setSelectedPlaceId(ready.route.stops[0]?.placeId ?? null); setManualError(""); }}><RotateCcw size={16} aria-hidden="true" /> 원래 추천 복원</Button></div> : null}
           {manualError ? <p className="mt-3 rounded-xl border border-[#e5bdb7] bg-[#fff1ef] p-4 text-sm font-bold text-[#823f36]" role="alert">{manualError}</p> : null}
         </section>

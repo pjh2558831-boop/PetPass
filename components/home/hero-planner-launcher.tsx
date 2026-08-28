@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useState } from "react";
 import { ArrowRight, MapPin, Search } from "lucide-react";
 import { usePlannerState } from "@/components/planner/planner-state";
@@ -68,7 +69,7 @@ export function HeroPlannerLauncher() {
   return (
     <form
       className="hero-planner-launcher border border-[var(--line)] bg-white shadow-[var(--shadow-card)]"
-      aria-label="여행 만들기 빠른 시작"
+      aria-label="여행 만들기 시작 방법"
       onSubmit={(event) => {
         event.preventDefault();
         openPlanner();
@@ -76,8 +77,18 @@ export function HeroPlannerLauncher() {
     >
       <div className="hero-planner-heading">
         <MapPin size={18} aria-hidden="true" />
-        <span>어디로 떠날까요?</span>
+        <span>어떻게 일정을 만들까요?</span>
       </div>
+
+      <Link
+        href="/results?tab=catalog&region=busan&mode=select"
+        className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--brand)] px-6 text-sm font-extrabold text-white shadow-[var(--shadow-button)] transition-colors hover:bg-[var(--brand-deep)]"
+      >
+        장소 고르고 일정 만들기
+        <ArrowRight size={17} aria-hidden="true" />
+      </Link>
+
+      <p className="mt-3 text-center text-xs font-bold text-[var(--muted)]">또는 지역과 조건을 맡겨보세요</p>
 
       <div className="mt-3 flex flex-col gap-3 sm:flex-row">
         <label className="relative min-w-0 flex-1">
@@ -106,7 +117,7 @@ export function HeroPlannerLauncher() {
           type="submit"
           className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--brand)] px-6 text-sm font-extrabold text-white shadow-[var(--shadow-button)] transition-colors hover:bg-[var(--brand-deep)]"
         >
-          여행 만들기
+          WEEKENDOG에게 추천받기
           <ArrowRight size={17} aria-hidden="true" />
         </button>
       </div>
