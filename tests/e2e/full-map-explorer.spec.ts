@@ -151,6 +151,50 @@ function snapshotBody(
   });
 }
 
+function cardDetailsBody(url: URL) {
+  const region = url.searchParams.get("region") as "busan" | "jeju" | "seoul";
+  const dataset = url.searchParams.get("dataset") === "shopping" ? "shopping" : "core";
+  const ids = (url.searchParams.get("ids") ?? "").split(",").filter(Boolean);
+  const snapshot = JSON.parse(snapshotBody(region, "fresh", dataset)) as {
+    data: {
+      publicationVersion: `p1-${string}`;
+      items: Array<{
+        id: string;
+        address: string;
+        imageUrl: string | null;
+        placeUrl: string | null;
+      }>;
+    };
+  };
+  const byId = new Map(snapshot.data.items.map((item) => [item.id, item]));
+  const items = ids.map((id) => {
+    const item = byId.get(id);
+    expect(item).toBeDefined();
+    return {
+      id,
+      address: item?.address ?? "주소 확인 필요",
+      phone: null,
+      imageUrl: item?.imageUrl ?? null,
+      placeUrl: item?.placeUrl ?? null,
+      contentTypeId: item?.placeUrl?.includes("contentTypeId=12") ? "12" : null,
+    };
+  });
+  return JSON.stringify({
+    ok: true,
+    data: {
+      contractVersion: 1,
+      region,
+      dataset,
+      publicationVersion: snapshot.data.publicationVersion,
+      items,
+      page: 1,
+      pageSize: 12,
+      totalCount: items.length,
+    },
+    requestId: `full-map-${region}-${dataset}-cards`,
+  });
+}
+
 async function mockCatalogApis(page: Page) {
   await page.route("**/api/tour/places/5010001?**", async (route) => {
     const detail = liveDetail("not_applicable");
@@ -195,6 +239,18 @@ async function mockCatalogApis(page: Page) {
         "fresh",
         dataset === "shopping" ? "shopping" : "core",
       ),
+    });
+  });
+  await page.route("**/api/map/places/cards?**", async (route) => {
+    const url = new URL(route.request().url());
+    expect(url.searchParams.get("version")).toBe("1");
+    expect(url.searchParams.get("region") === "busan" ||
+      url.searchParams.get("region") === "jeju" ||
+      url.searchParams.get("region") === "seoul").toBe(true);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: cardDetailsBody(url),
     });
   });
   await page.route("**/api/tour/places?**", async (route) => {
