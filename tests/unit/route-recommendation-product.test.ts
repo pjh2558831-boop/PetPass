@@ -429,6 +429,25 @@ describe("Stage 5 recommendation product contract", () => {
     expect(routeRecommendationResponseSchema.safeParse({ ...READY, rawProviderPayload: { serviceKey: "SECRET" } }).success).toBe(false);
   });
 
+  it("accepts valid RFC3339 source timestamps with timezone offsets", () => {
+    const response = {
+      ...READY,
+      route: {
+        ...ROUTE,
+        stops: [
+          {
+            ...ROUTE.stops[0]!,
+            retrievedAt: "2026-08-26T12:00:00+09:00",
+          },
+        ],
+      },
+    };
+
+    expect(routeRecommendationReadyResponseSchema.safeParse(response).success).toBe(
+      true,
+    );
+  });
+
   it("persists a bounded product snapshot including manual-edit state without an edit session", () => {
     const storage = new MemoryStorage();
     const manual: ProductRouteV1 = { ...ROUTE, id: "manual:1001", kind: "manual", label: "직접 수정한 일정" };

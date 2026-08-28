@@ -27,7 +27,7 @@ export function RecommendationStopProvenance({
             ? "inline-flex min-h-7 items-center gap-1 rounded-full bg-[var(--brand)] px-3 text-white"
             : "inline-flex min-h-7 items-center rounded-full border border-[var(--brand-border)] bg-[var(--brand-soft)] px-3 text-[var(--brand)]"}
           >
-            {selected ? "직접 고른 장소" : "추천으로 추가"}
+            {selected ? "내가 선택한 장소" : "WEEKENDOG 추천"}
           </span>
           {selected && stop.locked ? (
             <span className="inline-flex min-h-7 items-center gap-1 rounded-full border border-[var(--line)] bg-white px-3 text-[#52665b]">

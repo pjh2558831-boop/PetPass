@@ -15,7 +15,7 @@ describe("hybrid recommendation result UI", () => {
       },
     }));
 
-    expect(html).toContain("직접 고른 장소");
+    expect(html).toContain("내가 선택한 장소");
     expect(html).toContain("일정에 고정");
     expect(html).toContain("방문 전 반려동물 동반 가능 여부를 확인해 주세요.");
     expect(html).not.toContain("자동 장소 바꾸기");
@@ -37,7 +37,7 @@ describe("hybrid recommendation result UI", () => {
       onReplace: vi.fn(),
     }));
 
-    expect(html).toContain("추천으로 추가");
+    expect(html).toContain("WEEKENDOG 추천");
     expect(html).toContain("자동 장소 바꾸기");
     expect(getRecommendationStopEditCopy({ provenance: "auto_fill", locked: false }, true)).toEqual({
       removeLabel: "제외",

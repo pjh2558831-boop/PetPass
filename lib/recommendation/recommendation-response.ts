@@ -59,7 +59,7 @@ const stop = z.object({
   sourceLabel: z.enum(["한국관광공사", "카카오 검색 후보"]),
   petAssessment: z.enum(["allowed", "conditional", "unknown"]),
   evidenceStatus: z.enum(["verified", "conditional", "unverified"]).optional(),
-  retrievedAt: z.string().datetime().nullable().optional(),
+  retrievedAt: z.string().datetime({ offset: true }).nullable().optional(),
   providerIdentities: z.array(z.object({
     provider: z.enum(["kto", "kakao"]),
     id: nonEmpty,
