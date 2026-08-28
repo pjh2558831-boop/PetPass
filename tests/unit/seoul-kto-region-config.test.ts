@@ -130,9 +130,29 @@ describe("Seoul regional KTO foundation", () => {
   });
 
   it("declares bounded, provider-specific collection metadata and isolated caches", () => {
+    const busan = getKtoCollectionEnabledRegionConfig("busan");
     const jeju = getKtoCollectionEnabledRegionConfig("jeju");
     const seoul = getKtoCollectionEnabledRegionConfig("seoul");
 
+    expect(busan?.ktoCollection).toMatchObject({
+      provider: "tour",
+      listOperation: "areaBasedList2",
+      administrativeCodeSystem: "legal_dong",
+      registryVersion: "tour-busan-service2-v1",
+      cacheNamespace: "tour-busan-service2-v1",
+      datasets: [
+        {
+          id: "core",
+          evidenceCollectionMode: "detailed",
+          contentTypeIds: ["12", "14", "15", "28", "32", "39"],
+        },
+        {
+          id: "shopping",
+          evidenceCollectionMode: "list_only",
+          contentTypeIds: ["38"],
+        },
+      ],
+    });
     expect(jeju?.ktoCollection).toMatchObject({
       provider: "tour",
       listOperation: "areaBasedList2",
@@ -165,7 +185,9 @@ describe("Seoul regional KTO foundation", () => {
     expect(jeju?.ktoCollection?.cacheNamespace).not.toBe(
       seoul?.ktoCollection?.cacheNamespace,
     );
-    expect(getKtoCollectionEnabledRegionConfig("busan")).toBeNull();
+    expect(jeju?.ktoCollection.limits.maxAcceptedRecords).toBeGreaterThanOrEqual(
+      jeju?.ktoCollection.limits.maxRawRecords ?? Number.POSITIVE_INFINITY,
+    );
     expect(getKtoCollectionEnabledRegionConfig("unknown")).toBeNull();
   });
 });

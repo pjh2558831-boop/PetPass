@@ -480,8 +480,8 @@ describe("generic KTO CLI boundary", () => {
     });
   });
 
-  it.each(["busan", "unknown"])(
-    "rejects disabled or unknown region %s before provider/database initialization",
+  it.each(["unknown"])(
+    "rejects unknown region %s before provider/database initialization",
     async (regionId) => {
       const providerFactory = vi.fn();
       const repositoryFactory = vi.fn();

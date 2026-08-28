@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -45,6 +45,7 @@ describe("nationwide KTO regional coverage", () => {
       id,
       providerCodes.legacyTourismAreaCode,
     ])).toEqual(EXPECTED_REGION_CODES);
+    expect(REGION_CONFIGS.every(({ ktoCollection }) => ktoCollection !== null)).toBe(true);
     expect(new Set(REGION_CONFIGS.map(({ ktoCollection }) =>
       ktoCollection?.cacheNamespace)).size).toBe(17);
   });
@@ -117,6 +118,19 @@ describe("nationwide KTO regional coverage", () => {
     expect(sql).not.toContain(
       "all configured KTO datasets must be staged before full finalization",
     );
+    expect(sql).not.toMatch(/drop\s+table|truncate|delete\s+from/iu);
+  });
+
+  it("adds an additive registry migration for the remaining nationwide regions", () => {
+    const migration = readdirSync("supabase/migrations").find((fileName) =>
+      fileName.endsWith("_complete_nationwide_kto_registry.sql"));
+
+    expect(migration).toBeDefined();
+    const sql = readFileSync(`supabase/migrations/${migration}`, "utf8");
+    expect(sql).toContain("region_id = 'busan'");
+    expect(sql).toContain("kto_collection_enabled = true");
+    expect(sql).toContain("kto_catalog_datasets = array['core', 'shopping']::text[]");
+    expect(sql).toContain("kto_list_only_content_type_ids = array[38]::integer[]");
     expect(sql).not.toMatch(/drop\s+table|truncate|delete\s+from/iu);
   });
 
