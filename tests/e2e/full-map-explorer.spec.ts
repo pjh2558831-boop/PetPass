@@ -436,6 +436,58 @@ test.beforeEach(async ({ page }) => {
   await mockCatalogApis(page);
 });
 
+async function openRegionPicker(page: Page) {
+  const picker = page.getByRole("region", { name: "여행 지역 선택" });
+  if (!await picker.isVisible()) {
+    await page.locator(".explorer-region-picker__trigger").click();
+  }
+  await expect(picker).toBeVisible();
+  return picker;
+}
+
+async function selectExplorerRegion(page: Page, regionName: string) {
+  const picker = await openRegionPicker(page);
+  await picker.getByRole("option", { name: regionName, exact: true }).click();
+}
+
+async function selectExplorerDistrict(page: Page, regionName: string, districtName: string) {
+  const districtSearch = page.getByRole("combobox", { name: `${regionName} 세부 지역 검색` });
+  await districtSearch.fill(districtName);
+  await expect(districtSearch).toHaveValue(districtName);
+}
+
+test("keeps the authored region picker tidy, searchable, and keyboard dismissible", async ({ page }) => {
+  await page.goto("/results?tab=catalog&region=busan&page=1");
+  await expect(page.locator("[data-marker-registry-size]")).toHaveAttribute("data-marker-registry-size", "26");
+
+  const trigger = page.locator(".explorer-region-picker__trigger");
+  await expect(trigger).toHaveAccessibleName("여행 지역 선택, 현재 부산");
+  await trigger.click();
+
+  const picker = page.getByRole("region", { name: "여행 지역 선택" });
+  await expect(picker).toBeVisible();
+  await expect(picker.getByRole("heading", { name: "어디로 떠날까요?" })).toBeVisible();
+  await expect(picker.getByRole("option", { name: "부산", exact: true })).toHaveAttribute("aria-selected", "true");
+
+  const pickerBox = await picker.boundingBox();
+  const viewport = page.viewportSize();
+  expect(pickerBox).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(pickerBox?.x ?? -1).toBeGreaterThanOrEqual(8);
+  expect((pickerBox?.x ?? 0) + (pickerBox?.width ?? 0)).toBeLessThanOrEqual((viewport?.width ?? 0) - 8);
+
+  const search = picker.getByRole("searchbox", { name: "지역 검색" });
+  await search.fill("충청남도");
+  await expect(picker.getByRole("option", { name: "충남", exact: true })).toBeVisible();
+  await expect(picker.getByRole("option", { name: "부산", exact: true })).toHaveCount(0);
+  await picker.getByRole("button", { name: "지역 검색어 지우기" }).click();
+  await expect(search).toHaveValue("");
+
+  await search.press("Escape");
+  await expect(picker).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+
 test("shows map loading copy instead of an empty result while place data is pending", async ({ page }) => {
   let releaseSnapshot!: () => void;
   const snapshotPending = new Promise<void>((resolve) => {
@@ -667,7 +719,7 @@ test("keeps canonical filter history shareable without RSC navigation", async ({
 
   await page.reload();
   await expect(page.getByRole("heading", { name: "총 1곳" })).toBeVisible();
-  await page.getByRole("button", { name: "제주", exact: true }).click();
+  await selectExplorerRegion(page, "제주");
   await expect(page.getByRole("heading", { name: "총 54곳" })).toBeVisible();
   await page.goBack();
   await expect(page.getByRole("heading", { name: "총 1곳" })).toBeVisible();
@@ -694,7 +746,7 @@ test("aborts a stale region snapshot and never lets its late response replace Je
 
   await page.goto("/results?tab=catalog&region=busan&page=1");
   await expect.poll(() => busanStarted).toBe(true);
-  await page.getByRole("button", { name: "제주", exact: true }).click();
+  await selectExplorerRegion(page, "제주");
   await expect(page.getByRole("heading", { name: "총 54곳" })).toBeVisible();
   await page.waitForTimeout(450);
   await expect(page.getByRole("heading", { name: "총 54곳" })).toBeVisible();
@@ -732,11 +784,13 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
   await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
   await page.waitForLoadState("networkidle");
 
-  const jejuButton = page.getByRole("button", { name: "제주", exact: true });
+  const regionPicker = await openRegionPicker(page);
+  const jejuButton = regionPicker.getByRole("option", { name: "제주", exact: true });
   await jejuButton.focus();
   jejuSelected = true;
   await jejuButton.press("Enter");
-  await expect(jejuButton).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".explorer-region-picker__trigger"))
+    .toHaveAccessibleName("여행 지역 선택, 현재 제주");
   await expect(page.getByRole("heading", { name: "총 54곳" })).toBeVisible();
   await expect(page).toHaveURL(/region=jeju/u);
 
@@ -791,15 +845,14 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
   await expect(page.locator('.catalog-result-card [data-image-kind="category_placeholder"]')).toHaveCount(6);
   await expect(page.locator(".catalog-result-card").getByText("동반 정보 확인 필요", { exact: true })).not.toHaveCount(0);
 
-  const districtSelect = page.getByLabel("제주 세부 지역");
-  await districtSelect.selectOption("110");
+  await selectExplorerDistrict(page, "제주", "제주시");
   await expect(page.getByRole("heading", { name: "총 27곳" })).toBeVisible();
   await expect(page).toHaveURL(/region=jeju.*district=110/u);
   await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "27");
   await expect(page.locator(".catalog-result-card").first()).toContainText("제주시");
   await expect(page.locator(".catalog-result-card").first()).not.toContainText("부산광역시 중구");
 
-  await districtSelect.selectOption("130");
+  await selectExplorerDistrict(page, "제주", "서귀포시");
   await expect(page.getByRole("heading", { name: "총 27곳" })).toBeVisible();
   await expect(page).toHaveURL(/region=jeju.*district=130/u);
   await expect(page.locator(".catalog-result-card").first()).toContainText("서귀포시");
@@ -825,7 +878,7 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
   ].includes(pathname))).toBe(false);
 
   jejuSelected = false;
-  await page.getByRole("button", { name: "부산", exact: true }).click();
+  await selectExplorerRegion(page, "부산");
   await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
   await expect(page).toHaveURL(/region=busan/u);
   await expect(page).not.toHaveURL(/district=/u);
@@ -836,7 +889,7 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
     await page.setViewportSize(viewport);
     await page.getByRole("button", { name: "지도", exact: true }).click();
     const jejuNavigation = page.waitForURL(/region=jeju/u, { waitUntil: "load" });
-    await page.getByRole("button", { name: "제주", exact: true }).click();
+    await selectExplorerRegion(page, "제주");
     await jejuNavigation;
     await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "54");
     await expect(page.locator(".explorer-filter-dropdown")).toHaveCount(0);
@@ -859,7 +912,7 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
     await expect(page.locator(".full-map-explorer__map")).toBeVisible();
     await expect(page.locator('.fake-kakao-native-marker[data-marker-width="46"]')).toHaveCount(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
-    await page.getByRole("button", { name: "부산", exact: true }).click();
+    await selectExplorerRegion(page, "부산");
     await page.getByRole("button", { name: "목록", exact: true }).click();
     await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
   }
@@ -913,8 +966,9 @@ test("loads Seoul core once and fetches the complete shopping dataset only on fi
   await expect(page.locator(".fake-kakao-native-marker")).toHaveCount(76);
   await expect(page.getByRole("tab", { name: "서울 경로 추천은 준비 중입니다." })).toBeDisabled();
   await expect(page.getByText("한국관광공사 공식 장소만 표시합니다.", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "서울", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByLabel("서울 세부 지역").locator("option")).toHaveCount(26);
+  await expect(page.locator(".explorer-region-picker__trigger"))
+    .toHaveAccessibleName("여행 지역 선택, 현재 서울");
+  await expect(page.locator("#district-options-seoul option")).toHaveCount(26);
   await expect(page.getByRole("group", { name: "장소 출처 범례" }).getByRole("button"))
     .toHaveCount(1);
   await expect(page.getByRole("button", { name: "한국관광공사", exact: true }))
@@ -1042,8 +1096,7 @@ test("loads Seoul core once and fetches the complete shopping dataset only on fi
   await expect(page.locator(".catalog-result-card").getByText(/동반 정보 확인 필요|방문 전 확인 필요/u).first()).toBeVisible();
   await expect(page.locator('.catalog-result-card [data-image-kind="category_placeholder"]')).not.toHaveCount(0);
 
-  const district = page.getByLabel("서울 세부 지역");
-  await district.selectOption("110");
+  await selectExplorerDistrict(page, "서울", "종로구");
   await expect(page.getByRole("heading", { name: "총 4곳" })).toBeVisible();
   await expect(page).toHaveURL(/region=seoul.*district=110/u);
   await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "4");
@@ -1145,7 +1198,7 @@ test("isolates Seoul across Busan and Jeju transitions, including late responses
 
   await page.goto("/results?tab=catalog&region=jeju&page=1");
   await expect.poll(() => jejuStarted).toBe(true);
-  await page.getByRole("button", { name: "서울", exact: true }).click();
+  await selectExplorerRegion(page, "서울");
   await expect(page.getByRole("heading", { name: "총 76곳" })).toBeVisible();
   await page.waitForTimeout(450);
   await expect(page.getByRole("heading", { name: "총 76곳" })).toBeVisible();
@@ -1155,20 +1208,20 @@ test("isolates Seoul across Busan and Jeju transitions, including late responses
   delayJeju = false;
   await expect(page.getByRole("heading", { name: "총 54곳" })).toBeVisible();
   delaySeoul = true;
-  await page.getByRole("button", { name: "서울", exact: true }).click();
+  await selectExplorerRegion(page, "서울");
   await expect.poll(() => seoulStarted).toBe(true);
-  await page.getByRole("button", { name: "제주", exact: true }).click();
+  await selectExplorerRegion(page, "제주");
   await expect(page.getByRole("heading", { name: "총 54곳" })).toBeVisible();
   await page.waitForTimeout(450);
   await expect(page.getByRole("heading", { name: "총 54곳" })).toBeVisible();
   await expect(page.getByText("종로구", { exact: true })).toHaveCount(0);
 
   delaySeoul = false;
-  await page.getByRole("button", { name: "부산", exact: true }).click();
+  await selectExplorerRegion(page, "부산");
   await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
-  await page.getByRole("button", { name: "서울", exact: true }).click();
+  await selectExplorerRegion(page, "서울");
   await expect(page.getByRole("heading", { name: "총 76곳" })).toBeVisible();
-  await page.getByRole("button", { name: "부산", exact: true }).click();
+  await selectExplorerRegion(page, "부산");
   await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
   await expect(page.locator('.fake-kakao-native-marker[data-marker-width="46"]')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() =>
@@ -1344,13 +1397,13 @@ test("keeps Jeju error, retry, and empty states accessible in mobile list mode",
   await page.goto("/results?tab=catalog");
   await page.getByRole("button", { name: "목록", exact: true }).click();
   await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
-  await page.getByRole("button", { name: "제주", exact: true }).click();
+  await selectExplorerRegion(page, "제주");
   await expect(page.locator('.explorer-results-status [role="alert"]'))
     .toContainText("관광공사 장소를 불러오지 못했습니다.");
   await page.getByRole("button", { name: "다시 시도" }).click();
   await expect(page.getByRole("heading", { name: "총 27곳" })).toBeVisible();
 
-  await page.getByLabel("제주 세부 지역").selectOption("130");
+  await selectExplorerDistrict(page, "제주", "서귀포시");
   await expect(page.getByRole("heading", { name: "총 0곳" })).toBeVisible();
   await expect(page.getByText("선택한 조건의 장소가 없습니다.", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
