@@ -20,6 +20,7 @@ export interface PublicCatalogMarker {
   districtCode: string | null;
   districtName: string | null;
   address: string;
+  dataset?: "core" | "shopping";
   coordinates: { latitude: number; longitude: number } | null;
   categoryGroupCode?: string | null;
   lastSeenAt?: string | null;

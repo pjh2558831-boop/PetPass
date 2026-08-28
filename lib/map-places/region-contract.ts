@@ -73,16 +73,18 @@ export function snapshotMarkerMatchesRegion(
   if (!region.allowedMapProviders.includes(provider)) return false;
   if (marker.id !== `${provider}:${marker.providerPlaceId}`) return false;
   if (!marker.coordinates || !coordinatesInRegion(region, marker.coordinates)) return false;
-  if (!marker.districtCode || !marker.districtName) return false;
+  if (!marker.districtCode) return false;
   const district = getRegionDistrict(region, marker.districtCode);
-  if (!district || district.name !== marker.districtName) return false;
+  if (!district || (marker.districtName !== undefined && marker.districtName !== null &&
+    district.name !== marker.districtName)) return false;
   if (marker.layer === "tourism") {
     if (marker.category === "shopping" || marker.category === "other") {
-      return marker.placeUrl === null &&
+      return (marker.placeUrl === undefined || marker.placeUrl === null) &&
         marker.petAccessVerdict === "unknown" &&
         marker.publicLabel === "반려동물 동반 정보 확인 필요";
     }
-    if (!marker.placeUrl?.startsWith("/places/")) return false;
+    if (marker.placeUrl === undefined) return marker.sourceLabel === "한국관광공사";
+    if (marker.placeUrl === null || !marker.placeUrl.startsWith("/places/")) return false;
     try {
       return new URL(marker.placeUrl, "https://petpass.local").searchParams.get("region") === region.id;
     } catch {

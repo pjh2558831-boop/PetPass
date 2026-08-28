@@ -17,10 +17,27 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isSnapshotEnvelope(
+function parseSnapshotEnvelope(
   value: unknown,
-): value is { ok: true; data: MapPlacesSnapshot } {
-  return isRecord(value) && value.ok === true && isMapPlacesSnapshot(value.data);
+): { ok: true; data: MapPlacesSnapshot } | null {
+  if (!isRecord(value) || value.ok !== true || !isRecord(value.data) ||
+    !Array.isArray(value.data.items)) return null;
+  const region = value.data.region;
+  const dataset = value.data.dataset;
+  const items = value.data.items.map((item) => {
+    if (!isRecord(item) || typeof item.id !== "string") return item;
+    const separator = item.id.indexOf(":");
+    const providerPlaceId = separator >= 0 ? item.id.slice(separator + 1) : "";
+    return {
+      ...item,
+      regionId: region,
+      providerPlaceId,
+      dataset,
+      sourceLabel: item.layer === "tourism" ? "한국관광공사" : "카카오 검색 후보",
+    };
+  });
+  const data = { ...value.data, items };
+  return isMapPlacesSnapshot(data) ? { ok: true, data } : null;
 }
 
 export async function requestMapPlacesSnapshot(
@@ -60,23 +77,24 @@ export async function requestMapPlacesSnapshot(
   }
   recordMapExplorerMetric("json_parse", parseStartedAt);
   const validationStartedAt = performance.now();
-  const validEnvelope = response.ok && isSnapshotEnvelope(body);
+  const envelope = response.ok ? parseSnapshotEnvelope(body) : null;
   recordMapExplorerMetric("contract_validation", validationStartedAt);
-  if (!validEnvelope || !isSnapshotEnvelope(body)) {
+  if (!envelope) {
     throw new Error("지도 장소 스냅샷을 확인하지 못했습니다.");
   }
-  if (body.data.region !== region) throw new Error("지도 장소 스냅샷 지역이 일치하지 않습니다.");
-  if (body.data.dataset !== dataset) throw new Error("지도 장소 스냅샷 데이터셋이 일치하지 않습니다.");
+  if (envelope.data.region !== region) throw new Error("지도 장소 스냅샷 지역이 일치하지 않습니다.");
+  if (envelope.data.dataset !== dataset) throw new Error("지도 장소 스냅샷 데이터셋이 일치하지 않습니다.");
   const regionConfig = getRegionConfig(region);
-  if (body.data.items.some((marker) => !snapshotMarkerMatchesRegion(marker, regionConfig))) {
+  if (envelope.data.items.some((marker) => !snapshotMarkerMatchesRegion(marker, regionConfig))) {
     throw new Error("지도 장소 스냅샷의 지역 계약이 일치하지 않습니다.");
   }
   recordMapExplorerMetric("complete_snapshot", requestStartedAt);
-  return body.data;
+  return envelope.data;
 }
 
 interface BrowserSnapshotEntry {
   value?: MapPlacesSnapshot;
+  storedAt?: number;
   inFlight?: Promise<MapPlacesSnapshot>;
   controller?: AbortController;
   subscribers: Set<symbol>;
@@ -110,8 +128,12 @@ function browserSnapshotKey(region: RegionId, dataset: MapPlacesSnapshotDataset)
 
 export function createMapPlacesSnapshotBrowserClient({
   request = fetch,
+  now = Date.now,
+  freshMs = 300_000,
 }: {
   request?: typeof fetch;
+  now?: () => number;
+  freshMs?: number;
 } = {}) {
   const entries = new Map<string, BrowserSnapshotEntry>();
 
@@ -128,7 +150,13 @@ export function createMapPlacesSnapshotBrowserClient({
       }
       const key = browserSnapshotKey(region, dataset);
       let entry = entries.get(key);
-      if (entry?.value) return Promise.resolve(entry.value);
+      if (entry?.value && entry.storedAt !== undefined && now() - entry.storedAt <= freshMs) {
+        return Promise.resolve(entry.value);
+      }
+      if (entry?.value && !entry.inFlight) {
+        entries.delete(key);
+        entry = undefined;
+      }
       if (!entry) {
         entry = { subscribers: new Set<symbol>() };
         const controller = new AbortController();
@@ -144,6 +172,7 @@ export function createMapPlacesSnapshotBrowserClient({
           if (controller.signal.aborted) throw abortError();
           if (entries.get(key) === current) {
             current.value = snapshot;
+            current.storedAt = now();
             current.inFlight = undefined;
             current.controller = undefined;
           }

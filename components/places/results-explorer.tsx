@@ -58,10 +58,18 @@ import {
   BUSAN_REGION_CONFIG,
   getRegionConfig,
   getRegionDefaultCatalogCategories,
+  getRegionDistrict,
   type RegionConfig,
 } from "@/lib/regions/config";
 import type { ApiResult } from "@/types/api";
 import type { KakaoCurrentMapSearch } from "@/types/kakao";
+import type {
+  MapPlaceCardDetailsPage,
+} from "@/types/map-place-card-details";
+import type {
+  MapPlacesSnapshotDataset,
+  MapPlacesSnapshotMarker,
+} from "@/types/map-places-snapshot";
 import {
   normalizeKakaoCatalogMarker,
   normalizeTourCatalogPlace,
@@ -239,15 +247,29 @@ interface DefaultCatalogResult {
   kakaoError?: string;
 }
 
+function snapshotCatalogMarker(
+  marker: MapPlacesSnapshotMarker,
+  region: RegionConfig,
+): PublicCatalogMarker {
+  const districtName = marker.districtName ??
+    (marker.districtCode ? getRegionDistrict(region, marker.districtCode)?.name ?? null : null);
+  return {
+    ...marker,
+    districtName,
+    address: marker.address ?? districtName ?? "주소 확인 필요",
+  };
+}
+
 async function requestDefaultCatalog(
   region: RegionConfig,
   signal: AbortSignal,
 ): Promise<DefaultCatalogResult> {
   const requestSnapshot = async () => {
       const snapshot = await mapPlacesSnapshotBrowserClient.load(region.id, "core", signal);
+      const markers = snapshot.items.map((marker) => snapshotCatalogMarker(marker, region));
       return {
-        tour: snapshot.items.filter(({ layer }) => layer === "tourism"),
-        kakao: snapshot.items.filter(({ layer }) => layer === "kakao"),
+        tour: markers.filter(({ layer }) => layer === "tourism"),
+        kakao: markers.filter(({ layer }) => layer === "kakao"),
         freshness: snapshot.freshness.status,
       };
   };
@@ -285,6 +307,33 @@ async function requestDefaultCatalog(
     },
   });
   return { ...loaded.items, delivery: loaded.source };
+}
+
+async function requestMapPlaceCardDetails(
+  region: RegionId,
+  dataset: MapPlacesSnapshotDataset,
+  ids: readonly string[],
+  signal: AbortSignal,
+): Promise<MapPlaceCardDetailsPage> {
+  const params = new URLSearchParams({
+    version: "1",
+    region,
+    dataset,
+    ids: ids.join(","),
+  });
+  const response = await fetch(`/api/map/places/cards?${params}`, {
+    signal,
+    credentials: "omit",
+    headers: { Accept: "application/json" },
+  });
+  const body = await response.json() as ApiResult<MapPlaceCardDetailsPage>;
+  const responseIds = body.ok ? new Set(body.data.items.map(({ id }) => id)) : null;
+  if (!response.ok || !body.ok || body.data.region !== region ||
+    body.data.dataset !== dataset || body.data.items.length !== ids.length ||
+    ids.some((id) => !responseIds?.has(id))) {
+    throw new Error("지도 장소 카드 정보를 확인하지 못했습니다.");
+  }
+  return body.data;
 }
 
 function getVisiblePageNumbers(currentPage: number, totalPages: number): number[] {
@@ -337,6 +386,8 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const [kakaoError, setKakaoError] = useState("");
   const [catalogFreshness, setCatalogFreshness] = useState<"fresh" | "stale" | "fallback" | null>(null);
   const [tourCardsById, setTourCardsById] = useState<Map<string, PublicCatalogPlace>>(() => new Map());
+  const [cardDetailsError, setCardDetailsError] = useState("");
+  const [cardDetailsRetry, setCardDetailsRetry] = useState(0);
   const [retry, setRetry] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mapReadyForRegion, setMapReadyForRegion] = useState<RegionId | null>(null);
@@ -487,7 +538,9 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
         controller,
         promise: regionConfig.mapCatalog.snapshotDatasets.includes("shopping")
           ? mapPlacesSnapshotBrowserClient.load(region, "shopping", controller.signal).then((snapshot) => ({
-              tour: snapshot.items.filter(({ layer }) => layer === "tourism"),
+              tour: snapshot.items
+                .map((marker) => snapshotCatalogMarker(marker, regionConfig))
+                .filter(({ layer }) => layer === "tourism"),
               kakao: [],
             }))
           : Promise.all([
@@ -523,7 +576,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
         optionalRequestRef.current = null;
       }, STRICT_EFFECT_ABORT_GRACE_MS);
     };
-  }, [activeTab, district, needsOptionalPlaces, optionalLoadedFor, optionalScopeKey, region, regionConfig.mapCatalog.snapshotDatasets, retry]);
+  }, [activeTab, district, needsOptionalPlaces, optionalLoadedFor, optionalScopeKey, region, regionConfig, retry]);
 
   useEffect(() => {
     const restoreFromHistory = () => {
@@ -660,6 +713,55 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   }), [mapReadyForRegion, pagedMarkers, region, tourCardsById]);
 
   useEffect(() => {
+    if (regionConfig.mapCatalog.fallbackSource === "public_catalog") {
+      if (pagedMarkers.length === 0) return;
+      const missing = pagedMarkers.filter(({ id }) => !tourCardsById.has(id));
+      if (missing.length === 0) return;
+      const controller = new AbortController();
+      const groups = new Map<MapPlacesSnapshotDataset, PublicCatalogMarker[]>();
+      for (const marker of missing) {
+        const dataset = marker.dataset ?? (marker.category === "shopping" ? "shopping" : "core");
+        groups.set(dataset, [...(groups.get(dataset) ?? []), marker]);
+      }
+      void Promise.all([...groups].map(async ([dataset, markers]) => ({
+        markers,
+        details: await requestMapPlaceCardDetails(
+          region,
+          dataset,
+          markers.map(({ id }) => id),
+          controller.signal,
+        ),
+      }))).then((results) => {
+        setCardDetailsError("");
+        setTourCardsById((current) => {
+          const next = new Map(current);
+          let changed = false;
+          for (const { markers, details } of results) {
+            const detailsById = new Map(details.items.map((detail) => [detail.id, detail] as const));
+            for (const marker of markers) {
+              const detail = detailsById.get(marker.id);
+              if (!detail) continue;
+              changed = true;
+              next.set(marker.id, {
+                ...markerToCatalogCard(marker),
+                address: detail.address,
+                phone: detail.phone,
+                imageUrl: detail.imageUrl,
+                placeUrl: detail.placeUrl,
+                contentTypeId: detail.contentTypeId,
+              });
+            }
+          }
+          return changed ? next : current;
+        });
+      }).catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setCardDetailsError(error instanceof Error
+          ? error.message
+          : "지도 장소 카드 정보를 불러오지 못했습니다.");
+      });
+      return () => controller.abort();
+    }
     if (regionConfig.mapCatalog.fallbackSource !== "tour_api") return;
     const missingIds = pagedMarkers
       .filter(({ layer, id }) => layer === "tourism" && !tourCardsById.has(id))
@@ -693,17 +795,17 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       });
     }).catch(() => undefined);
     return () => controller.abort();
-  }, [district, pagedMarkers, region, regionConfig.mapCatalog.fallbackSource, tourCardsById]);
+  }, [cardDetailsRetry, district, pagedMarkers, region, regionConfig.mapCatalog.fallbackSource, tourCardsById]);
   const mapLocations = useMemo<KakaoMapLocation[]>(() => mapPlaces.map((place) => ({
     id: place.id,
     name: place.name,
-    address: place.address,
+    address: place.address ?? place.districtName ?? getPublicCatalogDistrictName(region, place.districtCode ?? "all"),
     coordinates: place.coordinates,
     markerKind: LAYER_META[place.layer].markerKind,
     sourceLabel: `${place.sourceLabel} · ${place.publicLabel}`,
     interactive: true,
     clusterable: true,
-  })), [mapPlaces]);
+  })), [mapPlaces, region]);
   const placeIndex = useMemo(() => buildMeasuredMapPlaceIndex(filteredPlaces), [filteredPlaces]);
   const districtName = getPublicCatalogDistrictName(region, district);
   const anyReady = tourState === "ready" ||
@@ -776,6 +878,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     setOptionalKakaoPlaces([]);
     setOptionalLoadedFor(null);
     setTourCardsById(new Map());
+    setCardDetailsError("");
     setTourError("");
     setKakaoError("");
     setCatalogFreshness(null);
@@ -1116,6 +1219,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
             {needsOptionalPlaces && optionalTourState === "error" ? <div role="alert"><b>쇼핑 장소를 불러오지 못했습니다.</b> {optionalTourError} <button type="button" onClick={() => { setOptionalTourState("loading"); setOptionalRetry((value) => value + 1); }}><RefreshCw size={15} aria-hidden="true" />쇼핑 다시 시도</button></div> : null}
             {catalogFreshness === "stale" ? <div role="status"><b>저장된 장소 데이터를 표시하고 있습니다.</b> 최신 데이터 확인이 지연되고 있어요.</div> : null}
             {catalogFreshness === "fallback" ? <div role="status"><b>호환 조회로 장소를 표시하고 있습니다.</b> 지역 스냅샷을 확인하지 못했어요.</div> : null}
+            {cardDetailsError ? <div role="alert"><b>카드 상세 정보를 불러오지 못했습니다.</b> {cardDetailsError} <button type="button" onClick={() => setCardDetailsRetry((value) => value + 1)}><RefreshCw size={15} aria-hidden="true" />카드 다시 시도</button></div> : null}
             {tourState === "loading" || (regionConfig.kakaoDiscoveryEnabled && kakaoState === "loading") ? <p role="status">장소를 불러오는 중입니다…</p> : null}
             {needsOptionalPlaces && optionalTourState === "loading" ? <p role="status">쇼핑 장소를 불러오는 중입니다…</p> : null}
             {!anyReady && tourState === "error" && (!regionConfig.kakaoDiscoveryEnabled || kakaoState === "error") ? <button type="button" onClick={() => { setTourState("loading"); setKakaoState(regionConfig.kakaoDiscoveryEnabled ? "loading" : "ready"); setRetry((value) => value + 1); }}><RefreshCw size={15} aria-hidden="true" />다시 시도</button> : null}

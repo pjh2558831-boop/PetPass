@@ -2,9 +2,15 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import { queryPublicMapCatalog, type PublicMapCatalogQuery } from "@/lib/map-places/public-catalog";
+import {
+  publicationInputForSnapshot,
+  resolveMapCatalogPublicationVersion,
+  type MapCatalogPublicationVersion,
+} from "@/lib/map-places/publication-version";
 import { normalizePublicMapCatalogMarker } from "@/types/public-catalog-place";
 import { getRegionConfig } from "@/lib/regions/config";
 import { publicMapPlaceMatchesRegion } from "@/lib/map-places/region-contract";
+import { queryPublicShoppingCatalogSnapshot } from "@/lib/map-places/shopping-catalog";
 import type { PublicMapPlacePage } from "@/types/public-map-place";
 import type {
   MapPlacesSnapshot,
@@ -17,11 +23,26 @@ export const MAP_SNAPSHOT_FRESH_MS = 300_000;
 export const MAP_SNAPSHOT_STALE_IF_ERROR_MS = 3_600_000;
 
 type SnapshotQuery = (input: PublicMapCatalogQuery) => Promise<PublicMapPlacePage>;
-type SnapshotAssembler = (input: MapPlacesSnapshotRequest) => Promise<MapPlacesSnapshot>;
+type ShoppingSnapshotQuery = (input: {
+  regionId: MapPlacesSnapshotRequest["region"];
+  providers: readonly ["tour"];
+  kinds: readonly ["tourism_place"];
+  categories: readonly ["shopping"];
+  dataset: "shopping";
+}) => Promise<PublicMapPlacePage>;
+type SnapshotAssembler = (
+  input: MapPlacesSnapshotRequest,
+  publicationVersion: MapCatalogPublicationVersion,
+) => Promise<MapPlacesSnapshot>;
+type SnapshotLoader = (input: MapPlacesSnapshotRequest) => Promise<MapPlacesSnapshot>;
+type PublicationResolver = (
+  input: MapPlacesSnapshotRequest,
+) => Promise<MapCatalogPublicationVersion>;
 
 function compactMarker(
   place: PublicMapPlacePage["items"][number],
   region: MapPlacesSnapshotRequest["region"],
+  inputDataset: MapPlacesSnapshotRequest["dataset"],
 ): MapPlacesSnapshotMarker {
   const marker = normalizePublicMapCatalogMarker(place, region);
   return {
@@ -29,6 +50,7 @@ function compactMarker(
     regionId: marker.regionId,
     providerPlaceId: marker.providerPlaceId,
     name: marker.name,
+    dataset: inputDataset,
     layer: marker.layer,
     category: marker.category,
     districtCode: marker.districtCode,
@@ -47,14 +69,60 @@ function compactMarker(
   };
 }
 
+export interface MapPlacesSnapshotWireMarker {
+  id: string;
+  name: string;
+  layer: MapPlacesSnapshotMarker["layer"];
+  category: MapPlacesSnapshotMarker["category"];
+  districtCode: string | null;
+  coordinates: MapPlacesSnapshotMarker["coordinates"];
+  lastSeenAt?: string | null;
+  matchedQueryCount?: number;
+  categoryQueryAgreementCount?: number;
+  completeness?: number;
+  petAccessVerdict: MapPlacesSnapshotMarker["petAccessVerdict"];
+  publicLabel: string;
+}
+
+function lightweightMarker(
+  marker: MapPlacesSnapshotMarker,
+): MapPlacesSnapshotWireMarker {
+  return {
+    id: marker.id,
+    name: marker.name,
+    layer: marker.layer,
+    category: marker.category,
+    districtCode: marker.districtCode,
+    coordinates: marker.coordinates,
+    lastSeenAt: marker.lastSeenAt,
+    ...(marker.matchedQueryCount ? { matchedQueryCount: marker.matchedQueryCount } : {}),
+    ...(marker.categoryQueryAgreementCount
+      ? { categoryQueryAgreementCount: marker.categoryQueryAgreementCount }
+      : {}),
+    ...(marker.completeness === undefined ? {} : { completeness: marker.completeness }),
+    petAccessVerdict: marker.petAccessVerdict,
+    publicLabel: marker.publicLabel,
+  };
+}
+
+export function lightweightMapPlacesSnapshot(
+  snapshot: MapPlacesSnapshot,
+): Omit<MapPlacesSnapshot, "items"> & { items: MapPlacesSnapshotWireMarker[] } {
+  return { ...snapshot, items: snapshot.items.map(lightweightMarker) };
+}
+
 export async function assembleMapPlacesSnapshot(
   input: MapPlacesSnapshotRequest,
   {
     query = queryPublicMapCatalog,
+    queryShopping = queryPublicShoppingCatalogSnapshot,
     now = () => new Date(),
+    publicationVersion,
   }: {
     query?: SnapshotQuery;
+    queryShopping?: ShoppingSnapshotQuery;
     now?: () => Date;
+    publicationVersion?: MapCatalogPublicationVersion;
   } = {},
 ): Promise<MapPlacesSnapshot> {
   const region = getRegionConfig(input.region);
@@ -78,16 +146,24 @@ export async function assembleMapPlacesSnapshot(
   let hasNext = true;
 
   for (let pageNumber = 1; hasNext; pageNumber += 1) {
-    const page = await query({
-      regionId: input.region,
-      dataset: input.dataset,
-      providers,
-      kinds: [...kinds],
-      categories: categories ? [...categories] : undefined,
-      page: pageNumber,
-      pageSize: MAP_SNAPSHOT_PAGE_SIZE,
-      ...(afterId === undefined ? {} : { afterId }),
-    });
+    const page = input.dataset === "shopping"
+      ? await queryShopping({
+          regionId: input.region,
+          dataset: "shopping",
+          providers: ["tour"],
+          kinds: ["tourism_place"],
+          categories: ["shopping"],
+        })
+      : await query({
+          regionId: input.region,
+          dataset: input.dataset,
+          providers,
+          kinds: [...kinds],
+          categories: categories ? [...categories] : undefined,
+          page: pageNumber,
+          pageSize: MAP_SNAPSHOT_PAGE_SIZE,
+          ...(afterId === undefined ? {} : { afterId }),
+        });
     if (page.region.id !== input.region) throw new Error("Snapshot region does not match the requested region.");
     if (expectedTotal === null) expectedTotal = page.totalCount;
     if (page.totalCount !== expectedTotal) throw new Error("Snapshot count changed during assembly.");
@@ -97,7 +173,7 @@ export async function assembleMapPlacesSnapshot(
     if (page.hasNext && page.items.length === 0) {
       throw new Error("Snapshot cursor page is empty before catalog completion.");
     }
-    const nextItems = page.items.map((place) => compactMarker(place, input.region));
+    const nextItems = page.items.map((place) => compactMarker(place, input.region, input.dataset));
     if (nextItems.some((item) => seenIds.has(item.id))) {
       throw new Error("Snapshot contains duplicate place identifiers.");
     }
@@ -127,7 +203,10 @@ export async function assembleMapPlacesSnapshot(
   }
   const dataHash = createHash("sha256");
   dataHash.update(`${input.version}:${input.region}:${input.scope}:${input.dataset}\n`);
-  for (const item of items) dataHash.update(`${JSON.stringify(item)}\n`);
+  for (const item of items) dataHash.update(`${JSON.stringify(lightweightMarker(item))}\n`);
+  const dataVersion = `v1-${dataHash.digest("hex").slice(0, 16)}`;
+  const resolvedPublicationVersion = publicationVersion ??
+    `p1-${createHash("sha256").update(`${input.region}:${input.dataset}:${dataVersion}`).digest("hex").slice(0, 16)}`;
   const generatedAt = now().toISOString();
   return {
     contractVersion: input.version,
@@ -135,7 +214,8 @@ export async function assembleMapPlacesSnapshot(
     scope: input.scope,
     dataset: input.dataset,
     generatedAt,
-    dataVersion: `v1-${dataHash.digest("hex").slice(0, 16)}`,
+    publicationVersion: resolvedPublicationVersion,
+    dataVersion,
     totalCount: items.length,
     providerCounts,
     categoryCounts,
@@ -167,23 +247,64 @@ function snapshotKey(input: MapPlacesSnapshotRequest): string {
     `providers=${providers}`,
     `categories=${categories}`,
     `fallback=${region.mapCatalog.fallbackSource}`,
+    "query=markers",
   ].join(":");
 }
 
+function fallbackPublicationVersion(input: MapPlacesSnapshotRequest): MapCatalogPublicationVersion {
+  return `p1-${createHash("sha256").update(snapshotKey(input)).digest("hex").slice(0, 16)}`;
+}
+
 export function createMapPlacesSnapshotLoader({
-  assemble = (input) => assembleMapPlacesSnapshot(input),
+  assemble = (input, publicationVersion) =>
+    assembleMapPlacesSnapshot(input, { publicationVersion }),
+  resolvePublicationVersion = async (input) => fallbackPublicationVersion(input),
   now = Date.now,
   freshMs = MAP_SNAPSHOT_FRESH_MS,
   staleIfErrorMs = MAP_SNAPSHOT_STALE_IF_ERROR_MS,
 }: {
   assemble?: SnapshotAssembler;
+  resolvePublicationVersion?: PublicationResolver;
   now?: () => number;
   freshMs?: number;
   staleIfErrorMs?: number;
-} = {}): SnapshotAssembler {
+} = {}): SnapshotLoader {
   const entries = new Map<string, SnapshotCacheEntry>();
+  const activeKeyByBase = new Map<string, string>();
+  const publicationInFlight = new Map<string, Promise<MapCatalogPublicationVersion>>();
+  const resolvePublication = (input: MapPlacesSnapshotRequest, baseKey: string) => {
+    const pending = publicationInFlight.get(baseKey);
+    if (pending) return pending;
+    const next = resolvePublicationVersion(input).finally(() => {
+      if (publicationInFlight.get(baseKey) === next) publicationInFlight.delete(baseKey);
+    });
+    publicationInFlight.set(baseKey, next);
+    return next;
+  };
   return async (input) => {
-    const key = snapshotKey(input);
+    const baseKey = snapshotKey(input);
+    let publicationVersion: MapCatalogPublicationVersion;
+    try {
+      publicationVersion = await resolvePublication(input, baseKey);
+    } catch (error: unknown) {
+      const previousKey = activeKeyByBase.get(baseKey);
+      const previous = previousKey ? entries.get(previousKey) : undefined;
+      const previousAge = previous?.storedAt === undefined
+        ? Number.POSITIVE_INFINITY
+        : now() - previous.storedAt;
+      if (previous?.value && previousAge <= freshMs + staleIfErrorMs) {
+        return {
+          ...previous.value,
+          freshness: { status: "stale", staleAt: new Date(now()).toISOString() },
+        };
+      }
+      throw error;
+    }
+    const key = `${baseKey}:publication=${publicationVersion}`;
+    const previousKey = activeKeyByBase.get(baseKey);
+    const previousEntry = previousKey && previousKey !== key
+      ? entries.get(previousKey)
+      : undefined;
     const entry = entries.get(key) ?? {};
     const age = entry.storedAt === undefined ? Number.POSITIVE_INFINITY : now() - entry.storedAt;
     if (entry.value && age <= freshMs) return entry.value;
@@ -195,20 +316,30 @@ export function createMapPlacesSnapshotLoader({
     }
     if (entry.inFlight) return entry.inFlight;
 
-    const inFlight = assemble(input).then((value) => {
+    const inFlight = assemble(input, publicationVersion).then((value) => {
       entries.set(key, { value, storedAt: now() });
+      activeKeyByBase.set(baseKey, key);
+      if (previousKey && previousKey !== key) entries.delete(previousKey);
       return value;
     }).catch((error: unknown) => {
-      if (entry.value && age <= freshMs + staleIfErrorMs) {
+      const fallback = entry.value ? entry : previousEntry;
+      const fallbackAge = fallback?.storedAt === undefined
+        ? Number.POSITIVE_INFINITY
+        : now() - fallback.storedAt;
+      if (fallback?.value && fallbackAge <= freshMs + staleIfErrorMs) {
         const stale = {
-          ...entry.value,
+          ...fallback.value,
           freshness: { status: "stale" as const, staleAt: new Date(now()).toISOString() },
         };
-        entries.set(key, {
-          value: entry.value,
-          storedAt: entry.storedAt,
-          retryAfter: now() + Math.min(freshMs, 60_000),
-        });
+        if (entry.value) {
+          entries.set(key, {
+            value: entry.value,
+            storedAt: entry.storedAt,
+            retryAfter: now() + Math.min(freshMs, 60_000),
+          });
+        } else {
+          entries.delete(key);
+        }
         return stale;
       }
       entries.delete(key);
@@ -219,4 +350,7 @@ export function createMapPlacesSnapshotLoader({
   };
 }
 
-export const loadMapPlacesSnapshot = createMapPlacesSnapshotLoader();
+export const loadMapPlacesSnapshot = createMapPlacesSnapshotLoader({
+  resolvePublicationVersion: (input) =>
+    resolveMapCatalogPublicationVersion(publicationInputForSnapshot(input)),
+});

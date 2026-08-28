@@ -24,11 +24,12 @@ export interface MapPlacesSnapshotMarker {
   regionId: RegionId;
   providerPlaceId: string;
   name: string;
+  dataset?: MapPlacesSnapshotDataset;
   layer: PublicCatalogLayer;
   category: PublicMapPlaceCategory;
   districtCode: string | null;
-  districtName: string | null;
-  address: string;
+  districtName?: string | null;
+  address?: string;
   coordinates: { latitude: number; longitude: number } | null;
   lastSeenAt?: string | null;
   matchedQueryCount?: number;
@@ -47,6 +48,7 @@ export interface MapPlacesSnapshot {
   scope: MapPlacesSnapshotScope;
   dataset: MapPlacesSnapshotDataset;
   generatedAt: string;
+  publicationVersion: `p1-${string}`;
   dataVersion: string;
   totalCount: number;
   providerCounts: Record<PublicMapPlaceProvider, number>;
@@ -101,12 +103,14 @@ function isSnapshotMarker(value: unknown, region: RegionId): value is MapPlacesS
     value.regionId === region &&
     typeof value.providerPlaceId === "string" && value.providerPlaceId.length > 0 &&
     typeof value.name === "string" && value.name.length > 0 &&
+    (value.dataset === undefined || MAP_PLACES_SNAPSHOT_DATASETS.includes(value.dataset as MapPlacesSnapshotDataset)) &&
     ["tourism", "kakao"].includes(String(value.layer)) &&
     ["cafe", "food", "accommodation", "attraction", "park_walk", "leisure", "camping", "shopping", "other"]
       .includes(String(value.category)) &&
     (value.districtCode === null || (typeof value.districtCode === "string" && value.districtCode.length > 0)) &&
-    (value.districtName === null || (typeof value.districtName === "string" && value.districtName.length > 0)) &&
-    typeof value.address === "string" &&
+    (value.districtName === undefined || value.districtName === null ||
+      (typeof value.districtName === "string" && value.districtName.length > 0)) &&
+    (value.address === undefined || typeof value.address === "string") &&
     validCoordinates &&
     (value.lastSeenAt === undefined || value.lastSeenAt === null || (
       typeof value.lastSeenAt === "string" && Number.isFinite(Date.parse(value.lastSeenAt))
@@ -137,6 +141,7 @@ export function isMapPlacesSnapshot(value: unknown): value is MapPlacesSnapshot 
     !MAP_PLACES_SNAPSHOT_DATASETS.includes(value.dataset as MapPlacesSnapshotDataset)
   ) return false;
   if (typeof value.generatedAt !== "string" || !Number.isFinite(Date.parse(value.generatedAt))) return false;
+  if (typeof value.publicationVersion !== "string" || !/^p1-[a-f0-9]{16}$/u.test(value.publicationVersion)) return false;
   if (typeof value.dataVersion !== "string" || !/^v1-[a-f0-9]{16}$/u.test(value.dataVersion)) return false;
   if (!Number.isInteger(value.totalCount) || Number(value.totalCount) < 0) return false;
   if (!hasCountRecord(value.providerCounts) || !hasCountRecord(value.categoryCounts)) return false;
@@ -152,14 +157,15 @@ export function isMapPlacesSnapshot(value: unknown): value is MapPlacesSnapshot 
   )) return false;
   if (!Array.isArray(value.items) || value.items.length !== value.totalCount) return false;
   const region = value.region as RegionId;
-  if (!value.items.every((item) => isSnapshotMarker(item, region))) return false;
+  if (!value.items.every((item) => isSnapshotMarker(item, region) &&
+    (item.dataset === undefined || item.dataset === value.dataset))) return false;
   if (
     value.dataset === "shopping" && value.items.some((item) =>
       item.layer !== "tourism" ||
       item.category !== "shopping" ||
       item.petAccessVerdict !== "unknown" ||
       item.publicLabel !== "반려동물 동반 정보 확인 필요" ||
-      item.placeUrl !== null)
+      (item.placeUrl !== undefined && item.placeUrl !== null))
   ) return false;
   if (value.dataset === "core" && value.items.some((item) => item.category === "shopping")) {
     return false;

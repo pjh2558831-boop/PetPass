@@ -11,6 +11,7 @@ const seoulSnapshot = {
   scope: "default",
   dataset: "shopping",
   generatedAt: "2026-08-26T00:00:00.000Z",
+  publicationVersion: "p1-0123456789abcdef",
   dataVersion: "v1-0123456789abcdef",
   totalCount: 1,
   providerCounts: { tour: 1, kakao: 0 },
@@ -21,6 +22,7 @@ const seoulSnapshot = {
     regionId: "seoul",
     providerPlaceId: "3800001",
     name: "서울 공식 쇼핑 장소",
+    dataset: "shopping",
     layer: "tourism",
     category: "shopping",
     districtCode: "110",
@@ -70,7 +72,21 @@ describe("map snapshot browser fallback", () => {
   });
 
   it("accepts one validated Seoul snapshot and records browser-side measurements", async () => {
-    const raw = JSON.stringify({ ok: true, data: seoulSnapshot });
+    const sourceMarker = seoulSnapshot.items[0];
+    const wireMarker = {
+      id: sourceMarker.id,
+      name: sourceMarker.name,
+      layer: sourceMarker.layer,
+      category: sourceMarker.category,
+      districtCode: sourceMarker.districtCode,
+      coordinates: sourceMarker.coordinates,
+      petAccessVerdict: sourceMarker.petAccessVerdict,
+      publicLabel: sourceMarker.publicLabel,
+    };
+    const raw = JSON.stringify({
+      ok: true,
+      data: { ...seoulSnapshot, items: [wireMarker] },
+    });
     const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       void input;
       void init;
@@ -87,7 +103,16 @@ describe("map snapshot browser fallback", () => {
       request as typeof fetch,
     );
 
-    expect(snapshot).toMatchObject({ region: "seoul", totalCount: 1 });
+    expect(snapshot).toMatchObject({
+      region: "seoul",
+      totalCount: 1,
+      items: [{
+        regionId: "seoul",
+        providerPlaceId: "3800001",
+        dataset: "shopping",
+        sourceLabel: "한국관광공사",
+      }],
+    });
     expect(request).toHaveBeenCalledTimes(1);
     expect(String(request.mock.calls[0]?.[0])).toContain("region=seoul");
     expect(document.documentElement.dataset).toMatchObject({
@@ -141,6 +166,25 @@ describe("map snapshot browser fallback", () => {
     await expect(client.load("seoul", "shopping", new AbortController().signal))
       .resolves.toMatchObject({ dataset: "shopping" });
     expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it("revalidates a regional dataset after the bounded browser cache expires", async () => {
+    let now = 1_000;
+    const request = vi.fn(async () => Response.json({ ok: true, data: seoulSnapshot }));
+    const client = createMapPlacesSnapshotBrowserClient({
+      request: request as typeof fetch,
+      now: () => now,
+      freshMs: 10,
+    });
+    const signal = new AbortController().signal;
+
+    await client.load("seoul", "shopping", signal);
+    now += 10;
+    await client.load("seoul", "shopping", signal);
+    now += 1;
+    await client.load("seoul", "shopping", signal);
+
+    expect(request).toHaveBeenCalledTimes(2);
   });
 
   it("isolates warm snapshot entries by both region and dataset", async () => {

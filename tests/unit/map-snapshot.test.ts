@@ -105,13 +105,14 @@ describe("public map snapshot assembly", () => {
       region: "busan",
       scope: "default",
       dataset: "core",
+      publicationVersion: expect.stringMatching(/^p1-[a-f0-9]{16}$/u),
       totalCount: 2,
       providerCounts: { tour: 1, kakao: 1 },
       categoryCounts: { attraction: 1, cafe: 1 },
       freshness: { status: "fresh" },
       items: [
-        { regionId: "busan", layer: "kakao", category: "cafe", petAccessVerdict: "unknown" },
-        { regionId: "busan", layer: "tourism", category: "attraction", petAccessVerdict: "conditional" },
+        { regionId: "busan", dataset: "core", layer: "kakao", category: "cafe", petAccessVerdict: "unknown" },
+        { regionId: "busan", dataset: "core", layer: "tourism", category: "attraction", petAccessVerdict: "conditional" },
       ],
     });
     expect(snapshot.dataVersion).toMatch(/^v1-[a-f0-9]{16}$/u);
@@ -162,10 +163,20 @@ describe("public map snapshot assembly", () => {
       );
     });
 
-    const snapshot = await assembleMapPlacesSnapshot(request("seoul", "shopping"), { query });
+    const queryShopping = vi.fn(async () => page(
+      "seoul",
+      Array.from({ length: totalCount }, (_, index) =>
+        place("tour", "seoul", String(index + 1), "shopping")),
+      totalCount,
+    ));
+    const snapshot = await assembleMapPlacesSnapshot(request("seoul", "shopping"), {
+      query,
+      queryShopping,
+    });
 
-    expect(query).toHaveBeenCalledTimes(16);
-    expect(query).toHaveBeenNthCalledWith(1, expect.objectContaining({
+    expect(query).not.toHaveBeenCalled();
+    expect(queryShopping).toHaveBeenCalledTimes(1);
+    expect(queryShopping).toHaveBeenCalledWith(expect.objectContaining({
       regionId: "seoul",
       providers: ["tour"],
       kinds: ["tourism_place"],
@@ -179,6 +190,7 @@ describe("public map snapshot assembly", () => {
       regionId: "seoul",
       layer: "tourism",
       category: "shopping",
+      dataset: "shopping",
       placeUrl: null,
     });
   });
@@ -248,7 +260,9 @@ describe("public map snapshot cache", () => {
         query: vi.fn(async () => page(input.region, [place("tour", input.region, "9")])),
       });
     });
-    const load = createMapPlacesSnapshotLoader({ assemble });
+    const resolvePublicationVersion = vi.fn(async (input: ReturnType<typeof request>) =>
+      `p1-${input.region === "busan" ? "1" : input.region === "jeju" ? "2" : "3"}`.padEnd(19, "0") as `p1-${string}`);
+    const load = createMapPlacesSnapshotLoader({ assemble, resolvePublicationVersion });
 
     const first = load(request("busan"));
     const second = load(request("busan"));
@@ -266,6 +280,54 @@ describe("public map snapshot cache", () => {
     await load(request("jeju"));
     await load(request("seoul"));
     expect(assemble).toHaveBeenCalledTimes(3);
+    expect(resolvePublicationVersion).toHaveBeenCalledTimes(6);
+  });
+
+  it("isolates cache entries by publication version and replaces only the changed regional dataset", async () => {
+    let publicationVersion: `p1-${string}` = "p1-1111111111111111";
+    const resolvePublicationVersion = vi.fn(async () => publicationVersion);
+    const assemble = vi.fn(async (input: ReturnType<typeof request>, version: `p1-${string}`) =>
+      assembleMapPlacesSnapshot(input, {
+        publicationVersion: version,
+        query: vi.fn(async () => page(input.region, [place("tour", input.region, version.slice(-1))])),
+      }));
+    const load = createMapPlacesSnapshotLoader({ assemble, resolvePublicationVersion });
+
+    const first = await load(request("seoul"));
+    await load(request("seoul"));
+    publicationVersion = "p1-2222222222222222";
+    const second = await load(request("seoul"));
+
+    expect(first.publicationVersion).toBe("p1-1111111111111111");
+    expect(second.publicationVersion).toBe("p1-2222222222222222");
+    expect(assemble).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the last valid publication as stale when a new publication cannot assemble", async () => {
+    let publicationVersion: `p1-${string}` = "p1-1111111111111111";
+    const fresh = await assembleMapPlacesSnapshot(request("seoul"), {
+      publicationVersion,
+      query: vi.fn(async () => page("seoul", [place("tour", "seoul", "71")])),
+    });
+    const assemble = vi.fn()
+      .mockResolvedValueOnce(fresh)
+      .mockRejectedValueOnce(new Error("temporary Supabase failure"));
+    const load = createMapPlacesSnapshotLoader({
+      assemble,
+      resolvePublicationVersion: vi.fn(async () => publicationVersion),
+      staleIfErrorMs: 300_000,
+    });
+
+    await load(request("seoul"));
+    publicationVersion = "p1-2222222222222222";
+    const stale = await load(request("seoul"));
+
+    expect(stale).toMatchObject({
+      publicationVersion: "p1-1111111111111111",
+      dataVersion: fresh.dataVersion,
+      freshness: { status: "stale" },
+    });
+    expect(assemble).toHaveBeenCalledTimes(2);
   });
 
   it("returns the last valid value as stale when refresh fails", async () => {
@@ -279,6 +341,7 @@ describe("public map snapshot cache", () => {
       .mockRejectedValueOnce(new Error("temporary Supabase failure"));
     const load = createMapPlacesSnapshotLoader({
       assemble,
+      resolvePublicationVersion: vi.fn(async () => "p1-1111111111111111" as const),
       now: () => nowMs,
       freshMs: 60_000,
       staleIfErrorMs: 300_000,
@@ -314,8 +377,47 @@ describe("GET /api/map/places/snapshot", () => {
     expect(response.headers.get("cache-control")).toContain("public");
     expect(response.headers.get("cdn-cache-control")).toContain("stale-while-revalidate");
     expect(response.headers.get("vercel-cdn-cache-control")).toContain("max-age=300");
-    await expect(response.json()).resolves.toMatchObject({ data: { contractVersion: 1, region: "busan" } });
+    expect(response.headers.get("etag")).toBe(`"${snapshot.dataVersion}"`);
+    const body = await response.json() as { data: { items: Record<string, unknown>[] } };
+    expect(body).toMatchObject({ data: { contractVersion: 1, region: "busan" } });
+    expect(body.data.items[0]).not.toHaveProperty("address");
+    expect(body.data.items[0]).not.toHaveProperty("districtName");
+    expect(body.data.items[0]).not.toHaveProperty("imageUrl");
+    expect(body.data.items[0]).not.toHaveProperty("placeUrl");
     expect(loadSnapshot).toHaveBeenCalledWith(request("busan"));
+
+    const notModified = await createMapPlacesSnapshotHandler({ loadSnapshot })(
+      new Request("http://localhost/api/map/places/snapshot?version=1&region=busan&scope=default&dataset=core", {
+        headers: { "If-None-Match": `"${snapshot.dataVersion}"` },
+      }),
+    );
+    expect(notModified.status).toBe(304);
+    expect(await notModified.text()).toBe("");
+  });
+
+  it("keeps stale fallback freshness distinct from a cached fresh serialization", async () => {
+    const snapshot = await assembleMapPlacesSnapshot(request("busan"), {
+      query: vi.fn(async () => page("busan", [place("tour", "busan", "92")])),
+    });
+    const staleSnapshot = {
+      ...snapshot,
+      freshness: { status: "stale" as const, staleAt: "2026-08-28T12:00:00.000Z" },
+    };
+    const loadSnapshot = vi.fn()
+      .mockResolvedValueOnce(snapshot)
+      .mockResolvedValueOnce(staleSnapshot);
+    const handler = createMapPlacesSnapshotHandler({ loadSnapshot });
+    const url = "http://localhost/api/map/places/snapshot?version=1&region=busan&scope=default&dataset=core";
+
+    const freshBody = await (await handler(new Request(url))).json() as {
+      data: { freshness: { status: string } };
+    };
+    const staleBody = await (await handler(new Request(url))).json() as {
+      data: { freshness: { status: string; staleAt?: string } };
+    };
+
+    expect(freshBody.data.freshness.status).toBe("fresh");
+    expect(staleBody.data.freshness).toEqual(staleSnapshot.freshness);
   });
 
   it("returns no-store when the loader returns a malformed count contract", async () => {

@@ -185,6 +185,7 @@ function snapshot(items: MapPlacesSnapshotMarker[]): MapPlacesSnapshot {
     scope: "default",
     dataset: "core",
     generatedAt: "2026-08-15T00:00:00.000Z",
+    publicationVersion: "p1-0123456789abcdef",
     dataVersion: "v1-0123456789abcdef",
     totalCount: items.length,
     providerCounts: { tour: 0, kakao: items.length },
