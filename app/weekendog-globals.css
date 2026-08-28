@@ -880,34 +880,35 @@ select {
   flex: 0 0 auto;
   border-bottom: 1px solid var(--brand-border);
   background: #f1f7f2;
-  padding: 13px 14px;
+  padding: 18px 16px;
 }
 
 .selected-itinerary-tray > header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  min-height: 48px;
+  gap: 16px;
 }
 
 .selected-itinerary-tray > header p {
   color: var(--brand);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.08em;
 }
 
 .selected-itinerary-tray > header h2 {
-  margin-top: 2px;
-  font-size: 17px;
+  margin-top: 4px;
+  font-size: 19px;
   font-weight: 950;
   letter-spacing: -0.04em;
 }
 
 .selected-itinerary-tray > header button {
   display: grid;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   place-items: center;
   border: 1px solid var(--brand-border);
   border-radius: 12px;
@@ -1027,25 +1028,27 @@ select {
   z-index: 25;
   display: flex;
   flex: 0 0 auto;
-  align-items: flex-start;
+  min-height: 86px;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 18px;
   border-bottom: 1px solid var(--line);
-  padding: 16px 16px 12px;
+  padding: 18px 16px 16px;
 }
 
 .explorer-results-header h1 {
   color: var(--text);
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 900;
   letter-spacing: -0.04em;
 }
 
 .explorer-results-header p {
-  margin-top: 4px;
+  margin-top: 6px;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
+  line-height: 1.5;
 }
 
 .explorer-sort-row select {
@@ -1887,14 +1890,14 @@ select {
 
 .weekendoog-hero-launcher {
   position: absolute;
-  bottom: 20px;
+  bottom: 0;
   left: 0;
-  width: min(600px, calc(100% - 32px));
+  width: min(560px, calc(100% - 32px));
 }
 
 .hero-planner-launcher {
   border-radius: 20px;
-  padding: 14px 16px;
+  padding: 12px 14px;
 }
 
 .hero-planner-heading {

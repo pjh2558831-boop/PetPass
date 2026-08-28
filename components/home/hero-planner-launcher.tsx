@@ -88,8 +88,6 @@ export function HeroPlannerLauncher() {
         <ArrowRight size={17} aria-hidden="true" />
       </Link>
 
-      <p className="mt-3 text-center text-xs font-bold text-[var(--muted)]">또는 지역과 조건을 맡겨보세요</p>
-
       <div className="mt-3 flex flex-col gap-3 sm:flex-row">
         <label className="relative min-w-0 flex-1">
           <span className="sr-only">부산 여행 지역</span>

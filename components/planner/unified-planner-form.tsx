@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
-  AlertTriangle,
   Backpack,
   BedDouble,
   CalendarDays,
@@ -43,7 +42,6 @@ import {
   getSelectedItineraryCategories,
   loadSelectedItinerary,
   saveSelectedItinerary,
-  selectedItineraryNeedsWarning,
   type SelectedItinerarySnapshot,
 } from "@/lib/storage/selected-itinerary-storage";
 import type {
@@ -122,6 +120,33 @@ type FieldErrors = Partial<
 export interface SavedPetPlannerOption {
   profile: PetProfile;
   imageUrl: string | null;
+}
+
+function SelectedPlaceImage({ name, imageUrl }: { name: string; imageUrl: string | null }) {
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <div className="relative size-24 shrink-0 overflow-hidden rounded-xl bg-[var(--brand-soft)] sm:size-28">
+      {imageUrl && !failed ? (
+        <Image
+          src={imageUrl}
+          alt={`${name} 장소 사진`}
+          fill
+          sizes="(max-width: 640px) 96px, 112px"
+          className="object-cover"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <span
+          className="grid size-full place-items-center text-[var(--brand)]"
+          role="img"
+          aria-label={`${name} 사진 준비 중`}
+        >
+          <MapPin size={28} aria-hidden="true" />
+        </span>
+      )}
+    </div>
+  );
 }
 
 interface UnifiedPlannerFormProps {
@@ -388,13 +413,13 @@ export function UnifiedPlannerForm({
           {selectedItinerary?.places.length ? (
             <ul className="mt-5 grid gap-3 sm:grid-cols-2" aria-label="고정할 선택 장소">
               {selectedItinerary.places.map((place) => (
-                <li key={place.id} className="rounded-[var(--radius-control)] border border-[var(--line)] bg-[#f8faf7] p-4">
-                  <span className="flex items-center gap-2 text-xs font-extrabold text-[var(--brand)]"><LockKeyhole size={14} aria-hidden="true" /> 일정에 고정</span>
-                  <strong className="mt-2 block text-base font-black">{place.name}</strong>
-                  <span className="mt-1 block text-xs font-semibold text-[var(--muted)]">{place.sourceLabel} · {place.publicLabel}</span>
-                  {selectedItineraryNeedsWarning(place) ? (
-                    <small className="mt-2 flex items-start gap-1 text-xs font-bold leading-5 text-[#76542f]"><AlertTriangle className="mt-0.5 shrink-0" size={13} aria-hidden="true" /> 방문 전 실제 동반 조건을 확인해 주세요.</small>
-                  ) : null}
+                <li key={place.id} className="flex min-w-0 items-center gap-4 rounded-[var(--radius-control)] border border-[var(--line)] bg-[#f8faf7] p-3">
+                  <SelectedPlaceImage name={place.name} imageUrl={place.imageUrl} />
+                  <div className="min-w-0">
+                    <span className="flex items-center gap-2 text-xs font-extrabold text-[var(--brand)]"><LockKeyhole size={14} aria-hidden="true" /> 일정에 고정</span>
+                    <strong className="mt-2 block text-base font-black">{place.name}</strong>
+                    <span className="mt-1 block text-xs font-semibold leading-5 text-[var(--muted)]">{place.sourceLabel} · {place.publicLabel}</span>
+                  </div>
                 </li>
               ))}
             </ul>

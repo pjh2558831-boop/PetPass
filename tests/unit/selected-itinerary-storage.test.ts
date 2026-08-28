@@ -7,9 +7,11 @@ import {
   removeSelectedItineraryPlace,
   requiresSelectionRegionClear,
   saveSelectedItinerary,
+  selectedItineraryPlaceFromCatalog,
   type SelectedItineraryPlace,
 } from "@/lib/storage/selected-itinerary-storage";
 import type { StorageLike } from "@/lib/storage/versioned-storage";
+import type { PublicCatalogPlace } from "@/types/public-catalog-place";
 
 class MemoryStorage implements StorageLike {
   private readonly values = new Map<string, string>();
@@ -41,11 +43,32 @@ function place(
     sourceLabel: id.startsWith("tour:") ? "한국관광공사" : "카카오 검색 후보",
     publicLabel: "동반 정보 확인 필요",
     petAccessVerdict: "unknown",
+    imageUrl: null,
     ...overrides,
   };
 }
 
 describe("selected itinerary storage", () => {
+  it("preserves the catalog image for the planner selected-place summary", () => {
+    const catalogPlace = {
+      ...place("tour:7001"),
+      districtCode: "110",
+      districtName: "수영구",
+      address: "부산 수영구 광안해변로",
+      coordinates: { latitude: 35.153, longitude: 129.118 },
+      phone: null,
+      imageUrl: "https://tong.visitkorea.or.kr/cms/resource/selected-place.jpg",
+      approvedImageUrl: null,
+      placeUrl: "/places/7001?region=busan",
+      warning: null,
+      tourPlace: null,
+    } satisfies PublicCatalogPlace;
+
+    expect(selectedItineraryPlaceFromCatalog(catalogPlace).imageUrl).toBe(
+      "https://tong.visitkorea.or.kr/cms/resource/selected-place.jpg",
+    );
+  });
+
   it("adds, deselects, and persists canonical places independently of filters and pages", () => {
     const storage = new MemoryStorage();
     let snapshot = createSelectedItinerarySnapshot("busan");

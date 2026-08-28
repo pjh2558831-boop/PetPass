@@ -32,6 +32,7 @@ const selectedItineraryPlaceSchema = z.object({
   ]),
   publicLabel: z.string().trim().min(1).max(120),
   petAccessVerdict: z.enum(PUBLIC_MAP_PET_ACCESS_VERDICTS),
+  imageUrl: z.string().url().nullable().default(null),
 });
 
 const selectedItinerarySnapshotSchema = z.object({
@@ -92,6 +93,7 @@ export function selectedItineraryPlaceFromCatalog(
     sourceLabel: place.sourceLabel,
     publicLabel: place.publicLabel,
     petAccessVerdict: place.petAccessVerdict ?? "unknown",
+    imageUrl: place.imageUrl,
   };
 }
 
