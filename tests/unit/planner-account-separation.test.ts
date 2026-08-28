@@ -11,8 +11,10 @@ describe("planner and account pet separation", () => {
     expect(plannerSource).not.toContain("savePetProfile(");
   });
 
-  it("does not automatically hydrate the planner with an account pet", () => {
-    expect(plannerPageSource).not.toContain("initialPetProfile");
-    expect(plannerPageSource).not.toContain("savedPetProfileFromRow");
+  it("offers saved account pets as an explicit planner choice", () => {
+    expect(plannerPageSource).toContain("initialSavedPets");
+    expect(plannerPageSource).toContain("savedPetProfileFromRow");
+    expect(plannerSource).toContain("저장된 반려동물 불러오기");
+    expect(plannerSource).toContain("applySavedPet");
   });
 });

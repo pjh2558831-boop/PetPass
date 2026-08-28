@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -106,6 +108,17 @@ type FieldErrors = Partial<
   >
 >;
 
+export interface SavedPetPlannerOption {
+  profile: PetProfile;
+  imageUrl: string | null;
+}
+
+interface UnifiedPlannerFormProps {
+  initialSavedPets?: SavedPetPlannerOption[];
+  isSignedIn?: boolean;
+  savedPetsUnavailable?: boolean;
+}
+
 function isValidIsoDate(value: string): boolean {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(value);
   if (!match) return false;
@@ -120,7 +133,11 @@ function isValidIsoDate(value: string): boolean {
   );
 }
 
-export function UnifiedPlannerForm() {
+export function UnifiedPlannerForm({
+  initialSavedPets = [],
+  isSignedIn = false,
+  savedPetsUnavailable = false,
+}: UnifiedPlannerFormProps) {
   const router = useRouter();
   const submittingRef = useRef(false);
   const {
@@ -140,11 +157,19 @@ export function UnifiedPlannerForm() {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [searchVersion, setSearchVersion] = useState(0);
+  const [selectedSavedPetId, setSelectedSavedPetId] = useState<string | null>(
+    profileConfirmed && initialSavedPets.some(({ profile: savedProfile }) => savedProfile.id === profile.id)
+      ? profile.id
+      : null,
+  );
 
   const updateProfile = <K extends keyof PetProfile>(
     key: K,
     value: PetProfile[K],
-  ) => setProfile((current) => ({ ...current, [key]: value }));
+  ) => {
+    setSelectedSavedPetId(null);
+    setProfile((current) => ({ ...current, [key]: value }));
+  };
 
   const updatePreferences = <K extends keyof TravelPreferences>(
     key: K,
@@ -156,6 +181,20 @@ export function UnifiedPlannerForm() {
       if (!current[field]) return current;
       const next = { ...current };
       delete next[field];
+      return next;
+    });
+  };
+
+  const applySavedPet = ({ profile: savedProfile }: SavedPetPlannerOption) => {
+    setProfile({ ...savedProfile });
+    setSpecies(savedProfile.species);
+    setSize(savedProfile.size);
+    setSelectedSavedPetId(savedProfile.id);
+    setErrors((current) => {
+      const next = { ...current };
+      delete next.name;
+      delete next.species;
+      delete next.size;
       return next;
     });
   };
@@ -181,6 +220,7 @@ export function UnifiedPlannerForm() {
     setErrors({});
     setSpecies(null);
     setSize(null);
+    setSelectedSavedPetId(null);
     setProfile({ ...DEFAULT_PLANNER_PROFILE });
     setPreferences({ ...DEFAULT_PLANNER_PREFERENCES });
     setSearchVersion((value) => value + 1);
@@ -276,6 +316,49 @@ export function UnifiedPlannerForm() {
           </h2>
         </div>
 
+        {initialSavedPets.length > 0 ? (
+          <fieldset className="mt-6 rounded-[var(--radius-card)] border border-[var(--border-mint)] bg-[var(--brand-soft)]/55 p-4 sm:p-5">
+            <legend className="px-2 text-sm font-black text-[var(--brand)]">저장된 반려동물 불러오기</legend>
+            <p className="text-sm leading-6 text-[var(--muted)]">마이페이지에 등록한 반려동물을 선택하면 아래 정보에 바로 반영됩니다.</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {initialSavedPets.map((savedPet) => {
+                const selected = selectedSavedPetId === savedPet.profile.id;
+                const speciesLabel = speciesOptions.find(({ value }) => value === savedPet.profile.species)?.label;
+                const sizeLabel = sizeOptions.find(({ value }) => value === savedPet.profile.size)?.label;
+                return (
+                  <button
+                    key={savedPet.profile.id}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => applySavedPet(savedPet)}
+                    className={`flex min-h-16 items-center gap-3 rounded-[var(--radius-control)] border p-3 text-left transition focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#3d8b6859] ${selected ? "border-[var(--mint-500)] bg-white shadow-sm" : "border-[var(--line)] bg-white/75 hover:border-[var(--mint-500)]"}`}
+                  >
+                    <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--surface-sage)] text-[var(--brand)]">
+                      {savedPet.imageUrl ? (
+                        <Image src={savedPet.imageUrl} alt="" width={48} height={48} unoptimized className="size-full object-cover" />
+                      ) : (
+                        <PawPrint size={22} aria-hidden="true" />
+                      )}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate font-black">{savedPet.profile.name}</span>
+                      <span className="mt-0.5 block text-xs font-semibold text-[var(--muted)]">{speciesLabel} · {sizeLabel}</span>
+                    </span>
+                    {selected ? <Check className="ml-auto shrink-0 text-[var(--brand)]" size={18} aria-hidden="true" /> : null}
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+        ) : savedPetsUnavailable ? (
+          <p role="status" className="mt-6 rounded-xl bg-[#fff8dc] p-3 text-sm font-bold text-[#755b00]">저장된 반려동물 정보를 불러오지 못했어요. 아래에서 직접 입력할 수 있습니다.</p>
+        ) : isSignedIn ? (
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[var(--surface-sage)] p-4 text-sm">
+            <p className="font-semibold text-[var(--muted)]">마이페이지에 등록한 반려동물이 아직 없습니다.</p>
+            <Link href="/account/pets/new" className="inline-flex min-h-11 items-center rounded-xl border border-[var(--border-mint)] bg-white px-4 font-extrabold text-[var(--brand)]">반려동물 등록하기</Link>
+          </div>
+        ) : null}
+
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(14rem,0.9fr)_minmax(20rem,1.25fr)_minmax(18rem,1fr)]">
           <div>
             <label htmlFor="pet-name" className="mb-2 block text-sm font-extrabold">
@@ -305,7 +388,7 @@ export function UnifiedPlannerForm() {
                 const Icon = option.icon;
                 return (
                   <label key={option.value} className={`relative flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-control)] border px-3 text-sm font-extrabold transition focus-within:outline focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-[#3d8b6859] ${selected ? "border-[var(--mint-500)] bg-[var(--brand-soft)] text-[var(--brand)]" : "border-[var(--line)] bg-white text-[#607168]"}`}>
-                    <input id={`pet-species-${option.value}`} type="radio" name="species" value={option.value} checked={selected} onChange={() => { setSpecies(option.value); clearError("species"); }} className="sr-only" />
+                    <input id={`pet-species-${option.value}`} type="radio" name="species" value={option.value} checked={selected} onChange={() => { setSelectedSavedPetId(null); setSpecies(option.value); clearError("species"); }} className="sr-only" />
                     <Icon size={18} aria-hidden="true" />
                     {option.label}
                   </label>
@@ -322,7 +405,7 @@ export function UnifiedPlannerForm() {
                 const selected = size === option.value;
                 return (
                   <label key={option.value} className={`relative flex min-h-12 cursor-pointer flex-col items-center justify-center rounded-[var(--radius-control)] border px-2 py-2 text-center transition focus-within:outline focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-[#3d8b6859] ${selected ? "border-[var(--mint-500)] bg-[var(--brand-soft)]" : "border-[var(--line)] bg-white"}`}>
-                    <input id={`pet-size-${option.value}`} type="radio" name="size" value={option.value} checked={selected} onChange={() => { setSize(option.value); clearError("size"); }} className="sr-only" />
+                    <input id={`pet-size-${option.value}`} type="radio" name="size" value={option.value} checked={selected} onChange={() => { setSelectedSavedPetId(null); setSize(option.value); clearError("size"); }} className="sr-only" />
                     <span className="text-sm font-extrabold">{option.label}</span>
                     <span className="mt-0.5 text-[11px] text-[var(--muted)]">{option.note}</span>
                   </label>
