@@ -162,13 +162,14 @@ export interface KakaoMapController {
   fitBounds(): void;
   getSearchViewport(): KakaoCurrentMapSearch | null;
   relayout(): void;
+  resetRegion(defaultBounds?: KakaoCurrentMapSearch["rectangle"]): void;
   selectLocation(id: string | null, notify?: boolean): void;
   setShowSelectionInfo(show: boolean): void;
   updateData(
     locations: KakaoMapLocation[],
     routeCoordinates: Coordinates[],
     options?: { fitBounds?: boolean },
-  ): void;
+  ): Promise<boolean>;
 }
 
 export type KakaoViewportIdleCause = "initial" | "programmatic" | "user";
@@ -317,6 +318,8 @@ export function createKakaoMapController(
       cause: KakaoViewportIdleCause,
     ) => void;
     showSelectionInfo?: boolean;
+    markerBatchSize?: number;
+    scheduleMarkerBatch?: (callback: () => void) => void;
   },
 ): KakaoMapController {
   const maps = window.kakao?.maps;
@@ -470,6 +473,20 @@ export function createKakaoMapController(
   let createdSourceMarkerCount = 0;
   let activeClusterSourceIds = new Set<string>();
   let activeStandaloneSourceIds = new Set<string>();
+  const pendingClusterSourceIds = new Set<string>();
+  let currentDefaultBounds = options.defaultBounds;
+  let updateGeneration = 0;
+  const markerBatchSize = Math.max(1, options.markerBatchSize ?? 300);
+  const scheduleMarkerBatch = options.scheduleMarkerBatch ?? ((callback: () => void) => {
+    const browserScheduler = (globalThis as typeof globalThis & {
+      scheduler?: { postTask?: (task: () => void, options?: { priority?: string }) => Promise<unknown> };
+    }).scheduler;
+    if (browserScheduler?.postTask) {
+      void browserScheduler.postTask(callback, { priority: "user-visible" });
+      return;
+    }
+    setTimeout(callback, 0);
+  });
 
   container.dataset.kakaoMapInitialized = "true";
   container.dataset.clustererReady = clusterer ? "true" : "false";
@@ -591,6 +608,7 @@ export function createKakaoMapController(
   };
 
   const clearLayers = () => {
+    updateGeneration += 1;
     resetSelectionVisuals();
     clusterer?.clear();
     for (const record of sourceMarkerRegistry.values()) {
@@ -598,6 +616,7 @@ export function createKakaoMapController(
       record.marker.setMap(null);
     }
     sourceMarkerRegistry.clear();
+    pendingClusterSourceIds.clear();
     activeClusterSourceIds.clear();
     activeStandaloneSourceIds.clear();
     clearLegacyLayers();
@@ -609,6 +628,7 @@ export function createKakaoMapController(
     container.dataset.catalogMarkerCount = "0";
     container.dataset.interactiveMarkerCount = "0";
     container.dataset.markerRegistrySize = "0";
+    container.dataset.markerCacheSize = "0";
     container.dataset.activeMarkerCount = "0";
   };
 
@@ -633,15 +653,15 @@ export function createKakaoMapController(
 
     fitBounds() {
       if (visiblePoints.length === 0) {
-        if (!options.defaultBounds) return;
+        if (!currentDefaultBounds) return;
         const bounds = new maps.LatLngBounds();
         bounds.extend(new maps.LatLng(
-          options.defaultBounds.south,
-          options.defaultBounds.west,
+          currentDefaultBounds.south,
+          currentDefaultBounds.west,
         ));
         bounds.extend(new maps.LatLng(
-          options.defaultBounds.north,
-          options.defaultBounds.east,
+          currentDefaultBounds.north,
+          currentDefaultBounds.east,
         ));
         pendingProgrammaticViewport = true;
         map.setBounds(bounds, 48);
@@ -664,6 +684,12 @@ export function createKakaoMapController(
 
     relayout() {
       map.relayout();
+    },
+
+    resetRegion(defaultBounds) {
+      currentDefaultBounds = defaultBounds;
+      clearLayers();
+      controller.fitBounds();
     },
 
     setShowSelectionInfo(show) {
@@ -706,8 +732,15 @@ export function createKakaoMapController(
       if (notify) options.onLocationSelect?.(id);
     },
 
-    updateData(locations, routeCoordinates, updateOptions = {}) {
+    async updateData(locations, routeCoordinates, updateOptions = {}) {
+      const generation = ++updateGeneration;
       const updateStartedAt = performance.now();
+      if (clusterer && pendingClusterSourceIds.size > 0) {
+        const pendingMarkers = [...pendingClusterSourceIds]
+          .flatMap((id) => sourceMarkerRegistry.get(id)?.marker ?? []);
+        if (pendingMarkers.length > 0) clusterer.removeMarkers(pendingMarkers, true);
+        pendingClusterSourceIds.clear();
+      }
       const previousSelection = selectedId;
       resetSelectionVisuals();
       clearLegacyLayers();
@@ -716,6 +749,35 @@ export function createKakaoMapController(
       const seenLocationIds = new Set<string>();
       let interactiveMarkerCount = 0;
       const desiredSourceIds = new Set<string>();
+      const preflightIds = new Set<string>();
+      for (const location of locations) {
+        if (preflightIds.has(location.id) || !isValidMapCoordinates(location.coordinates)) continue;
+        preflightIds.add(location.id);
+        const kind = location.markerKind ?? (location.order ? "itinerary" : "catalog");
+        if (getSourceForKind(kind)) desiredSourceIds.add(location.id);
+      }
+      const removedBeforeRender = [...activeClusterSourceIds]
+        .filter((id) => !desiredSourceIds.has(id));
+      const removedBeforeRenderMarkers = removedBeforeRender
+        .flatMap((id) => sourceMarkerRegistry.get(id)?.marker ?? []);
+      if (clusterer && removedBeforeRenderMarkers.length > 0) {
+        clusterer.removeMarkers(removedBeforeRenderMarkers, true);
+        if (locations.length > markerBatchSize) {
+          clusterer.redraw?.();
+          clusterRedrawCount += 1;
+        }
+      } else if (!clusterer) {
+        removedBeforeRenderMarkers.forEach((marker) => marker.setMap(null));
+      }
+      for (const id of activeStandaloneSourceIds) {
+        if (!desiredSourceIds.has(id)) sourceMarkerRegistry.get(id)?.marker.setMap(null);
+      }
+      activeClusterSourceIds = new Set(
+        [...activeClusterSourceIds].filter((id) => desiredSourceIds.has(id)),
+      );
+      activeStandaloneSourceIds = new Set(
+        [...activeStandaloneSourceIds].filter((id) => desiredSourceIds.has(id)),
+      );
       const nextClusterSourceIds = new Set<string>();
       const nextStandaloneSourceIds = new Set<string>();
       const activeClusterMarkers: KakaoMarker[] = [];
@@ -876,7 +938,26 @@ export function createKakaoMapController(
         }
       };
 
-      locations.forEach(renderLocation);
+      for (let index = 0; index < locations.length; index += markerBatchSize) {
+        const batch = locations.slice(index, index + markerBatchSize);
+        batch.forEach(renderLocation);
+        if (clusterer && locations.length > markerBatchSize) {
+          const batchIds = batch.map(({ id }) => id)
+            .filter((id) =>
+              nextClusterSourceIds.has(id) &&
+              !activeClusterSourceIds.has(id) &&
+              !pendingClusterSourceIds.has(id));
+          const batchMarkers = batchIds
+            .flatMap((id) => sourceMarkerRegistry.get(id)?.marker ?? []);
+          if (batchMarkers.length > 0) clusterer.addMarkers(batchMarkers, true);
+          batchIds.forEach((id) => pendingClusterSourceIds.add(id));
+        }
+        container.dataset.createdSourceMarkerCount = String(createdSourceMarkerCount);
+        if (index + markerBatchSize < locations.length) {
+          await new Promise<void>((resolve) => scheduleMarkerBatch(resolve));
+          if (destroyed || generation !== updateGeneration) return false;
+        }
+      }
       for (const [placeId, record] of sourceMarkerRegistry) {
         if (desiredSourceIds.has(placeId)) continue;
         if (
@@ -893,11 +974,19 @@ export function createKakaoMapController(
           .filter((id) => !nextClusterSourceIds.has(id))
           .flatMap((id) => sourceMarkerRegistry.get(id)?.marker ?? []);
         const added = [...nextClusterSourceIds]
-          .filter((id) => !activeClusterSourceIds.has(id))
+          .filter((id) =>
+            !activeClusterSourceIds.has(id) &&
+            !pendingClusterSourceIds.has(id))
           .flatMap((id) => sourceMarkerRegistry.get(id)?.marker ?? []);
         if (removed.length > 0) clusterer.removeMarkers(removed, true);
         if (added.length > 0) clusterer.addMarkers(added, true);
-        if (removed.length > 0 || added.length > 0 || clusterGeometryChanged) {
+        if (
+          removed.length > 0 ||
+          added.length > 0 ||
+          pendingClusterSourceIds.size > 0 ||
+          (removedBeforeRender.length > 0 && locations.length <= markerBatchSize) ||
+          clusterGeometryChanged
+        ) {
           clusterer.redraw?.();
           clusterRedrawCount += 1;
         }
@@ -909,6 +998,7 @@ export function createKakaoMapController(
       }
       activeClusterSourceIds = nextClusterSourceIds;
       activeStandaloneSourceIds = nextStandaloneSourceIds;
+      pendingClusterSourceIds.clear();
 
       const routePath = getRenderableRouteCoordinates(routeCoordinates)
         .map(({ latitude, longitude }) => new maps.LatLng(latitude, longitude));
@@ -943,6 +1033,7 @@ export function createKakaoMapController(
       if (previousSelection && locationPositions.has(previousSelection)) {
         controller.selectLocation(previousSelection);
       }
+      return true;
     },
   };
 
@@ -975,6 +1066,6 @@ export function createKakaoMapController(
     container.dataset.infoOverlayCount = "1";
   }
 
-  controller.updateData(options.locations, options.routeCoordinates ?? []);
+  void controller.updateData(options.locations, options.routeCoordinates ?? []);
   return controller;
 }

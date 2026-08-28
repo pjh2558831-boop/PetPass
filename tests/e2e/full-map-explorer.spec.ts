@@ -127,6 +127,13 @@ function snapshotBody(
       scope: "default",
       dataset,
       generatedAt: "2026-08-24T00:00:00.000Z",
+      publicationVersion: dataset === "shopping"
+        ? "p1-5555555555555555"
+        : region === "jeju"
+          ? "p1-2222222222222222"
+          : region === "seoul"
+            ? "p1-4444444444444444"
+            : "p1-1111111111111111",
       dataVersion: region === "busan"
         ? "v1-1111111111111111"
         : region === "jeju"
@@ -309,6 +316,7 @@ async function installDeterministicMap(page: Page) {
     }
     const testWindow = window as unknown as {
       __activeExplorerMap?: FakeMap;
+      __explorerMapInstanceCount?: number;
       __moveExplorerMap?: () => void;
       __zoomExplorerMap?: () => void;
       __setExplorerClusterMode?: (mode: "clusters" | "pins") => void;
@@ -318,6 +326,8 @@ async function installDeterministicMap(page: Page) {
       constructor(container: HTMLElement, options: { center: LatLng }) {
         super(container, options);
         testWindow.__activeExplorerMap = this;
+        testWindow.__explorerMapInstanceCount = (testWindow.__explorerMapInstanceCount ?? 0) + 1;
+        document.documentElement.dataset.explorerMapInstanceCount = String(testWindow.__explorerMapInstanceCount);
       }
     }
     class Marker {
@@ -866,6 +876,10 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
       return searchParams.get("region") === "jeju" &&
         searchParams.get("version") === "1";
     }
+    if (pathname === "/api/map/places/cards") {
+      return searchParams.get("region") === "jeju" &&
+        searchParams.get("dataset") === "core";
+    }
     return pathname === "/api/tour/places/5010001" &&
       searchParams.get("region") === "jeju";
   })).toBe(true);
@@ -916,6 +930,124 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
     await page.getByRole("button", { name: "목록", exact: true }).click();
     await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
   }
+});
+
+test("renders every Gyeonggi Shopping marker once and reuses its map layer", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === "mobile-chrome", "The representative large Shopping render runs once in desktop Chromium.");
+  test.setTimeout(45_000);
+  const coreCount = 0;
+  const shoppingCount = 2_447;
+  const apiRequests: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.startsWith("/api/")) apiRequests.push(request.url());
+  });
+  await page.route("**/api/map/places/snapshot?**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("region") !== "gyeonggi") return route.fallback();
+    const dataset = url.searchParams.get("dataset") === "shopping" ? "shopping" : "core";
+    const count = dataset === "shopping" ? shoppingCount : coreCount;
+    const category = dataset === "shopping" ? "shopping" : "attraction";
+    const items = Array.from({ length: count }, (_, index) => ({
+      id: `tour:${dataset}-${String(index + 1).padStart(5, "0")}`,
+      name: `경기 ${dataset === "shopping" ? "쇼핑" : "핵심"} 장소 ${index + 1}`,
+      layer: "tourism",
+      category,
+      districtCode: "110",
+      coordinates: {
+        latitude: 37.18 + (index % 41) * 0.004,
+        longitude: 126.88 + (Math.floor(index / 41) % 41) * 0.006,
+      },
+      petAccessVerdict: "unknown",
+      publicLabel: "반려동물 동반 정보 확인 필요",
+    }));
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        data: {
+          contractVersion: 1,
+          region: "gyeonggi",
+          scope: "default",
+          dataset,
+          generatedAt: "2026-08-28T00:00:00.000Z",
+          publicationVersion: dataset === "shopping"
+            ? "p1-7777777777777777"
+            : "p1-6666666666666666",
+          dataVersion: dataset === "shopping"
+            ? "v1-7777777777777777"
+            : "v1-6666666666666666",
+          totalCount: count,
+          providerCounts: { tour: count, kakao: 0 },
+          categoryCounts: { [category]: count },
+          freshness: { status: "fresh" },
+          items,
+        },
+        requestId: `gyeonggi-${dataset}-snapshot`,
+      }),
+    });
+  });
+  await page.route("**/api/map/places/cards?**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("region") !== "gyeonggi") return route.fallback();
+    await route.fulfill({ status: 500, body: "Shopping card details must stay unused." });
+  });
+
+  await page.goto("/results?tab=catalog&region=gyeonggi&layers=tourism&page=1");
+  const mapRoot = page.locator("[data-marker-registry-size]");
+  await expect(page.getByRole("heading", { name: "총 0곳" })).toBeVisible();
+  await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "0");
+  await expect(page.getByText("쇼핑은 필터에서 선택하면 불러옵니다.", { exact: true })).toBeVisible();
+  expect(apiRequests.map((value) => new URL(value)).filter(({ pathname, searchParams }) =>
+    pathname === "/api/map/places/snapshot" && searchParams.get("dataset") === "shopping")).toHaveLength(0);
+
+  const startedAt = Date.now();
+  let categoryPanel = await openExplorerFilters(page);
+  await categoryPanel.getByRole("button", { name: /^쇼핑/u }).click();
+  await categoryPanel.getByRole("button", { name: "적용하기" }).click();
+  await expect(page.getByRole("heading", { name: "총 2,447곳" })).toBeVisible();
+  await expect(page.getByText("쇼핑 장소 2,447곳을 불러왔습니다.", { exact: true })).toBeVisible();
+  await expect(page.locator(".catalog-result-card")).toHaveCount(12);
+  await expect(mapRoot).toHaveAttribute("data-marker-registry-size", String(shoppingCount));
+  await expect(mapRoot).toHaveAttribute("data-active-marker-count", String(shoppingCount));
+  await expect(page.locator(".fake-kakao-native-marker")).toHaveCount(shoppingCount);
+  await expect(mapRoot).toHaveAttribute("data-clusterer-instance-count", "1");
+  await expect(page.locator(".kakao-map-canvas")).toHaveAttribute("data-map-version", "1");
+  expect(await page.evaluate(() => document.documentElement.dataset.explorerMapInstanceCount)).toBe("1");
+  const markerReadyMs = Date.now() - startedAt;
+  const createdMarkerCount = await mapRoot.getAttribute("data-created-source-marker-count");
+
+  categoryPanel = await openExplorerFilters(page);
+  await categoryPanel.getByRole("button", { name: /^쇼핑/u }).click();
+  await categoryPanel.getByRole("button", { name: "적용하기" }).click();
+  await expect(page.getByRole("heading", { name: "총 0곳" })).toBeVisible();
+  await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "0");
+  await expect(mapRoot).toHaveAttribute("data-marker-cache-size", String(shoppingCount));
+
+  categoryPanel = await openExplorerFilters(page);
+  await categoryPanel.getByRole("button", { name: /^쇼핑/u }).click();
+  await categoryPanel.getByRole("button", { name: "적용하기" }).click();
+  await expect(page.getByRole("heading", { name: "총 2,447곳" })).toBeVisible();
+  await expect(mapRoot).toHaveAttribute("data-created-source-marker-count", createdMarkerCount ?? "");
+  await page.getByRole("button", { name: "다음 페이지" }).click();
+  await expect(page.locator('.explorer-pagination [aria-current="page"]')).toHaveText("2");
+  await expect(mapRoot).toHaveAttribute("data-created-source-marker-count", createdMarkerCount ?? "");
+
+  const firstCard = page.locator(".catalog-result-card").first();
+  await firstCard.getByRole("button", { name: /지도에서 보기$/u }).click();
+  await expect(firstCard).toHaveClass(/is-selected/u);
+  await expect(page.locator('.fake-kakao-native-marker[data-marker-width="46"]')).toHaveCount(1);
+
+  const snapshotRequests = apiRequests.map((value) => new URL(value))
+    .filter(({ pathname }) => pathname === "/api/map/places/snapshot");
+  expect(snapshotRequests.filter(({ searchParams }) => searchParams.get("dataset") === "core")).toHaveLength(1);
+  expect(snapshotRequests.filter(({ searchParams }) => searchParams.get("dataset") === "shopping")).toHaveLength(1);
+  expect(apiRequests.map((value) => new URL(value)).filter(({ pathname, searchParams }) =>
+    pathname === "/api/map/places/cards" && searchParams.get("dataset") === "shopping")).toHaveLength(0);
+  expect(apiRequests.some((value) => /^\/api\/tour\/places\/[^?]+/u.test(new URL(value).pathname))).toBe(false);
+  expect(await page.evaluate(() => document.documentElement.dataset.explorerMapInstanceCount)).toBe("1");
+  console.log(`GYEONGGI_SHOPPING_MARKER_READY ${JSON.stringify({ markerReadyMs, shoppingCount })}`);
 });
 
 test("loads Seoul core once and fetches the complete shopping dataset only on first selection", async ({ page }, testInfo) => {
@@ -1593,6 +1725,7 @@ test("keeps 1,824 markers complete while the sidebar stays paged by 12", async (
         scope: "default",
         dataset: "core",
         generatedAt: "2026-08-24T00:00:00.000Z",
+        publicationVersion: "p1-3333333333333333",
         dataVersion: "v1-3333333333333333",
         totalCount: markerItems.length,
         providerCounts: { tour: markerItems.length, kakao: 0 },

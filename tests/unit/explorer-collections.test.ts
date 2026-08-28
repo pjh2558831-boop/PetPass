@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   explorerBoundsAreEquivalent,
+  getExplorerCategoryCounts,
   getExplorerCollections,
 } from "@/lib/map-places/explorer-collections";
 import { PUBLIC_CATALOG_LAYERS } from "@/lib/map-places/catalog-url";
@@ -91,6 +92,28 @@ describe("full explorer collections", () => {
     });
 
     expect(result.filteredPlaces).toEqual([jeju]);
+  });
+
+  it("counts every category in one scoped pass without ranking or card pagination", () => {
+    const places = [
+      place(1),
+      { ...place(2), category: "food" as const },
+      { ...place(3), category: "shopping" as const },
+      { ...place(3), category: "shopping" as const },
+      { ...place(4), regionId: "jeju" as const, category: "shopping" as const },
+    ];
+
+    expect(getExplorerCategoryCounts({
+      places,
+      regionId: "busan",
+      district: "all",
+      layers: [...PUBLIC_CATALOG_LAYERS],
+      activeBounds: null,
+    })).toMatchObject({
+      attraction: 1,
+      food: 1,
+      shopping: 1,
+    });
   });
 
   it("treats immaterial viewport drift as the same committed search scope", () => {

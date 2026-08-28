@@ -97,12 +97,23 @@ export function MapPanel({
   const resolvedTitle = title ?? `${region.displayName} 장소 지도`;
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<KakaoMapController | null>(null);
+  const controllerRegionRef = useRef<RegionId | null>(null);
+  const dataUpdateGenerationRef = useRef(0);
   const initializingRef = useRef(false);
   const viewportKeyRef = useRef(viewportKey);
   const locationCountRef = useRef(locations.length);
   const currentViewportKeyRef = useRef(viewportKey);
   const showSelectionInfoRef = useRef(showSelectionInfo);
-  const latestRef = useRef({ locations, routeCoordinates, selectedLocationId });
+  const latestRef = useRef({
+    locations,
+    routeCoordinates,
+    selectedLocationId,
+    isDataLoading,
+    regionId,
+    defaultCenter: region.defaultMapCenter,
+    defaultLevel: region.defaultMapLevel,
+    defaultBounds: region.mapBounds,
+  });
   const selectRef = useRef(onLocationSelect);
   const dataUpdateRef = useRef(onDataUpdate);
   const viewportIdleRef = useRef(onViewportIdle);
@@ -112,34 +123,48 @@ export function MapPanel({
   const [mapVersion, setMapVersion] = useState(0);
 
   useEffect(() => {
-    latestRef.current = { locations, routeCoordinates, selectedLocationId };
+    latestRef.current = {
+      locations,
+      routeCoordinates,
+      selectedLocationId,
+      isDataLoading,
+      regionId,
+      defaultCenter: region.defaultMapCenter,
+      defaultLevel: region.defaultMapLevel,
+      defaultBounds: region.mapBounds,
+    };
     selectRef.current = onLocationSelect;
     dataUpdateRef.current = onDataUpdate;
     viewportIdleRef.current = onViewportIdle;
     currentSearchRef.current = onCurrentMapSearch;
     currentViewportKeyRef.current = viewportKey;
     showSelectionInfoRef.current = showSelectionInfo;
-  }, [locations, onCurrentMapSearch, onDataUpdate, onLocationSelect, onViewportIdle, routeCoordinates, selectedLocationId, showSelectionInfo, viewportKey]);
+  }, [isDataLoading, locations, onCurrentMapSearch, onDataUpdate, onLocationSelect, onViewportIdle, region.defaultMapCenter, region.defaultMapLevel, region.mapBounds, regionId, routeCoordinates, selectedLocationId, showSelectionInfo, viewportKey]);
 
   const initializeMap = useCallback(() => {
     const container = mapContainerRef.current;
     if (!container || !isKakaoBaseMapsReady() || initializingRef.current) return;
+    if (controllerRef.current) return;
     initializingRef.current = true;
     try {
       const latest = latestRef.current;
-      controllerRef.current?.destroy();
-      controllerRef.current = createKakaoMapController(container, {
-        defaultCenter: region.defaultMapCenter,
-        defaultLevel: region.defaultMapLevel,
-        defaultBounds: region.mapBounds,
-        locations: latest.locations,
-        routeCoordinates: latest.routeCoordinates,
+      const controller = createKakaoMapController(container, {
+        defaultCenter: latest.defaultCenter,
+        defaultLevel: latest.defaultLevel,
+        defaultBounds: latest.defaultBounds,
+        locations: [],
         onLocationSelect: (id) => selectRef.current?.(id),
         onViewportIdle: (viewport, cause) => viewportIdleRef.current?.(viewport, cause),
         showSelectionInfo: showSelectionInfoRef.current,
       });
-      controllerRef.current.selectLocation(latest.selectedLocationId);
-      dataUpdateRef.current?.();
+      controllerRef.current = controller;
+      controllerRegionRef.current = latest.regionId;
+      const updateGeneration = ++dataUpdateGenerationRef.current;
+      void controller.updateData(latest.locations, latest.routeCoordinates).then((completed) => {
+        if (!completed || controllerRef.current !== controller || updateGeneration !== dataUpdateGenerationRef.current) return;
+        controller.selectLocation(latestRef.current.selectedLocationId);
+        if (latest.locations.length > 0 || !latest.isDataLoading) dataUpdateRef.current?.();
+      });
       viewportKeyRef.current = currentViewportKeyRef.current;
       setLoadState("ready");
       setLoadError("");
@@ -150,7 +175,7 @@ export function MapPanel({
     } finally {
       initializingRef.current = false;
     }
-  }, [region.defaultMapCenter, region.defaultMapLevel, region.mapBounds]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -170,11 +195,25 @@ export function MapPanel({
 
   useEffect(() => {
     const controller = controllerRef.current;
+    if (!controller || controllerRegionRef.current === regionId) return;
+    dataUpdateGenerationRef.current += 1;
+    controller.resetRegion(region.mapBounds);
+    controllerRegionRef.current = regionId;
+    viewportKeyRef.current = viewportKey;
+    locationCountRef.current = 0;
+  }, [region.mapBounds, regionId, viewportKey]);
+
+  useEffect(() => {
+    const controller = controllerRef.current;
     if (!controller) return;
     const fitBounds = viewportKeyRef.current !== viewportKey ||
       (locationCountRef.current === 0 && locations.length > 0);
-    controller.updateData(locations, routeCoordinates, { fitBounds });
-    dataUpdateRef.current?.();
+    const updateGeneration = ++dataUpdateGenerationRef.current;
+    void controller.updateData(locations, routeCoordinates, { fitBounds }).then((completed) => {
+      if (!completed || controllerRef.current !== controller || updateGeneration !== dataUpdateGenerationRef.current) return;
+      controller.selectLocation(latestRef.current.selectedLocationId);
+      if (locations.length > 0 || !latestRef.current.isDataLoading) dataUpdateRef.current?.();
+    });
     viewportKeyRef.current = viewportKey;
     locationCountRef.current = locations.length;
   }, [locations, routeCoordinates, viewportKey]);
@@ -197,6 +236,8 @@ export function MapPanel({
   useEffect(() => () => {
     controllerRef.current?.destroy();
     controllerRef.current = null;
+    controllerRegionRef.current = null;
+    dataUpdateGenerationRef.current += 1;
     initializingRef.current = false;
   }, []);
 

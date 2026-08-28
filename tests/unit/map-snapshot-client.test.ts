@@ -236,6 +236,97 @@ describe("map snapshot browser fallback", () => {
     ]);
   });
 
+  it("evicts the least-recently-used completed snapshot beyond the regional cache bound", async () => {
+    const request = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input), "http://localhost");
+      const region = url.searchParams.get("region") as "seoul" | "incheon" | "gyeonggi";
+      return Response.json({
+        ok: true,
+        data: {
+          ...seoulSnapshot,
+          region,
+          items: [{
+            ...seoulSnapshot.items[0],
+            id: `tour:${region}-shopping`,
+            regionId: region,
+            providerPlaceId: `${region}-shopping`,
+            districtCode: region === "incheon" ? "185" : region === "gyeonggi" ? "110" : "110",
+            districtName: region === "incheon" ? "연수구" : region === "gyeonggi" ? "수원시" : "종로구",
+            address: region === "incheon" ? "인천광역시 연수구" : region === "gyeonggi" ? "경기도 수원시" : "서울특별시 종로구",
+            coordinates: region === "incheon"
+              ? { latitude: 37.41, longitude: 126.68 }
+              : region === "gyeonggi"
+                ? { latitude: 37.26, longitude: 127.03 }
+                : { latitude: 37.57, longitude: 126.98 },
+          }],
+        },
+      });
+    });
+    const client = createMapPlacesSnapshotBrowserClient({
+      request: request as typeof fetch,
+      maxCompletedEntries: 2,
+    });
+    const signal = new AbortController().signal;
+
+    await client.load("seoul", "shopping", signal);
+    await client.load("incheon", "shopping", signal);
+    await client.load("gyeonggi", "shopping", signal);
+    await client.load("incheon", "shopping", signal);
+    await client.load("seoul", "shopping", signal);
+
+    expect(request).toHaveBeenCalledTimes(4);
+  });
+
+  it("replaces a new Shopping publication without invalidating another region", async () => {
+    let now = 1_000;
+    const regionalCalls = new Map<string, number>();
+    const request = vi.fn(async (input: RequestInfo | URL) => {
+      const region = new URL(String(input), "http://localhost").searchParams.get("region") as "seoul" | "incheon";
+      const call = (regionalCalls.get(region) ?? 0) + 1;
+      regionalCalls.set(region, call);
+      return Response.json({
+        ok: true,
+        data: {
+          ...seoulSnapshot,
+          region,
+          publicationVersion: call === 1 ? "p1-0123456789abcdef" : "p1-fedcba9876543210",
+          items: [{
+            ...seoulSnapshot.items[0],
+            id: `tour:${region}-shopping`,
+            regionId: region,
+            providerPlaceId: `${region}-shopping`,
+            districtCode: region === "incheon" ? "185" : "110",
+            districtName: region === "incheon" ? "연수구" : "종로구",
+            address: region === "incheon" ? "인천광역시 연수구" : "서울특별시 종로구",
+            coordinates: region === "incheon"
+              ? { latitude: 37.41, longitude: 126.68 }
+              : { latitude: 37.57, longitude: 126.98 },
+          }],
+        },
+      });
+    });
+    const client = createMapPlacesSnapshotBrowserClient({
+      request: request as typeof fetch,
+      now: () => now,
+      freshMs: 50,
+    });
+    const signal = new AbortController().signal;
+
+    await client.load("seoul", "shopping", signal);
+    now += 40;
+    await client.load("incheon", "shopping", signal);
+    now += 11;
+    await expect(client.load("seoul", "shopping", signal))
+      .resolves.toMatchObject({ publicationVersion: "p1-fedcba9876543210" });
+    await expect(client.load("incheon", "shopping", signal))
+      .resolves.toMatchObject({ publicationVersion: "p1-0123456789abcdef" });
+
+    expect(regionalCalls).toEqual(new Map([
+      ["seoul", 2],
+      ["incheon", 1],
+    ]));
+  });
+
   it("aborts a region request with no subscribers and never caches its late response", async () => {
     let resolveResponse!: (response: Response) => void;
     const request = vi.fn()

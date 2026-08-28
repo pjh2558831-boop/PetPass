@@ -95,6 +95,7 @@ export async function requestMapPlacesSnapshot(
 interface BrowserSnapshotEntry {
   value?: MapPlacesSnapshot;
   storedAt?: number;
+  lastAccessedAt?: number;
   inFlight?: Promise<MapPlacesSnapshot>;
   controller?: AbortController;
   subscribers: Set<symbol>;
@@ -130,12 +131,38 @@ export function createMapPlacesSnapshotBrowserClient({
   request = fetch,
   now = Date.now,
   freshMs = 300_000,
+  maxCompletedEntries = 4,
+  maxCachedMarkers = 12_000,
 }: {
   request?: typeof fetch;
   now?: () => number;
   freshMs?: number;
+  maxCompletedEntries?: number;
+  maxCachedMarkers?: number;
 } = {}) {
   const entries = new Map<string, BrowserSnapshotEntry>();
+  let accessSequence = 0;
+
+  const trimCompletedEntries = () => {
+    const completed = [...entries.entries()]
+      .filter(([, entry]) => entry.value && !entry.inFlight)
+      .sort((left, right) =>
+        (left[1].lastAccessedAt ?? left[1].storedAt ?? 0) -
+        (right[1].lastAccessedAt ?? right[1].storedAt ?? 0));
+    let markerCount = completed.reduce(
+      (total, [, entry]) => total + (entry.value?.items.length ?? 0),
+      0,
+    );
+    while (completed.length > 1 && (
+      completed.length > Math.max(1, maxCompletedEntries) ||
+      markerCount > Math.max(1, maxCachedMarkers)
+    )) {
+      const oldest = completed.shift();
+      if (!oldest) break;
+      markerCount -= oldest[1].value?.items.length ?? 0;
+      if (entries.get(oldest[0]) === oldest[1]) entries.delete(oldest[0]);
+    }
+  };
 
   return {
     load(
@@ -151,6 +178,7 @@ export function createMapPlacesSnapshotBrowserClient({
       const key = browserSnapshotKey(region, dataset);
       let entry = entries.get(key);
       if (entry?.value && entry.storedAt !== undefined && now() - entry.storedAt <= freshMs) {
+        entry.lastAccessedAt = ++accessSequence;
         return Promise.resolve(entry.value);
       }
       if (entry?.value && !entry.inFlight) {
@@ -173,8 +201,10 @@ export function createMapPlacesSnapshotBrowserClient({
           if (entries.get(key) === current) {
             current.value = snapshot;
             current.storedAt = now();
+            current.lastAccessedAt = ++accessSequence;
             current.inFlight = undefined;
             current.controller = undefined;
+            trimCompletedEntries();
           }
           return snapshot;
         }).catch((error: unknown) => {

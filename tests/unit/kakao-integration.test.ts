@@ -147,7 +147,7 @@ describe("Kakao integration boundaries", () => {
     expect(url.searchParams.getAll("libraries")).toHaveLength(1);
   });
 
-  it("initializes one catalog clusterer, deduplicates markers, and cleans up", () => {
+  it("initializes one catalog clusterer, deduplicates markers, and cleans up", async () => {
     type Listener = (...args: unknown[]) => void;
     const listeners = new WeakMap<object, Map<string, Set<Listener>>>();
     const addListener = vi.fn(
@@ -408,7 +408,7 @@ describe("Kakao integration boundaries", () => {
       ),
     ).toBe(true);
 
-    controller.updateData(
+    await controller.updateData(
       [
         {
           id: "two",
@@ -429,7 +429,7 @@ describe("Kakao integration boundaries", () => {
     expect(mapInstances[0].setBounds).toHaveBeenCalledTimes(1);
 
     const retainedMarker = clusterers[0].markers[0];
-    controller.updateData(
+    await controller.updateData(
       [{
         id: "two",
         name: "둘째 장소 갱신",
@@ -477,12 +477,13 @@ describe("Kakao integration boundaries", () => {
     expect(markers.slice(fallbackMarkerStart)).toHaveLength(1);
     expect(markers.at(-1)?.options.image?.source).toBe("/map-pins/tourism-official.svg");
     expect(markers.at(-1)?.setMap).toHaveBeenCalledWith(mapInstances.at(-1));
-    fallbackController.updateData([], [], { fitBounds: false });
+    await fallbackController.updateData([], [], { fitBounds: false });
     expect(markers.at(-1)?.setMap).toHaveBeenLastCalledWith(null);
     fallbackController.destroy();
 
+    const jejuContainer = document.createElement("div");
     const jejuController = createKakaoMapController(
-      document.createElement("div"),
+      jejuContainer,
       {
         defaultCenter: JEJU_REGION_CONFIG.defaultMapCenter,
         defaultBounds: JEJU_REGION_CONFIG.mapBounds,
@@ -493,6 +494,60 @@ describe("Kakao integration boundaries", () => {
     expect(jejuController.getSearchViewport()).toMatchObject({
       center: JEJU_REGION_CONFIG.defaultMapCenter,
     });
+    const mapCountBeforeRegionReset = mapInstances.length;
+    await jejuController.updateData([{
+      id: "jeju-source",
+      name: "제주 장소",
+      address: "제주특별자치도 제주시",
+      coordinates: { latitude: 33.5, longitude: 126.53 },
+      markerKind: "tourism-official",
+    }], []);
+    jejuController.resetRegion(BUSAN_REGION_CONFIG.mapBounds);
+    expect(mapInstances).toHaveLength(mapCountBeforeRegionReset);
+    expect(clusterers.at(-1)?.clear).toHaveBeenCalledTimes(1);
+    expect(jejuContainer.dataset.markerRegistrySize).toBe("0");
+    expect(jejuContainer.dataset.markerCacheSize).toBe("0");
     jejuController.destroy();
+
+    const scheduledBatches: Array<() => void> = [];
+    const batchedContainer = document.createElement("div");
+    const batchedController = createKakaoMapController(batchedContainer, {
+      defaultCenter: BUSAN_REGION_CONFIG.defaultMapCenter,
+      locations: [],
+      markerBatchSize: 2,
+      scheduleMarkerBatch: (callback) => scheduledBatches.push(callback),
+    });
+    const largeLocations = Array.from({ length: 5 }, (_, index) => ({
+      id: `batched-${index}`,
+      name: `배치 장소 ${index}`,
+      address: "부산광역시",
+      coordinates: { latitude: 35.1 + index * 0.001, longitude: 129.1 + index * 0.001 },
+      markerKind: "tourism-official" as const,
+    }));
+    const batchedUpdate = batchedController.updateData(largeLocations, []);
+    expect(batchedContainer.dataset.createdSourceMarkerCount).toBe("2");
+    expect(scheduledBatches).toHaveLength(1);
+    while (scheduledBatches.length > 0) {
+      scheduledBatches.shift()?.();
+      await Promise.resolve();
+    }
+    await expect(batchedUpdate).resolves.toBe(true);
+    expect(batchedContainer.dataset.catalogMarkerCount).toBe("5");
+    expect(batchedContainer.dataset.activeMarkerCount).toBe("5");
+
+    const staleUpdate = batchedController.updateData(largeLocations.map((location) => ({
+      ...location,
+      id: `stale-${location.id}`,
+    })), []);
+    await expect(batchedController.updateData([largeLocations[0]], []))
+      .resolves.toBe(true);
+    while (scheduledBatches.length > 0) {
+      scheduledBatches.shift()?.();
+      await Promise.resolve();
+    }
+    await expect(staleUpdate).resolves.toBe(false);
+    expect(batchedContainer.dataset.catalogMarkerCount).toBe("1");
+    expect(batchedContainer.dataset.activeMarkerCount).toBe("1");
+    batchedController.destroy();
   });
 });

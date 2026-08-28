@@ -1,7 +1,7 @@
 import { isValidMapCoordinates } from "@/lib/kakao/maps";
 import { PUBLIC_CATALOG_PAGE_SIZE } from "@/lib/map-places/catalog-url";
 import { rankCatalogPlaces, type CatalogRankingCenter, type CatalogPopularityResult } from "@/lib/map-places/catalog-ranking";
-import { mapCatalogPlaceToCategory, type PlaceCategory } from "@/lib/map-places/place-categories";
+import { PLACE_CATEGORIES, mapCatalogPlaceToCategory, type PlaceCategory } from "@/lib/map-places/place-categories";
 import type { KakaoCurrentMapSearch } from "@/types/kakao";
 import type { PublicCatalogLayer, PublicCatalogMarker } from "@/types/public-catalog-place";
 import type { RegionId } from "@/types/region";
@@ -22,6 +22,11 @@ export interface ExplorerCollectionInput {
   popularity?: ReadonlyMap<string, CatalogPopularityResult>;
 }
 
+type ExplorerScopeInput = Pick<
+  ExplorerCollectionInput,
+  "places" | "regionId" | "district" | "layers" | "activeBounds"
+>;
+
 export function isInsideExplorerBounds(
   place: PublicCatalogMarker,
   bounds: KakaoCurrentMapSearch["rectangle"],
@@ -33,6 +38,35 @@ export function isInsideExplorerBounds(
     place.coordinates.latitude <= bounds.north;
 }
 
+function getScopedExplorerPlaces(input: ExplorerScopeInput): PublicCatalogMarker[] {
+  const unique = new Map<string, PublicCatalogMarker>();
+  const layerSet = new Set(input.layers);
+  for (const place of input.places) {
+    if (
+      unique.has(place.id) ||
+      place.regionId !== input.regionId ||
+      !isValidMapCoordinates(place.coordinates) ||
+      (input.district !== "all" && place.districtCode !== input.district) ||
+      !layerSet.has(place.layer) ||
+      (input.activeBounds && !isInsideExplorerBounds(place, input.activeBounds))
+    ) continue;
+    unique.set(place.id, place);
+  }
+  return [...unique.values()];
+}
+
+export function getExplorerCategoryCounts(
+  input: ExplorerScopeInput,
+): Record<PlaceCategory, number> {
+  const counts = Object.fromEntries(
+    PLACE_CATEGORIES.map((category) => [category, 0]),
+  ) as Record<PlaceCategory, number>;
+  for (const place of getScopedExplorerPlaces(input)) {
+    counts[mapCatalogPlaceToCategory(place)] += 1;
+  }
+  return counts;
+}
+
 export function getExplorerCollections(input: ExplorerCollectionInput): {
   filteredPlaces: PublicCatalogMarker[];
   mapPlaces: PublicCatalogMarker[];
@@ -40,20 +74,9 @@ export function getExplorerCollections(input: ExplorerCollectionInput): {
   currentPage: number;
   totalPages: number;
 } {
-  const unique = new Map<string, PublicCatalogMarker>();
-  for (const place of input.places) {
-    if (!unique.has(place.id) && isValidMapCoordinates(place.coordinates)) {
-      unique.set(place.id, place);
-    }
-  }
-  const layerSet = new Set(input.layers);
   const categorySet = new Set(input.categories);
-  const matchedPlaces = [...unique.values()]
-    .filter((place) => place.regionId === input.regionId)
-    .filter((place) => input.district === "all" || place.districtCode === input.district)
-    .filter((place) => categorySet.has(mapCatalogPlaceToCategory(place)))
-    .filter((place) => layerSet.has(place.layer))
-    .filter((place) => !input.activeBounds || isInsideExplorerBounds(place, input.activeBounds));
+  const matchedPlaces = getScopedExplorerPlaces(input)
+    .filter((place) => categorySet.has(mapCatalogPlaceToCategory(place)));
   const filteredPlaces = rankCatalogPlaces(matchedPlaces, {
     activeCategories: input.categories,
     districtSelected: input.district !== "all",
