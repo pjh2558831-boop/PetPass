@@ -206,9 +206,11 @@ describe("Incheon and Gyeonggi regional expansion", () => {
     expect(getKtoCollectionEnabledRegionConfig(region.id)?.id).toBe(region.id);
   });
 
-  it("exposes five isolated selector regions and parses the new district URLs", () => {
+  it("exposes 17 isolated selector regions and parses the new district URLs", () => {
     expect(getMapEnabledRegionConfigs().map(({ id }) => id)).toEqual([
-      "busan", "jeju", "seoul", "incheon", "gyeonggi",
+      "seoul", "incheon", "daejeon", "daegu", "gwangju", "busan",
+      "ulsan", "sejong", "gyeonggi", "gangwon", "chungbuk", "chungnam",
+      "gyeongbuk", "gyeongnam", "jeonbuk", "jeonnam", "jeju",
     ]);
     expect(parsePublicCatalogUrlState({ region: "incheon", district: "720" }))
       .toMatchObject({ region: "incheon", district: "720" });

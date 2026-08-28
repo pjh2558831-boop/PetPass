@@ -7,6 +7,7 @@ export const PLACE_CATEGORIES = [
   "food",
   "cafe",
   "accommodation",
+  "other",
   "shopping",
   "veterinary",
   "pet_shop",
@@ -20,6 +21,7 @@ export const DEFAULT_PLACE_CATEGORIES = [
   "food",
   "cafe",
   "accommodation",
+  "other",
 ] as const satisfies readonly PlaceCategory[];
 
 export const OPTIONAL_PLACE_CATEGORIES = [
@@ -40,6 +42,7 @@ export const PLACE_CATEGORY_LABELS: Record<PlaceCategory, string> = {
   food: "식당",
   cafe: "카페",
   accommodation: "숙소",
+  other: "기타",
   shopping: "쇼핑",
   veterinary: "동물병원",
   pet_shop: "펫샵·용품점",
@@ -54,7 +57,7 @@ const KAKAO_CATEGORY_MAP: Record<PublicMapPlaceCategory, PlaceCategory> = {
   leisure: "attraction",
   camping: "attraction",
   shopping: "shopping",
-  other: "attraction",
+  other: "other",
 };
 
 export function mapTourSummaryToPlaceCategory(
@@ -63,6 +66,7 @@ export function mapTourSummaryToPlaceCategory(
   if (place.contentTypeId === "32" || place.category === "accommodation") return "accommodation";
   if (place.contentTypeId === "38" || place.category === "shopping") return "shopping";
   if (place.contentTypeId === "39" || place.category === "food") return "food";
+  if (place.category === "unknown") return "other";
   return "attraction";
 }
 

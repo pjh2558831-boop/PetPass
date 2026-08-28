@@ -159,13 +159,14 @@ export function normalizeTourPlaceSummary(
     copyrightType: value(item, "cpyrhtDivCd"),
     createdTime: value(item, "createdtime"),
     modifiedTime,
-    legalRegionCode: value(item, "lDongRegnCd", "ldongregncd", "areacode"),
+    legalRegionCode: value(item, "lDongRegnCd", "ldongregncd"),
     legalDistrictCode: value(
       item,
       "lDongSignguCd",
       "ldongsigngucd",
-      "sigungucode",
     ),
+    areaCode: value(item, "areacode", "areaCode"),
+    sigunguCode: value(item, "sigungucode", "sigunguCode"),
     classificationCodes: {
       primary: value(item, "cat1"),
       secondary: value(item, "cat2"),

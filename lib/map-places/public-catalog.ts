@@ -108,10 +108,12 @@ function toDto(
   const contentTypeId = row.content_type_id == null
     ? null
     : String(row.content_type_id);
-  const category = provider === "tour" && isSupportedKtoContentTypeId(contentTypeId)
+  const supportedKtoType = isSupportedKtoContentTypeId(contentTypeId);
+  const category = provider === "tour" && supportedKtoType
     ? ktoContentTypeCategory(contentTypeId)
     : row.normalized_category;
-  const placeUrl = provider === "tour" && dataset !== "shopping"
+  const placeUrl = provider === "tour" && dataset !== "shopping" &&
+    supportedKtoType
     ? `/places/${encodeURIComponent(row.provider_place_id)}?${new URLSearchParams({
         region: regionId,
         ...(contentTypeId ? { contentTypeId } : {}),
@@ -133,8 +135,12 @@ function toDto(
     placeUrl,
     source: row.source,
     petAccessVerdict: row.pet_access_verdict,
-    reviewStatus: row.review_status,
-    publicLabel: row.public_label,
+    reviewStatus: provider === "tour" && !supportedKtoType
+      ? "needs_review"
+      : row.review_status,
+    publicLabel: provider === "tour" && !supportedKtoType
+      ? "반려동물 동반 정보 확인 필요"
+      : row.public_label,
     categoryGroupCode: row.category_group_code,
     lastSeenAt: row.last_seen_at,
     matchedQueryCount: row.matched_query_count,
@@ -200,7 +206,10 @@ export async function queryPublicMapCatalog(
       const providerPairIsValid = row.provider === "tour"
         ? row.source === "kto_official" &&
           row.candidate_kind === "tourism_place" &&
-          isSupportedKtoContentTypeId(contentTypeId)
+          (isSupportedKtoContentTypeId(contentTypeId) ||
+            (dataset === "core" &&
+              row.normalized_category === "other" &&
+              contentTypeId !== "38"))
         : row.source === "kakao_search_candidate" &&
           row.candidate_kind !== "tourism_place" &&
           contentTypeId === null;

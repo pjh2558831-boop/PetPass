@@ -307,6 +307,7 @@ export function createKakaoMapController(
   container: HTMLElement,
   options: {
     defaultCenter: Coordinates;
+    defaultLevel?: number;
     defaultBounds?: KakaoCurrentMapSearch["rectangle"];
     locations: KakaoMapLocation[];
     routeCoordinates?: Coordinates[];
@@ -340,7 +341,10 @@ export function createKakaoMapController(
     options.defaultCenter.latitude,
     options.defaultCenter.longitude,
   );
-  const map = new maps.Map(container, { center: defaultCenter, level: 8 });
+  const map = new maps.Map(container, {
+    center: defaultCenter,
+    level: options.defaultLevel ?? 8,
+  });
   const nativeMarkerImages = new Map<KakaoMapMarkerKind, KakaoMarkerImage>();
   const nativeMarkerVisual = (kind: KakaoMapMarkerKind) => {
     const visuals: Record<KakaoMapMarkerKind, { color: string; label: string; textColor?: string; shape: "pin" | "diamond" | "circle" | "square" }> = {

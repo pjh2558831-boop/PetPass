@@ -120,6 +120,10 @@ export interface TourPlaceSummary {
   modifiedTime: string | null;
   legalRegionCode: string | null;
   legalDistrictCode: string | null;
+  /** Stable KTO areaCode2 identity, kept separate from legal-dong codes. */
+  areaCode?: string | null;
+  /** Stable KTO areaCode2 district identity. */
+  sigunguCode?: string | null;
   classificationCodes: TourClassificationCodes;
   providerVisibility?: ProviderVisibilityResult;
   source: TourSourceReference;

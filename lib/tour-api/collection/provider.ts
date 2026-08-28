@@ -27,6 +27,7 @@ export function createKtoCatalogProvider(
       return service.listCollectionPlaces({
         regionCode: input.regionCode,
         districtCode: input.districtCode,
+        administrativeCodeSystem: input.administrativeCodeSystem,
         page: input.page,
         pageSize: input.pageSize,
       }, observe);

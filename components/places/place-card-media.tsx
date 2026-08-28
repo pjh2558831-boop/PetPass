@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { BedDouble, Camera, Coffee, Cross, Landmark, ShoppingBag, Store, Utensils } from "lucide-react";
+import { BedDouble, Camera, Coffee, Cross, Landmark, Shapes, ShoppingBag, Store, Utensils } from "lucide-react";
 import { PLACE_CATEGORY_LABELS, type PlaceCategory } from "@/lib/map-places/place-categories";
 import type { PlaceCardImage } from "@/types/place-card-image";
 
@@ -11,6 +11,7 @@ const CATEGORY_ICONS = {
   food: Utensils,
   cafe: Coffee,
   accommodation: BedDouble,
+  other: Shapes,
   shopping: ShoppingBag,
   veterinary: Cross,
   pet_shop: Store,

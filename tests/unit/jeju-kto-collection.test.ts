@@ -51,6 +51,7 @@ describe("Jeju KTO catalog collection", () => {
     expect(result.rows.map(({ provider_place_id }) => provider_place_id)).toEqual([
       "5001001",
       "5001002",
+      "5001003",
       "5002001",
     ]);
     expect(result.rows).toSatisfy((rows: KtoCatalogMapPlace[]) =>
@@ -66,7 +67,7 @@ describe("Jeju KTO catalog collection", () => {
     });
   });
 
-  it("reports exact district audit totals and excludes shopping and invalid coordinates", async () => {
+  it("reports exact district audit totals, defers Shopping detail, and excludes invalid coordinates", async () => {
     const result = await collectJejuKtoCatalog({
       provider: createJejuKtoFixtureProvider(),
       now: () => new Date(NOW),
@@ -74,16 +75,15 @@ describe("Jeju KTO catalog collection", () => {
 
     expect(result.audit.districts["110"]).toMatchObject({
       rawCount: 6,
-      acceptedCount: 2,
-      rejectedCount: 3,
+      acceptedCount: 3,
+      rejectedCount: 2,
       duplicateCount: 1,
       imageCoveredCount: 1,
       detailPetTourCoveredCount: 1,
       rawContentTypeCounts: { "12": 3, "14": 1, "38": 1, "39": 1 },
-      categoryCounts: { attraction: 1, food: 1 },
-      verdictCounts: { conditional: 1, unknown: 1 },
+      categoryCounts: { attraction: 1, food: 1, shopping: 1 },
+      verdictCounts: { conditional: 1, unknown: 2 },
       rejectionCounts: {
-        shopping_content_type: 1,
         out_of_region_coordinates: 1,
         administrative_region_mismatch: 1,
       },
@@ -98,7 +98,11 @@ describe("Jeju KTO catalog collection", () => {
       rawContentTypeCounts: { "32": 1 },
       categoryCounts: { accommodation: 1 },
     });
-    expect(result.rows.some((row) => row.content_type_id === 38)).toBe(false);
+    expect(result.rows.find((row) => row.content_type_id === 38)).toMatchObject({
+      catalog_dataset: "shopping",
+      evidence_collection_mode: "list_only",
+      pet_evidence_status: "official_unknown",
+    });
     expect(result.rows.find((row) => row.provider_place_id === "5001002")?.image_url).toBeNull();
   });
 
@@ -280,8 +284,8 @@ describe("Jeju KTO catalog collection", () => {
 
     expect(before).toEqual({ tour: 1, kakao: 1 });
     expect(busanSnapshot()).toEqual(before);
-    expect(first.database).toEqual({ insertedRowCount: 3, updatedRowCount: 0, deactivatedRowCount: 1 });
-    expect(second.database).toEqual({ insertedRowCount: 0, updatedRowCount: 3, deactivatedRowCount: 0 });
+    expect(first.database).toEqual({ insertedRowCount: 4, updatedRowCount: 0, deactivatedRowCount: 1 });
+    expect(second.database).toEqual({ insertedRowCount: 0, updatedRowCount: 4, deactivatedRowCount: 0 });
     expect(catalog.find((row) => row.providerPlaceId === "5000999")?.active).toBe(false);
   });
 });

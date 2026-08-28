@@ -62,6 +62,7 @@ describe("public catalog URL state", () => {
       "food",
       "cafe",
       "accommodation",
+      "other",
     ]);
   });
 

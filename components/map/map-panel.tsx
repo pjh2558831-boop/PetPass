@@ -130,6 +130,7 @@ export function MapPanel({
       controllerRef.current?.destroy();
       controllerRef.current = createKakaoMapController(container, {
         defaultCenter: region.defaultMapCenter,
+        defaultLevel: region.defaultMapLevel,
         defaultBounds: region.mapBounds,
         locations: latest.locations,
         routeCoordinates: latest.routeCoordinates,
@@ -149,7 +150,7 @@ export function MapPanel({
     } finally {
       initializingRef.current = false;
     }
-  }, [region.defaultMapCenter, region.mapBounds]);
+  }, [region.defaultMapCenter, region.defaultMapLevel, region.mapBounds]);
 
   useEffect(() => {
     let cancelled = false;

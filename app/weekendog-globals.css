@@ -420,32 +420,113 @@ select {
   gap: 16px;
 }
 
-.explorer-region-selector {
-  display: inline-flex;
+.explorer-region-picker {
+  position: relative;
   flex: 0 0 auto;
+}
+
+.explorer-region-picker__trigger {
+  display: inline-flex;
+  min-width: 112px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: white;
-  padding: 3px;
-}
-
-.explorer-region-selector button {
-  min-width: 64px;
-  min-height: 44px;
-  border-radius: 9px;
-  padding-inline: 14px;
-  color: var(--text-secondary);
-  font-size: 13px;
+  padding: 5px 11px;
+  color: var(--text);
+  font-size: 14px;
   font-weight: 900;
 }
 
-.explorer-region-selector button[aria-pressed="true"] {
-  background: var(--brand);
-  color: white;
-  box-shadow: 0 3px 10px rgba(35, 97, 72, 0.18);
+.explorer-region-picker__trigger span {
+  display: grid;
+  justify-items: start;
+  line-height: 1.15;
 }
 
-.explorer-region-selector button:focus-visible {
+.explorer-region-picker__trigger small {
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.explorer-region-picker__popup {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 8px);
+  left: 0;
+  width: min(340px, calc(100vw - 32px));
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: white;
+  padding: 10px;
+  box-shadow: 0 18px 50px rgba(26, 54, 42, 0.18);
+}
+
+.explorer-region-picker__search {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 10px;
+}
+
+.explorer-region-picker__search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  font-size: 13px;
+}
+
+.explorer-region-picker__list {
+  max-height: min(440px, 60vh);
+  overflow-y: auto;
+  padding-top: 8px;
+}
+
+.explorer-region-picker__list section + section {
+  margin-top: 8px;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 8px;
+}
+
+.explorer-region-picker__list h3 {
+  margin: 0 4px 5px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.explorer-region-picker__list section > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.explorer-region-picker__list [role="option"] {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 9px;
+  padding: 0 9px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.explorer-region-picker__list [role="option"][aria-selected="true"] {
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+}
+
+.explorer-region-picker button:focus-visible {
   outline: 3px solid rgba(35, 97, 72, 0.28);
   outline-offset: 2px;
 }
@@ -737,6 +818,7 @@ select {
 .explorer-category-group__icon[data-category="food"] { color: #f27722; }
 .explorer-category-group__icon[data-category="cafe"] { color: #9b5d27; }
 .explorer-category-group__icon[data-category="accommodation"] { color: #4aaa35; }
+.explorer-category-group__icon[data-category="other"] { color: #66746d; }
 .explorer-category-group__icon[data-category="shopping"] { color: #9639cf; }
 .explorer-category-group__icon[data-category="veterinary"] { color: #df3945; }
 .explorer-category-group__icon[data-category="pet_shop"] { color: #2d78d4; }
@@ -1196,6 +1278,7 @@ select {
 .catalog-card-placeholder.is-cafe { background: linear-gradient(145deg, #f4eee7, #fff8ed); color: #805738; }
 .catalog-card-placeholder.is-accommodation { background: linear-gradient(145deg, #eef2f8, #f5f7f2); color: #49637c; }
 .catalog-card-placeholder.is-shopping { background: linear-gradient(145deg, #f8edf3, #fff7ed); color: #8d5570; }
+.catalog-card-placeholder.is-other { background: linear-gradient(145deg, #eef1ef, #f8faf9); color: #596760; }
 .catalog-card-placeholder.is-veterinary { background: linear-gradient(145deg, #fff0ef, #f8f5ee); color: #b14e4e; }
 .catalog-card-placeholder.is-pet_shop { background: linear-gradient(145deg, #f1eff9, #f8f4ed); color: #5a4a8f; }
 
@@ -1630,12 +1713,12 @@ select {
     display: none;
   }
 
-  .explorer-region-selector {
-    flex: 1 1 auto;
+  .explorer-region-picker {
+    flex: 1 1 0;
   }
 
-  .explorer-region-selector button {
-    flex: 1;
+  .explorer-region-picker__trigger {
+    width: 100%;
   }
 
   .explorer-district-control {

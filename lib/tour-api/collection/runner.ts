@@ -43,8 +43,13 @@ interface CollectionBudget {
 
 interface ValidatedListRecord {
   summary: TourPlaceSummary;
-  dataset: KtoCollectionPartitionConfig;
+  dataset: Pick<KtoCollectionPartitionConfig, "id" | "evidenceCollectionMode">;
 }
+
+const UNKNOWN_CORE_DATASET = {
+  id: "core",
+  evidenceCollectionMode: "list_only",
+} as const;
 
 function increment<T extends string>(counts: Partial<Record<T, number>>, key: T): void {
   counts[key] = (counts[key] ?? 0) + 1;
@@ -112,36 +117,54 @@ function primaryValidation(
   if (!summary || !/^[1-9][0-9]*$/u.test(summary.contentId)) {
     return reject(audit, "invalid_content_id");
   }
-  const legalRegionCode =
-    region.providerCodes.korPetTourService2.legalDongRegionCode;
-  if (!record.authoritativeLegalRegionCode) {
+  const areaCodeBased =
+    region.ktoCollection.administrativeCodeSystem === "area_code";
+  const expectedRegionCode = areaCodeBased
+    ? region.providerCodes.legacyTourismAreaCode
+    : region.providerCodes.korPetTourService2.legalDongRegionCode;
+  const rawAuthoritativeRegionCode = areaCodeBased
+    ? record.authoritativeAreaRegionCode
+    : record.authoritativeLegalRegionCode;
+  const rawAuthoritativeDistrictCode = areaCodeBased
+    ? record.authoritativeAreaDistrictCode
+    : record.authoritativeLegalDistrictCode;
+  const authoritativeRegionCode = rawAuthoritativeRegionCode ??
+    (areaCodeBased ? expectedRegionCode : null);
+  const authoritativeDistrictCode = rawAuthoritativeDistrictCode ??
+    (areaCodeBased && providerDistrictCodes.length === 1
+      ? providerDistrictCodes[0]
+      : null);
+  if (!authoritativeRegionCode) {
     return reject(audit, "administrative_region_missing");
   }
-  if (record.authoritativeLegalRegionCode !== legalRegionCode) {
+  if (authoritativeRegionCode !== expectedRegionCode) {
     return reject(audit, "administrative_region_mismatch");
   }
-  if (!record.authoritativeLegalDistrictCode) {
+  if (!authoritativeDistrictCode) {
     return reject(audit, "administrative_district_missing");
   }
-  if (!providerDistrictCodes.includes(record.authoritativeLegalDistrictCode)) {
+  if (!providerDistrictCodes.includes(authoritativeDistrictCode)) {
     return reject(audit, "administrative_district_mismatch");
   }
-  const dataset = region.ktoCollection.datasets.find(({ contentTypeIds }) =>
+  const configuredDataset = region.ktoCollection.datasets.find(({ contentTypeIds }) =>
     summary.contentTypeId !== null && contentTypeIds.includes(summary.contentTypeId));
-  if (!dataset && summary.providerContentTypeId === "38") {
+  if (!configuredDataset && summary.providerContentTypeId === "38") {
     return reject(audit, "shopping_content_type");
   }
   if (
-    !summary.contentTypeId ||
-    !dataset ||
-    summary.category === "unknown" ||
-    summary.category === "transportation" ||
-    (dataset.id === "shopping" && summary.category !== "shopping") ||
-    (dataset.id === "core" && summary.category === "shopping")
+    configuredDataset &&
+    ((configuredDataset.id === "shopping" && summary.category !== "shopping") ||
+      (configuredDataset.id === "core" && summary.category === "shopping"))
   ) {
     return reject(audit, "unsupported_content_type");
   }
-  if (!summary.title?.trim()) return reject(audit, "missing_title");
+  const dataset = configuredDataset ?? UNKNOWN_CORE_DATASET;
+  const acceptedSummary = summary.title?.trim()
+    ? summary
+    : areaCodeBased
+      ? { ...summary, title: `이름 확인 필요 (${summary.contentId})` }
+      : null;
+  if (!acceptedSummary) return reject(audit, "missing_title");
   if (summary.latitude === null || summary.longitude === null) {
     return reject(audit, "missing_coordinates");
   }
@@ -151,15 +174,17 @@ function primaryValidation(
   })) {
     return reject(audit, "out_of_region_coordinates");
   }
-  const addressResult = addressMatchesDistrict(
-    region,
-    districtName,
-    summary.address,
-    summary.detailAddress,
-  );
-  if (addressResult === "missing") return reject(audit, "administrative_address_missing");
-  if (addressResult === "mismatch") return reject(audit, "administrative_address_mismatch");
-  return { summary, dataset };
+  if (region.ktoCollection.administrativeCodeSystem === "legal_dong") {
+    const addressResult = addressMatchesDistrict(
+      region,
+      districtName,
+      summary.address,
+      summary.detailAddress,
+    );
+    if (addressResult === "missing") return reject(audit, "administrative_address_missing");
+    if (addressResult === "mismatch") return reject(audit, "administrative_address_mismatch");
+  }
+  return { summary: acceptedSummary, dataset };
 }
 
 function validateDetail(
@@ -178,17 +203,29 @@ function validateDetail(
     reject(audit, "detail_identity_mismatch");
     return false;
   }
+  const areaCodeBased =
+    region.ktoCollection.administrativeCodeSystem === "area_code";
+  const detailRegionCode = areaCodeBased ? summary.areaCode : summary.legalRegionCode;
+  const listRegionCode = areaCodeBased ? list.areaCode : list.legalRegionCode;
+  const detailDistrictCode = areaCodeBased
+    ? summary.sigunguCode
+    : summary.legalDistrictCode;
+  const listDistrictCode = areaCodeBased ? list.sigunguCode : list.legalDistrictCode;
+  const expectedRegionCode = areaCodeBased
+    ? region.providerCodes.legacyTourismAreaCode
+    : region.providerCodes.korPetTourService2.legalDongRegionCode;
   if (
-    summary.legalRegionCode !==
-      region.providerCodes.korPetTourService2.legalDongRegionCode ||
-    !summary.legalDistrictCode ||
-    !providerDistrictCodes.includes(summary.legalDistrictCode) ||
-    summary.legalDistrictCode !== list.legalDistrictCode
+    detailRegionCode !== expectedRegionCode ||
+    detailRegionCode !== listRegionCode ||
+    !detailDistrictCode ||
+    !providerDistrictCodes.includes(detailDistrictCode) ||
+    detailDistrictCode !== listDistrictCode
   ) {
     reject(audit, "detail_administrative_mismatch");
     return false;
   }
   if (
+    region.ktoCollection.administrativeCodeSystem === "legal_dong" &&
     addressMatchesDistrict(
       region,
       districtName,
@@ -287,22 +324,29 @@ function mapRow(
 function mapListOnlyRow(
   region: KtoCollectionEnabledRegionConfig<string>,
   list: TourPlaceSummary,
+  dataset: Pick<KtoCollectionPartitionConfig, "id" | "evidenceCollectionMode">,
   districtCode: string,
   districtName: string,
   fetchedAt: string,
 ): KtoCatalogMapPlace {
+  const providerContentTypeId = list.providerContentTypeId;
+  const parsedContentTypeId = providerContentTypeId && /^[1-9][0-9]*$/u.test(providerContentTypeId)
+    ? Number(providerContentTypeId)
+    : null;
   return {
     region_id: region.id,
     provider: KTO_CATALOG_PROVIDER,
     provider_place_id: list.contentId,
-    catalog_dataset: "shopping",
+    catalog_dataset: dataset.id,
     evidence_collection_mode: "list_only",
     name: list.title as string,
-    category_group: "shopping",
+    category_group: dataset.id === "shopping" ? "shopping" : "other",
     category_code:
       list.classificationCodes.smallCategory ??
       list.classificationCodes.tertiary,
-    content_type_id: 38,
+    content_type_id: Number.isSafeInteger(parsedContentTypeId)
+      ? parsedContentTypeId
+      : null,
     road_address: list.address,
     lot_address: list.detailAddress,
     district_code: districtCode,
@@ -327,7 +371,9 @@ function mapListOnlyRow(
       assessment: {
         verdict: "unknown",
         summary: "반려동물 동반 정책을 확인하지 못했습니다.",
-        reasonCodes: ["KTO_LIST_METADATA_ONLY"],
+        reasonCodes: [dataset.id === "shopping"
+          ? "KTO_LIST_METADATA_ONLY"
+          : "KTO_UNCLASSIFIED_CONTENT_TYPE"],
       },
     },
     pet_notes: "반려동물 동반 정책을 확인하지 못해 방문 전 확인이 필요합니다.",
@@ -347,8 +393,13 @@ function assertRegionDescriptor(
     ({ legalDongDistrictCode, name }) => `${legalDongDistrictCode}:${name}`,
   );
   const collectionDistrictCodes = region.districts.flatMap(
-    ({ legalDongDistrictCode, collectionLegalDongDistrictCodes }) =>
-      collectionLegalDongDistrictCodes ?? [legalDongDistrictCode],
+    ({
+      legalDongDistrictCode,
+      collectionLegalDongDistrictCodes,
+      collectionAreaDistrictCodes,
+    }) => region.ktoCollection.administrativeCodeSystem === "area_code"
+      ? collectionAreaDistrictCodes ?? [legalDongDistrictCode]
+      : collectionLegalDongDistrictCodes ?? [legalDongDistrictCode],
   );
   const limits = region.ktoCollection.limits;
   const datasets = region.ktoCollection.datasets;
@@ -356,7 +407,9 @@ function assertRegionDescriptor(
   const contentTypeIds = datasets.flatMap(({ contentTypeIds: ids }) => ids);
   if (
     !/^[a-z][a-z0-9_-]*$/u.test(region.id) ||
-    !/^\d{2}$/u.test(legalRegionCode) ||
+    !/^\d{2,5}$/u.test(legalRegionCode) ||
+    (region.ktoCollection.administrativeCodeSystem === "area_code" &&
+      !/^\d{1,2}$/u.test(region.providerCodes.legacyTourismAreaCode ?? "")) ||
     !region.ktoCatalogEnabled ||
     !region.allowedMapProviders.includes(KTO_CATALOG_PROVIDER) ||
     region.ktoCollection.provider !== KTO_CATALOG_PROVIDER ||
@@ -368,11 +421,14 @@ function assertRegionDescriptor(
       legalDongDistrictCode,
       name,
       collectionLegalDongDistrictCodes,
+      collectionAreaDistrictCodes,
     }) =>
       !/^\d{3}$/u.test(legalDongDistrictCode) ||
       !name.trim() ||
       collectionLegalDongDistrictCodes?.length === 0 ||
-      collectionLegalDongDistrictCodes?.some((code) => !/^\d{3}$/u.test(code))) ||
+      collectionLegalDongDistrictCodes?.some((code) => !/^\d{3}$/u.test(code)) ||
+      collectionAreaDistrictCodes?.length === 0 ||
+      collectionAreaDistrictCodes?.some((code) => !/^\d{1,3}$/u.test(code))) ||
     datasets.length === 0 ||
     new Set(datasetIds).size !== datasetIds.length ||
     new Set(contentTypeIds).size !== contentTypeIds.length ||
@@ -415,8 +471,11 @@ async function listAllDistrictRecords(
     let response;
     try {
       response = await provider.listDistrict({
-        regionCode: region.providerCodes.korPetTourService2.legalDongRegionCode,
+        regionCode: region.ktoCollection.administrativeCodeSystem === "area_code"
+          ? region.providerCodes.legacyTourismAreaCode as string
+          : region.providerCodes.korPetTourService2.legalDongRegionCode,
         districtCode,
+        administrativeCodeSystem: region.ktoCollection.administrativeCodeSystem,
         page,
         pageSize: limits.listPageSize,
       });
@@ -500,17 +559,23 @@ async function collectDistrict(
   const districtCode = district.legalDongDistrictCode;
   const audit = emptyAudit(districtCode, district.name);
   const providerDistrictCodes =
-    district.collectionLegalDongDistrictCodes ?? [districtCode];
+    region.ktoCollection.administrativeCodeSystem === "area_code"
+      ? district.collectionAreaDistrictCodes ?? [districtCode]
+      : district.collectionLegalDongDistrictCodes ?? [districtCode];
   const raw: KtoCatalogListRecord[] = [];
   for (const providerDistrictCode of providerDistrictCodes) {
     raw.push(...await listAllDistrictRecords(
       region,
       provider,
       providerDistrictCode,
-      providerDistrictCodes.length > 1,
+      providerDistrictCodes.length > 1 ||
+        region.ktoCollection.administrativeCodeSystem === "area_code",
     ));
   }
-  if (raw.length === 0) {
+  if (
+    raw.length === 0 &&
+    region.ktoCollection.administrativeCodeSystem === "legal_dong"
+  ) {
     throw new KtoCatalogCollectionError(
       "SUSPICIOUS_EMPTY_RESULT",
       `KTO returned no acceptable ${region.id} ${district.name} catalog records.`,
@@ -568,6 +633,7 @@ async function collectDistrict(
       const row = mapListOnlyRow(
         region,
         list,
+        dataset,
         districtCode,
         district.name,
         fetchedAt,
@@ -655,7 +721,9 @@ function validatedProviderRequestAudit(
   const maxListCalls =
     region.districts.reduce(
       (total, district) =>
-        total + (district.collectionLegalDongDistrictCodes?.length ?? 1),
+        total + (region.ktoCollection.administrativeCodeSystem === "area_code"
+          ? district.collectionAreaDistrictCodes?.length ?? 1
+          : district.collectionLegalDongDistrictCodes?.length ?? 1),
       0,
     ) * region.ktoCollection.limits.maxListPages;
   const maxDetailCalls = region.ktoCollection.limits.maxDetailedRecords;
@@ -730,6 +798,11 @@ function combinedAudit(
     regionId: region.id,
     legalDongRegionCode:
       region.providerCodes.korPetTourService2.legalDongRegionCode,
+    administrativeCodeSystem: region.ktoCollection.administrativeCodeSystem,
+    collectionRegionCode:
+      region.ktoCollection.administrativeCodeSystem === "area_code"
+        ? region.providerCodes.legacyTourismAreaCode as string
+        : region.providerCodes.korPetTourService2.legalDongRegionCode,
     provider: KTO_CATALOG_PROVIDER,
     registryVersion: region.ktoCollection.registryVersion,
     cacheNamespace: region.ktoCollection.cacheNamespace,
@@ -762,8 +835,12 @@ function assertCompletedDistricts(
         row.provider !== KTO_CATALOG_PROVIDER ||
         !region.ktoCollection.datasets.some((dataset) =>
           dataset.id === row.catalog_dataset &&
-          dataset.evidenceCollectionMode === row.evidence_collection_mode &&
-          dataset.contentTypeIds.includes(String(row.content_type_id) as TourContentTypeId)) ||
+          ((dataset.evidenceCollectionMode === row.evidence_collection_mode &&
+            dataset.contentTypeIds.includes(String(row.content_type_id) as TourContentTypeId)) ||
+            (dataset.id === "core" &&
+              row.evidence_collection_mode === "list_only" &&
+              row.category_group === "other" &&
+              row.content_type_id !== 38))) ||
         row.district_code !== completed.districtCode ||
         row.district_name !== districtName)
     ) {

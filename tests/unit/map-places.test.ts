@@ -430,6 +430,56 @@ describe("public Kakao map catalog route", () => {
     )).rejects.toThrow(/regional contract/iu);
   });
 
+  it("keeps an unfamiliar KTO content type visible as verification-required 기타", async () => {
+    const result = await queryPublicMapCatalog(
+      {
+        regionId: "daejeon",
+        dataset: "core",
+        providers: ["tour"],
+        categories: ["other"],
+        page: 1,
+        pageSize: 200,
+      },
+      { queryPage: vi.fn(async () => [{
+        id: 99,
+        provider: "tour" as const,
+        provider_place_id: "990099",
+        name: "대전 미분류 공식 장소",
+        candidate_kind: "tourism_place" as const,
+        normalized_category: "other" as const,
+        content_type_id: 99,
+        district_code: "001",
+        district_name: "대덕구",
+        address: "대전광역시 대덕구",
+        latitude: 36.3504,
+        longitude: 127.3845,
+        phone: null,
+        image_url: null,
+        place_url: null,
+        review_status: "confirmed" as const,
+        public_label: "동반 정보 확인 필요",
+        source: "kto_official" as const,
+        pet_access_verdict: "unknown" as const,
+        pet_evidence_status: "official_unknown",
+        category_group_code: null,
+        last_seen_at: "2026-08-28T00:00:00.000Z",
+        matched_query_count: 0,
+        category_query_agreement_count: 0,
+        total_count: 1,
+        has_more: false,
+      }]) },
+    );
+
+    expect(result.items[0]).toMatchObject({
+      category: "other",
+      contentTypeId: "99",
+      placeUrl: null,
+      reviewStatus: "needs_review",
+      publicLabel: "반려동물 동반 정보 확인 필요",
+      petAccessVerdict: "unknown",
+    });
+  });
+
   it("fetches the same 1,824-row fixture with 10 RPC calls instead of page replay's 55", async () => {
     const rows = Array.from({ length: 1_824 }, (_, index) => ({
       id: index + 1,

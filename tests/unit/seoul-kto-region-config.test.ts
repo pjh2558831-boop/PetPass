@@ -85,20 +85,32 @@ describe("Seoul regional KTO foundation", () => {
         fallbackSource: "public_catalog",
         snapshotDatasets: ["core", "shopping"],
         snapshotCategories: [
-          "attraction", "park_walk", "leisure", "camping", "food", "cafe", "accommodation",
+          "attraction", "park_walk", "leisure", "camping", "food", "cafe", "accommodation", "other",
         ],
-        availableCategories: ["attraction", "food", "cafe", "accommodation", "shopping"],
+        availableCategories: ["attraction", "food", "cafe", "accommodation", "shopping", "other"],
         deferredCategories: ["shopping"],
         hideMissingPhoneOnDetail: true,
       },
     });
 
     expect(getMapEnabledRegionConfigs().map(({ id }) => id)).toEqual([
-      "busan",
-      "jeju",
       "seoul",
       "incheon",
+      "daejeon",
+      "daegu",
+      "gwangju",
+      "busan",
+      "ulsan",
+      "sejong",
       "gyeonggi",
+      "gangwon",
+      "chungbuk",
+      "chungnam",
+      "gyeongbuk",
+      "gyeongnam",
+      "jeonbuk",
+      "jeonnam",
+      "jeju",
     ]);
     expect(getItineraryEnabledRegionConfigs().map(({ id }) => id)).toEqual([
       "busan",
@@ -124,14 +136,14 @@ describe("Seoul regional KTO foundation", () => {
     expect(jeju?.ktoCollection).toMatchObject({
       provider: "tour",
       listOperation: "areaBasedList2",
-      registryVersion: "tour-jeju-service2-v1",
-      cacheNamespace: "tour-jeju-service2-v1",
+      registryVersion: "tour-jeju-service2-v2",
+      cacheNamespace: "tour-jeju-service2-v2",
     });
     expect(seoul?.ktoCollection).toMatchObject({
       provider: "tour",
       listOperation: "areaBasedList2",
-      registryVersion: "tour-seoul-service2-v2",
-      cacheNamespace: "tour-seoul-service2-v2",
+      registryVersion: "tour-seoul-service2-v3",
+      cacheNamespace: "tour-seoul-service2-v3",
       datasets: [
         {
           id: "core",

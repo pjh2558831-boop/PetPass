@@ -48,10 +48,16 @@ export function publicMapPlaceMatchesRegion(
   if (place.provider === "tour") {
     if (
       place.kind !== "tourism_place" ||
-      place.source !== "kto_official" ||
-      !isSupportedKtoContentTypeId(place.contentTypeId)
+      place.source !== "kto_official"
     ) return false;
-    return place.category === ktoContentTypeCategory(place.contentTypeId);
+    if (isSupportedKtoContentTypeId(place.contentTypeId)) {
+      return place.category === ktoContentTypeCategory(place.contentTypeId);
+    }
+    return place.category === "other" &&
+      place.placeUrl === null &&
+      place.petAccessVerdict === "unknown" &&
+      place.reviewStatus === "needs_review" &&
+      place.publicLabel === "반려동물 동반 정보 확인 필요";
   }
 
   return place.source === "kakao_search_candidate" &&
@@ -71,7 +77,7 @@ export function snapshotMarkerMatchesRegion(
   const district = getRegionDistrict(region, marker.districtCode);
   if (!district || district.name !== marker.districtName) return false;
   if (marker.layer === "tourism") {
-    if (marker.category === "shopping") {
+    if (marker.category === "shopping" || marker.category === "other") {
       return marker.placeUrl === null &&
         marker.petAccessVerdict === "unknown" &&
         marker.publicLabel === "반려동물 동반 정보 확인 필요";

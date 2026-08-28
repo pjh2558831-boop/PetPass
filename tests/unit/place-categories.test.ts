@@ -7,8 +7,8 @@ import {
 } from "@/lib/map-places/place-categories";
 
 describe("canonical place categories", () => {
-  it("starts with exactly the four primary travel categories", () => {
-    expect(DEFAULT_PLACE_CATEGORIES).toEqual(["attraction", "food", "cafe", "accommodation"]);
+  it("keeps unclassified KTO rows visible with the primary travel categories", () => {
+    expect(DEFAULT_PLACE_CATEGORIES).toEqual(["attraction", "food", "cafe", "accommodation", "other"]);
     expect(OPTIONAL_PLACE_CATEGORIES).toEqual(["shopping", "veterinary", "pet_shop"]);
   });
 
@@ -17,6 +17,7 @@ describe("canonical place categories", () => {
     expect(mapTourSummaryToPlaceCategory({ contentTypeId: "39", category: "food" })).toBe("food");
     expect(mapTourSummaryToPlaceCategory({ contentTypeId: "32", category: "accommodation" })).toBe("accommodation");
     expect(mapTourSummaryToPlaceCategory({ contentTypeId: "38", category: "shopping" })).toBe("shopping");
+    expect(mapTourSummaryToPlaceCategory({ contentTypeId: null, category: "unknown" })).toBe("other");
   });
 
   it("keeps ordinary shopping and facilities in separate categories", () => {

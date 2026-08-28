@@ -40,6 +40,8 @@ export interface KtoCatalogListRecord {
   authoritativeLegalRegionCode: string | null;
   /** Read only from Service2 lDongSignguCd/ldongsigngucd. */
   authoritativeLegalDistrictCode: string | null;
+  authoritativeAreaRegionCode?: string | null;
+  authoritativeAreaDistrictCode?: string | null;
 }
 
 export interface KtoCatalogListPage {
@@ -58,6 +60,7 @@ export interface KtoCatalogProvider {
   listDistrict(input: {
     regionCode: string;
     districtCode: string;
+    administrativeCodeSystem?: "legal_dong" | "area_code";
     page: number;
     pageSize: number;
   }): Promise<KtoCatalogListPage>;
@@ -71,7 +74,7 @@ export interface KtoCatalogProvider {
 export type KtoCatalogCategory = Exclude<
   TourPlaceSummary["category"],
   "transportation" | "unknown"
->;
+> | "other";
 
 export interface KtoCatalogMapPlace {
   region_id: string;
@@ -82,7 +85,7 @@ export interface KtoCatalogMapPlace {
   name: string;
   category_group: KtoCatalogCategory;
   category_code: string | null;
-  content_type_id: number;
+  content_type_id: number | null;
   road_address: string | null;
   lot_address: string | null;
   district_code: string;
@@ -146,6 +149,8 @@ export interface KtoCatalogDistrictAudit {
 export interface KtoCatalogAudit {
   regionId: string;
   legalDongRegionCode: string;
+  administrativeCodeSystem: "legal_dong" | "area_code";
+  collectionRegionCode: string;
   provider: typeof KTO_CATALOG_PROVIDER;
   registryVersion: string;
   cacheNamespace: string;

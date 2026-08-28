@@ -40,6 +40,7 @@ const DETAIL_CACHE_TTL_MS = 15 * 60 * 1_000;
 export interface TourPlacesQuery {
   regionCode: string;
   districtCode?: string;
+  administrativeCodeSystem?: "legal_dong" | "area_code";
   contentTypeId?: TourContentTypeId;
   page: number;
   pageSize: number;
@@ -100,6 +101,8 @@ export interface TourCollectionListRecord {
   summary: TourPlaceList["places"][number] | null;
   authoritativeLegalRegionCode: string | null;
   authoritativeLegalDistrictCode: string | null;
+  authoritativeAreaRegionCode: string | null;
+  authoritativeAreaDistrictCode: string | null;
 }
 
 export interface TourCollectionListPage {
@@ -246,13 +249,16 @@ export class KoreaTourismService implements TourPlaceService {
     query: TourPlacesQuery,
     observe?: TourRequestObserver,
   ): Promise<TourPlaceList> {
+    const areaCodeBased = query.administrativeCodeSystem === "area_code";
     const params: Record<string, string> = {
-      lDongRegnCd: query.regionCode,
+      [areaCodeBased ? "areaCode" : "lDongRegnCd"]: query.regionCode,
       pageNo: String(query.page),
       numOfRows: String(query.pageSize),
       arrange: "A",
     };
-    if (query.districtCode) params.lDongSignguCd = query.districtCode;
+    if (query.districtCode) {
+      params[areaCodeBased ? "sigunguCode" : "lDongSignguCd"] = query.districtCode;
+    }
     if (query.contentTypeId) params.contentTypeId = query.contentTypeId;
 
     const response = await this.requestCached(
@@ -311,6 +317,10 @@ export class KoreaTourismService implements TourPlaceService {
           rawValue(item, "lDongRegnCd") ?? rawValue(item, "ldongregncd"),
         authoritativeLegalDistrictCode:
           rawValue(item, "lDongSignguCd") ?? rawValue(item, "ldongsigngucd"),
+        authoritativeAreaRegionCode:
+          rawValue(item, "areacode") ?? rawValue(item, "areaCode"),
+        authoritativeAreaDistrictCode:
+          rawValue(item, "sigungucode") ?? rawValue(item, "sigunguCode"),
       })),
       page: response.pageNo || query.page,
       pageSize: response.numOfRows || query.pageSize,

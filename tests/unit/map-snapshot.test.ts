@@ -207,7 +207,7 @@ describe("public map snapshot assembly", () => {
     expect(query).toHaveBeenCalledWith(expect.objectContaining({
       dataset: "core",
       categories: [
-        "attraction", "park_walk", "leisure", "camping", "food", "cafe", "accommodation",
+        "attraction", "park_walk", "leisure", "camping", "food", "cafe", "accommodation", "other",
       ],
     }));
     expect(snapshot.items.some(({ category }) => category === "shopping")).toBe(false);

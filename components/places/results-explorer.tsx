@@ -19,6 +19,7 @@ import {
 import { MapPanel } from "@/components/map/map-panel";
 import { PlaceCategoryToggleGroup } from "@/components/places/place-category-toggle-group";
 import { PublicCatalogCard } from "@/components/places/public-catalog-card";
+import { RegionSelector } from "@/components/places/region-selector";
 import { SelectedItineraryTray } from "@/components/places/selected-itinerary-tray";
 import { usePlannerState } from "@/components/planner/planner-state";
 import { AppDialog } from "@/components/ui/app-dialog";
@@ -55,7 +56,6 @@ import {
 import type { KakaoMapLocation, KakaoViewportIdleCause } from "@/lib/kakao/maps";
 import {
   BUSAN_REGION_CONFIG,
-  getMapEnabledRegionConfigs,
   getRegionConfig,
   getRegionDefaultCatalogCategories,
   type RegionConfig,
@@ -108,7 +108,6 @@ const LAYER_META: Record<PublicCatalogLayer, {
   pet_shop: { label: "펫샵·용품점", markerKind: "pet-shop", color: "purple" },
 };
 
-const MAP_ENABLED_REGIONS = getMapEnabledRegionConfigs();
 const STRICT_EFFECT_ABORT_GRACE_MS = 50;
 
 async function fetchAllBusanTourPlaces(
@@ -992,19 +991,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
             )}
           </div>
         )}
-        <fieldset className="explorer-region-selector">
-          <legend className="sr-only">지역 선택</legend>
-          {MAP_ENABLED_REGIONS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              aria-pressed={region === item.id}
-              onClick={(event) => requestRegionChange(item.id, event.timeStamp)}
-            >
-              {item.displayName}
-            </button>
-          ))}
-        </fieldset>
+        <RegionSelector value={region} onChange={requestRegionChange} />
         <div className="full-map-explorer__mobile-switch" role="group" aria-label="지도 또는 목록 보기">
           <button type="button" aria-pressed={mobileMode === "map"} onClick={() => setMobileMode("map")}><MapIcon size={17} aria-hidden="true" />지도</button>
           <button type="button" aria-pressed={mobileMode === "list"} onClick={() => setMobileMode("list")}><List size={17} aria-hidden="true" />목록</button>
