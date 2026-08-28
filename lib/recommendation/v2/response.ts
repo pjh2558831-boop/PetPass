@@ -24,6 +24,7 @@ export function requestFingerprintV2(input: {
   normalized: ReturnType<typeof normalizeRecommendationRequest>;
   catalogVersion: string;
   candidates: readonly CanonicalRecommendationCandidateV2[];
+  selection?: { selectedPlaceIds: readonly string[]; autoFill: boolean };
 }): string {
   return createHash("sha256").update(stableJson({
     contractVersion: ROUTE_RECOMMENDATION_CONTRACT_V2,
@@ -34,6 +35,7 @@ export function requestFingerprintV2(input: {
     },
     routeStyles: ["comfort", "preference", "efficient"],
     request: input.normalized,
+    ...(input.selection ? { selection: input.selection } : {}),
     catalogVersion: input.catalogVersion,
     candidateGeneration: input.candidates.map((candidate) => ({
       id: candidate.canonicalId,
@@ -47,8 +49,19 @@ function productStopV2(
   stop: RecommendedRouteStop,
   candidate: CanonicalRecommendationCandidateV2,
   licensingStatus: (candidate: DetailedEligibleCandidate) => RecommendedRouteStopV1["licensingStatus"],
+  selectedPlaceIds?: ReadonlySet<string>,
 ): RecommendedRouteStopV1 {
   const kto = candidate.ktoCandidate;
+  const selected = selectedPlaceIds?.has(candidate.canonicalId) ?? false;
+  const verificationWarning = selected
+    ? candidate.category === "shopping"
+      ? "selected_shopping_requires_confirmation"
+      : candidate.source === "kakao_catalog"
+        ? "selected_kakao_requires_confirmation"
+        : candidate.evidenceStatus === "unverified" || candidate.petVerdict === "unknown"
+          ? "selected_pet_policy_requires_confirmation"
+          : null
+    : null;
   return {
     placeId: candidate.canonicalId,
     sequence: stop.sequence,
@@ -68,6 +81,11 @@ function productStopV2(
     evidenceStatus: candidate.evidenceStatus,
     retrievedAt: candidate.retrievedAt,
     providerIdentities: candidate.providerIdentities,
+    ...(selectedPlaceIds ? {
+      provenance: selected ? "user_selected" as const : "auto_fill" as const,
+      locked: selected,
+      verificationWarning,
+    } : {}),
     mandatoryConditions: kto?.assessment.conditions.map((condition) => ({
       type: condition.type,
       label: condition.label,
@@ -78,7 +96,9 @@ function productStopV2(
     operatingHoursWarnings: kto?.scheduleCompatibility.warningCodes ?? ["operating_hours_unverified"],
     inclusionReasonCodes: stop.inclusionReasonCodes,
     orderingReasonCodes: stop.orderingReasonCodes,
-    warningCodes: stop.warningCodes,
+    warningCodes: verificationWarning
+      ? [...new Set([...stop.warningCodes, verificationWarning])].sort()
+      : stop.warningCodes,
     evidence: kto?.assessment.evidence.slice(0, 9).map((evidence) => ({
       field: evidence.field,
       label: evidence.fieldLabel,
@@ -93,6 +113,7 @@ export function routeFromOptionV2(input: {
   candidates: Map<string, CanonicalRecommendationCandidateV2>;
   requestedTarget: number;
   licensingStatus: (candidate: DetailedEligibleCandidate) => RecommendedRouteStopV1["licensingStatus"];
+  selectedPlaceIds?: ReadonlySet<string>;
 }): ProductRouteV1 {
   const schedule = routeOptionScheduleV2(input.option, input.optimization);
   const stopCount = input.option.stops.length;
@@ -133,7 +154,7 @@ export function routeFromOptionV2(input: {
       if (!candidate) {
         throw new TypeError("Final V2 route stop is outside the validated canonical candidate map.");
       }
-      return productStopV2(stop, candidate, input.licensingStatus);
+      return productStopV2(stop, candidate, input.licensingStatus, input.selectedPlaceIds);
     }),
     geometry: input.option.geometry,
   };

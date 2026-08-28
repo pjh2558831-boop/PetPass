@@ -61,6 +61,8 @@ export interface RouteOptimizationCandidate {
   evidenceStatus?: "verified" | "conditional" | "unverified";
   eligibilityTier?: "verified" | "conditional" | "unverified";
   personalization?: PersonalizationScoreV2;
+  /** Hybrid-mode anchors bypass optional-candidate pruning only. */
+  locked?: boolean;
 }
 
 export interface RouteOptimizationTripRequest {
@@ -74,6 +76,8 @@ export interface RouteOptimizationTripRequest {
   desiredStopCount?: number;
   durationMinutes?: number;
   allowReducedStops?: boolean;
+  /** Every completed route must contain this canonical set. */
+  requiredPlaceIds?: string[];
 }
 
 export interface RouteOptimizationInput {

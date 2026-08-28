@@ -20,6 +20,7 @@ export interface StageARetrievalInput {
   asOf: string;
   popularityPrior?: ReadonlyMap<string, number>;
   cachedDetailStatus?: ReadonlyMap<string, CachedDetailStatus>;
+  requiredContentIds?: ReadonlySet<string>;
 }
 
 export function filterStageZeroCatalogV1(
@@ -327,10 +328,17 @@ export function retrieveStageACandidatesV1(
       retrievalScore: score,
     });
   }
-  return reserveCandidateCategoriesV1({
+  const reserved = reserveCandidateCategoriesV1({
     candidates: [...unique.values()],
     limit: CANDIDATE_PIPELINE_V1_CONFIG.stageALimit,
     selectedCategories,
     tripType: input.context.tripType,
   });
+  const required = [...(input.requiredContentIds ?? [])]
+    .map((contentId) => unique.get(contentId))
+    .filter((candidate): candidate is LightweightRouteCandidate => Boolean(candidate));
+  return [
+    ...required,
+    ...reserved.filter(({ contentId }) => !input.requiredContentIds?.has(contentId)),
+  ].slice(0, CANDIDATE_PIPELINE_V1_CONFIG.stageALimit);
 }

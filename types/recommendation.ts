@@ -52,6 +52,10 @@ export interface RouteRecommendationRequest {
     };
     acceptsOutdoorOnlyPlaces: boolean;
   };
+  /** Canonical provider identities (`tour:<id>` or `kakao:<id>`). */
+  selectedPlaceIds?: string[];
+  /** Applies only when selectedPlaceIds is non-empty. Defaults to true. */
+  autoFill?: boolean;
   personalization?: {
     petCount: number;
     petActivityLevel: "low" | "moderate" | "high";
@@ -104,6 +108,9 @@ export interface RecommendedRouteStopV1 {
   evidenceStatus?: "verified" | "conditional" | "unverified";
   retrievedAt?: string | null;
   providerIdentities?: Array<{ provider: "kto" | "kakao"; id: string }>;
+  provenance?: "user_selected" | "auto_fill";
+  locked?: boolean;
+  verificationWarning?: string | null;
   mandatoryConditions: Array<{
     type: TourPetAccessConditionType;
     label: string;
@@ -124,6 +131,29 @@ export interface RecommendedRouteStopV1 {
     label: string;
     originalText: string;
   }>;
+}
+
+export interface RecommendationSelectionIssueV1 {
+  placeId: string;
+  code:
+    | "selected_place_not_found_in_region"
+    | "selected_place_cross_region"
+    | "selected_place_missing_coordinates"
+    | "selected_place_not_allowed"
+    | "selected_place_condition_unsatisfied"
+    | "selected_place_trip_incompatible"
+    | "selected_place_explicitly_excluded"
+    | "selected_anchor_large_detour";
+  blocking: boolean;
+  reasonCodes: string[];
+  replacementCandidateIds: string[];
+}
+
+export interface RecommendationReplacementCandidateV1 {
+  placeId: string;
+  title: string;
+  category: Exclude<TourPlaceCategory, "transportation" | "unknown">;
+  source: "tourism_service2" | "kakao_catalog";
 }
 
 export interface ProductRouteSummaryV1 {
@@ -214,6 +244,9 @@ export interface RouteRecommendationReadyResponseV1 {
   routeOptions?: ProductRouteV1[];
   candidateSourceCounts?: { kto: number; kakao: number; merged: number };
   alternativeAvailability?: "available" | "limited";
+  selectionMode?: "automatic" | "hybrid";
+  selectionIssues?: RecommendationSelectionIssueV1[];
+  replacementCandidates?: RecommendationReplacementCandidateV1[];
   diagnostics?: SafeRecommendationDiagnostics;
 }
 
@@ -223,6 +256,9 @@ export interface RouteRecommendationFailureResponseV1 {
   reasonCodes: string[];
   userMessage: string;
   retryable: boolean;
+  selectionMode?: "hybrid";
+  selectionIssues?: RecommendationSelectionIssueV1[];
+  replacementCandidates?: RecommendationReplacementCandidateV1[];
 }
 
 export type RouteRecommendationResponseV1 =

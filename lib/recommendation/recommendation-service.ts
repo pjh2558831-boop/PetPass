@@ -10,7 +10,10 @@ import {
   getDefaultLicenseMatchingService,
   type LicenseMatcher,
 } from "@/lib/licenses/service";
-import { runCandidatePipelineV1 } from "@/lib/recommendation/candidate-pipeline";
+import {
+  runCandidatePipelineV1,
+  type CandidatePipelineTraceEvent,
+} from "@/lib/recommendation/candidate-pipeline";
 import {
   createEditSessionId,
   parseEditSession,
@@ -19,7 +22,18 @@ import {
 import { adaptEligibleCandidateForRouteV1 } from "@/lib/recommendation/optimizer/candidate-adapter";
 import { optimizeRouteV1 } from "@/lib/recommendation/optimizer/route-optimizer";
 import { adaptCanonicalCandidateForRouteV2 } from "@/lib/recommendation/v2/candidate-adapter";
-import { fuseRecommendationCandidatesV2 } from "@/lib/recommendation/v2/candidate-fusion";
+import {
+  fuseRecommendationCandidatesV2,
+  type CanonicalRecommendationCandidateV2,
+} from "@/lib/recommendation/v2/candidate-fusion";
+import {
+  hasLargeAnchorDetour,
+  inferHybridSupplementCategories,
+  selectedCatalogCandidateV2,
+  selectedConditionReasonCodes,
+  selectedShoppingCandidateV2,
+  selectHybridShortlist,
+} from "@/lib/recommendation/v2/hybrid-selection";
 import {
   optimizeRouteOptionsV2,
 } from "@/lib/recommendation/v2/route-optimizer";
@@ -65,6 +79,8 @@ import type { MapPlacesSnapshot } from "@/types/map-places-snapshot";
 import type {
   ManualRouteValidationResponseV1,
   ProductRouteV1,
+  RecommendationReplacementCandidateV1,
+  RecommendationSelectionIssueV1,
   RecommendedRouteStopV1,
   RouteAlternativeV1,
   RouteRecommendationReadyResponseV1,
@@ -271,6 +287,51 @@ function optimizerFailure(
     case "solver_failed":
       return recommendationFailure("internal_error", result.reasonCodes);
   }
+}
+
+function replacementCandidates(
+  candidates: readonly CanonicalRecommendationCandidateV2[],
+  selectedIds: ReadonlySet<string>,
+): RecommendationReplacementCandidateV1[] {
+  return candidates
+    .filter((candidate) =>
+      !selectedIds.has(candidate.canonicalId) &&
+      candidate.source === "tourism_service2" &&
+      candidate.category !== "shopping" &&
+      (candidate.eligibilityTier === "verified" || candidate.eligibilityTier === "conditional"))
+    .sort((left, right) =>
+      Number(right.eligibilityTier === "verified") - Number(left.eligibilityTier === "verified") ||
+      right.dataCompleteness - left.dataCompleteness ||
+      left.canonicalId.localeCompare(right.canonicalId))
+    .slice(0, 3)
+    .map((candidate) => ({
+      placeId: candidate.canonicalId,
+      title: candidate.title,
+      category: candidate.category,
+      source: candidate.source,
+    }));
+}
+
+function selectedFailure(
+  issues: RecommendationSelectionIssueV1[],
+  replacements: RecommendationReplacementCandidateV1[],
+): RouteRecommendationResponseV1 {
+  const replacementIds = replacements.map(({ placeId }) => placeId);
+  const hydratedIssues = issues.map((issue) => ({
+    ...issue,
+    replacementCandidateIds: issue.replacementCandidateIds.length > 0
+      ? issue.replacementCandidateIds
+      : replacementIds,
+  }));
+  return {
+    ...recommendationFailure("invalid_request", [
+      "selected_place_validation_failed",
+      ...hydratedIssues.flatMap(({ reasonCodes }) => reasonCodes),
+    ]),
+    selectionMode: "hybrid",
+    selectionIssues: hydratedIssues,
+    replacementCandidates: replacements,
+  };
 }
 
 async function generateRouteRecommendationLegacy(
@@ -493,6 +554,29 @@ export async function generateRouteRecommendation(
     ]);
   }
 
+  const selectedPlaceIds = [...(request.selectedPlaceIds ?? [])];
+  const hybridMode = selectedPlaceIds.length > 0;
+  const selectedIdSet = new Set(selectedPlaceIds);
+  const pace = getTripPaceConfig(request.trip.tripPace);
+  if (
+    hybridMode &&
+    (selectedIdSet.size !== selectedPlaceIds.length ||
+      selectedPlaceIds.length > pace.maxStops ||
+      selectedPlaceIds.some((placeId) => !/^(?:tour|kakao):[0-9]+$/u.test(placeId)))
+  ) {
+    return selectedFailure([{
+      placeId: selectedPlaceIds.find((placeId, index) =>
+        selectedPlaceIds.indexOf(placeId) !== index || !/^(?:tour|kakao):[0-9]+$/u.test(placeId)) ??
+        selectedPlaceIds.at(-1) ?? "selected-place",
+      code: "selected_place_not_found_in_region",
+      blocking: true,
+      reasonCodes: selectedPlaceIds.length > pace.maxStops
+        ? ["selected_place_count_exceeds_trip_pace_limit"]
+        : ["selected_place_identity_invalid_or_duplicated"],
+      replacementCandidateIds: [],
+    }], []);
+  }
+
   try {
     const tourService = dependencies.tourService ?? getDefaultTourService();
     const licenseMatcher = dependencies.licenseMatcher ??
@@ -515,12 +599,53 @@ export async function generateRouteRecommendation(
         return null;
       });
 
+    let snapshot = hybridMode ? await snapshotPromise : null;
+    const selectedMarkers = new Map(
+      (snapshot?.items ?? [])
+        .filter(({ id }) => selectedIdSet.has(id))
+        .map((marker) => [marker.id, marker]),
+    );
+    const preliminaryAnchors = [...selectedMarkers.values()]
+      .map(selectedCatalogCandidateV2)
+      .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate));
+    const inferredCategories = hybridMode && (request.autoFill ?? true)
+      ? inferHybridSupplementCategories({ request, selected: preliminaryAnchors })
+      : new Set<UsefulTourCategory>();
+    const catalogCategories = new Set(
+      hybridMode
+        ? [
+            ...request.trip.selectedCategories,
+            ...inferredCategories,
+            ...preliminaryAnchors.map(({ category }) => category),
+          ]
+        : request.trip.selectedCategories,
+    );
+    const unresolvedTourSelection = selectedPlaceIds.some((placeId) =>
+      placeId.startsWith("tour:") && !selectedMarkers.has(placeId));
+    if (hybridMode && unresolvedTourSelection) catalogCategories.add("shopping");
+    const pipelineCategories = [...catalogCategories].filter(
+      (category): category is UsefulTourCategory => category !== "shopping",
+    );
+    const selectedKtoContentIds = new Set(
+      [...selectedMarkers.values()]
+        .filter((marker) => marker.layer === "tourism" && marker.category !== "shopping")
+        .map(({ providerPlaceId }) => providerPlaceId),
+    );
+    const traceReasons = new Map<string, string[]>();
+    const captureSelectedTrace = (event: CandidatePipelineTraceEvent) => {
+      if (!selectedIdSet.has(`tour:${event.contentId}`) || event.outcome !== "excluded") return;
+      traceReasons.set(event.contentId, [
+        ...new Set([...(traceReasons.get(event.contentId) ?? []), ...event.reasonCodes]),
+      ].sort());
+    };
+
     let pipeline: CandidatePipelineResult | null = null;
+    let collectedCatalog: TourPlaceSummary[] = [];
     let ktoUnavailable = false;
     try {
       dependencies.signal?.throwIfAborted();
       const catalogGroups = await mapWithConcurrency(
-        request.trip.selectedCategories,
+        [...catalogCategories],
         CATALOG_CONCURRENCY,
         async (category) => {
           const contentTypeId = getCatalogContentTypeId(category as TourCatalogCategory);
@@ -542,11 +667,20 @@ export async function generateRouteRecommendation(
       const catalog = [...new Map(
         catalogGroups.flat().map((place) => [place.contentId, place]),
       ).values()];
+      collectedCatalog = catalog;
+      const pipelineCatalog = hybridMode
+        ? catalog.filter(({ category }) => category !== "shopping")
+        : catalog;
       const pipelineAsOf = now();
-      const pace = getTripPaceConfig(request.trip.tripPace);
       pipeline = await pipelineRunner({
         context: {
-          request: normalized,
+          request: hybridMode
+            ? {
+                ...normalized,
+                selectedCategories: pipelineCategories,
+                includeShopping: false,
+              }
+            : normalized,
           maxStops: pace.maxStops,
           minStops: pace.minStops,
           tripType: normalized.tripType,
@@ -566,16 +700,22 @@ export async function generateRouteRecommendation(
                 : null,
               bounds: region.mapBounds,
             },
-            selectedCategories: normalized.selectedCategories,
-            includeShopping: normalized.includeShopping,
+            selectedCategories: hybridMode
+              ? pipelineCategories
+              : normalized.selectedCategories,
+            includeShopping: hybridMode ? false : normalized.includeShopping,
             indoorAccessPreference: "any",
           },
         },
-        catalog,
+        catalog: pipelineCatalog,
         tourService,
         licenseMatcher,
         now: () => new Date(pipelineAsOf),
         initialObservations: observations,
+        ...(hybridMode ? {
+          requiredContentIds: [...selectedKtoContentIds],
+          onCandidateTrace: captureSelectedTrace,
+        } : {}),
       });
       ktoUnavailable = pipeline.status === "provider_unavailable";
     } catch (error) {
@@ -584,8 +724,8 @@ export async function generateRouteRecommendation(
     }
 
     dependencies.signal?.throwIfAborted();
-    const snapshot = await snapshotPromise;
-    const usefulCategories = normalized.selectedCategories.filter(
+    snapshot ??= await snapshotPromise;
+    const usefulCategories = (hybridMode ? pipelineCategories : normalized.selectedCategories).filter(
       (category): category is UsefulTourCategory =>
         category !== "transportation" && category !== "unknown",
     );
@@ -608,12 +748,125 @@ export async function generateRouteRecommendation(
       catalogCandidates: snapshot?.items ?? [],
       explicitlyExcludedPlaceIds: personalizationRequest.explicitlyExcludedPlaceIds,
     });
-    if (fused.candidates.length === 0) {
+
+    const fusedById = new Map(
+      fused.candidates.map((candidate) => [candidate.canonicalId, candidate]),
+    );
+    const shoppingSummaries = hybridMode
+      ? collectedCatalog.filter(({ category }) => category === "shopping")
+      : [];
+    const shoppingById = new Map(
+      shoppingSummaries.map((summary) => [`tour:${summary.contentId}`, summary]),
+    );
+
+    const selectionIssues: RecommendationSelectionIssueV1[] = [];
+    const anchors: CanonicalRecommendationCandidateV2[] = [];
+    for (const placeId of selectedPlaceIds) {
+      const marker = selectedMarkers.get(placeId);
+      if (personalizationRequest.explicitlyExcludedPlaceIds.includes(placeId)) {
+        selectionIssues.push({
+          placeId,
+          code: "selected_place_explicitly_excluded",
+          blocking: true,
+          reasonCodes: ["selected_place_is_also_explicitly_excluded"],
+          replacementCandidateIds: [],
+        });
+        continue;
+      }
+      if (marker && marker.regionId !== request.trip.regionId) {
+        selectionIssues.push({
+          placeId,
+          code: "selected_place_cross_region",
+          blocking: true,
+          reasonCodes: ["selected_place_region_mismatch"],
+          replacementCandidateIds: [],
+        });
+        continue;
+      }
+      if (marker?.coordinates === null) {
+        selectionIssues.push({
+          placeId,
+          code: "selected_place_missing_coordinates",
+          blocking: true,
+          reasonCodes: ["selected_place_coordinates_unavailable"],
+          replacementCandidateIds: [],
+        });
+        continue;
+      }
+      if (marker?.petAccessVerdict === "not_allowed") {
+        selectionIssues.push({
+          placeId,
+          code: "selected_place_not_allowed",
+          blocking: true,
+          reasonCodes: ["pet_access_not_allowed"],
+          replacementCandidateIds: [],
+        });
+        continue;
+      }
+
+      let candidate = placeId.startsWith("kakao:")
+        ? marker ? selectedCatalogCandidateV2(marker) : null
+        : fusedById.get(placeId) ?? null;
+      if (!candidate && placeId.startsWith("tour:")) {
+        const summary = shoppingById.get(placeId);
+        if (summary) candidate = selectedShoppingCandidateV2(summary, request.trip.regionId);
+      }
+      if (!candidate) {
+        const rawId = placeId.slice(placeId.indexOf(":") + 1);
+        const reasons = traceReasons.get(rawId) ?? [];
+        const issueCode = reasons.includes("outside_requested_geographic_scope")
+          ? "selected_place_cross_region" as const
+          : reasons.includes("invalid_coordinates")
+            ? "selected_place_missing_coordinates" as const
+            : reasons.includes("pet_access_not_allowed")
+              ? "selected_place_not_allowed" as const
+              : marker || reasons.length > 0
+                ? "selected_place_trip_incompatible" as const
+                : "selected_place_not_found_in_region" as const;
+        selectionIssues.push({
+          placeId,
+          code: issueCode,
+          blocking: true,
+          reasonCodes: reasons.length > 0 ? reasons : ["selected_place_not_found_in_requested_region"],
+          replacementCandidateIds: [],
+        });
+        continue;
+      }
+      const conditionReasons = candidate.ktoCandidate
+        ? selectedConditionReasonCodes(candidate.ktoCandidate, request)
+        : [];
+      if (conditionReasons.length > 0) {
+        selectionIssues.push({
+          placeId,
+          code: "selected_place_condition_unsatisfied",
+          blocking: true,
+          reasonCodes: conditionReasons,
+          replacementCandidateIds: [],
+        });
+        continue;
+      }
+      anchors.push(candidate);
+    }
+
+    const replacements = replacementCandidates(fused.candidates, selectedIdSet);
+    if (selectionIssues.some(({ blocking }) => blocking)) {
+      return selectedFailure(selectionIssues, replacements);
+    }
+    if (!hybridMode && fused.candidates.length === 0) {
       return recommendationFailure("unavailable", [
         "no_technically_valid_candidate_across_enabled_sources",
         ...(ktoUnavailable ? ["kto_provider_unavailable"] : []),
         ...(snapshotUnavailable ? ["kakao_catalog_unavailable"] : []),
       ]);
+    }
+    if (hybridMode && anchors.length === 0) {
+      return selectedFailure([{
+        placeId: selectedPlaceIds[0]!,
+        code: "selected_place_not_found_in_region",
+        blocking: true,
+        reasonCodes: ["no_selected_anchor_resolved"],
+        replacementCandidateIds: [],
+      }], replacements);
     }
 
     const generatedAt = now();
@@ -628,20 +881,66 @@ export async function generateRouteRecommendation(
       recentlySelectedCandidateIds: personalizationRequest.recentlySelectedCandidateIds,
       rerollVariant: personalizationRequest.rerollVariant,
     };
-    const adapted = fused.candidates
-      .map((candidate) => adaptCanonicalCandidateForRouteV2({
+    const desiredSupplementCategories = hybridMode
+      ? inferHybridSupplementCategories({ request, selected: anchors.filter(
+          (candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate),
+        ) })
+      : new Set<UsefulTourCategory>(usefulCategories);
+    const selectedProviderIdentities = new Set(
+      anchors.flatMap((candidate) => candidate?.providerIdentities.map(
+        ({ provider, id }) => `${provider}:${id}`,
+      ) ?? []),
+    );
+    const optionalCandidates = hybridMode && (request.autoFill ?? true) && anchors.length < pace.maxStops
+      ? fused.candidates.filter((candidate) =>
+          !selectedIdSet.has(candidate.canonicalId) &&
+          candidate.source === "tourism_service2" &&
+          candidate.ktoCandidate !== null &&
+          candidate.category !== "shopping" &&
+          candidate.petVerdict !== "unknown" &&
+          candidate.eligibilityTier !== "unverified" &&
+          desiredSupplementCategories.has(candidate.category) &&
+          !candidate.providerIdentities.some(({ provider, id }) =>
+            selectedProviderIdentities.has(`${provider}:${id}`)))
+      : [];
+    const targetCapacity = hybridMode
+      ? (request.autoFill ?? true)
+        ? Math.min(
+            pace.maxStops,
+            Math.max(anchors.length, request.trip.desiredStopCount ?? pace.maxStops),
+          )
+        : anchors.length
+      : request.trip.desiredStopCount ?? pace.desiredStopCount;
+    const hybridCandidates = hybridMode
+      ? selectHybridShortlist({
+          departure: request.departure,
+          anchors: anchors.filter(
+            (candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate),
+          ),
+          optional: optionalCandidates,
+          desiredCategories: desiredSupplementCategories,
+          capacity: targetCapacity,
+        })
+      : [];
+    const canonicalCandidates = hybridMode ? hybridCandidates : fused.candidates;
+    const adapted = canonicalCandidates
+      .map((candidate) => ({
+        ...adaptCanonicalCandidateForRouteV2({
         candidate,
         departure: request.departure,
         personalization,
         computedAt: generatedAt.toISOString(),
+        }),
+        ...(hybridMode ? { locked: selectedIdSet.has(candidate.canonicalId) } : {}),
       }))
       .sort((left, right) =>
+        Number(Boolean(right.locked)) - Number(Boolean(left.locked)) ||
         right.placeUtility.total - left.placeUtility.total ||
         left.node.id.localeCompare(right.node.id))
       .slice(0, 15);
     const adaptedIds = new Set(adapted.map(({ node }) => node.id));
     const candidateById = new Map(
-      fused.candidates
+      canonicalCandidates
         .filter(({ canonicalId }) => adaptedIds.has(canonicalId))
         .map((candidate) => [candidate.canonicalId, candidate]),
     );
@@ -667,11 +966,14 @@ export async function generateRouteRecommendation(
       timezone: "Asia/Seoul",
       tripType: request.trip.tripType,
       tripPace: request.trip.tripPace,
-      selectedCategories: usefulCategories,
+      selectedCategories: hybridMode
+        ? [...desiredSupplementCategories]
+        : usefulCategories,
       roundTrip: request.trip.roundTrip,
-      desiredStopCount: request.trip.desiredStopCount,
+      desiredStopCount: targetCapacity,
       durationMinutes: request.trip.durationMinutes,
       allowReducedStops: true,
+      ...(hybridMode ? { requiredPlaceIds: selectedPlaceIds } : {}),
     };
     const optimizationInput: RouteOptimizationInput = {
       departure,
@@ -686,19 +988,33 @@ export async function generateRouteRecommendation(
     });
     dependencies.signal?.throwIfAborted();
     if (optimized.status !== "ready") {
-      return optimizerFailure({
+      const failure = optimizerFailure({
         ...optimized,
         status: optimized.status,
       } as Exclude<RouteOptimizationResult, { status: "ready" }>);
+      return hybridMode
+        ? {
+            ...failure,
+            selectionMode: "hybrid",
+            selectionIssues: [{
+              placeId: selectedPlaceIds[0]!,
+              code: "selected_place_trip_incompatible",
+              blocking: true,
+              reasonCodes: ["selected_anchors_have_no_feasible_route", ...optimized.reasonCodes],
+              replacementCandidateIds: replacements.map(({ placeId }) => placeId),
+            }],
+            replacementCandidates: replacements,
+          }
+        : failure;
     }
-    const requestedTarget = request.trip.desiredStopCount ??
-      getTripPaceConfig(request.trip.tripPace).desiredStopCount;
+    const requestedTarget = targetCapacity;
     const routeOptions = optimized.options.map((option) => routeFromOptionV2({
       option,
       optimization: optimizationInput,
       candidates: candidateById,
       requestedTarget,
       licensingStatus,
+      ...(hybridMode ? { selectedPlaceIds: selectedIdSet } : {}),
     }));
     const route = routeOptions[0]!;
     const resultState = route.routeSummary.stopCount === 1
@@ -728,6 +1044,9 @@ export async function generateRouteRecommendation(
         normalized,
         catalogVersion: snapshot?.dataVersion ?? "catalog-unavailable",
         candidates: fused.candidates,
+        ...(hybridMode ? {
+          selection: { selectedPlaceIds, autoFill: request.autoFill ?? true },
+        } : {}),
       }),
       resultState,
       requestSummary: {
@@ -758,7 +1077,30 @@ export async function generateRouteRecommendation(
         ...optimized.warnings,
         ...(ktoUnavailable ? ["kto_provider_partial_failure"] : []),
         ...(snapshotUnavailable ? ["kakao_catalog_partial_failure"] : []),
+        ...(hybridMode && anchors.some((candidate) =>
+          candidate?.source === "kakao_catalog" ||
+          candidate?.category === "shopping" ||
+          candidate?.evidenceStatus === "unverified")
+          ? ["selected_place_verification_required"]
+          : []),
+        ...(hybridMode && hasLargeAnchorDetour(
+          request.departure,
+          anchors.filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate)),
+        ) ? ["selected_anchor_large_detour"] : []),
       ],
+      ...(hybridMode ? {
+        selectionMode: "hybrid" as const,
+        selectionIssues: hasLargeAnchorDetour(
+          request.departure,
+          anchors.filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate)),
+        ) ? [{
+          placeId: selectedPlaceIds.join(","),
+          code: "selected_anchor_large_detour" as const,
+          blocking: false,
+          reasonCodes: ["recommend_removing_anchor_or_splitting_trip"],
+          replacementCandidateIds: [],
+        }] : [],
+      } : {}),
       ...(dependencies.includeDiagnostics ? {
         diagnostics: {
           candidatePipeline: {

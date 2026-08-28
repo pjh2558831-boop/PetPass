@@ -107,11 +107,14 @@ export async function optimizeRouteOptionsV2(
     recentRouteSignatures: dependencies.recentRouteSignatures,
     rerollVariant: dependencies.rerollVariant,
   });
+  const selectedOptions = input.tripRequest.requiredPlaceIds?.length
+    ? selected.options.slice(0, 1)
+    : selected.options;
   const options: OptimizedRouteOptionV2[] = [];
   let attempts = 0;
   let failures = 0;
   let validationDurationMs = 0;
-  const validations = await Promise.all(selected.options.map(async (option) => ({
+  const validations = await Promise.all(selectedOptions.map(async (option) => ({
     option,
     validated: await validateFinalistsV1({
       optimization: input,

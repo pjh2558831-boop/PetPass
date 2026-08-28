@@ -115,6 +115,10 @@ function completedConstraint(input: RouteOptimizationInput, visits: ScheduledRou
     Math.max(1, input.candidates.length),
   );
   if (visits.length < effectiveMinimum || visits.length > pace.maxStops) return false;
+  const visitedIds = new Set(visits.map(({ candidate }) => candidate.node.id));
+  if (input.tripRequest.requiredPlaceIds?.some((placeId) => !visitedIds.has(placeId))) {
+    return false;
+  }
   if (input.tripRequest.tripType === "overnight") {
     return visits.at(-1)?.candidate.visitRole === "accommodation";
   }
@@ -201,6 +205,7 @@ function expandState(
   }
   if (
     candidate.schedule.status === "unknown" &&
+    !candidate.locked &&
     state.unknownCount >= ROUTE_SOLVER_V1_CONFIG.maxUnknownScheduleStops
   ) {
     diagnostics.prunedByConstraint += 1;
@@ -235,7 +240,7 @@ function expandState(
     used: new Set([...state.used, candidate.node.id]),
     currentNodeId: candidate.node.id,
     currentTimeMs: appended.visit.departureAtMs,
-    unknownCount: state.unknownCount + appended.unknownIncrement,
+    unknownCount: state.unknownCount + (candidate.locked ? 0 : appended.unknownIncrement),
     partialScore: partialHeuristic(visits),
     signature: visits.map((visit) => visit.candidate.node.id).join(">"),
   };

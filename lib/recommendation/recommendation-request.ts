@@ -37,6 +37,10 @@ const personalizationSchema = z.object({
   explicitlyExcludedPlaceIds: z.array(z.string().trim().min(1).max(128)).max(30).default([]),
   rerollVariant: z.number().int().min(0).max(10_000).default(0),
 }).strict();
+const canonicalPlaceId = z.string().trim().max(128).regex(
+  /^(?:tour|kakao):[0-9]+$/u,
+  "selectedPlaceIds must use a canonical provider identity.",
+);
 
 export function getRequestedRecommendationRegion(
   input: unknown,
@@ -118,6 +122,14 @@ export const routeRecommendationRequestSchema = z
         acceptsOutdoorOnlyPlaces: z.boolean(),
       })
       .strict(),
+    selectedPlaceIds: z
+      .array(canonicalPlaceId)
+      .max(5)
+      .refine((values) => new Set(values).size === values.length, {
+        message: "selectedPlaceIds must not contain duplicates",
+      })
+      .default([]),
+    autoFill: z.boolean().default(true),
     personalization: personalizationSchema.default({}),
   })
   .strict()

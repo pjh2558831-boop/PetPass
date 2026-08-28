@@ -64,6 +64,9 @@ const stop = z.object({
     provider: z.enum(["kto", "kakao"]),
     id: nonEmpty,
   }).strict()).optional(),
+  provenance: z.enum(["user_selected", "auto_fill"]).optional(),
+  locked: z.boolean().optional(),
+  verificationWarning: nonEmpty.nullable().optional(),
   mandatoryConditions: z.array(
     z.object({
       type: z.custom<TourPetAccessConditionType>(
@@ -118,6 +121,33 @@ const alternative = route.extend({
   kind: z.literal("optimized"),
   alternativeType: z.enum(["lower_travel", "popularity_oriented"]),
 });
+const selectionIssue = z.object({
+  placeId: nonEmpty,
+  code: z.enum([
+    "selected_place_not_found_in_region",
+    "selected_place_cross_region",
+    "selected_place_missing_coordinates",
+    "selected_place_not_allowed",
+    "selected_place_condition_unsatisfied",
+    "selected_place_trip_incompatible",
+    "selected_place_explicitly_excluded",
+    "selected_anchor_large_detour",
+  ]),
+  blocking: z.boolean(),
+  reasonCodes: z.array(nonEmpty),
+  replacementCandidateIds: z.array(nonEmpty).max(3),
+}).strict();
+const replacementCandidate = z.object({
+  placeId: nonEmpty,
+  title: nonEmpty,
+  category,
+  source: z.enum(["tourism_service2", "kakao_catalog"]),
+}).strict();
+const failureWithSelection = failure.extend({
+  selectionMode: z.literal("hybrid").optional(),
+  selectionIssues: z.array(selectionIssue).optional(),
+  replacementCandidates: z.array(replacementCandidate).max(3).optional(),
+});
 const ready = z.object({
   status: z.literal("ready"),
   apiVersion: z.literal("route-recommendation-response-v1"),
@@ -155,6 +185,9 @@ const ready = z.object({
     merged: z.number().int().nonnegative(),
   }).strict().optional(),
   alternativeAvailability: z.enum(["available", "limited"]).optional(),
+  selectionMode: z.enum(["automatic", "hybrid"]).optional(),
+  selectionIssues: z.array(selectionIssue).optional(),
+  replacementCandidates: z.array(replacementCandidate).max(3).optional(),
   diagnostics: z
     .object({
       candidatePipeline: z.object({
@@ -181,7 +214,7 @@ const ready = z.object({
 export const routeRecommendationReadyResponseSchema = ready;
 
 export const routeRecommendationResponseSchema: z.ZodType<RouteRecommendationResponseV1> =
-  z.discriminatedUnion("status", [ready, failure]);
+  z.discriminatedUnion("status", [ready, failureWithSelection]);
 
 export const manualRouteValidationRequestSchema = z
   .object({

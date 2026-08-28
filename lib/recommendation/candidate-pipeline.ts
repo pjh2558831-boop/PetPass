@@ -63,6 +63,8 @@ export interface RunCandidatePipelineV1Input {
   initialObservations?: readonly TourRequestObservation[];
   /** Optional server-only diagnostics hook. It cannot influence selection. */
   onCandidateTrace?: (event: CandidatePipelineTraceEvent) => void;
+  /** Canonical KTO identities already validated by the selected-place layer. */
+  requiredContentIds?: readonly string[];
 }
 
 export type CandidatePipelineTraceStage =
@@ -463,6 +465,7 @@ export async function runCandidatePipelineV1(
   input: RunCandidatePipelineV1Input,
 ): Promise<CandidatePipelineResult> {
   const output = diagnostics();
+  const requiredContentIds = new Set(input.requiredContentIds ?? []);
   const asOf = (input.now ?? (() => new Date()))().toISOString();
   output.initialCatalogCount = input.catalog.length;
   for (const event of input.initialObservations ?? []) recordObservation(output, event);
@@ -568,6 +571,7 @@ export async function runCandidatePipelineV1(
     context: input.context,
     asOf,
     popularityPrior,
+    requiredContentIds,
   });
   for (const candidate of stageA) {
     traceCandidate(input, {
@@ -682,8 +686,7 @@ export async function runCandidatePipelineV1(
           scheduleCompatibility.status !== "provider_unavailable"),
     )
     .sort(scheduleOrder);
-  const stageBSelectedIds = new Set(
-    reserveCandidateCategoriesV1({
+  const stageBReserved = reserveCandidateCategoriesV1({
       candidates: stageBAvailable,
       limit: CANDIDATE_PIPELINE_V1_CONFIG.stageBLimit,
       selectedCategories: [
@@ -694,11 +697,15 @@ export async function runCandidatePipelineV1(
       ),
       tripType: input.context.tripType,
       compare: scheduleOrder,
-    }).map(({ contentId }) => contentId),
-  );
-  const stageB = stageBAvailable
-    .filter(({ contentId }) => stageBSelectedIds.has(contentId))
-    .sort(scheduleOrder);
+    });
+  const stageB = [
+    ...stageBAvailable.filter(({ contentId }) => requiredContentIds.has(contentId)),
+    ...stageBReserved.filter(({ contentId }) => !requiredContentIds.has(contentId)),
+  ]
+    .slice(0, CANDIDATE_PIPELINE_V1_CONFIG.stageBLimit)
+    .sort((left, right) =>
+      Number(requiredContentIds.has(right.contentId)) - Number(requiredContentIds.has(left.contentId)) ||
+      scheduleOrder(left, right));
   for (const candidate of stageB) {
     traceCandidate(input, {
       contentId: candidate.contentId,
@@ -950,9 +957,11 @@ export async function runCandidatePipelineV1(
     },
   );
   output.eligibleCount = eligible.length;
-  const candidates = eligible
-    .sort(compareFinalEligibleCandidatesV1)
-    .slice(0, CANDIDATE_PIPELINE_V1_CONFIG.finalEligibleLimit);
+  const rankedEligible = eligible.sort(compareFinalEligibleCandidatesV1);
+  const candidates = [
+    ...rankedEligible.filter(({ contentId }) => requiredContentIds.has(contentId)),
+    ...rankedEligible.filter(({ contentId }) => !requiredContentIds.has(contentId)),
+  ].slice(0, CANDIDATE_PIPELINE_V1_CONFIG.finalEligibleLimit);
   const finalCandidateIds = new Set(candidates.map(({ contentId }) => contentId));
   for (const candidate of eligible) {
     traceCandidate(input, {
