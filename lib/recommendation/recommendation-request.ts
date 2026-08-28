@@ -55,6 +55,7 @@ export const routeRecommendationRequestSchema = z
           "kakao_place_search",
           "address_search",
           "map_selection",
+          "current_location",
         ]),
       })
       .strict(),

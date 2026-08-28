@@ -1,7 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, MapPinned, MousePointerClick } from "lucide-react";
+import {
+  CheckCircle2,
+  LoaderCircle,
+  LocateFixed,
+  MapPinned,
+  MousePointerClick,
+} from "lucide-react";
+import {
+  currentLocationDeparture,
+  currentLocationErrorMessage,
+} from "@/components/planner/current-location-departure";
 import {
   createKakaoCoordinatePicker,
   type KakaoCoordinatePickerController,
@@ -35,12 +45,17 @@ export function DepartureMapPicker({
   const controllerRef = useRef<KakaoCoordinatePickerController | null>(null);
   const onChangeRef = useRef(onChange);
   const selectionModeRef = useRef(false);
+  const locationRequestRef = useRef(0);
   const [selectionMode, setSelectionMode] = useState(false);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
     "loading",
   );
   const [loadError, setLoadError] = useState("");
   const [announcement, setAnnouncement] = useState("");
+  const [locationState, setLocationState] = useState<"idle" | "loading" | "error">(
+    "idle",
+  );
+  const [locationError, setLocationError] = useState("");
   const selectedLatitude = value?.coordinates.latitude;
   const selectedLongitude = value?.coordinates.longitude;
 
@@ -67,6 +82,8 @@ export function DepartureMapPicker({
           const departure = mapDeparture(coordinates);
           onChangeRef.current(departure);
           setSelectionMode(false);
+          setLocationError("");
+          setLocationState("idle");
           setAnnouncement("지도에서 출발지를 선택했습니다.");
         },
       });
@@ -117,11 +134,56 @@ export function DepartureMapPicker({
 
   useEffect(
     () => () => {
+      locationRequestRef.current += 1;
       controllerRef.current?.destroy();
       controllerRef.current = null;
     },
     [],
   );
+
+  const useCurrentLocation = () => {
+    setSelectionMode(false);
+    setAnnouncement("");
+    setLocationError("");
+
+    if (!("geolocation" in navigator)) {
+      setLocationState("error");
+      setLocationError("이 브라우저에서는 현재 위치를 사용할 수 없어요.");
+      return;
+    }
+
+    const requestId = ++locationRequestRef.current;
+    setLocationState("loading");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        if (requestId !== locationRequestRef.current) return;
+        try {
+          onChangeRef.current(
+            currentLocationDeparture({
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            }),
+          );
+          setLocationState("idle");
+          setLocationError("");
+          setAnnouncement("현재 위치를 출발지로 설정했습니다.");
+        } catch {
+          setLocationState("error");
+          setLocationError("현재 위치 좌표를 확인할 수 없어요. 장소를 검색해 주세요.");
+        }
+      },
+      (error) => {
+        if (requestId !== locationRequestRef.current) return;
+        setLocationState("error");
+        setLocationError(currentLocationErrorMessage(error.code));
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10_000,
+        maximumAge: 60_000,
+      },
+    );
+  };
 
   return (
     <div>
@@ -160,19 +222,44 @@ export function DepartureMapPicker({
         ) : null}
       </div>
 
-      <button
-        type="button"
-        disabled={loadState !== "ready"}
-        aria-pressed={selectionMode}
-        onClick={() => {
-          setSelectionMode((current) => !current);
-          setAnnouncement("");
-        }}
-        className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-control)] border border-[#a9beb1] bg-white px-4 text-sm font-extrabold text-[var(--brand)] shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <MousePointerClick size={17} aria-hidden="true" />
-        {selectionMode ? "지도 선택 취소" : "지도에서 선택"}
-      </button>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={loadState !== "ready"}
+          aria-pressed={selectionMode}
+          onClick={() => {
+            setSelectionMode((current) => !current);
+            setAnnouncement("");
+          }}
+          className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-control)] border border-[#a9beb1] bg-white px-4 text-sm font-extrabold text-[var(--brand)] shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <MousePointerClick size={17} aria-hidden="true" />
+          {selectionMode ? "지도 선택 취소" : "지도에서 선택"}
+        </button>
+        <button
+          type="button"
+          disabled={locationState === "loading"}
+          onClick={useCurrentLocation}
+          aria-describedby={locationError ? "current-location-error" : undefined}
+          className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-control)] border border-[#a9beb1] bg-white px-4 text-sm font-extrabold text-[var(--brand)] shadow-sm disabled:cursor-wait disabled:opacity-65"
+        >
+          {locationState === "loading" ? (
+            <LoaderCircle className="animate-spin" size={17} aria-hidden="true" />
+          ) : (
+            <LocateFixed size={17} aria-hidden="true" />
+          )}
+          {locationState === "loading" ? "위치 확인 중" : "내 위치"}
+        </button>
+      </div>
+      {locationError ? (
+        <p
+          id="current-location-error"
+          className="mt-3 text-xs font-bold leading-5 text-[#a44537]"
+          role="alert"
+        >
+          {locationError}
+        </p>
+      ) : null}
       {value ? (
         <p className="mt-3 flex items-start gap-2 text-xs font-bold leading-5 text-[var(--brand)]">
           <CheckCircle2 className="mt-0.5 shrink-0" size={16} aria-hidden="true" />

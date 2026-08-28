@@ -247,6 +247,47 @@ test("uses a map-picked departure coordinate for routing", async ({ page }, test
   });
 });
 
+test("uses the browser current location as the confirmed departure", async ({
+  page,
+}, testInfo) => {
+  await page.context().grantPermissions(["geolocation"], {
+    origin: "http://localhost:3000",
+  });
+  await page.context().setGeolocation({
+    latitude: 35.1795543,
+    longitude: 129.0756416,
+  });
+  await open(page, testInfo);
+  await continueToTrip(page);
+
+  await page.getByRole("button", { name: "내 위치", exact: true }).click();
+  const input = page.getByRole("combobox", { name: "출발지" });
+  await expect(input).toHaveValue("내 위치");
+  await expect(page.getByText("현재 위치를 출발지로 설정했습니다.")).toBeAttached();
+
+  const requestPromise = page.waitForRequest(
+    (request) =>
+      new URL(request.url()).pathname === GENERATE_PATH &&
+      request.method() === "POST",
+  );
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === GENERATE_PATH &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "여행 추천 받기" }).click();
+  const request = await requestPromise;
+  expect(request.postDataJSON()).toMatchObject({
+    departure: {
+      label: "내 위치",
+      latitude: 35.1795543,
+      longitude: 129.0756416,
+      source: "current_location",
+    },
+  });
+  expect((await responsePromise).status()).toBe(200);
+});
+
 test("never selects a stale or failed departure response", async ({
   page,
 }, testInfo) => {

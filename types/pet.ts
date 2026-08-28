@@ -31,7 +31,8 @@ export interface ResolvedDeparture {
   source?:
     | "kakao_place_search"
     | "address_search"
-    | "map_selection";
+    | "map_selection"
+    | "current_location";
   coordinates: {
     latitude: number;
     longitude: number;

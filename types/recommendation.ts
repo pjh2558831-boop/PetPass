@@ -15,7 +15,8 @@ export const ROUTE_RECOMMENDATION_API_VERSION =
 export type DepartureSource =
   | "kakao_place_search"
   | "address_search"
-  | "map_selection";
+  | "map_selection"
+  | "current_location";
 
 export interface RouteRecommendationRequest {
   departure: {
