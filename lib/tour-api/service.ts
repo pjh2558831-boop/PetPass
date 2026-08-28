@@ -289,13 +289,16 @@ export class KoreaTourismService implements TourPlaceService {
     query: TourPlacesQuery,
     observe?: TourRequestObserver,
   ): Promise<TourCollectionListPage> {
+    const areaCodeBased = query.administrativeCodeSystem === "area_code";
     const params: Record<string, string> = {
-      lDongRegnCd: query.regionCode,
+      [areaCodeBased ? "areaCode" : "lDongRegnCd"]: query.regionCode,
       pageNo: String(query.page),
       numOfRows: String(query.pageSize),
       arrange: "A",
     };
-    if (query.districtCode) params.lDongSignguCd = query.districtCode;
+    if (query.districtCode) {
+      params[areaCodeBased ? "sigunguCode" : "lDongSignguCd"] = query.districtCode;
+    }
     if (query.contentTypeId) params.contentTypeId = query.contentTypeId;
 
     const response = await this.requestCached(

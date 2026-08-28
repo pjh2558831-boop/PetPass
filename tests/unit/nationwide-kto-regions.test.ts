@@ -103,6 +103,23 @@ describe("nationwide KTO regional coverage", () => {
     expect(sql).not.toMatch(/drop\s+table|truncate|delete\s+from/iu);
   });
 
+  it("allows a completely traversed dataset to publish an audited zero count", () => {
+    const sql = readFileSync(
+      "supabase/migrations/20260828094010_allow_empty_kto_dataset_publication.sql",
+      "utf8",
+    );
+
+    expect(sql).toContain(
+      "create or replace function public.finalize_tour_catalog_run_v1",
+    );
+    expect(sql).toContain("checkpoint.audit->'datasetCounts'");
+    expect(sql).toContain("v_dataset_count <> v_stage_count");
+    expect(sql).not.toContain(
+      "all configured KTO datasets must be staged before full finalization",
+    );
+    expect(sql).not.toMatch(/drop\s+table|truncate|delete\s+from/iu);
+  });
+
   it("exhausts pagination and preserves unknown non-Shopping types as core other", async () => {
     const base = getKtoCollectionEnabledRegionConfig("daejeon");
     expect(base).not.toBeNull();

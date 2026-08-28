@@ -742,6 +742,35 @@ describe("Korea Tourism Organization provider", () => {
     });
   });
 
+  it("uses areaCode and sigunguCode for area-code collection pages", async () => {
+    const request = vi.fn(async () => parsed([{
+      contentid: "9001",
+      contenttypeid: "38",
+      areacode: "3",
+      sigungucode: "1",
+    }]));
+    const service = new KoreaTourismService({ request }, new TourRequestCache());
+    const result = await service.listCollectionPlaces({
+      regionCode: "3",
+      districtCode: "1",
+      administrativeCodeSystem: "area_code",
+      page: 1,
+      pageSize: 500,
+    });
+
+    expect(request).toHaveBeenCalledWith("areaBasedList2", {
+      areaCode: "3",
+      sigunguCode: "1",
+      pageNo: "1",
+      numOfRows: "500",
+      arrange: "A",
+    });
+    expect(result.records[0]).toMatchObject({
+      authoritativeAreaRegionCode: "3",
+      authoritativeAreaDistrictCode: "1",
+    });
+  });
+
   it("isolates collection cache keys by authoritative region and district", async () => {
     const request = vi.fn(async (_operation: string, params: Record<string, string>) =>
       parsed([{
