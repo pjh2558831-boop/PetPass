@@ -38,8 +38,16 @@ export async function continueToTrip(page: Page) {
   }
   await selectLabelledControl(page.getByRole("checkbox", { name: "이동장", exact: true }));
   await selectLabelledControl(page.getByRole("checkbox", { name: "목줄", exact: true }));
+  await page.getByRole("button", { name: "출발지와 시간 입력" }).click();
+  await expect(page.getByRole("heading", { name: "출발지와 시간" })).toBeVisible();
   await page.getByLabel("여행 날짜").fill("2026-08-15");
   await page.getByLabel("시작 시간").fill("10:00");
+  await expect(page).toHaveURL(/\/planner\/pet(?:\?.*)?$/u);
+}
+
+export async function continueToDay(page: Page) {
+  await page.getByRole("button", { name: "원하는 하루 입력" }).click();
+  await expect(page.getByRole("heading", { name: "원하는 하루" })).toBeVisible();
   await selectLabelledControl(page.getByRole("checkbox", { name: "관광지", exact: true }));
   await selectLabelledControl(page.getByRole("checkbox", { name: "음식점", exact: true }));
   await expect(page).toHaveURL(/\/planner\/pet$/u);
@@ -81,6 +89,7 @@ export async function generateConfirmedRecommendations(
   await openPetPlanner(page, testInfo, options.prefix ?? "phase3c");
   await continueToTrip(page);
   await chooseConfirmedDeparture(page);
+  await continueToDay(page);
   if (options.stopCount) {
     const paceName =
       Number(options.stopCount) <= 2

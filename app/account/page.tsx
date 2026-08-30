@@ -111,7 +111,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           )}
         </section>
 
-        <form action={signOut} className="flex justify-end">
+        <form action={signOut} noValidate className="flex justify-end">
           <button type="submit" className="inline-flex min-h-11 items-center rounded-xl border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[#52645b]">로그아웃</button>
         </form>
       </div>

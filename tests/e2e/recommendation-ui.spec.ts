@@ -1,6 +1,7 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import {
   chooseConfirmedDeparture,
+  continueToDay,
   continueToTrip,
   DEPARTURE_PATH,
   expectNoHorizontalOverflow,
@@ -260,6 +261,7 @@ async function generate(page: Page, testInfo: TestInfo, response = READY) {
   await openPetPlanner(page, testInfo, "stage5-ui");
   await continueToTrip(page);
   await chooseConfirmedDeparture(page);
+  await continueToDay(page);
   await page.getByRole("button", { name: "여행 추천 받기" }).click();
   await expect(page).toHaveURL(/\/results\?tab=recommendations&region=busan$/u);
 }
@@ -282,6 +284,7 @@ test("submits the strict combined contract once and renders the exact provider-b
   await openPetPlanner(page, testInfo, "stage5-once");
   await continueToTrip(page);
   await chooseConfirmedDeparture(page);
+  await continueToDay(page);
   await page.getByRole("button", { name: "여행 추천 받기" }).evaluate((node) => { (node as HTMLButtonElement).click(); (node as HTMLButtonElement).click(); });
   await expect(page).toHaveURL(/\/results\?tab=recommendations&region=busan$/u);
   await expect(page.getByRole("heading", { name: /에서 시작하는 2곳 일정/u })).toBeVisible();
@@ -307,7 +310,7 @@ test("submits the strict combined contract once and renders the exact provider-b
   await expect(page.locator(".kakao-map-marker--itinerary")).toHaveCount(2);
   const secondMarker = page.locator('.kakao-map-marker[data-location-id="2001"]');
   await secondMarker.click();
-  await expect(page.locator("#recommended-stop-2001")).toHaveClass(/ring-2/u);
+  await expect(page.locator("#recommended-stop-2001")).toHaveAttribute("data-selected", "true");
 });
 
 test("switches a V2 route style without rerunning providers and updates summary, order, and geometry", async ({ page }, testInfo) => {
@@ -320,6 +323,7 @@ test("switches a V2 route style without rerunning providers and updates summary,
   await openPetPlanner(page, testInfo, "stage5-alternative");
   await continueToTrip(page);
   await chooseConfirmedDeparture(page);
+  await continueToDay(page);
   await page.getByRole("button", { name: "여행 추천 받기" }).click();
   const switchDurationMs = await page.getByRole("tab", { name: "이동 최소" }).evaluate(
     (node) => new Promise<number>((resolve) => {
@@ -360,9 +364,10 @@ test("reroll sends recent signatures and a new deterministic variant", async ({ 
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(READY) });
   });
   await openPetPlanner(page, testInfo, "v2-reroll");
-  await continueToTrip(page);
   await expect(page.getByRole("radio", { name: "상관없음" })).toBeChecked();
+  await continueToTrip(page);
   await chooseConfirmedDeparture(page);
+  await continueToDay(page);
   await page.getByRole("button", { name: "여행 추천 받기" }).click();
   await expect(page.getByRole("tab", { name: "편안함 우선" })).toBeVisible();
   await page.getByRole("button", { name: "다른 조합 보기" }).click();
@@ -413,6 +418,7 @@ test("aborts an older reroll and prevents its late response from replacing the n
   await openPetPlanner(page, testInfo, "v2-late-response");
   await continueToTrip(page);
   await chooseConfirmedDeparture(page);
+  await continueToDay(page);
   await page.getByRole("button", { name: "여행 추천 받기" }).click();
   await expect(page.getByText(/9\.6km/u)).toBeVisible();
 
@@ -454,7 +460,7 @@ test("revalidates manual order, labels it honestly, and restores the original", 
   });
   await page.locator("#recommended-stop-1001").getByRole("button", { name: "뒤로" }).click();
   await expect(page.getByText("수정 중인 일정", { exact: true })).toBeVisible();
-  await expect(page.getByText("경로 재계산 필요", { exact: true })).toBeVisible();
+  await expect(page.locator(".route-result-summary").getByText("경로 재계산 필요", { exact: true })).toBeVisible();
   await expect(page.locator("[data-provider-polyline]")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "일정 저장" })).toBeDisabled();
   await page.getByRole("button", { name: "경로 다시 계산" }).click();
@@ -572,6 +578,7 @@ test("restores a saved recommendation directly and after refresh without provide
     { width: 320, height: 720 },
   ]) {
     await page.setViewportSize(viewport);
+    await page.evaluate(() => window.scrollTo(0, 0));
     await expectNoHorizontalOverflow(page);
     await expect(page.getByText("저장된 일정", { exact: true })).toBeVisible();
     await expect(page.getByRole("list", { name: "저장된 일정 방문 순서" })).toBeVisible();
@@ -624,6 +631,7 @@ test("shows truthful staged loading labels without fake percentages", async ({ p
   await openPetPlanner(page, testInfo, "stage5-loading");
   await continueToTrip(page);
   await chooseConfirmedDeparture(page);
+  await continueToDay(page);
   await page.getByRole("button", { name: "여행 추천 받기" }).click();
   await expect(page).toHaveURL(/\/results\?tab=recommendations&region=busan$/u);
   await expect(page.getByText("방문 가능한 공식 장소를 확인하고 있어요")).toBeVisible();
@@ -646,6 +654,7 @@ test("shows time-limited wording and preserves confirmed input across a recovera
   await openPetPlanner(page, testInfo, "stage5-retry");
   await continueToTrip(page);
   await chooseConfirmedDeparture(page);
+  await continueToDay(page);
   await page.getByRole("button", { name: "여행 추천 받기" }).click();
   await expect(page.getByRole("alert", { name: "일정을 표시할 수 없어요" })).toContainText("실제 이동 경로를 계산하지 못했습니다");
   await page.getByRole("button", { name: "다시 시도" }).click();
@@ -669,5 +678,22 @@ test("keeps the Stage 5 result usable at desktop, tablet, and mobile widths", as
     const map = page.locator(".kakao-map-canvas");
     await expect(map).toBeVisible();
     expect((await map.boundingBox())?.height ?? 0).toBeGreaterThan(280);
+    const verticalLayout = await page.evaluate(() => {
+      const timeline = document.querySelector(".route-result-timeline");
+      const footer = document.querySelector("footer");
+      if (!timeline || !footer) return null;
+      const timelineBox = timeline.getBoundingClientRect();
+      const footerBox = footer.getBoundingClientRect();
+      return {
+        footerAfterTimeline: footerBox.top >= timelineBox.bottom,
+        documentContainsTimeline:
+          document.documentElement.scrollHeight >=
+          timelineBox.bottom + window.scrollY,
+      };
+    });
+    expect(verticalLayout).toEqual({
+      footerAfterTimeline: true,
+      documentContainsTimeline: true,
+    });
   }
 });

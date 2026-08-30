@@ -1,47 +1,24 @@
-export type RecommendationProcessIcon =
-  | "evidence"
-  | "compare"
-  | "schedule"
-  | "travel-time"
-  | "verify";
-
 export interface RecommendationProcessStep {
-  number: 1 | 2 | 3 | 4 | 5;
+  number: 1 | 2 | 3;
   title: string;
   description: string;
-  icon: RecommendationProcessIcon;
 }
 
 export const WEEKENDOG_PROCESS_STEPS = [
   {
     number: 1,
-    title: "공식 근거 확인",
-    description: "한국관광공사의 반려동물 동반 근거를 확인합니다.",
-    icon: "evidence",
+    title: "여행 정보 입력",
+    description: "반려견 정보와 부산 여행 조건을 입력합니다.",
   },
   {
     number: 2,
-    title: "조건 비교",
-    description: "내 반려견의 크기, 동반 조건, 운영시간을 비교합니다.",
-    icon: "compare",
+    title: "동반 가능한 장소 확인",
+    description: "공식 동반 근거와 추가 확인이 필요한 후보를 구분합니다.",
   },
   {
     number: 3,
-    title: "일정 구성",
-    description: "여행 스타일과 방문 시간을 고려해 일정을 구성합니다.",
-    icon: "schedule",
-  },
-  {
-    number: 4,
-    title: "실제 이동시간 반영",
-    description: "카카오 길찾기의 실제 이동시간으로 동선을 비교합니다.",
-    icon: "travel-time",
-  },
-  {
-    number: 5,
-    title: "최종 경로 검증",
-    description: "최종 경로를 다시 확인해 실행 가능한 일정을 완성합니다.",
-    icon: "verify",
+    title: "이동시간을 반영한 맞춤 일정",
+    description: "실제 이동시간과 방문 순서를 고려해 일정을 구성합니다.",
   },
 ] as const satisfies readonly RecommendationProcessStep[];
 
@@ -52,10 +29,12 @@ export interface EditorialCourseStop {
 }
 
 export const WEEKENDOG_EXAMPLE_COURSE = {
-  eyebrow: "WEEKENDOG PICK",
-  title: "이번 주말 추천 예시 코스",
+  label: "예시 코스",
+  title: "부산에서 보내는 반려견과의 하루",
   description:
     "산책과 식사, 휴식을 자연스럽게 잇는 하루의 흐름을 살펴보세요.",
+  imageSrc: "/images/home/hero/weekendog-busan-city-ver2.webp",
+  imageAlt: "부산 해변과 광안대교, 해안 도심이 함께 보이는 전경",
   disclosure:
     "실제 개인화 결과가 아니며 장소·시간은 조건에 따라 달라집니다.",
   stops: [
@@ -65,9 +44,11 @@ export const WEEKENDOG_EXAMPLE_COURSE = {
     { time: "17:00", title: "마무리 산책", note: "귀가 동선 확인" },
   ],
 } as const satisfies {
-  eyebrow: string;
+  label: string;
   title: string;
   description: string;
+  imageSrc: string;
+  imageAlt: string;
   disclosure: string;
   stops: readonly EditorialCourseStop[];
 };

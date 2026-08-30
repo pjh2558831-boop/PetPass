@@ -37,7 +37,7 @@ export function SiteHeaderAccount({
 
   return (
     <>
-      <div className="hidden shrink-0 items-center gap-1.5 lg:flex">
+      <div className="hidden shrink-0 items-center gap-1.5 min-[900px]:flex">
         <Link href={accountHref} className="inline-flex min-h-12 max-w-56 items-center gap-2.5 truncate whitespace-nowrap rounded-full border border-[var(--line)] bg-white px-3 text-sm font-extrabold text-[#53645c]">
           {displayName ? (
             <span className="grid size-8 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--brand-soft)] text-[var(--brand)]">
@@ -52,7 +52,7 @@ export function SiteHeaderAccount({
         </Link>
         {!displayName && !needsOnboarding ? <Link href="/login" className="inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full bg-[var(--brand)] px-3 text-xs font-extrabold text-white">회원가입</Link> : null}
       </div>
-      <div className="flex items-center lg:hidden">
+      <div className="flex items-center min-[900px]:hidden">
         <MobileNavigation items={navigationItems} accountItems={accountItems} />
       </div>
     </>

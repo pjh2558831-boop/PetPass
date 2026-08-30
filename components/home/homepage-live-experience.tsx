@@ -1,16 +1,9 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
-  ArrowUpRight,
-  HeartPulse,
-  Map as MapIcon,
   MapPin,
-  PawPrint,
-  RefreshCw,
   RotateCcw,
-  ShieldCheck,
-  ShoppingBag,
   SlidersHorizontal,
 } from "lucide-react";
 import {
@@ -21,13 +14,22 @@ import {
   useState,
   type SetStateAction,
 } from "react";
+import {
+  HomePlaceWorkbench,
+  HomePlaceWorkbenchError,
+  HomePlaceWorkbenchLoading,
+} from "@/components/home/home-place-workbench";
+import { HomeSelectedItineraryTray } from "@/components/home/home-selected-itinerary-tray";
+import {
+  homepageSelectionCandidates,
+  mergeHomepageSelectionMetadata,
+} from "@/components/home/homepage-selected-itinerary";
 import { HomepagePlaceCarousel } from "@/components/home/official-place-carousel";
-import { MapPanel } from "@/components/map/map-panel";
-import { PlaceImage } from "@/components/places/place-image";
 import { PlaceCategoryToggleGroup } from "@/components/places/place-category-toggle-group";
-import { createHomepageMapLocations } from "@/lib/homepage/homepage-map-locations";
+import { useSelectedItinerarySelection } from "@/components/places/use-selected-itinerary-selection";
 import { HomepageCatalogIndex } from "@/lib/homepage/homepage-catalog-index";
 import { getHomepageCatalogDatasets } from "@/lib/homepage/catalog-datasets";
+import type { SelectedItineraryPlace } from "@/lib/storage/selected-itinerary-storage";
 import {
   recordHomepageBrowserTiming,
   type HomepageBrowserTimingStage,
@@ -67,13 +69,10 @@ import {
 } from "@/types/homepage-optional";
 import {
   HOMEPAGE_PLACE_LAYERS,
-  type HomepageMapMarker,
-  type HomepagePlaceLayer,
   type HomepagePlacesSnapshot,
 } from "@/types/homepage-places";
 import type { RegionId } from "@/types/region";
 
-const EMPTY_ROUTE_COORDINATES: [] = [];
 const STRICT_EFFECT_ABORT_GRACE_MS = 50;
 type HomepageOptionalCategory = (typeof OPTIONAL_PLACE_CATEGORIES)[number];
 type HomepageOptionalLoadState = Record<
@@ -151,7 +150,7 @@ async function requestHomepageData<T>({
   const requestStartedAt = performance.now();
   const response = await fetch(url, {
     signal,
-    credentials: "omit",
+    credentials: "same-origin",
     headers: { Accept: "application/json" },
   });
   recordHomepageBrowserTiming(stage, "headers", requestStartedAt);
@@ -250,13 +249,16 @@ function scheduleLowPriority(callback: () => void): () => void {
   return () => globalThis.clearTimeout(id);
 }
 
-function HomepageLiveSkeleton({ regionLabel }: { regionLabel: string }) {
+function HomepageLiveSkeleton({
+  regionId,
+  regionLabel,
+}: {
+  regionId: RegionId;
+  regionLabel: string;
+}) {
   return (
     <div className="homepage-live-loading" aria-live="polite" aria-busy="true">
-      <section className="homepage-map-loading" aria-label={`${regionLabel} 장소 지도 불러오는 중`}>
-        <div className="homepage-loading-copy"><span /><span /><span /></div>
-        <p>저장된 공식·공개 장소 지도를 불러오고 있어요.</p>
-      </section>
+      <HomePlaceWorkbenchLoading regionId={regionId} regionLabel={regionLabel} />
       <section className="homepage-carousel-loading" aria-label="장소 카드 불러오는 중">
         <div className="homepage-loading-heading" />
         <div className="homepage-loading-cards" aria-hidden="true">
@@ -270,33 +272,22 @@ function HomepageLiveSkeleton({ regionLabel }: { regionLabel: string }) {
 function HomepageLiveError({
   error,
   onRetry,
+  regionId,
+  regionLabel,
 }: {
   error: ApiError;
   onRetry: () => void;
+  regionId: RegionId;
+  regionLabel: string;
 }) {
   return (
-    <section className="homepage-live-error" role="alert">
-      <span className="homepage-error-icon"><MapIcon size={24} aria-hidden="true" /></span>
-      <div>
-        <p className="homepage-kicker">OFFICIAL DATA UNAVAILABLE</p>
-        <h2>공식 관광 정보를 지금 불러올 수 없어요</h2>
-        <p>{error.message}</p>
-        <p className="homepage-error-truth">
-          확인되지 않은 수치나 데모 장소로 대신 보여드리지 않습니다.
-        </p>
-      </div>
-      {error.retryable ? (
-        <button type="button" onClick={onRetry} className="homepage-retry-button">
-          <RefreshCw size={16} aria-hidden="true" /> 다시 시도
-        </button>
-      ) : null}
-    </section>
+    <HomePlaceWorkbenchError
+      error={error}
+      onRetry={onRetry}
+      regionId={regionId}
+      regionLabel={regionLabel}
+    />
   );
-}
-
-function SelectedPlaceholder({ layer }: { layer: HomepagePlaceLayer }) {
-  const Icon = layer === "veterinary" ? HeartPulse : layer === "pet_shop" ? ShoppingBag : PawPrint;
-  return <span className={`homepage-selected-placeholder homepage-selected-placeholder--${layer}`}><Icon size={24} aria-hidden="true" /></span>;
 }
 
 function markEnrichmentUnavailable(
@@ -321,6 +312,11 @@ export function HomepageLiveExperience({
   staticMapEnabled?: boolean;
   regionId?: RegionId;
 }) {
+  const router = useRouter();
+  const itinerarySelection = useSelectedItinerarySelection({
+    regionId,
+    surfaceAddLimit: 3,
+  });
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [catalogState, setCatalogState] = useState(() => ({
     snapshot: null as HomepagePlacesSnapshot | null,
@@ -351,8 +347,12 @@ export function HomepageLiveExperience({
   const [draftCategories, setDraftCategories] = useState<PlaceCategory[]>([...DEFAULT_PLACE_CATEGORIES]);
   const [filterOpen, setFilterOpen] = useState(false);
   const [completionState, setCompletionState] = useState<"initial" | "loading" | "complete" | "partial">("initial");
+  const [completionRetryToken, setCompletionRetryToken] = useState(0);
   const [optionalLoadState, setOptionalLoadState] = useState<HomepageOptionalLoadState>(EMPTY_OPTIONAL_LOAD_STATE);
   const [readyOptionalDatasets, setReadyOptionalDatasets] = useState<HomepageOptionalDatasetId[]>([]);
+  const [selectionMetadata, setSelectionMetadata] = useState<Map<string, SelectedItineraryPlace>>(
+    () => new Map(),
+  );
   const region = getRegionConfig(regionId);
   const optionalDatasetByCategory = useMemo(() => {
     const entries = (region ? getHomepageCatalogDatasets(region, "optional") : [])
@@ -386,6 +386,14 @@ export function HomepageLiveExperience({
   const readyOptionalDatasetsRef = useRef(new Set<HomepageOptionalDatasetId>());
   const filterDropdownRef = useRef<HTMLElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!itinerarySelection.hydrated || itinerarySelection.snapshot.regionId === regionId) return;
+    itinerarySelection.resetRegion(regionId, {
+      preserveAutoFill: true,
+      message: "지역이 달라 기존 선택을 정리했습니다.",
+    });
+  }, [itinerarySelection, regionId]);
 
   useEffect(() => {
     if (!filterOpen) return;
@@ -458,6 +466,11 @@ export function HomepageLiveExperience({
       const requestKey = `${regionId}:${result.data.dataVersion}`;
       activeRequestKeyRef.current = requestKey;
       baseInitialRef.current = result.data;
+      setSelectionMetadata(() => mergeHomepageSelectionMetadata(
+        new Map(),
+        result.data.markers,
+        regionId,
+      ));
       stateUpdateStartedAtRef.current = performance.now();
       setSnapshot(projectHomepageInitialSnapshot(result.data));
       setLoadedInitialKey(initialKey);
@@ -530,6 +543,11 @@ export function HomepageLiveExperience({
         const mergeStartedAt = performance.now();
         completionUpdateStartedAtRef.current = mergeStartedAt;
         completionMapUpdatePendingRef.current = true;
+        setSelectionMetadata((current) => mergeHomepageSelectionMetadata(
+          current,
+          result.data.markers,
+          regionId,
+        ));
         setSnapshot((current) => current
           ? mergeHomepageCompletion(current, result.data, initial, regionId)
           : current);
@@ -553,7 +571,7 @@ export function HomepageLiveExperience({
         completionRequestRef.current = null;
       }, STRICT_EFFECT_ABORT_GRACE_MS);
     };
-  }, [baseRequestKey, loadState, regionId, setSnapshot]);
+  }, [baseRequestKey, completionRetryToken, loadState, regionId, setSnapshot]);
 
   useEffect(() => {
     if (completionUpdateStartedAtRef.current === null) return;
@@ -656,19 +674,18 @@ export function HomepageLiveExperience({
     setRetryToken((current) => current + 1);
   };
 
+  const retryCompletion = () => {
+    completionRequestRef.current?.controller.abort();
+    completionRequestRef.current = null;
+    setCompletionState("loading");
+    setCompletionRetryToken((current) => current + 1);
+  };
+
   const visibleMarkers = useMemo(
     () => catalogIndex.filter({ categories: activeCategories }).markers,
     [activeCategories, catalogIndex],
   );
-  const locations = useMemo(
-    () => createHomepageMapLocations(visibleMarkers),
-    [visibleMarkers],
-  );
-  const markerById = useMemo(
-    () => new Map((snapshot?.markers ?? []).map((marker) => [marker.id, marker] as const)),
-    [snapshot],
-  );
-  const visibleIds = useMemo(() => new Set(locations.map(({ id }) => id)), [locations]);
+  const visibleIds = useMemo(() => new Set(visibleMarkers.map(({ id }) => id)), [visibleMarkers]);
   const defaultSelectionId =
     visibleMarkers.find((marker) => marker.layer === "official" && marker.isAllowed)?.id ??
     visibleMarkers.find((marker) => marker.layer === "official")?.id ??
@@ -677,21 +694,36 @@ export function HomepageLiveExperience({
     requestedSelectionId && visibleIds.has(requestedSelectionId)
       ? requestedSelectionId
       : defaultSelectionId;
-  const selectedMarker: HomepageMapMarker | null = selectedLocationId
-    ? markerById.get(selectedLocationId) ?? null
-    : null;
-
   useEffect(() => {
     if (filterUpdateStartedAtRef.current === null) return;
     recordHomepageBrowserTiming("filter", "react_commit", filterUpdateStartedAtRef.current);
     filterUpdateStartedAtRef.current = null;
   }, [visibleMarkers]);
+  const selectionCandidates = useMemo(
+    () => homepageSelectionCandidates(
+      selectionMetadata,
+      snapshot?.markers ?? [],
+    ),
+    [selectionMetadata, snapshot],
+  );
 
   if (loadedInitialKey !== initialKey || loadState === "loading") {
-    return <HomepageLiveSkeleton regionLabel={region?.displayName ?? regionId} />;
+    return (
+      <HomepageLiveSkeleton
+        regionId={regionId}
+        regionLabel={region?.displayName ?? regionId}
+      />
+    );
   }
   if (loadState === "error" || !snapshot) {
-    return <HomepageLiveError error={error} onRetry={retry} />;
+    return (
+      <HomepageLiveError
+        error={error}
+        onRetry={retry}
+        regionId={regionId}
+        regionLabel={region?.displayName ?? regionId}
+      />
+    );
   }
 
   const categoryCounts = Object.fromEntries(PLACE_CATEGORIES.map((category) => {
@@ -722,6 +754,11 @@ export function HomepageLiveExperience({
       const retained = browserOptionalDatasetCache.get(browserCacheKey);
       if (retained) {
         const mergeStartedAt = performance.now();
+        setSelectionMetadata((current) => mergeHomepageSelectionMetadata(
+          current,
+          retained.markers,
+          regionId,
+        ));
         setSnapshot((current) => current
           ? mergeHomepageOptionalInitial(current, retained, regionId)
           : current);
@@ -761,6 +798,11 @@ export function HomepageLiveExperience({
           return;
         }
         const mergeStartedAt = performance.now();
+        setSelectionMetadata((current) => mergeHomepageSelectionMetadata(
+          current,
+          result.data.markers,
+          regionId,
+        ));
         setSnapshot((current) => current
           ? mergeHomepageOptionalInitial(current, result.data, regionId)
           : current);
@@ -823,156 +865,95 @@ export function HomepageLiveExperience({
   const resetDraftFilters = () => {
     setDraftCategories([...DEFAULT_PLACE_CATEGORIES]);
   };
+  const filterControl = (
+    <div className="homepage-map-filter-control">
+      <button
+        ref={filterButtonRef}
+        type="button"
+        className="homepage-map-filter-trigger"
+        aria-expanded={filterOpen}
+        aria-controls="homepage-map-filter-dropdown"
+        onClick={toggleFilters}
+      >
+        <SlidersHorizontal size={17} aria-hidden="true" />필터
+      </button>
+      {filterOpen ? (
+        <section
+          ref={filterDropdownRef}
+          id="homepage-map-filter-dropdown"
+          className="explorer-filter-dropdown homepage-map-filter-dropdown"
+          role="region"
+          aria-label="지도 장소 필터"
+        >
+          <form noValidate onSubmit={(event) => { event.preventDefault(); applyFilters(); }}>
+            <div className="explorer-filter-dropdown__body">
+              <div className="explorer-category-panel__heading">
+                <span aria-hidden="true"><MapPin size={28} fill="currentColor" /></span>
+                <div>
+                  <h2>여행 장소</h2>
+                  <p>반려견과 함께 방문 가능한 장소를 선택해보세요.</p>
+                </div>
+              </div>
+              <PlaceCategoryToggleGroup
+                title="장소 유형"
+                categories={availableCategories}
+                active={draftCategories}
+                counts={categoryCounts}
+                onToggle={toggleDraftCategory}
+              />
+              {([...OPTIONAL_PLACE_CATEGORIES] as HomepageOptionalCategory[])
+                .filter((category) => optionalDatasetByCategory.has(category))
+                .map((category) => optionalLoadState[category] === "loading" ? (
+                  <p key={category} className="homepage-map-provider-status" role="status">
+                    {PLACE_CATEGORY_LABELS[category]} 데이터를 불러오는 중
+                  </p>
+                ) : optionalLoadState[category] === "error" ? (
+                  <p key={category} className="homepage-map-provider-status" role="alert">
+                    {PLACE_CATEGORY_LABELS[category]}을 불러오지 못했습니다.{" "}
+                    <button type="button" onClick={() => loadOptionalPlaces([category])}>다시 시도</button>
+                  </p>
+                ) : null)}
+            </div>
+            <div className="explorer-filter-dropdown__actions">
+              <button type="button" className="explorer-filter-dropdown__reset" onClick={resetDraftFilters}>
+                <RotateCcw size={19} aria-hidden="true" />초기화
+              </button>
+              <button type="submit" className="explorer-filter-dropdown__apply">
+                적용하기 <SlidersHorizontal size={18} aria-hidden="true" />
+              </button>
+            </div>
+          </form>
+        </section>
+      ) : null}
+    </div>
+  );
 
   return (
     <div className="homepage-live-ready">
-      <section className="homepage-map-section" aria-labelledby="homepage-map-title">
-        <div className="homepage-map-shell">
-          <h2 id="homepage-map-title" className="sr-only">
-            {region?.displayName ?? regionId} 공식 관광 장소 {snapshot.official.totalCount}곳
-          </h2>
+      <HomePlaceWorkbench
+        regionId={regionId}
+        regionLabel={region?.displayName ?? regionId}
+        markers={visibleMarkers}
+        selectedLocationId={selectedLocationId}
+        onLocationFocus={setRequestedSelectionId}
+        onMapDataUpdate={handleMapDataUpdate}
+        filterControl={filterControl}
+        selectionSnapshot={itinerarySelection.snapshot}
+        selectionCandidates={selectionCandidates}
+        onToggleItinerary={(place) => { itinerarySelection.toggle(place); }}
+        completionState={completionState}
+        onRetryCompletion={retryCompletion}
+        providerUnavailable={publicUnavailable}
+      />
 
-          <div className="homepage-map-filter-control">
-            <button
-              ref={filterButtonRef}
-              type="button"
-              className="homepage-map-filter-trigger"
-              aria-expanded={filterOpen}
-              aria-controls="homepage-map-filter-dropdown"
-              onClick={toggleFilters}
-            >
-              <SlidersHorizontal size={17} aria-hidden="true" />필터
-            </button>
-            {filterOpen ? (
-              <section
-                ref={filterDropdownRef}
-                id="homepage-map-filter-dropdown"
-                className="explorer-filter-dropdown homepage-map-filter-dropdown"
-                role="region"
-                aria-label="지도 장소 필터"
-              >
-                <form onSubmit={(event) => { event.preventDefault(); applyFilters(); }}>
-                  <div className="explorer-filter-dropdown__body">
-                    <div className="explorer-category-panel__heading">
-                      <span aria-hidden="true"><MapPin size={28} fill="currentColor" /></span>
-                      <div>
-                        <h2>여행 장소</h2>
-                        <p>반려견과 함께 방문 가능한 장소를 선택해보세요.</p>
-                      </div>
-                    </div>
-                    <PlaceCategoryToggleGroup
-                      title="장소 유형"
-                      categories={availableCategories}
-                      active={draftCategories}
-                      counts={categoryCounts}
-                      onToggle={toggleDraftCategory}
-                    />
-                    {publicUnavailable ? (
-                      <p className="homepage-map-provider-status" role="status">
-                        일부 카카오 장소 데이터 준비 중
-                      </p>
-                    ) : null}
-                    {([...OPTIONAL_PLACE_CATEGORIES] as HomepageOptionalCategory[])
-                      .filter((category) => optionalDatasetByCategory.has(category))
-                      .map((category) =>
-                      optionalLoadState[category] === "loading" ? (
-                        <p key={category} className="homepage-map-provider-status" role="status">
-                          {PLACE_CATEGORY_LABELS[category]} 데이터를 불러오는 중
-                        </p>
-                      ) : optionalLoadState[category] === "error" ? (
-                        <p key={category} className="homepage-map-provider-status" role="alert">
-                          {PLACE_CATEGORY_LABELS[category]}을 불러오지 못했습니다.
-                          <button type="button" onClick={() => loadOptionalPlaces([category])}>다시 시도</button>
-                        </p>
-                      ) : null,
-                    )}
-                  </div>
-                  <div className="explorer-filter-dropdown__actions">
-                    <button type="button" className="explorer-filter-dropdown__reset" onClick={resetDraftFilters}><RotateCcw size={19} aria-hidden="true" />초기화</button>
-                    <button type="submit" className="explorer-filter-dropdown__apply">적용하기 <SlidersHorizontal size={18} aria-hidden="true" /></button>
-                  </div>
-                </form>
-              </section>
-            ) : null}
-          </div>
-
-          <Link href={`/results?tab=catalog&region=${encodeURIComponent(regionId)}`} className="homepage-map-open-link">
-            지도 크게 보기 <ArrowUpRight size={15} aria-hidden="true" />
-          </Link>
-
-          <div className="homepage-map-canvas-wrap">
-            <MapPanel
-              regionId={regionId}
-              title={`${region?.displayName ?? regionId} 공식·공개 장소 지도`}
-              locationLabel={`${region?.displayName ?? regionId} 전체`}
-              locations={locations}
-              routeCoordinates={EMPTY_ROUTE_COORDINATES}
-              selectedLocationId={selectedLocationId}
-              onLocationSelect={(id) => setRequestedSelectionId(id ?? defaultSelectionId)}
-              onDataUpdate={handleMapDataUpdate}
-              viewportKey={`homepage:${regionId}:mixed-source`}
-              showLocationLabel={false}
-              showSelectionInfo={false}
-              emptyMessage="선택한 장소 유형에 지도에 표시할 장소가 없습니다."
-            />
-          </div>
-
-          {completionState === "loading" ? (
-            <p className="homepage-map-provider-status" role="status">
-              나머지 저장 장소를 지도에 추가 중
-            </p>
-          ) : completionState === "partial" ? (
-            <p className="homepage-map-provider-status" role="status">
-              일부 저장 장소를 불러오지 못했지만 현재 지도는 계속 사용할 수 있습니다.
-            </p>
-          ) : null}
-
-          {selectedMarker ? (
-            <article className="homepage-selected-place" aria-live="polite" aria-atomic="true">
-              {selectedMarker.layer === "official" ? (
-                <PlaceImage
-                  imageUrl={selectedMarker.imageUrl}
-                  title={selectedMarker.name}
-                  className="homepage-selected-image"
-                  sizes="92px"
-                />
-              ) : <SelectedPlaceholder layer={selectedMarker.layer} />}
-              <div className="homepage-selected-body">
-                <div className="homepage-selected-meta">
-                  <span>{PLACE_CATEGORY_LABELS[selectedMarker.category]}</span>
-                  {selectedMarker.isAllowed ? (
-                    <span className="homepage-allowed-badge"><ShieldCheck size={12} aria-hidden="true" />동반 가능</span>
-                  ) : (
-                    <span className="homepage-confirm-badge">{selectedMarker.statusLabel}</span>
-                  )}
-                </div>
-                <h3>{selectedMarker.name}</h3>
-                <p><MapPin size={12} aria-hidden="true" />{selectedMarker.district ?? selectedMarker.address}</p>
-                <span className={`homepage-selected-source homepage-selected-source--${selectedMarker.layer}`}>
-                  {selectedMarker.sourceLabel}
-                </span>
-              </div>
-              {selectedMarker.href ? (
-                selectedMarker.href.startsWith("http") ? (
-                  <a
-                    href={selectedMarker.href}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="homepage-selected-link"
-                    aria-label={`${selectedMarker.name} 카카오 장소 정보 새 창에서 보기`}
-                  ><ArrowUpRight size={16} aria-hidden="true" /></a>
-                ) : (
-                  <Link
-                    href={selectedMarker.href}
-                    className="homepage-selected-link"
-                    aria-label={`${selectedMarker.name} 상세 보기`}
-                  ><ArrowUpRight size={16} aria-hidden="true" /></Link>
-                )
-              ) : null}
-            </article>
-          ) : null}
-        </div>
-      </section>
+      <HomeSelectedItineraryTray
+        snapshot={itinerarySelection.snapshot}
+        message={itinerarySelection.message}
+        catalogHref={`/results?tab=catalog&region=${encodeURIComponent(regionId)}&mode=select`}
+        onRemove={itinerarySelection.remove}
+        onMove={itinerarySelection.move}
+        onContinue={() => router.push("/planner/pet?mode=selected")}
+      />
 
       <HomepagePlaceCarousel
         key={regionId}

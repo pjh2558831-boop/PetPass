@@ -26,7 +26,7 @@ export default async function AccountProfilePage({ searchParams }: { searchParam
 
   return (
     <section className="site-shell py-12 sm:py-16">
-      <form action={updateAccountProfile} className="surface-panel mx-auto max-w-xl p-6 sm:p-8">
+      <form action={updateAccountProfile} noValidate className="surface-panel mx-auto max-w-xl p-6 sm:p-8">
         <p className="eyebrow">WEEKENDOG 계정</p>
         <h1 className="mt-2 text-3xl font-black">내 프로필 수정</h1>
         <p className="mt-2 text-sm leading-6 text-[var(--muted)]">커뮤니티와 헤더에 표시되는 사진과 이름을 관리합니다.</p>

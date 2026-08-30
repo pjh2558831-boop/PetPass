@@ -42,7 +42,7 @@ export function MobileNavigation({
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="site-mobile-navigation">
       <button
         ref={triggerRef}
         type="button"
@@ -50,7 +50,7 @@ export function MobileNavigation({
         aria-expanded={open}
         aria-label={open ? "메뉴 닫기" : "메뉴 열기"}
         onClick={() => setOpen((value) => !value)}
-        className="grid size-11 place-items-center rounded-xl border border-[var(--line)] bg-white text-[var(--foreground)] transition-colors hover:border-[#a8bcae] hover:bg-[var(--surface-muted)]"
+        className="site-mobile-menu-trigger"
       >
         {open ? <X size={20} aria-hidden="true" /> : <Menu size={20} aria-hidden="true" />}
       </button>
@@ -58,16 +58,16 @@ export function MobileNavigation({
         <nav
           id={menuId}
           aria-label="모바일 주요 메뉴"
-          className="surface-card absolute right-0 top-[calc(100%+10px)] w-64 max-w-[calc(100vw-24px)] p-2"
+          className="site-mobile-menu"
         >
-          <div className="space-y-1">
+          <div className="site-mobile-menu-list">
             {items.map((item) =>
               item.kind === "link" ? (
                 <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => setOpen(false)}
-                  className="flex min-h-12 items-center rounded-xl px-4 text-sm font-extrabold text-[#385246] transition-colors hover:bg-[var(--brand-soft)] hover:text-[var(--brand)]"
+                  className="site-mobile-menu-link"
                 >
                   {item.label}
                 </Link>
@@ -77,10 +77,10 @@ export function MobileNavigation({
                   type="button"
                   aria-disabled="true"
                   title={`${item.label} 준비 중`}
-                  className="flex min-h-12 w-full cursor-not-allowed items-center justify-between rounded-xl px-4 text-left text-sm font-extrabold text-[#718078]"
+                  className="site-mobile-menu-future"
                 >
                   <span>{item.label}</span>
-                  <span className="rounded-full bg-[#eef3ef] px-2 py-1 text-[10px] leading-none">
+                  <span className="site-mobile-menu-future-label">
                     준비 중
                   </span>
                 </button>
@@ -88,19 +88,19 @@ export function MobileNavigation({
             )}
           </div>
           {accountItems.length > 0 ? (
-            <div className="mt-2 grid grid-cols-2 gap-2 border-t border-[var(--line)] pt-2">
+            <div className="site-mobile-account-list">
               {accountItems.map((item) =>
                 item.kind === "link" ? (
                   <Link
                     key={`${item.href}-${item.label}`}
                     href={item.href}
                     onClick={() => setOpen(false)}
-                    className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[var(--line)] px-2 text-xs font-extrabold text-[#385246]"
+                    className="site-mobile-account-link"
                   >
                     {"avatarUrl" in item ? (
-                      <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--brand-soft)] text-[var(--brand)]">
+                      <span className="site-mobile-account-avatar">
                         {item.avatarUrl ? (
-                          <Image src={item.avatarUrl} alt="" width={28} height={28} unoptimized className="size-full object-cover" />
+                          <Image src={item.avatarUrl} alt="" width={28} height={28} unoptimized className="site-mobile-account-avatar-image" />
                         ) : (
                           <UserRound size={16} aria-hidden="true" />
                         )}
@@ -114,10 +114,10 @@ export function MobileNavigation({
                     type="button"
                     aria-disabled="true"
                     title={`${item.label} 준비 중`}
-                    className="flex min-h-12 cursor-not-allowed flex-col items-center justify-center rounded-xl border border-[var(--line)] px-2 text-xs font-extrabold text-[#718078]"
+                    className="site-mobile-account-future"
                   >
                     <span>{item.label}</span>
-                    <span className="mt-0.5 text-[9px] font-bold">준비 중</span>
+                    <span className="site-mobile-account-future-label">준비 중</span>
                   </button>
                 ),
               )}

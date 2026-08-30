@@ -119,6 +119,12 @@ async function expectResponsiveMap(
   expectPolyline = true,
 ) {
   await page.setViewportSize({ width, height });
+  if (width <= 768) {
+    await page
+      .getByRole("group", { name: "지도 또는 목록 보기" })
+      .getByRole("button", { name: "지도", exact: true })
+      .click();
+  }
   const fitButton = page.getByRole("button", {
     name: "표시된 장소에 지도 위치 맞추기",
   });
@@ -208,7 +214,7 @@ test("localhost renders current Kakao maps without a fixed demo itinerary", asyn
   await page.goto(`http://localhost:3000/?verify=${Date.now()}`);
   await expect(
     page.getByRole("heading", {
-      name: /반려견과 함께, 어디로 떠나볼까요?/,
+      name: /반려견과 함께, 부산 여행을 계획해보세요/,
     }),
   ).toBeVisible();
   try {
@@ -307,7 +313,9 @@ test("a complete Kakao SDK request failure keeps the map error state", async ({
   await page.goto(`http://localhost:3000/?sdk-failure=${Date.now()}`);
 
   const alert = page.locator('.kakao-map-canvas [role="alert"]');
-  await expect(alert).toContainText("카카오 지도 SDK를 불러오지 못했습니다");
+  await expect(alert).toContainText("지도를 일시적으로 불러오지 못했습니다.");
+  await expect(alert).toContainText("장소 목록은 계속 확인할 수 있어요.");
+  await expect(page.locator(".homepage-workbench__list")).toBeVisible();
   await expect(page.locator(".kakao-map-canvas")).toBeVisible();
   const failureState = await page.evaluate(() => ({
     mapHeight:

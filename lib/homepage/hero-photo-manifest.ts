@@ -68,5 +68,13 @@ export const HERO_PHOTOS = [
   },
 ] as const satisfies readonly HeroPhoto[];
 
-export const HERO_AUTOPLAY_INTERVAL_MS = 6_000;
-export const HERO_CROSSFADE_DURATION_MS = 760;
+/**
+ * The approved static homepage hero. Keep this separate from HERO_PHOTOS so
+ * the original ten-photo archive remains stable for existing references.
+ */
+export const HERO_FEATURED_PHOTO = {
+  src: "/images/home/hero/weekendog-busan-city-ver2.webp",
+  alt: "부산 해변과 광안대교, 해안 도심이 함께 보이는 전경",
+  objectPositionDesktop: "50% 56%",
+  objectPositionMobile: "68% 56%",
+} as const satisfies HeroPhoto;

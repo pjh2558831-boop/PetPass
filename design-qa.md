@@ -1,3 +1,177 @@
+# WEEKENDOG `ui_ver2` homepage feature completion — design QA
+
+## Ground truth and evidence
+
+- Reference: `.codex-reference/weekendog-ui-reference.png` (948 × 1660).
+- Deterministic final captures: `verification-evidence/weekendog-ui-ver2/feature-completion/final/`.
+- Same-canvas reference comparison: `reference-vs-homepage-948x1660.png` (reference left, implementation right).
+- Same-canvas revision comparison: `before-vs-corrected-948x1660.png` (previous implementation left, corrected implementation right).
+- Normal viewport evidence: 1440 × 1000, 1024 × 900, 948 × 1660, 768 × 1024, 390 × 844, and 320 × 720.
+- Focused state evidence: search, two-place tray, loading, partial failure, total failure, Kakao map failure, 390 px list/map switch, 320 px list, and 390 px stacked tray.
+
+The reference is used for hierarchy, density, alignment, surface treatment, and emphasis. Runtime counts, place names, provider labels, verdicts, and availability remain data-derived.
+
+## Twelve-part scorecard
+
+| Area | Score / 10 | Evidence-based assessment |
+| --- | ---: | --- |
+| Header | 8.6 | 70 px lightweight desktop header, enlarged WEEKENDOG lockup, preserved navigation and accessible mobile menu. |
+| Hero | 9.0 | One static documentary-style Busan photograph, deep-green left copy, no carousel motion or controls, and reliable mobile separation. |
+| Utility bar | 9.1 | One compact region control and one primary `여행 만들기` CTA; desktop crossover and mobile stacking are both verified. |
+| Process | 8.5 | Exact three-step ordered flow, compact desktop connectors, and readable mobile vertical sequence. |
+| Example course | 8.6 | One truthful four-stop editorial course with a 38/62 desktop split and denser single-row timeline details. |
+| Map/list workbench | 9.3 | One bounded 500–590 px map/list surface, separated focus and selection, accessible pagination, and usable list during map failure. |
+| Search | 9.2 | Real NFKC local search, IME-safe input, Escape/clear behavior, truthful zero/provider states, and synchronized map/list results. |
+| Selected-place tray | 9.0 | Existing snapshot contract, real count, first three items, preserved overflow, reorder/remove controls, and exact selected-mode handoff. |
+| Discovery | 8.2 | Existing real data and filters remain reusable by keyboard and touch at a compact 5–6-card desktop density. |
+| Trust/partners/contact | 8.4 | Flat verification principle, local official marks, small GitHub utility, and homepage-scoped footer hierarchy. |
+| Overall density | 8.3 | The final 948 px workbench begins near y=935 after the approved 410 px hero and compact process/course ranges; substantially denser than the prior y≈1204 state. |
+| Brand fidelity | 8.6 | Forest/cream palette, low motion, matte surfaces, compact typography, real official marks, and the generated Busan asset form one consistent system. |
+
+Average score: **8.73 / 10**. Every area is at least 7, the workbench is at least 9, and the tray is at least 8.
+
+## Interaction, responsive, and state review
+
+- Search, browse/search tabs, map/list switch, filters, marker/row focus, checkbox-only itinerary selection, removal, reordering, retry, pagination, discovery filters, and all primary links are functional.
+- Loading retains the workbench shell and never claims a definitive zero. Partial failure preserves rows/search/selection. Total failure stays compact. Kakao failure keeps the list and itinerary flow usable.
+- The generated image and all visible images have `naturalWidth > 0`; fonts finish loading before captures.
+- No document horizontal overflow was found at any required viewport. Mobile list/map switching and the stacked selected-place tray have focused captures.
+- Touch targets, tab semantics, roving focus, skip link, external-link naming, reduced motion, and dense-list pagination meet the reviewed interface guidance.
+
+## Findings
+
+- P0: none.
+- P1: none. The former 239-row keyboard trap is resolved with accessible 12-row pagination while all map markers remain available.
+- P2: none. Mobile hero collision/contrast, incomplete tabs, inactive loading/error controls, sub-44 px targets, oversized rows, missing skip navigation, and excessive editorial height were corrected and re-captured.
+- P3: the official-only discovery filter can leave unused horizontal space when the truthful data set contains only three items; no synthetic cards are added to fill it.
+
+The visual score and local release gate are complete: clean install, dependency audit, typecheck, lint, 1,188 unit tests, production build, the complete 248-case Playwright matrix (216 passed, 32 intentional platform/evidence skips, 0 failed), and the opt-in evidence suite passed. Protected Preview verification is tracked separately in the release report and does not change this deterministic design score.
+
+final result: passed
+
+---
+
+# Historical: WEEKENDOG `ui_ver2` pre-feature-completion design QA
+
+## 1. Reference image
+
+- Authoritative reference: `C:/Users/pjh25/Desktop/PetPass-ui-ver2/.codex-reference/weekendog-ui-reference.png` (948 × 1660).
+- It is used only for hierarchy, density, spacing, alignment, section order, surfaces, and emphasis—not as product data.
+
+## 2. Implementation screenshot
+
+- Equivalent implementation: `verification-evidence/weekendog-ui-ver2/final/homepage-948x1660.png`.
+- Same-state comparison: `verification-evidence/weekendog-ui-ver2/final/reference-vs-implementation-948x1660.png` (reference left, implementation right).
+- Supporting catalog, planner, and schedule captures are in the same final evidence directory.
+
+## 3. Viewports
+
+- Homepage: 1440 × 1000, 948 × 1660, 1024 × 900, 768 × 1024, 390 × 844, 320 × 720.
+- Catalog: 1440 × 1000, 1024 × 900, 390 × 844, 320 × 720.
+- Planner steps 1–3: 1440 × 1000, 390 × 844, 320 × 720 each.
+- Matched schedule: 1440 × 1000, 390 × 844, 320 × 720.
+
+## 4. Stable UI states
+
+- Homepage: 부산 전체, official and Kakao-candidate data ready, static hero, first official place selected, deterministic Kakao canvas.
+- Catalog: 부산 전체, default categories, recommendation sort, first page, deterministic provider data and canvas.
+- Planner: neutral step 1, completed pet data at step 2, confirmed departure and preferences at step 3.
+- Schedule: successful provider-backed mocked recommendation with three stops and deterministic geometry.
+- Loading, partial, empty, retry, map-failure, and reduced-motion states are covered by the complete Playwright suite.
+
+## 5. Section comparison
+
+| Reference element | Adopted/Omitted | Implementation evidence | Reason |
+| --- | --- | --- | --- |
+| Overlay or lightweight homepage header | Adopted | `components/layout/site-header.tsx`, `homepage-948x1660.png` | Lightweight over the hero; mobile menu below 900 px. |
+| Static Busan hero image | Adopted | `components/home/hero-photo-carousel.tsx` | One preloaded image; no timer, autoplay, or carousel controls. |
+| One strong hero CTA | Adopted | `components/home/hero-planner-launcher.tsx` | One filled `여행 만들기` action in the upper viewport. |
+| Compact region utility bar | Adopted | `components/home/hero-planner-launcher.tsx` | Region and submit share one compact surface. |
+| Three-step process | Adopted | `components/home/recommendation-process-section.tsx` | Flat numbered row instead of feature cards. |
+| Example-course editorial layout | Adopted | `components/home/example-course-card.tsx` | One image-and-timeline editorial story. |
+| Two-course layout | Omitted | `components/home/example-course-card.tsx` | The product has one truthful non-personalized example; duplication would add unsupported content. |
+| Map/list workbench | Adopted | `components/home/homepage-live-experience.tsx`, `catalog-1440x1000.png` | Map and compact results share one bounded surface. |
+| Selected-place tray | Adopted | `.homepage-selected-place` | Existing homepage selection is shown as one compact map overlay. |
+| Result-row density | Adopted | `.homepage-workbench-row`, `.catalog-result-card` | Source, status, location, and actions stay compact without nested cards. |
+| Supporting discovery row | Adopted | `components/home/official-place-carousel.tsx` | Data-driven cards follow the workbench; no fixed count is presented. |
+| Trust strip | Adopted | `components/home/public-data-trust-card.tsx` | Explains verification principles without a fabricated score. |
+| Partner logos | Adopted | `components/home/partner-brand-mark.tsx` | Uses local official assets without placeholders. |
+| Contact/footer structure | Adopted | `components/home/contact-card.tsx`, `components/layout/site-footer.tsx` | Contact and safety copy close the page. |
+
+The final density pass reduced desktop hero, process, and editorial heights so the workbench enters the 948 × 1660 comparison frame while retaining the real product's richer information.
+
+## 6. Typography
+
+- Existing Pretendard/system typography and deep-green hierarchy are preserved.
+- Hero, process, editorial, workbench, and result headings step down consistently.
+- Generic English eyebrow copy was removed from the homepage error state.
+
+## 7. Spacing
+
+- Desktop hero height, process padding, course image height, timeline padding, and lower spacing were tightened after the combined comparison.
+- Header, launcher, editorial, workbench, and trust/footer share shell alignment.
+- Mobile keeps document-flow hero content and touch-safe spacing.
+
+## 8. Surfaces
+
+- Ordinary content cards use radii at or below 12 px and no content shadow.
+- Shadow is limited to floating/popover affordances.
+- The workbench owns its border and internal scrolling; rows are not nested cards.
+- `ui_ver2` tokens remain scoped; legacy global tokens were not broadly replaced.
+
+## 9. Data truthfulness
+
+- Counts, distances, times, retrieval dates, and verdicts remain provider or response derived.
+- No reference-image number was copied into runtime UI and no trust score was invented.
+
+## 10. Interaction fidelity
+
+- Navigation, region choice, map/list, filters, row/marker selection, planner steps, alternatives, save, edit, and retry remain functional.
+- `currentStep` is UI-only; existing form state preserves values when moving backward.
+- No provider, request, map, recommendation, or persisted-flow owner was added or moved.
+
+## 11. Loading/error fidelity
+
+- Initial loading never shows `총 0곳` or simultaneous empty state.
+- Public map failures use nontechnical copy and keep lists usable.
+- Partial and retryable failures stay explicitly labeled; strict frontend audit findings are zero.
+
+## 12. Responsive behavior
+
+- Desktop navigation begins at 900 px; narrower layouts use the accessible menu.
+- Mobile catalog owns list/map switching and no requested viewport widens the document.
+- Lower content remains scrollable; the document scrollbar is not hidden.
+
+## 13. Accessibility
+
+- Landmarks, headings, labels, tabs, progress, status/alert regions, and focus-visible styles remain intact.
+- Escape/focus restoration, current-step validation focus, reduced motion, and 320 px overflow are covered by Playwright.
+- Server-owned forms declare `noValidate` while retaining their Zod validation.
+
+## 14. P0 findings
+
+- None.
+
+## 15. P1 findings
+
+- Resolved: the first combined comparison placed the workbench too low. The density pass now brings it into the 948 × 1660 frame and better matches the reference hierarchy.
+
+## 16. P2 findings
+
+- Resolved: three server-action forms did not declare the application validation owner.
+- Resolved: one WebKit scrollbar override lacked its standards-based color property.
+- Resolved: the homepage provider-error eyebrow used generic English copy.
+- Resolved: nonessential `!important` declarations were removed; remaining uses enforce reduced motion or the native hidden contract.
+- Resolved: the 948 px state used a mobile header; desktop navigation now remains visible from 900 px.
+
+## 17. P3 findings
+
+- This historical assessment is superseded by the homepage feature-completion scorecard and evidence above.
+
+final result: superseded
+
+---
+
 # WEEKENDOG homepage annotation revision — design QA
 
 - Source visual truth: in-app Browser annotations 1–12 from the 1403 × 986 homepage view, including the Comment 12 partner-strip reference (`browser-comment://comment-12/additional-reference`, 622 × 67 px conversation attachment).

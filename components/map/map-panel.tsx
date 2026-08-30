@@ -57,6 +57,7 @@ export interface MapPanelProps {
   showCurrentMapSearch?: boolean;
   emptyMessage?: string;
   isDataLoading?: boolean;
+  showEmptyMessage?: boolean;
 }
 
 const EMPTY_ROUTE_COORDINATES: Coordinates[] = [];
@@ -92,6 +93,7 @@ export function MapPanel({
   showCurrentMapSearch = true,
   emptyMessage = "표시할 장소가 없습니다.",
   isDataLoading = false,
+  showEmptyMessage = true,
 }: MapPanelProps) {
   const region = getRegionConfig(regionId);
   const resolvedTitle = title ?? `${region.displayName} 장소 지도`;
@@ -243,8 +245,8 @@ export function MapPanel({
 
   try {
     getKakaoMapJavaScriptKey();
-  } catch (error) {
-    return <section aria-label={resolvedTitle}><div role="alert" className={`map-canvas grid place-items-center p-8 text-center ${compact ? "!min-h-[300px]" : ""}`}><p className="rounded-2xl bg-white/90 p-4 text-sm font-bold text-[#8d3838]">Kakao 지도 설정 오류: {error instanceof Error ? error.message : "설정을 확인해 주세요."}</p></div></section>;
+  } catch {
+    return <section aria-label={resolvedTitle}><div role="alert" data-map-error-category="configuration" className={`map-canvas grid place-items-center p-8 text-center ${compact ? "!min-h-[300px]" : ""}`}><p className="map-public-error"><strong>지도를 일시적으로 불러오지 못했습니다.</strong><span>장소 목록은 계속 확인할 수 있어요.</span></p></div></section>;
   }
 
   const missingCoordinateCount = locations.filter((location) => !isValidMapCoordinates(location.coordinates)).length;
@@ -258,8 +260,8 @@ export function MapPanel({
       <div className={`map-canvas kakao-map-canvas ${compact ? "!min-h-[300px]" : ""}`} data-location-count={validLocationCount} data-map-version={mapVersion} data-route-point-count={routeCoordinates.length}>
         <div ref={mapContainerRef} className="absolute inset-0" role="group" aria-label="지도 장소 마커" />
         {showLoadingMessage ? <p role="status" aria-live="polite" className="absolute inset-x-4 top-20 z-10 rounded-2xl bg-white/95 p-4 text-center text-sm font-bold">지도를 불러오는 중입니다…</p> : null}
-        {loadError ? <p role="alert" className="absolute inset-x-4 top-20 z-10 rounded-2xl bg-white/95 p-4 text-center text-sm font-bold text-[#8d3838]">{loadError}</p> : null}
-        {loadState === "ready" && !isDataLoading && validLocationCount === 0 ? <p role="status" className="absolute inset-x-4 top-20 z-10 rounded-2xl bg-white/95 p-4 text-center text-sm font-bold">{emptyMessage}</p> : null}
+        {loadError ? <p role="alert" data-map-error-category="sdk" className="map-public-error absolute inset-x-4 top-20 z-10"><strong>지도를 일시적으로 불러오지 못했습니다.</strong><span>장소 목록은 계속 확인할 수 있어요.</span></p> : null}
+        {showEmptyMessage && loadState === "ready" && !isDataLoading && validLocationCount === 0 ? <p role="status" className="absolute inset-x-4 top-20 z-10 rounded-lg bg-white/95 p-4 text-center text-sm font-bold">{emptyMessage}</p> : null}
         {missingCoordinateCount > 0 ? <p className="absolute inset-x-4 bottom-16 z-10 rounded-xl bg-[#fff8f1]/95 p-3 text-xs font-bold text-[#7a4b2f]">좌표를 확인할 수 없는 장소 {missingCoordinateCount}곳은 지도에서 제외했습니다.</p> : null}
         <div className="map-watermark">Kakao Maps · 실제 장소 및 경로</div>
         {showLocationLabel ? <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3 py-2 text-xs font-bold text-[#314b3f] shadow-sm"><MapPinned size={15} aria-hidden="true" />{resolvedLocationLabel}</div> : null}

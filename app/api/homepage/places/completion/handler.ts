@@ -43,7 +43,7 @@ type CompletionLoader = (
 ) => Promise<HomepageCompletionSnapshot>;
 
 function parseRequest(request: Request): HomepageCompletionRequest | null {
-  if (request.headers.has("authorization") || request.headers.has("cookie")) return null;
+  if (request.headers.has("authorization")) return null;
   const params = new URL(request.url).searchParams;
   if ([...new Set(params.keys())].some((key) => !ALLOWED_PARAMETERS.has(key))) return null;
   if ([...new Set(params.keys())].some((key) => params.getAll(key).length !== 1)) return null;

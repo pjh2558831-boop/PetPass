@@ -2,8 +2,7 @@ import { access, stat } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  HERO_AUTOPLAY_INTERVAL_MS,
-  HERO_CROSSFADE_DURATION_MS,
+  HERO_FEATURED_PHOTO,
   HERO_PHOTOS,
 } from "@/lib/homepage/hero-photo-manifest";
 
@@ -24,9 +23,19 @@ describe("homepage hero photo manifest", () => {
     }
   });
 
-  it("uses the approved six-second cadence and 600–900ms crossfade window", () => {
-    expect(HERO_AUTOPLAY_INTERVAL_MS).toBe(6_000);
-    expect(HERO_CROSSFADE_DURATION_MS).toBeGreaterThanOrEqual(600);
-    expect(HERO_CROSSFADE_DURATION_MS).toBeLessThanOrEqual(900);
+  it("keeps the documentary Busan city photograph separate from the ten originals", async () => {
+    expect(HERO_PHOTOS).not.toContain(HERO_FEATURED_PHOTO);
+    expect(HERO_FEATURED_PHOTO.src).toBe(
+      "/images/home/hero/weekendog-busan-city-ver2.webp",
+    );
+    expect(HERO_FEATURED_PHOTO.alt).toMatch(/부산.*해변.*도심/u);
+
+    const localPath = path.join(
+      process.cwd(),
+      "public",
+      HERO_FEATURED_PHOTO.src.slice(1),
+    );
+    await access(localPath);
+    expect((await stat(localPath)).size).toBeGreaterThan(100_000);
   });
 });

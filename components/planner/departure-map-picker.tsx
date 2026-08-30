@@ -186,11 +186,11 @@ export function DepartureMapPicker({
   };
 
   return (
-    <div>
+    <div className="planner-departure-map">
       <div
-        className={`relative min-h-[260px] overflow-hidden rounded-[var(--radius-card)] border bg-[#edf4ef] shadow-sm ${
+        className={`relative min-h-[300px] overflow-hidden rounded-lg border bg-[#edf4ef] ${
           selectionMode
-            ? "border-[var(--brand)] ring-4 ring-[var(--brand-soft)]"
+            ? "border-[var(--brand)] ring-2 ring-[var(--brand-soft)]"
             : "border-[var(--line)]"
         }`}
         data-selection-mode={selectionMode}
@@ -201,22 +201,22 @@ export function DepartureMapPicker({
           role="group"
           aria-label="출발지 선택 지도"
         />
-        <div className="pointer-events-none absolute left-3 top-3 z-10 inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/95 px-3 py-2 text-xs font-extrabold text-[var(--brand)] shadow-sm">
+        <div className="pointer-events-none absolute left-3 top-3 z-10 inline-flex items-center gap-2 rounded-lg border border-white/80 bg-white/95 px-3 py-2 text-xs font-extrabold text-[var(--brand)]">
           <MapPinned size={15} aria-hidden="true" />
           출발지 미리보기
         </div>
         {loadState === "loading" ? (
-          <p className="absolute inset-x-4 top-1/2 z-10 -translate-y-1/2 rounded-2xl bg-white/95 p-4 text-center text-sm font-bold text-[var(--muted)] shadow-sm">
+          <p className="absolute inset-x-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-white/95 p-4 text-center text-sm font-bold text-[var(--muted)]">
             카카오 지도를 불러오고 있어요.
           </p>
         ) : null}
         {loadError ? (
-          <p className="absolute inset-x-4 top-1/2 z-10 -translate-y-1/2 rounded-2xl bg-white/95 p-4 text-center text-sm font-bold text-[#8d3838] shadow-sm" role="alert">
+          <p className="absolute inset-x-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-white/95 p-4 text-center text-sm font-bold text-[#8d3838]" role="alert">
             {loadError} 검색으로 출발지를 선택할 수 있어요.
           </p>
         ) : null}
         {selectionMode ? (
-          <p className="pointer-events-none absolute inset-x-3 bottom-3 z-10 rounded-xl bg-[var(--brand)] px-4 py-3 text-center text-xs font-extrabold text-white shadow-lg">
+          <p className="pointer-events-none absolute inset-x-3 bottom-3 z-10 rounded-lg bg-[var(--brand)] px-4 py-3 text-center text-xs font-extrabold text-white">
             지도에서 원하는 출발 지점을 클릭하세요.
           </p>
         ) : null}
@@ -231,7 +231,7 @@ export function DepartureMapPicker({
             setSelectionMode((current) => !current);
             setAnnouncement("");
           }}
-          className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-control)] border border-[#a9beb1] bg-white px-4 text-sm font-extrabold text-[var(--brand)] shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#a9beb1] bg-white px-4 text-sm font-extrabold text-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <MousePointerClick size={17} aria-hidden="true" />
           {selectionMode ? "지도 선택 취소" : "지도에서 선택"}
@@ -241,7 +241,7 @@ export function DepartureMapPicker({
           disabled={locationState === "loading"}
           onClick={useCurrentLocation}
           aria-describedby={locationError ? "current-location-error" : undefined}
-          className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-control)] border border-[#a9beb1] bg-white px-4 text-sm font-extrabold text-[var(--brand)] shadow-sm disabled:cursor-wait disabled:opacity-65"
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#a9beb1] bg-white px-4 text-sm font-extrabold text-[var(--brand)] disabled:cursor-wait disabled:opacity-65"
         >
           {locationState === "loading" ? (
             <LoaderCircle className="animate-spin" size={17} aria-hidden="true" />
