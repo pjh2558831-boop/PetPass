@@ -279,7 +279,7 @@ function HomepageLiveError({
     <section className="homepage-live-error" role="alert">
       <span className="homepage-error-icon"><MapIcon size={24} aria-hidden="true" /></span>
       <div>
-        <p className="homepage-kicker">OFFICIAL DATA UNAVAILABLE</p>
+        <p className="homepage-kicker">공식 데이터 연결 오류</p>
         <h2>공식 관광 정보를 지금 불러올 수 없어요</h2>
         <p>{error.message}</p>
         <p className="homepage-error-truth">
