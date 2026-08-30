@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { buildCommunityProfileWrite } from "@/lib/auth/onboarding-profile";
 import { avatarUrlSchema, displayNameSchema } from "@/lib/auth/profile";
 import { createAuthServerClient } from "@/lib/supabase/server";
 
@@ -21,7 +22,22 @@ export async function completeOnboarding(formData: FormData) {
   const { data: claimsData } = await supabase.auth.getClaims();
   const userId = claimsData?.claims?.sub;
   if (!userId) redirect("/login");
-  const { error } = await supabase.from("profiles").upsert({ id: userId, display_name: parsed.data, avatar_url: avatarUrl || null, onboarding_completed: true });
+  const { data: existing, error: readError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", userId)
+    .maybeSingle();
+  if (readError) {
+    redirect(`/onboarding?error=${encodeURIComponent("프로필을 저장하지 못했습니다.")}`);
+  }
+
+  const write = buildCommunityProfileWrite(userId, Boolean(existing), {
+    displayName: parsed.data,
+    avatarUrl,
+  });
+  const { error } = write.kind === "insert"
+    ? await supabase.from("profiles").insert(write.values)
+    : await supabase.from("profiles").update(write.values).eq("id", userId);
   if (error) {
     const message = error.code === "23505" ? "이미 사용 중인 닉네임입니다." : "프로필을 저장하지 못했습니다.";
     redirect(`/onboarding?error=${encodeURIComponent(message)}`);

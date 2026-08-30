@@ -19,6 +19,7 @@ export default defineConfig({
     env: {
       ...process.env,
       PETPASS_E2E_UPSTREAM_MOCK: "1",
+      KAKAO_LOGIN_ENABLED: "false",
       // Deliberately non-production values keep proxy/auth client construction
       // deterministic without allowing tests to inherit a real Supabase project.
       NEXT_PUBLIC_SUPABASE_URL: "https://petpass-e2e.invalid",

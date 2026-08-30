@@ -25,7 +25,13 @@ function GoogleLogo() {
   );
 }
 
-export function OAuthLoginButtons() {
+export function OAuthLoginButtons({
+  mode = "login",
+  kakaoEnabled = false,
+}: {
+  mode?: "login" | "signup";
+  kakaoEnabled?: boolean;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<"google" | "kakao" | null>(null);
 
@@ -45,13 +51,20 @@ export function OAuthLoginButtons() {
 
   return (
     <div className="space-y-3">
-      <button type="button" onClick={() => signIn("kakao")} disabled={loading !== null} className="flex min-h-12 w-full items-center justify-center gap-3 rounded-xl bg-[#FEE500] px-4 text-sm font-extrabold text-[#191600] disabled:opacity-60">
+      <button type="button" onClick={() => signIn("kakao")} disabled={!kakaoEnabled || loading !== null} aria-describedby={!kakaoEnabled ? "kakao-login-status" : undefined} className="flex min-h-12 w-full items-center justify-center gap-3 rounded-xl bg-[#FEE500] px-4 text-sm font-extrabold text-[#191600] disabled:cursor-not-allowed disabled:opacity-60">
         <KakaoLogo />
-        {loading === "kakao" ? "카카오로 이동 중…" : "카카오로 계속하기"}
+        {!kakaoEnabled
+          ? "카카오 로그인 준비 중"
+          : loading === "kakao"
+            ? "카카오로 이동 중…"
+            : mode === "signup"
+              ? "카카오로 회원가입"
+              : "카카오로 계속하기"}
       </button>
+      {!kakaoEnabled ? <p id="kakao-login-status" className="text-xs font-semibold leading-5 text-[#6b756f]">카카오 로그인은 잠시 사용할 수 없어요. Google로 계속해 주세요.</p> : null}
       <button type="button" onClick={() => signIn("google")} disabled={loading !== null} className="flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[#263d32] disabled:opacity-60">
         <GoogleLogo />
-        {loading === "google" ? "Google로 이동 중…" : "Google로 계속하기"}
+        {loading === "google" ? "Google로 이동 중…" : mode === "signup" ? "Google로 회원가입" : "Google로 계속하기"}
       </button>
       {error ? <p role="alert" className="text-sm font-bold text-red-700">{error}</p> : null}
     </div>

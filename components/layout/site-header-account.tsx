@@ -26,7 +26,7 @@ export function SiteHeaderAccount({
       ? [{ kind: "link", href: "/onboarding", label: "프로필 설정" }]
       : [
           { kind: "link", href: "/login", label: "로그인" },
-          { kind: "link", href: "/login", label: "회원가입" },
+          { kind: "link", href: "/login?mode=signup", label: "회원가입" },
         ];
   const accountHref = displayName
     ? "/account"
@@ -50,7 +50,7 @@ export function SiteHeaderAccount({
           ) : null}
           <span className="truncate">{accountLabel}</span>
         </Link>
-        {!displayName && !needsOnboarding ? <Link href="/login" className="inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full bg-[var(--brand)] px-3 text-xs font-extrabold text-white">회원가입</Link> : null}
+        {!displayName && !needsOnboarding ? <Link href="/login?mode=signup" className="inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full bg-[var(--brand)] px-3 text-xs font-extrabold text-white">회원가입</Link> : null}
       </div>
       <div className="flex items-center min-[900px]:hidden">
         <MobileNavigation items={navigationItems} accountItems={accountItems} />
