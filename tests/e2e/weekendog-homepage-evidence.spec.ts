@@ -142,8 +142,15 @@ async function settlePage(page: Page) {
       Array.from(document.images, (image) => {
         if (image.complete) return Promise.resolve();
         return new Promise<void>((resolve) => {
-          image.addEventListener("load", () => resolve(), { once: true });
-          image.addEventListener("error", () => resolve(), { once: true });
+          const finish = () => {
+            window.clearTimeout(timeoutId);
+            image.removeEventListener("load", finish);
+            image.removeEventListener("error", finish);
+            resolve();
+          };
+          const timeoutId = window.setTimeout(finish, 5_000);
+          image.addEventListener("load", finish, { once: true });
+          image.addEventListener("error", finish, { once: true });
         });
       }),
     );
@@ -192,7 +199,7 @@ test.describe("WEEKENDOG hero and trust-section visual evidence", () => {
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: "반려견과 함께, 어디로 떠나볼까요?",
+        name: "반려견과 함께, 부산 여행을 계획해보세요",
       }),
     ).toBeVisible();
     await expect(page.locator(".homepage-live-ready")).toBeVisible({

@@ -3,14 +3,12 @@
 import Link from "next/link";
 import {
   ArrowUpRight,
-  HeartPulse,
+  List,
   Map as MapIcon,
   MapPin,
-  PawPrint,
   RefreshCw,
   RotateCcw,
   ShieldCheck,
-  ShoppingBag,
   SlidersHorizontal,
 } from "lucide-react";
 import {
@@ -67,8 +65,6 @@ import {
 } from "@/types/homepage-optional";
 import {
   HOMEPAGE_PLACE_LAYERS,
-  type HomepageMapMarker,
-  type HomepagePlaceLayer,
   type HomepagePlacesSnapshot,
 } from "@/types/homepage-places";
 import type { RegionId } from "@/types/region";
@@ -253,9 +249,14 @@ function scheduleLowPriority(callback: () => void): () => void {
 function HomepageLiveSkeleton({ regionLabel }: { regionLabel: string }) {
   return (
     <div className="homepage-live-loading" aria-live="polite" aria-busy="true">
-      <section className="homepage-map-loading" aria-label={`${regionLabel} 장소 지도 불러오는 중`}>
-        <div className="homepage-loading-copy"><span /><span /><span /></div>
-        <p>저장된 공식·공개 장소 지도를 불러오고 있어요.</p>
+      <section className="homepage-map-loading" aria-label={`${regionLabel} 장소 작업 화면 불러오는 중`}>
+        <div className="homepage-map-loading__canvas">
+          <div className="homepage-loading-copy"><span /><span /><span /></div>
+          <p>저장된 공식·공개 장소 지도를 불러오고 있어요.</p>
+        </div>
+        <div className="homepage-map-loading__list" aria-hidden="true">
+          {Array.from({ length: 3 }, (_, index) => <span key={index} />)}
+        </div>
       </section>
       <section className="homepage-carousel-loading" aria-label="장소 카드 불러오는 중">
         <div className="homepage-loading-heading" />
@@ -292,11 +293,6 @@ function HomepageLiveError({
       ) : null}
     </section>
   );
-}
-
-function SelectedPlaceholder({ layer }: { layer: HomepagePlaceLayer }) {
-  const Icon = layer === "veterinary" ? HeartPulse : layer === "pet_shop" ? ShoppingBag : PawPrint;
-  return <span className={`homepage-selected-placeholder homepage-selected-placeholder--${layer}`}><Icon size={24} aria-hidden="true" /></span>;
 }
 
 function markEnrichmentUnavailable(
@@ -347,6 +343,7 @@ export function HomepageLiveExperience({
   const [loadedInitialKey, setLoadedInitialKey] = useState<string | null>(null);
   const [baseRequestKey, setBaseRequestKey] = useState<string | null>(null);
   const [requestedSelectionId, setRequestedSelectionId] = useState<string | null>(null);
+  const [mobileView, setMobileView] = useState<"list" | "map">("list");
   const [activeCategories, setActiveCategories] = useState<PlaceCategory[]>([...DEFAULT_PLACE_CATEGORIES]);
   const [draftCategories, setDraftCategories] = useState<PlaceCategory[]>([...DEFAULT_PLACE_CATEGORIES]);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -664,10 +661,6 @@ export function HomepageLiveExperience({
     () => createHomepageMapLocations(visibleMarkers),
     [visibleMarkers],
   );
-  const markerById = useMemo(
-    () => new Map((snapshot?.markers ?? []).map((marker) => [marker.id, marker] as const)),
-    [snapshot],
-  );
   const visibleIds = useMemo(() => new Set(locations.map(({ id }) => id)), [locations]);
   const defaultSelectionId =
     visibleMarkers.find((marker) => marker.layer === "official" && marker.isAllowed)?.id ??
@@ -677,10 +670,6 @@ export function HomepageLiveExperience({
     requestedSelectionId && visibleIds.has(requestedSelectionId)
       ? requestedSelectionId
       : defaultSelectionId;
-  const selectedMarker: HomepageMapMarker | null = selectedLocationId
-    ? markerById.get(selectedLocationId) ?? null
-    : null;
-
   useEffect(() => {
     if (filterUpdateStartedAtRef.current === null) return;
     recordHomepageBrowserTiming("filter", "react_commit", filterUpdateStartedAtRef.current);
@@ -827,150 +816,120 @@ export function HomepageLiveExperience({
   return (
     <div className="homepage-live-ready">
       <section className="homepage-map-section" aria-labelledby="homepage-map-title">
-        <div className="homepage-map-shell">
-          <h2 id="homepage-map-title" className="sr-only">
-            {region?.displayName ?? regionId} 공식 관광 장소 {snapshot.official.totalCount}곳
-          </h2>
-
-          <div className="homepage-map-filter-control">
-            <button
-              ref={filterButtonRef}
-              type="button"
-              className="homepage-map-filter-trigger"
-              aria-expanded={filterOpen}
-              aria-controls="homepage-map-filter-dropdown"
-              onClick={toggleFilters}
-            >
-              <SlidersHorizontal size={17} aria-hidden="true" />필터
-            </button>
-            {filterOpen ? (
-              <section
-                ref={filterDropdownRef}
-                id="homepage-map-filter-dropdown"
-                className="explorer-filter-dropdown homepage-map-filter-dropdown"
-                role="region"
-                aria-label="지도 장소 필터"
+        <h2 id="homepage-map-title" className="sr-only">
+          {region?.displayName ?? regionId} 공식 관광 장소 {snapshot.official.totalCount}곳
+        </h2>
+        <div className="homepage-workbench-switch" role="group" aria-label="홈 장소 지도 또는 목록 보기">
+          <button type="button" aria-pressed={mobileView === "list"} onClick={() => setMobileView("list")}><List size={17} aria-hidden="true" />목록</button>
+          <button type="button" aria-pressed={mobileView === "map"} onClick={() => setMobileView("map")}><MapIcon size={17} aria-hidden="true" />지도</button>
+        </div>
+        <div className="homepage-workbench" data-mobile-view={mobileView}>
+          <div className="homepage-workbench__map">
+            <div className="homepage-map-filter-control">
+              <button
+                ref={filterButtonRef}
+                type="button"
+                className="homepage-map-filter-trigger"
+                aria-expanded={filterOpen}
+                aria-controls="homepage-map-filter-dropdown"
+                onClick={toggleFilters}
               >
-                <form onSubmit={(event) => { event.preventDefault(); applyFilters(); }}>
-                  <div className="explorer-filter-dropdown__body">
-                    <div className="explorer-category-panel__heading">
-                      <span aria-hidden="true"><MapPin size={28} fill="currentColor" /></span>
-                      <div>
-                        <h2>여행 장소</h2>
-                        <p>반려견과 함께 방문 가능한 장소를 선택해보세요.</p>
+                <SlidersHorizontal size={17} aria-hidden="true" />필터
+              </button>
+              {filterOpen ? (
+                <section
+                  ref={filterDropdownRef}
+                  id="homepage-map-filter-dropdown"
+                  className="explorer-filter-dropdown homepage-map-filter-dropdown"
+                  role="region"
+                  aria-label="지도 장소 필터"
+                >
+                  <form noValidate onSubmit={(event) => { event.preventDefault(); applyFilters(); }}>
+                    <div className="explorer-filter-dropdown__body">
+                      <div className="explorer-category-panel__heading">
+                        <span aria-hidden="true"><MapPin size={28} fill="currentColor" /></span>
+                        <div>
+                          <h2>여행 장소</h2>
+                          <p>반려견과 함께 방문 가능한 장소를 선택해보세요.</p>
+                        </div>
                       </div>
+                      <PlaceCategoryToggleGroup
+                        title="장소 유형"
+                        categories={availableCategories}
+                        active={draftCategories}
+                        counts={categoryCounts}
+                        onToggle={toggleDraftCategory}
+                      />
+                      {publicUnavailable ? <p className="homepage-map-provider-status" role="status">일부 카카오 장소 데이터 준비 중</p> : null}
+                      {([...OPTIONAL_PLACE_CATEGORIES] as HomepageOptionalCategory[])
+                        .filter((category) => optionalDatasetByCategory.has(category))
+                        .map((category) => optionalLoadState[category] === "loading" ? (
+                          <p key={category} className="homepage-map-provider-status" role="status">{PLACE_CATEGORY_LABELS[category]} 데이터를 불러오는 중</p>
+                        ) : optionalLoadState[category] === "error" ? (
+                          <p key={category} className="homepage-map-provider-status" role="alert">{PLACE_CATEGORY_LABELS[category]}을 불러오지 못했습니다. <button type="button" onClick={() => loadOptionalPlaces([category])}>다시 시도</button></p>
+                        ) : null)}
                     </div>
-                    <PlaceCategoryToggleGroup
-                      title="장소 유형"
-                      categories={availableCategories}
-                      active={draftCategories}
-                      counts={categoryCounts}
-                      onToggle={toggleDraftCategory}
-                    />
-                    {publicUnavailable ? (
-                      <p className="homepage-map-provider-status" role="status">
-                        일부 카카오 장소 데이터 준비 중
-                      </p>
-                    ) : null}
-                    {([...OPTIONAL_PLACE_CATEGORIES] as HomepageOptionalCategory[])
-                      .filter((category) => optionalDatasetByCategory.has(category))
-                      .map((category) =>
-                      optionalLoadState[category] === "loading" ? (
-                        <p key={category} className="homepage-map-provider-status" role="status">
-                          {PLACE_CATEGORY_LABELS[category]} 데이터를 불러오는 중
-                        </p>
-                      ) : optionalLoadState[category] === "error" ? (
-                        <p key={category} className="homepage-map-provider-status" role="alert">
-                          {PLACE_CATEGORY_LABELS[category]}을 불러오지 못했습니다.
-                          <button type="button" onClick={() => loadOptionalPlaces([category])}>다시 시도</button>
-                        </p>
-                      ) : null,
-                    )}
-                  </div>
-                  <div className="explorer-filter-dropdown__actions">
-                    <button type="button" className="explorer-filter-dropdown__reset" onClick={resetDraftFilters}><RotateCcw size={19} aria-hidden="true" />초기화</button>
-                    <button type="submit" className="explorer-filter-dropdown__apply">적용하기 <SlidersHorizontal size={18} aria-hidden="true" /></button>
-                  </div>
-                </form>
-              </section>
-            ) : null}
-          </div>
-
-          <Link href={`/results?tab=catalog&region=${encodeURIComponent(regionId)}`} className="homepage-map-open-link">
-            지도 크게 보기 <ArrowUpRight size={15} aria-hidden="true" />
-          </Link>
-
-          <div className="homepage-map-canvas-wrap">
-            <MapPanel
-              regionId={regionId}
-              title={`${region?.displayName ?? regionId} 공식·공개 장소 지도`}
-              locationLabel={`${region?.displayName ?? regionId} 전체`}
-              locations={locations}
-              routeCoordinates={EMPTY_ROUTE_COORDINATES}
-              selectedLocationId={selectedLocationId}
-              onLocationSelect={(id) => setRequestedSelectionId(id ?? defaultSelectionId)}
-              onDataUpdate={handleMapDataUpdate}
-              viewportKey={`homepage:${regionId}:mixed-source`}
-              showLocationLabel={false}
-              showSelectionInfo={false}
-              emptyMessage="선택한 장소 유형에 지도에 표시할 장소가 없습니다."
-            />
-          </div>
-
-          {completionState === "loading" ? (
-            <p className="homepage-map-provider-status" role="status">
-              나머지 저장 장소를 지도에 추가 중
-            </p>
-          ) : completionState === "partial" ? (
-            <p className="homepage-map-provider-status" role="status">
-              일부 저장 장소를 불러오지 못했지만 현재 지도는 계속 사용할 수 있습니다.
-            </p>
-          ) : null}
-
-          {selectedMarker ? (
-            <article className="homepage-selected-place" aria-live="polite" aria-atomic="true">
-              {selectedMarker.layer === "official" ? (
-                <PlaceImage
-                  imageUrl={selectedMarker.imageUrl}
-                  title={selectedMarker.name}
-                  className="homepage-selected-image"
-                  sizes="92px"
-                />
-              ) : <SelectedPlaceholder layer={selectedMarker.layer} />}
-              <div className="homepage-selected-body">
-                <div className="homepage-selected-meta">
-                  <span>{PLACE_CATEGORY_LABELS[selectedMarker.category]}</span>
-                  {selectedMarker.isAllowed ? (
-                    <span className="homepage-allowed-badge"><ShieldCheck size={12} aria-hidden="true" />동반 가능</span>
-                  ) : (
-                    <span className="homepage-confirm-badge">{selectedMarker.statusLabel}</span>
-                  )}
-                </div>
-                <h3>{selectedMarker.name}</h3>
-                <p><MapPin size={12} aria-hidden="true" />{selectedMarker.district ?? selectedMarker.address}</p>
-                <span className={`homepage-selected-source homepage-selected-source--${selectedMarker.layer}`}>
-                  {selectedMarker.sourceLabel}
-                </span>
-              </div>
-              {selectedMarker.href ? (
-                selectedMarker.href.startsWith("http") ? (
-                  <a
-                    href={selectedMarker.href}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="homepage-selected-link"
-                    aria-label={`${selectedMarker.name} 카카오 장소 정보 새 창에서 보기`}
-                  ><ArrowUpRight size={16} aria-hidden="true" /></a>
-                ) : (
-                  <Link
-                    href={selectedMarker.href}
-                    className="homepage-selected-link"
-                    aria-label={`${selectedMarker.name} 상세 보기`}
-                  ><ArrowUpRight size={16} aria-hidden="true" /></Link>
-                )
+                    <div className="explorer-filter-dropdown__actions">
+                      <button type="button" className="explorer-filter-dropdown__reset" onClick={resetDraftFilters}><RotateCcw size={19} aria-hidden="true" />초기화</button>
+                      <button type="submit" className="explorer-filter-dropdown__apply">적용하기 <SlidersHorizontal size={18} aria-hidden="true" /></button>
+                    </div>
+                  </form>
+                </section>
               ) : null}
-            </article>
-          ) : null}
+            </div>
+            <Link href={`/results?tab=catalog&region=${encodeURIComponent(regionId)}`} className="homepage-map-open-link">
+              지도 크게 보기 <ArrowUpRight size={15} aria-hidden="true" />
+            </Link>
+            <div className="homepage-map-canvas-wrap">
+              <MapPanel
+                regionId={regionId}
+                title={`${region?.displayName ?? regionId} 공식·공개 장소 지도`}
+                locationLabel={`${region?.displayName ?? regionId} 전체`}
+                locations={locations}
+                routeCoordinates={EMPTY_ROUTE_COORDINATES}
+                selectedLocationId={selectedLocationId}
+                onLocationSelect={(id) => setRequestedSelectionId(id ?? defaultSelectionId)}
+                onDataUpdate={handleMapDataUpdate}
+                viewportKey={`homepage:${regionId}:mixed-source`}
+                showLocationLabel={false}
+                showSelectionInfo={false}
+                emptyMessage="선택한 장소 유형에 지도에 표시할 장소가 없습니다."
+              />
+            </div>
+          </div>
+          <aside className="homepage-workbench__list" aria-label={`${region?.displayName ?? regionId} 장소 목록`}>
+            <header>
+              <div><p className="homepage-kicker">장소 찾기</p><h3>함께 갈 곳을 지도에서 확인해 보세요</h3></div>
+              <strong>{visibleMarkers.length.toLocaleString("ko-KR")}곳</strong>
+            </header>
+            <div className="homepage-workbench__scroller">
+              {visibleMarkers.map((marker) => (
+                <button
+                  type="button"
+                  key={marker.id}
+                  className="homepage-workbench-row"
+                  aria-pressed={selectedLocationId === marker.id}
+                  onClick={() => setRequestedSelectionId(marker.id)}
+                >
+                  {marker.layer === "official" ? (
+                    <PlaceImage imageUrl={marker.imageUrl} title={marker.name} className="homepage-workbench-row__image" sizes="78px" />
+                  ) : (
+                    <span className={`homepage-workbench-row__source homepage-workbench-row__source--${marker.layer}`} aria-hidden="true"><MapPin size={19} /></span>
+                  )}
+                  <span className="homepage-workbench-row__body">
+                    <span className="homepage-workbench-row__meta">
+                      <span>{PLACE_CATEGORY_LABELS[marker.category]}</span>
+                      {marker.isAllowed ? <span><ShieldCheck size={12} aria-hidden="true" />동반 가능</span> : <span>{marker.statusLabel}</span>}
+                    </span>
+                    <strong>{marker.name}</strong>
+                    <small><MapPin size={12} aria-hidden="true" />{marker.district ?? marker.address}</small>
+                    <i>{marker.sourceLabel}</i>
+                  </span>
+                </button>
+              ))}
+            </div>
+            {completionState === "loading" ? <p className="homepage-map-provider-status" role="status">나머지 저장 장소를 지도에 추가 중</p> : completionState === "partial" ? <p className="homepage-map-provider-status" role="status">일부 저장 장소를 불러오지 못했지만 현재 지도와 목록은 계속 사용할 수 있습니다.</p> : null}
+          </aside>
         </div>
       </section>
 

@@ -49,7 +49,7 @@ export function PlaceCategoryToggleGroup({
           return (
             <button key={category} type="button" aria-pressed={selected} onClick={() => onToggle(category)}>
               <span className="explorer-category-group__check" aria-hidden="true">{selected ? <Check size={12} /> : null}</span>
-              <span className="explorer-category-group__icon" data-category={category} aria-hidden="true"><CategoryIcon size={22} strokeWidth={2.4} /></span>
+              <span className="explorer-category-group__icon" data-category={category} aria-hidden="true"><CategoryIcon size={18} strokeWidth={2.3} /></span>
               <span>{PLACE_CATEGORY_LABELS[category]}</span>
               <small>{counts[category] ?? "…"}</small>
             </button>

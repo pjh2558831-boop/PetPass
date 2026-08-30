@@ -107,11 +107,13 @@ export function HomepagePlaceCarousel({
         ? "공식 장소 목록은 확인했지만 동반 근거를 지금 확인할 수 없습니다."
         : null;
 
+  if (places.length === 0) return null;
+
   return (
     <section className="homepage-places-section" aria-labelledby="homepage-places-title">
       <div className="homepage-section-heading">
         <div>
-          <p className="homepage-kicker">BUSAN PLACE CATALOG</p>
+          <p className="homepage-kicker">장소 둘러보기</p>
           <h2 id="homepage-places-title">함께 살펴볼 부산 장소</h2>
           <p>공식 동반 가능 장소와 확인이 필요한 카카오 후보를 구분해 보여드려요.</p>
         </div>

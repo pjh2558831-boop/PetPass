@@ -3,11 +3,14 @@ import Link from "next/link";
 export function SiteFooter() {
   return (
     <footer className="mt-14 border-t border-[var(--line)] py-7 sm:mt-16 sm:py-8">
-      <div className="site-shell flex flex-col gap-4 text-sm text-[#65746c] sm:flex-row sm:items-center sm:justify-between">
+      <div className="site-shell flex flex-col gap-4 text-sm text-[#65746c] sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="font-extrabold tracking-[-0.02em] text-[#2b4438]">WEEKENDOG</p>
           <p className="mt-1 text-xs sm:text-sm">
             공식 근거와 실제 이동시간으로 만드는 반려견 동반 여행
+          </p>
+          <p className="mt-2 max-w-xl text-xs leading-5">
+            공식 정보 원문을 우선하며, 동반 조건은 방문 전 해당 시설에 다시 확인해 주세요. © 2026 WEEKENDOG
           </p>
         </div>
         <nav aria-label="하단 메뉴" className="flex flex-wrap gap-x-4 gap-y-1">
@@ -27,7 +30,7 @@ export function SiteFooter() {
             href="/planner/pet"
             className="inline-flex min-h-11 items-center font-semibold hover:text-[var(--brand)]"
           >
-            자동 추천
+            맞춤 일정
           </Link>
         </nav>
       </div>

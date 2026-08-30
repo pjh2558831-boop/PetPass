@@ -63,7 +63,7 @@ async function showListMode(page: Page) {
 async function openCatalogFilters(page: Page) {
   await showListMode(page);
   const trigger = page
-    .getByLabel("장소 검색 결과", { exact: true })
+    .locator(".full-map-explorer__toolbar")
     .getByRole("button", { name: "필터", exact: true });
   if (await trigger.getAttribute("aria-expanded") !== "true") await trigger.click();
   const dropdown = page.getByRole("region", { name: "장소 필터" });
@@ -81,9 +81,9 @@ test.beforeEach(async ({ page }, testInfo) => {
 
 test("starts category-first and keeps optional facility records available", async ({ page }) => {
   await page.goto("/results");
-  const district = page.getByLabel("부산 세부 지역");
-  await expect(district).toHaveValue("all");
-  await expect(district.locator("option")).toHaveCount(17);
+  const district = page.getByRole("combobox", { name: "부산 세부 지역 검색" });
+  await expect(district).toHaveValue("부산 전체");
+  await expect(page.locator("#district-options-busan option")).toHaveCount(17);
   const categoryPanel = await openCatalogFilters(page);
   for (const label of ["관광지", "식당", "카페", "숙소"]) {
     await expect(categoryPanel.getByRole("button", { name: new RegExp(`^${label}`) })).toHaveAttribute("aria-pressed", "true");
@@ -131,7 +131,9 @@ test("filters both authoritative providers by district locally without Kakao dis
   await expect(page.getByRole("heading", { name: /총 \d+곳/u })).toBeVisible();
   await expect.poll(() => baseCatalogRequests.length).toBe(3);
   const beforeDistrictChange = baseCatalogRequests.length;
-  await page.getByLabel("부산 세부 지역").selectOption("500");
+  await page
+    .getByRole("combobox", { name: "부산 세부 지역 검색" })
+    .fill("수영구");
   await expect(page).toHaveURL(/district=500/u);
   await expect(page.getByRole("heading", { name: /총 \d+곳/u })).toBeVisible();
   expect(baseCatalogRequests).toHaveLength(beforeDistrictChange);

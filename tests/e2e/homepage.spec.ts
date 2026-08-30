@@ -25,6 +25,24 @@ const GENERATE_API_PATH = "/api/itineraries/generate";
 const RETRIEVED_AT = "2026-08-15T02:00:00.000Z";
 const NETWORK_TEST = "loads one compact base snapshot and only one canonical Kakao SDK";
 
+async function showHomepageMapMode(page: Page) {
+  if ((page.viewportSize()?.width ?? 1_024) > 768) return;
+  await page
+    .getByRole("group", { name: "홈 장소 지도 또는 목록 보기" })
+    .getByRole("button", { name: "지도", exact: true })
+    .click();
+  await expect(page.locator(".homepage-workbench__map")).toBeVisible();
+}
+
+async function showHomepageListMode(page: Page) {
+  if ((page.viewportSize()?.width ?? 1_024) > 768) return;
+  await page
+    .getByRole("group", { name: "홈 장소 지도 또는 목록 보기" })
+    .getByRole("button", { name: "목록", exact: true })
+    .click();
+  await expect(page.locator(".homepage-workbench__list")).toBeVisible();
+}
+
 const LAYER_COUNTS: Record<HomepagePlaceLayer, HomepageLayerSnapshot> = {
   official: { state: "ready", count: 37, markerCount: 2, enabledByDefault: true },
   kakao_candidate: { state: "ready", count: 120, markerCount: 1, enabledByDefault: true },
@@ -538,6 +556,7 @@ test("loads Shopping once, keeps the usable map visible, and reselects from brow
   await expect(mapCanvas).toHaveAttribute("data-location-count", "3");
   expect(optionalRequests).toBe(0);
 
+  await showHomepageMapMode(page);
   const filterButton = page.getByRole("button", { name: "필터", exact: true });
   await filterButton.click();
   const filters = page.getByRole("region", { name: "지도 장소 필터" });
@@ -876,7 +895,7 @@ test("crosses the desktop launcher over the hero edge and keeps annotated dimens
   expect(launcherBox!.y).toBeGreaterThanOrEqual(copyBox!.y + copyBox!.height);
   expect(launcherBox!.y).toBeLessThan(layoutBox!.y + layoutBox!.height);
   expect(launcherBox!.y + launcherBox!.height).toBeGreaterThan(layoutBox!.y + layoutBox!.height);
-  expect(trustBox!.height).toBeCloseTo(200, 0);
+  expect(trustBox!.height).toBeCloseTo(142, 0);
   expect(contactBox!.height).toBeCloseTo(trustBox!.height, 0);
   await expect(page.getByText(
     "실제 개인화 결과가 아니며 장소·시간은 조건에 따라 달라집니다.",
@@ -924,7 +943,7 @@ test("keeps loading and provider failures truthful and retryable", async ({ page
     }),
   }));
   await page.goto("/");
-  await expect(page.getByLabel("부산 장소 지도 불러오는 중")).toBeVisible();
+  await expect(page.getByLabel("부산 장소 작업 화면 불러오는 중")).toBeVisible();
   await expect(page.getByText("37곳", { exact: true })).toHaveCount(0);
   release();
   const error = page.locator(".homepage-live-error");
@@ -945,6 +964,7 @@ test("renders mixed source markers, dynamic counts, truthful selection, and faci
   await expect(page.getByText("지도 레이어", { exact: true })).toHaveCount(0);
   await expect(page.getByText("BUSAN PLACE MAP", { exact: true })).toHaveCount(0);
   await expect(page.locator(".homepage-map-filter-panel")).toHaveCount(0);
+  await showHomepageMapMode(page);
   const filterButton = page.getByRole("button", { name: "필터", exact: true });
   await expect(filterButton).toHaveAttribute("aria-expanded", "false");
   await filterButton.click();
@@ -975,24 +995,17 @@ test("renders mixed source markers, dynamic counts, truthful selection, and faci
   await expect(mapCanvas).toHaveAttribute("data-location-count", "4");
   const hospitalMarker = page.getByRole("button", { name: /부산 반려동물 동물병원 · 동물병원$/u });
   await hospitalMarker.evaluate((element) => (element as HTMLButtonElement).click());
-  const selected = page.locator(".homepage-selected-place");
+  const selected = page.locator('.homepage-workbench-row[aria-pressed="true"]');
+  await expect(selected).toHaveCount(1);
   await expect(selected).toContainText("동물병원");
   await expect(selected).not.toContainText("동반 가능");
   await expect(selected).not.toContainText("24시간");
 
-  if ((page.viewportSize()?.width ?? 0) >= 768) {
-    const mapBox = await mapCanvas.boundingBox();
-    const selectedBox = await selected.boundingBox();
-    const watermarkBox = await page.locator(".homepage-map-canvas-wrap .map-watermark").boundingBox();
-    expect(mapBox).not.toBeNull();
-    expect(selectedBox).not.toBeNull();
-    expect(watermarkBox).not.toBeNull();
-    expect(selectedBox!.x).toBeGreaterThanOrEqual(mapBox!.x);
-    expect(selectedBox!.y).toBeGreaterThanOrEqual(mapBox!.y);
-    expect(selectedBox!.x + selectedBox!.width).toBeLessThanOrEqual(mapBox!.x + mapBox!.width);
-    expect(selectedBox!.y + selectedBox!.height).toBeLessThanOrEqual(mapBox!.y + mapBox!.height);
-    expect(selectedBox!.y + selectedBox!.height).toBeLessThanOrEqual(watermarkBox!.y);
-  }
+  await showHomepageListMode(page);
+  const officialRow = page.locator(".homepage-workbench-row").filter({ hasText: "해운대 달맞이 산책로" });
+  await officialRow.click();
+  await expect(officialRow).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('.homepage-workbench-row[aria-pressed="true"]')).toHaveCount(1);
 });
 
 test("filters truthful official, candidate, veterinary, and shop cards with safe links", async ({ page }) => {
@@ -1035,6 +1048,7 @@ test("keeps official data working when the stored Kakao catalog is unavailable",
   await mockHomepage(page, unavailable);
   await page.goto("/");
   await expect(page.locator(".homepage-map-section")).toBeVisible();
+  await showHomepageMapMode(page);
   await page.getByRole("button", { name: "필터", exact: true }).click();
   const mapFilters = page.getByRole("region", { name: "지도 장소 필터" });
   await expect(mapFilters.getByText("일부 카카오 장소 데이터 준비 중")).toBeVisible();
@@ -1076,6 +1090,12 @@ test("preserves mobile order, map width, card snap width, and page overflow", as
   expect(copyBox).not.toBeNull(); expect(launcherBox).not.toBeNull(); expect(mediaBox).not.toBeNull();
   expect(copyBox!.y).toBeLessThan(mediaBox!.y);
   expect(mediaBox!.y).toBeLessThan(launcherBox!.y);
+  const workbenchSwitch = page.getByRole("group", { name: "홈 장소 지도 또는 목록 보기" });
+  await expect(workbenchSwitch.getByRole("button", { name: "목록" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".homepage-workbench__list")).toBeVisible();
+  await expect(page.locator(".homepage-workbench__map")).not.toBeVisible();
+  await workbenchSwitch.getByRole("button", { name: "지도" }).click();
+  await expect(page.locator(".homepage-workbench__map")).toBeVisible();
   const mapBox = await page.locator(".homepage-map-canvas-wrap .map-canvas").boundingBox();
   expect(mapBox).not.toBeNull();
   expect(mapBox!.width).toBeLessThanOrEqual(390);
@@ -1108,6 +1128,11 @@ test("keeps the live homepage inside all required viewport boundaries", async ({
 
   for (const viewport of viewports) {
     await page.setViewportSize(viewport);
+    if (viewport.width <= 768) {
+      await page.getByRole("group", { name: "홈 장소 지도 또는 목록 보기" })
+        .getByRole("button", { name: "지도" })
+        .click();
+    }
     await expect(page.locator(".homepage-map-canvas-wrap .map-canvas")).toBeVisible();
     await expect.poll(() => page.evaluate(() =>
       Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) -

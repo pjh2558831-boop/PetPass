@@ -104,7 +104,7 @@ test("keeps real desktop navigation routable and hides community publicly", asyn
     "href",
     "/results?tab=catalog&region=busan",
   );
-  await expect(footer.getByRole("link", { name: "자동 추천" })).toHaveAttribute(
+  await expect(footer.getByRole("link", { name: "맞춤 일정" })).toHaveAttribute(
     "href",
     "/planner/pet",
   );
