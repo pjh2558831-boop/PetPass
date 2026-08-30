@@ -42,7 +42,7 @@ export async function continueToTrip(page: Page) {
   await expect(page.getByRole("heading", { name: "출발지와 시간" })).toBeVisible();
   await page.getByLabel("여행 날짜").fill("2026-08-15");
   await page.getByLabel("시작 시간").fill("10:00");
-  await expect(page).toHaveURL(/\/planner\/pet$/u);
+  await expect(page).toHaveURL(/\/planner\/pet(?:\?.*)?$/u);
 }
 
 export async function continueToDay(page: Page) {

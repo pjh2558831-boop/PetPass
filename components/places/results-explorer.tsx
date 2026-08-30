@@ -22,6 +22,7 @@ import { PlaceCategoryToggleGroup } from "@/components/places/place-category-tog
 import { PublicCatalogCard } from "@/components/places/public-catalog-card";
 import { RegionSelector } from "@/components/places/region-selector";
 import { SelectedItineraryTray } from "@/components/places/selected-itinerary-tray";
+import { useSelectedItinerarySelection } from "@/components/places/use-selected-itinerary-selection";
 import { usePlannerState } from "@/components/planner/planner-state";
 import { AppDialog } from "@/components/ui/app-dialog";
 import {
@@ -86,14 +87,8 @@ import type { TourPlaceList } from "@/types/place";
 import type { RegionId } from "@/types/region";
 import {
   MAX_SELECTED_ITINERARY_PLACES,
-  addSelectedItineraryPlace,
-  createSelectedItinerarySnapshot,
-  loadSelectedItinerary,
-  removeSelectedItineraryPlace,
   requiresSelectionRegionClear,
-  saveSelectedItinerary,
   selectedItineraryPlaceFromCatalog,
-  type SelectedItinerarySnapshot,
 } from "@/lib/storage/selected-itinerary-storage";
 
 type ExplorerTab = "catalog" | "recommendations";
@@ -413,10 +408,17 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const [mapReadyForRegion, setMapReadyForRegion] = useState<RegionId | null>(null);
   const [activeBounds, setActiveBounds] = useState<KakaoCurrentMapSearch["rectangle"] | null>(null);
   const [viewportDirty, setViewportDirty] = useState(false);
-  const [selectionSnapshot, setSelectionSnapshot] = useState<SelectedItinerarySnapshot>(() =>
-    createSelectedItinerarySnapshot(initialCatalogState.region));
-  const [selectionHydrated, setSelectionHydrated] = useState(itineraryMode === "browse");
-  const [selectionMessage, setSelectionMessage] = useState("");
+  const {
+    snapshot: selectionSnapshot,
+    hydrated: selectionHydrated,
+    message: selectionMessage,
+    toggle: toggleSelection,
+    remove: removeSelection,
+    resetRegion: resetSelectionRegion,
+  } = useSelectedItinerarySelection({
+    regionId: region,
+    enabled: itineraryMode !== "browse",
+  });
   const [pendingRegionChange, setPendingRegionChange] = useState<{
     regionId: RegionId;
     startedAt: number;
@@ -446,20 +448,6 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     abortTimer: ReturnType<typeof setTimeout> | null;
   } | null>(null);
   const [rankingAsOf] = useState(() => new Date().toISOString());
-
-  useEffect(() => {
-    if (itineraryMode === "browse") return;
-    let active = true;
-    queueMicrotask(() => {
-      if (!active) return;
-      const stored = loadSelectedItinerary();
-      setSelectionSnapshot(stored ?? createSelectedItinerarySnapshot(region));
-      setSelectionHydrated(true);
-    });
-    return () => {
-      active = false;
-    };
-  }, [itineraryMode, region]);
 
   useEffect(() => {
     if (!filterOpen) return;
@@ -924,15 +912,15 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       return;
     }
     if (itineraryMode === "selection" && selectionSnapshot.regionId !== nextRegion) {
-      persistSelection({ ...selectionSnapshot, regionId: nextRegion, places: [] });
+      resetSelectionRegion(nextRegion, { preserveAutoFill: true });
     }
     changeRegion(nextRegion, startedAt);
   };
   const confirmRegionChange = () => {
     if (!pendingRegionChange) return;
-    const nextSnapshot = createSelectedItinerarySnapshot(pendingRegionChange.regionId);
-    persistSelection(nextSnapshot);
-    setSelectionMessage("선택한 장소를 비우고 지역을 변경했습니다.");
+    resetSelectionRegion(pendingRegionChange.regionId, {
+      message: "선택한 장소를 비우고 지역을 변경했습니다.",
+    });
     changeRegion(pendingRegionChange.regionId, pendingRegionChange.startedAt);
     setPendingRegionChange(null);
   };
@@ -982,41 +970,14 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     if (index !== undefined) setPage(Math.floor(index / PUBLIC_CATALOG_PAGE_SIZE) + 1);
     requestAnimationFrame(() => document.getElementById(`place-card-${id.replace(":", "-")}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
   };
-  const persistSelection = (snapshot: SelectedItinerarySnapshot) => {
-    setSelectionSnapshot(snapshot);
-    if (!saveSelectedItinerary(snapshot)) {
-      setSelectionMessage("선택을 저장하지 못했습니다. 브라우저 저장 공간을 확인해 주세요.");
-    }
-  };
   const toggleItineraryPlace = (place: PublicCatalogPlace) => {
-    if (selectionSnapshot.places.some(({ id }) => id === place.id)) {
-      persistSelection(removeSelectedItineraryPlace(selectionSnapshot, place.id));
-      setSelectionMessage(`${place.name}을(를) 일정에서 뺐습니다.`);
-      return;
-    }
-    const result = addSelectedItineraryPlace(
-      selectionSnapshot,
-      selectedItineraryPlaceFromCatalog(place),
-    );
+    const result = toggleSelection(selectedItineraryPlaceFromCatalog(place));
     if (result.status === "selected") {
-      persistSelection(result.snapshot);
-      setSelectionMessage(`${place.name}을(를) 일정에 담았습니다.`);
       selectPlace(place.id);
-      return;
     }
-    const message = result.status === "limit_reached"
-      ? "일정에는 최대 5곳까지 담을 수 있습니다."
-      : result.status === "blocked_not_allowed"
-        ? "동반 불가로 확인된 장소는 일정에 담을 수 없습니다."
-        : result.status === "blocked_unsupported"
-          ? "동물병원과 펫샵은 여행 일정 방문지로 담을 수 없습니다."
-          : "현재 지역의 장소만 함께 담을 수 있습니다.";
-    setSelectionMessage(message);
   };
   const removeItineraryPlace = (placeId: string) => {
-    const place = selectionSnapshot.places.find(({ id }) => id === placeId);
-    persistSelection(removeSelectedItineraryPlace(selectionSnapshot, placeId));
-    setSelectionMessage(place ? `${place.name}을(를) 일정에서 뺐습니다.` : "장소를 일정에서 뺐습니다.");
+    removeSelection(placeId);
   };
   const continueSelectedItinerary = () => {
     if (selectionSnapshot.places.length === 0) return;

@@ -1243,7 +1243,10 @@ export function UnifiedPlannerForm({
                 <Button
                   type="button"
                   variant="brand"
-                  onClick={() => nextStep(currentStep as 1 | 2)}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    nextStep(currentStep as 1 | 2);
+                  }}
                 >
                   {currentStep === 1
                     ? "출발지와 시간 입력"
