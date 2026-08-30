@@ -100,7 +100,7 @@ test("keeps real desktop navigation routable and future items non-linking", asyn
   }
   await expect(navigation.getByRole("link", { name: "마이페이지" })).toHaveAttribute("href", "/account");
   await expect(header.getByRole("link", { name: "로그인" })).toHaveAttribute("href", "/login");
-  await expect(header.getByRole("link", { name: "회원가입" })).toHaveAttribute("href", "/login");
+  await expect(header.getByRole("link", { name: "회원가입" })).toHaveAttribute("href", "/login?mode=signup");
 
   const footer = page.locator("footer");
   await expect(footer.getByRole("link", { name: "여행 만들기" })).toHaveAttribute(
