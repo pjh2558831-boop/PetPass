@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { ShieldCheck } from "lucide-react";
 import {
   WEEKENDOG_PUBLIC_DATA_SOURCES,
   type PublicDataSourceIcon,
@@ -30,40 +31,39 @@ const PARTNER_ASSETS: Record<PublicDataSourceIcon, PartnerAsset> = {
 
 export function PublicDataTrustCard() {
   return (
-    <article className="weekendoog-public-data-card" data-layout="partner-strip">
-      <div className="weekendoog-trust-intro">
-        <h2>
-          신뢰할 수 있는 공공데이터를 사용합니다
-        </h2>
-        <p>
-          공식 정보와 추가 확인이 필요한 후보를 구분해 표시합니다.<br />
-          검증 근거가 부족한 후보는 자동 일정 추천에서 제외합니다.
-        </p>
+    <section className="weekendoog-public-data" aria-labelledby="weekendoog-trust-title">
+      <div className="weekendoog-trust-principle">
+        <span className="weekendoog-trust-principle__icon" aria-hidden="true">
+          <ShieldCheck size={20} />
+        </span>
+        <div>
+          <h2 id="weekendoog-trust-title">확인 가능한 근거를 우선합니다</h2>
+          <p>
+            공식 정보와 추가 확인이 필요한 후보를 구분하고, 근거가 부족한 후보는 자동 일정 추천에서 제외합니다.
+          </p>
+        </div>
       </div>
 
-      <ul className="weekendoog-partner-list" aria-label="WEEKENDOG 데이터 제공 기관">
-        {WEEKENDOG_PUBLIC_DATA_SOURCES.map((source) => {
-          const partnerAsset = PARTNER_ASSETS[source.icon];
-          return (
-            <li
-              key={source.name}
-              className="weekendoog-partner-card"
-              data-partner={source.icon}
-            >
-              <div className="weekendoog-partner-mark">
+      <div className="weekendoog-partner-strip">
+        <p>함께 확인하는 데이터 제공처</p>
+        <ul className="weekendoog-partner-row" aria-label="WEEKENDOG 데이터 제공 기관">
+          {WEEKENDOG_PUBLIC_DATA_SOURCES.map((source) => {
+            const partnerAsset = PARTNER_ASSETS[source.icon];
+            return (
+              <li key={source.name} className="weekendoog-partner-item" data-partner={source.icon}>
                 <Image
                   src={partnerAsset.src}
                   alt={`${source.name} 공식 로고`}
                   width={partnerAsset.width}
                   height={partnerAsset.height}
-                  sizes="(max-width: 767px) 150px, 180px"
+                  sizes="(max-width: 767px) 120px, 160px"
                 />
-              </div>
-              <span className="sr-only">{source.name} — {source.detail}</span>
-            </li>
-          );
-        })}
-      </ul>
-    </article>
+                <span className="sr-only">{source.name} — {source.detail}</span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </section>
   );
 }

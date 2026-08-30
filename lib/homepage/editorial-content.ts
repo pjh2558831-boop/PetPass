@@ -33,8 +33,8 @@ export const WEEKENDOG_EXAMPLE_COURSE = {
   title: "부산에서 보내는 반려견과의 하루",
   description:
     "산책과 식사, 휴식을 자연스럽게 잇는 하루의 흐름을 살펴보세요.",
-  imageSrc: "/images/home/hero/03-corgi-seaside-sunset.png",
-  imageAlt: "부산 바다의 주황빛 일몰을 배경으로 웃는 웰시코기",
+  imageSrc: "/images/home/hero/weekendog-busan-city-ver2.webp",
+  imageAlt: "부산 해변과 광안대교, 해안 도심이 함께 보이는 전경",
   disclosure:
     "실제 개인화 결과가 아니며 장소·시간은 조건에 따라 달라집니다.",
   stops: [

@@ -10,7 +10,7 @@ export function WeekendoogHero() {
         </div>
 
         <div className="weekendoog-hero-copy">
-          <h1 id="weekendoog-hero-heading">
+          <h1 id="weekendoog-hero-heading" tabIndex={-1}>
             반려견과 함께,
             <br />
             부산 여행을 계획해보세요

@@ -1,4 +1,57 @@
-# WEEKENDOG `ui_ver2` final design QA
+# WEEKENDOG `ui_ver2` homepage feature completion — design QA
+
+## Ground truth and evidence
+
+- Reference: `.codex-reference/weekendog-ui-reference.png` (948 × 1660).
+- Deterministic final captures: `verification-evidence/weekendog-ui-ver2/feature-completion/final/`.
+- Same-canvas reference comparison: `reference-vs-homepage-948x1660.png` (reference left, implementation right).
+- Same-canvas revision comparison: `before-vs-corrected-948x1660.png` (previous implementation left, corrected implementation right).
+- Normal viewport evidence: 1440 × 1000, 1024 × 900, 948 × 1660, 768 × 1024, 390 × 844, and 320 × 720.
+- Focused state evidence: search, two-place tray, loading, partial failure, total failure, Kakao map failure, 390 px list/map switch, 320 px list, and 390 px stacked tray.
+
+The reference is used for hierarchy, density, alignment, surface treatment, and emphasis. Runtime counts, place names, provider labels, verdicts, and availability remain data-derived.
+
+## Twelve-part scorecard
+
+| Area | Score / 10 | Evidence-based assessment |
+| --- | ---: | --- |
+| Header | 8.6 | 70 px lightweight desktop header, enlarged WEEKENDOG lockup, preserved navigation and accessible mobile menu. |
+| Hero | 9.0 | One static documentary-style Busan photograph, deep-green left copy, no carousel motion or controls, and reliable mobile separation. |
+| Utility bar | 9.1 | One compact region control and one primary `여행 만들기` CTA; desktop crossover and mobile stacking are both verified. |
+| Process | 8.5 | Exact three-step ordered flow, compact desktop connectors, and readable mobile vertical sequence. |
+| Example course | 8.6 | One truthful four-stop editorial course with a 38/62 desktop split and denser single-row timeline details. |
+| Map/list workbench | 9.3 | One bounded 500–590 px map/list surface, separated focus and selection, accessible pagination, and usable list during map failure. |
+| Search | 9.2 | Real NFKC local search, IME-safe input, Escape/clear behavior, truthful zero/provider states, and synchronized map/list results. |
+| Selected-place tray | 9.0 | Existing snapshot contract, real count, first three items, preserved overflow, reorder/remove controls, and exact selected-mode handoff. |
+| Discovery | 8.2 | Existing real data and filters remain reusable by keyboard and touch at a compact 5–6-card desktop density. |
+| Trust/partners/contact | 8.4 | Flat verification principle, local official marks, small GitHub utility, and homepage-scoped footer hierarchy. |
+| Overall density | 8.3 | The final 948 px workbench begins near y=935 after the approved 410 px hero and compact process/course ranges; substantially denser than the prior y≈1204 state. |
+| Brand fidelity | 8.6 | Forest/cream palette, low motion, matte surfaces, compact typography, real official marks, and the generated Busan asset form one consistent system. |
+
+Average score: **8.73 / 10**. Every area is at least 7, the workbench is at least 9, and the tray is at least 8.
+
+## Interaction, responsive, and state review
+
+- Search, browse/search tabs, map/list switch, filters, marker/row focus, checkbox-only itinerary selection, removal, reordering, retry, pagination, discovery filters, and all primary links are functional.
+- Loading retains the workbench shell and never claims a definitive zero. Partial failure preserves rows/search/selection. Total failure stays compact. Kakao failure keeps the list and itinerary flow usable.
+- The generated image and all visible images have `naturalWidth > 0`; fonts finish loading before captures.
+- No document horizontal overflow was found at any required viewport. Mobile list/map switching and the stacked selected-place tray have focused captures.
+- Touch targets, tab semantics, roving focus, skip link, external-link naming, reduced motion, and dense-list pagination meet the reviewed interface guidance.
+
+## Findings
+
+- P0: none.
+- P1: none. The former 239-row keyboard trap is resolved with accessible 12-row pagination while all map markers remain available.
+- P2: none. Mobile hero collision/contrast, incomplete tabs, inactive loading/error controls, sub-44 px targets, oversized rows, missing skip navigation, and excessive editorial height were corrected and re-captured.
+- P3: the official-only discovery filter can leave unused horizontal space when the truthful data set contains only three items; no synthetic cards are added to fill it.
+
+The visual score and local release gate are complete: clean install, dependency audit, typecheck, lint, 1,188 unit tests, production build, the complete 248-case Playwright matrix (216 passed, 32 intentional platform/evidence skips, 0 failed), and the opt-in evidence suite passed. Protected Preview verification is tracked separately in the release report and does not change this deterministic design score.
+
+final result: passed
+
+---
+
+# Historical: WEEKENDOG `ui_ver2` pre-feature-completion design QA
 
 ## 1. Reference image
 
@@ -113,9 +166,9 @@ The final density pass reduced desktop hero, process, and editorial heights so t
 
 ## 17. P3 findings
 
-- No release polish remains. Deterministic evidence does not reproduce provider tiles; Preview map availability is verified separately and may depend on Kakao Preview-domain authorization.
+- This historical assessment is superseded by the homepage feature-completion scorecard and evidence above.
 
-final result: passed
+final result: superseded
 
 ---
 

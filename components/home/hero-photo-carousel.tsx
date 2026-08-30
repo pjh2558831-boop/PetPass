@@ -19,14 +19,14 @@ export function HeroPhotoCarousel() {
         src={HERO_FEATURED_PHOTO.src}
         alt={HERO_FEATURED_PHOTO.alt}
         fill
-        preload
+        loading="eager"
         sizes="100vw"
         className="weekendoog-hero-photo"
         style={style}
       />
       <div className="weekendoog-hero-photo-gradient" aria-hidden="true" />
       <figcaption className="weekendoog-hero-photo-caption">
-        부산 광안대교 전망
+        부산 해변과 해안 도심
       </figcaption>
     </figure>
   );

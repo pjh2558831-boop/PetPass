@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { PawPrint } from "lucide-react";
+import { HomepageSkipLink } from "@/components/home/homepage-skip-link";
 import { type NavigationItem } from "@/components/layout/mobile-navigation";
 import {
   SiteHeaderAccount,
@@ -21,6 +22,7 @@ const navigationItems = [
 export function SiteHeader() {
   return (
     <header className="site-header">
+      <HomepageSkipLink />
       <div className="site-shell site-header-inner">
         <Link
           href="/"
@@ -30,7 +32,7 @@ export function SiteHeader() {
           <span className="site-brand-mark">
             <PawPrint size={19} aria-hidden="true" />
           </span>
-          WEEKENDOG
+          <span className="site-brand-wordmark">WEEKENDOG</span>
         </Link>
         <nav
           aria-label="주요 메뉴"

@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { WEEKENDOG_EXAMPLE_COURSE } from "@/lib/homepage/editorial-content";
 
@@ -11,11 +10,15 @@ export function ExampleCourseCard() {
       aria-labelledby="weekendoog-example-course-heading"
     >
       <div className="weekendoog-example-course-image">
-        <Image
+        {/* The editorial crop intentionally reuses the single approved homepage photo asset. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src={course.imageSrc}
           alt={course.imageAlt}
-          fill
-          sizes="(max-width: 767px) calc(100vw - 24px), 46vw"
+          width={1774}
+          height={887}
+          loading="lazy"
+          decoding="async"
         />
       </div>
 

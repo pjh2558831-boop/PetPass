@@ -114,7 +114,7 @@ export function HomepagePlaceCarousel({
       <div className="homepage-section-heading">
         <div>
           <p className="homepage-kicker">장소 둘러보기</p>
-          <h2 id="homepage-places-title">함께 살펴볼 부산 장소</h2>
+          <h2 id="homepage-places-title">함께 살펴볼 장소</h2>
           <p>공식 동반 가능 장소와 확인이 필요한 카카오 후보를 구분해 보여드려요.</p>
         </div>
         <div className="homepage-heading-actions">

@@ -1,5 +1,6 @@
 "use client";
 
+import { MapPin } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { usePlannerState } from "@/components/planner/planner-state";
@@ -70,11 +71,15 @@ export function HeroPlannerLauncher() {
         openPlanner();
       }}
     >
-      <span className="hero-planner-label">여행 지역</span>
+      <span className="hero-planner-label">
+        <MapPin size={16} aria-hidden="true" />
+        여행 지역
+      </span>
       <div className="hero-planner-fields">
         <label className="hero-planner-select-label">
           <span className="sr-only">부산 여행 지역</span>
           <select
+            id="weekendoog-home-content"
             value={selectedRegion}
             onChange={(event) =>
               setSelectedRegion(event.target.value as RegionChoice)

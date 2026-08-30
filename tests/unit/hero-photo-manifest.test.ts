@@ -23,11 +23,19 @@ describe("homepage hero photo manifest", () => {
     }
   });
 
-  it("selects one approved Busan photograph for the static hero", () => {
-    expect(HERO_FEATURED_PHOTO).toBe(HERO_PHOTOS[7]);
+  it("keeps the documentary Busan city photograph separate from the ten originals", async () => {
+    expect(HERO_PHOTOS).not.toContain(HERO_FEATURED_PHOTO);
     expect(HERO_FEATURED_PHOTO.src).toBe(
-      "/images/home/hero/09-bichon-busan-overlook.png",
+      "/images/home/hero/weekendog-busan-city-ver2.webp",
     );
-    expect(HERO_FEATURED_PHOTO.alt).toMatch(/광안대교와 부산 도심/u);
+    expect(HERO_FEATURED_PHOTO.alt).toMatch(/부산.*해변.*도심/u);
+
+    const localPath = path.join(
+      process.cwd(),
+      "public",
+      HERO_FEATURED_PHOTO.src.slice(1),
+    );
+    await access(localPath);
+    expect((await stat(localPath)).size).toBeGreaterThan(100_000);
   });
 });
