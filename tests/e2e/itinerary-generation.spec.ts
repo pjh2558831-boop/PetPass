@@ -20,7 +20,7 @@ function baseRequest() {
       date: futureTripDate(),
       startTime: "10:00",
       tripType: "day_trip",
-      tripPace: "relaxed",
+      tripPace: "balanced",
       selectedCategories: ["attraction", "food", "leisure"],
       roundTrip: false,
     },
@@ -61,6 +61,10 @@ test("runs the canonical Stage 2 → 3 → 4 boundary and returns only a validat
   expect(serialized).not.toContain("Authorization");
   expect(serialized).not.toContain("kakao-candidate");
   expect(body.route.stops).toHaveLength(3);
+  expect(body.route.routeSummary.stopCount).toBe(body.route.stops.length);
+  expect(
+    body.route.stops.map((stop: { placeId?: string }) => stop.placeId),
+  ).toEqual(["tour:1103", "tour:1101", "tour:1401"]);
   expect(
     body.route.stops.every(
       (stop: { source?: string }) => stop.source === "tourism_service2",
