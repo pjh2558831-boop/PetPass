@@ -220,7 +220,7 @@ function Timeline({
   replacementSupported: boolean;
 }) {
   return (
-    <ol className="space-y-4" aria-label={`${route.label} 방문 순서`}>
+    <ol className="route-result-timeline" aria-label={`${route.label} 방문 순서`}>
       {route.stops.map((stop, index) => {
         const editCopy = getRecommendationStopEditCopy(stop, replacementSupported);
         const inclusion = stop.inclusionReasonCodes.flatMap((code) => {
@@ -239,23 +239,22 @@ function Timeline({
           <li
             key={stop.placeId}
             id={`recommended-stop-${stop.placeId}`}
-            className={`surface-card p-5 ${selectedPlaceId === stop.placeId ? "ring-2 ring-[var(--mint-500)]" : ""}`}
+            className="route-result-stop"
+            data-selected={selectedPlaceId === stop.placeId || undefined}
           >
-            <button type="button" onClick={() => onSelect(stop.placeId)} className="w-full text-left focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-[#3d8b6859]">
-              <span className="flex flex-wrap items-center justify-between gap-3">
-                <span className="inline-flex items-center gap-2 text-sm font-black text-[var(--brand)]"><span className="grid size-8 place-items-center rounded-full bg-[var(--brand)] text-white">{stop.sequence}</span>{validated ? `${koreaTime(stop.arrivalAt)} 도착` : "경로 재계산 전"}</span>
-                <span className="text-xs font-bold text-[var(--muted)]">예상 체류 {stop.dwellMinutes}분{validated ? ` · ${koreaTime(stop.departureAt)} 출발` : ""}</span>
+            <button type="button" onClick={() => onSelect(stop.placeId)} className="route-result-stop__select">
+              <span className="route-result-stop__time">
+                <span>{stop.sequence}</span>
+                <b>{validated ? `${koreaTime(stop.arrivalAt)} 도착` : "경로 재계산 전"}</b>
               </span>
-              <h3 className="mt-4 text-xl font-black tracking-[-0.03em]">{stop.title}</h3>
-              <p className="mt-2 text-sm text-[var(--muted)]">{CATEGORY_LABEL[stop.category]} · {stop.sourceLabel}</p>
-              <div className="mt-3 flex flex-wrap gap-2 text-xs font-extrabold">
-                <span className="rounded-full bg-[#edf8f2] px-3 py-1.5 text-[#285c45]">{petStatusLabel(stop.petAssessment)}</span>
-                <span className="rounded-full border border-[#d7e0da] bg-white px-3 py-1.5 text-[#52665b]">정보 신뢰도 {trustLabel(stop.informationTrust)}</span>
-                <span className="rounded-full border border-[#d7e0da] bg-white px-3 py-1.5 text-[#52665b]">{stop.sourceLabel}</span>
-                <span className="rounded-full border border-[#d7e0da] bg-white px-3 py-1.5 text-[#52665b]">{evidenceStatusLabel(stop.evidenceStatus)}</span>
-                {stop.retrievedAt ? <span className="rounded-full border border-[#d7e0da] bg-white px-3 py-1.5 text-[#52665b]">확인 {new Date(stop.retrievedAt).toLocaleDateString("ko-KR")}</span> : null}
-              </div>
-              {validated && stop.driveSecondsFromPrevious > 0 ? <p className="mt-3 text-xs font-bold text-[#607168]">이전 지점에서 {formatDistance(stop.distanceMetersFromPrevious)} · 약 {formatDuration(stop.driveSecondsFromPrevious)}</p> : null}
+              <h3>{stop.title}</h3>
+              <p className="route-result-stop__category">{CATEGORY_LABEL[stop.category]} · {stop.sourceLabel}</p>
+              <dl className="route-result-stop__facts">
+                <div><dt>체류</dt><dd>{stop.dwellMinutes}분{validated ? ` · ${koreaTime(stop.departureAt)} 출발` : ""}</dd></div>
+                <div><dt>이동</dt><dd>{validated && stop.driveSecondsFromPrevious > 0 ? `이전 지점에서 ${formatDistance(stop.distanceMetersFromPrevious)} · 약 ${formatDuration(stop.driveSecondsFromPrevious)}` : validated ? "첫 방문지" : "경로 재계산 필요"}</dd></div>
+                <div><dt>반려동물</dt><dd><span>{petStatusLabel(stop.petAssessment)}</span> · <span>{evidenceStatusLabel(stop.evidenceStatus)}</span></dd></div>
+                <div><dt>근거</dt><dd>정보 신뢰도 {trustLabel(stop.informationTrust)} · {stop.sourceLabel}{stop.retrievedAt ? ` · 확인 ${new Date(stop.retrievedAt).toLocaleDateString("ko-KR")}` : ""}</dd></div>
+              </dl>
             </button>
             <RecommendationStopProvenance
               stop={stop}
@@ -263,11 +262,11 @@ function Timeline({
               onReplace={editCopy.canReplace ? () => onReplace(stop.placeId) : undefined}
             />
             {stop.mandatoryConditions.length > 0 ? (
-              <ul className="mt-4 space-y-1 rounded-xl bg-[#f4f7f4] p-3 text-sm font-semibold text-[#52665b]">
+              <ul className="route-result-stop__conditions">
                 {stop.mandatoryConditions.map((condition) => <li key={`${condition.type}:${condition.label}`}>· {condition.label}</li>)}
               </ul>
             ) : null}
-            <details className="mt-4 rounded-xl border border-[var(--line)] p-3">
+            <details className="route-result-stop__details">
               <summary className="cursor-pointer text-sm font-black text-[var(--brand)]">추천 근거와 확인사항</summary>
               <div className="mt-3 grid gap-4 text-sm leading-6 sm:grid-cols-2">
                 <div><h4 className="font-black">포함한 이유</h4><ul className="mt-1 space-y-1 text-[var(--muted)]">{inclusion.map((copy) => <li key={copy}>· {copy}</li>)}</ul></div>
@@ -276,7 +275,7 @@ function Timeline({
               {warnings.length > 0 ? <ul className="mt-3 space-y-1 text-sm text-[var(--muted)]">{[...new Set(warnings)].map((warning) => <li key={warning}>· {warning}</li>)}</ul> : null}
               {stop.evidence.length > 0 ? <div className="mt-3 border-t border-[var(--line)] pt-3"><h4 className="text-sm font-black">한국관광공사 동반 근거</h4>{stop.evidence.map((evidence) => <p key={`${evidence.field}:${evidence.originalText}`} className="mt-2 text-xs leading-5 text-[var(--muted)]"><span className="font-black text-[#405249]">{evidence.label}</span> · {evidence.originalText}</p>)}</div> : null}
             </details>
-            <div className="mt-4 flex flex-wrap gap-2" aria-label={`${stop.title} 순서 편집`}>
+            <div className="route-result-stop__actions" aria-label={`${stop.title} 순서 편집`}>
               <button type="button" disabled={index === 0} onClick={() => onMove(stop.placeId, -1)} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[var(--line)] px-3 text-xs font-extrabold disabled:opacity-40"><ArrowUp size={15} aria-hidden="true" /> 앞으로</button>
               <button type="button" disabled={index === route.stops.length - 1} onClick={() => onMove(stop.placeId, 1)} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[var(--line)] px-3 text-xs font-extrabold disabled:opacity-40"><ArrowDown size={15} aria-hidden="true" /> 뒤로</button>
               <button type="button" disabled={route.stops.length <= 1} onClick={() => onRemove(stop.placeId)} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[#e5bdb7] px-3 text-xs font-extrabold text-[#8d3838] disabled:opacity-40"><Trash2 size={15} aria-hidden="true" /> {editCopy.removeLabel}</button>
@@ -576,7 +575,7 @@ export function RecommendationPlanner({
       : null;
   return (
     <div className="space-y-6">
-      <header className="surface-panel p-6 sm:p-8">
+      <header className="route-result-header">
         <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
           <div>
             <p className="eyebrow">{editDirty ? "수정 중인 일정" : displayedRoute.kind === "manual" ? "직접 수정한 일정" : "WEEKENDOG 추천 일정"}</p>
@@ -593,11 +592,11 @@ export function RecommendationPlanner({
           </div>
         </div>
         {saveMessage ? <p className="mt-3 text-sm font-bold text-[var(--brand)]" role="status">{saveMessage}</p> : null}
-        <dl className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <div className="rounded-xl bg-[#f3f6f2] p-4"><dt className="text-xs font-bold text-[var(--muted)]">일정</dt><dd className="mt-1 font-black">{ready.requestSummary.tripDate} · {editDirty ? "시간 재계산 필요" : `${koreaTime(summary.startAt)}~${koreaTime(summary.endAt)}`}</dd></div>
-          <div className="rounded-xl bg-[#f3f6f2] p-4"><dt className="text-xs font-bold text-[var(--muted)]">여행 속도</dt><dd className="mt-1 font-black">{PACE_LABEL[ready.requestSummary.tripPace]} · 총 {summary.stopCount}곳</dd></div>
-          <div className="rounded-xl bg-[#f3f6f2] p-4"><dt className="text-xs font-bold text-[var(--muted)]">이동</dt><dd className="mt-1 font-black">{editDirty ? "경로 재계산 필요" : `${formatDistance(summary.totalDistanceMeters)} · 약 ${formatDuration(summary.totalDrivingSeconds)}`}</dd></div>
-          <div className="rounded-xl bg-[#f3f6f2] p-4"><dt className="text-xs font-bold text-[var(--muted)]">방문</dt><dd className="mt-1 font-black">{editDirty ? `총 ${summary.stopCount}곳` : `${formatDuration(summary.totalVisitSeconds)}${summary.totalWaitSeconds > 0 ? ` · 대기 ${formatDuration(summary.totalWaitSeconds)}` : ""}`}</dd></div>
+        <dl className="route-result-summary">
+          <div><dt>일정</dt><dd>{ready.requestSummary.tripDate} · {editDirty ? "시간 재계산 필요" : `${koreaTime(summary.startAt)}~${koreaTime(summary.endAt)}`}</dd></div>
+          <div><dt>여행 속도</dt><dd>{PACE_LABEL[ready.requestSummary.tripPace]} · 총 {summary.stopCount}곳</dd></div>
+          <div><dt>이동</dt><dd>{editDirty ? "경로 재계산 필요" : `${formatDistance(summary.totalDistanceMeters)} · 약 ${formatDuration(summary.totalDrivingSeconds)}`}</dd></div>
+          <div><dt>방문</dt><dd>{editDirty ? `총 ${summary.stopCount}곳` : `${formatDuration(summary.totalVisitSeconds)}${summary.totalWaitSeconds > 0 ? ` · 대기 ${formatDuration(summary.totalWaitSeconds)}` : ""}`}</dd></div>
         </dl>
       </header>
 
@@ -611,7 +610,7 @@ export function RecommendationPlanner({
       ) : null}
 
       {ready.routeOptions || availableRoutes.length > 1 ? (
-        <section className="surface-card p-4" aria-labelledby="route-alternatives-heading">
+        <section className="route-result-alternatives" aria-labelledby="route-alternatives-heading">
           <h2 id="route-alternatives-heading" className="text-sm font-black">추천 기준을 바꿔 비교해 보세요</h2>
           <div className="mt-3 flex flex-wrap gap-2" role="tablist" aria-label="일정 대안">
             {availableRoutes.map((route) => (
@@ -627,14 +626,14 @@ export function RecommendationPlanner({
         <section className="min-w-0" aria-labelledby="route-timeline-heading">
           <div className="mb-4"><p className="eyebrow">시간순 방문 일정</p><h2 id="route-timeline-heading" className="mt-1 text-2xl font-black">출발지부터 이어지는 실제 이동 순서</h2></div>
           <Timeline route={displayedRoute} validated={!editDirty} selectedPlaceId={selectedPlaceId} onSelect={selectPlace} onMove={moveStop} onRemove={removeStop} onReplace={(id) => void runRecommendation("reroll", id)} replacementSupported={replacementSupported} />
-          {editDirty ? <div className="sticky bottom-3 z-10 mt-4 flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-[#aac2b4] bg-white/95 p-4 shadow-lg backdrop-blur"><p className="mr-auto text-sm font-bold text-[#52665b]">순서 또는 방문지를 바꿨습니다. 실제 경로를 다시 확인해 주세요.</p><Button type="button" variant="brand" disabled={revalidating} onClick={() => void revalidate()}>{revalidating ? <LoaderCircle className="animate-spin" size={16} aria-hidden="true" /> : <Check size={16} aria-hidden="true" />} 경로 다시 계산</Button><Button type="button" variant="brandSecondary" onClick={() => { setActiveRoute(ready.route); setEditableIds(ready.route.stops.map(({ placeId }) => placeId)); setEditDirty(false); setSelectedPlaceId(ready.route.stops[0]?.placeId ?? null); setManualError(""); }}><RotateCcw size={16} aria-hidden="true" /> 원래 추천 복원</Button></div> : null}
+          {editDirty ? <div className="route-result-edit-bar"><p className="mr-auto text-sm font-bold text-[#52665b]">순서 또는 방문지를 바꿨습니다. 실제 경로를 다시 확인해 주세요.</p><Button type="button" variant="brand" disabled={revalidating} onClick={() => void revalidate()}>{revalidating ? <LoaderCircle className="animate-spin" size={16} aria-hidden="true" /> : <Check size={16} aria-hidden="true" />} 경로 다시 계산</Button><Button type="button" variant="brandSecondary" onClick={() => { setActiveRoute(ready.route); setEditableIds(ready.route.stops.map(({ placeId }) => placeId)); setEditDirty(false); setSelectedPlaceId(ready.route.stops[0]?.placeId ?? null); setManualError(""); }}><RotateCcw size={16} aria-hidden="true" /> 원래 추천 복원</Button></div> : null}
           {manualError ? <p className="mt-3 rounded-xl border border-[#e5bdb7] bg-[#fff1ef] p-4 text-sm font-bold text-[#823f36]" role="alert">{manualError}</p> : null}
         </section>
 
         <aside className="min-w-0 lg:sticky lg:top-24 lg:self-start" aria-label="추천 일정 지도">
           <MapPanel regionId="busan" compact locations={routeLocations} routeCoordinates={editDirty ? [] : displayedRoute.geometry} selectedLocationId={selectedPlaceId} onLocationSelect={selectPlace} viewportKey={`route:${displayedRoute.id}:${editDirty ? "draft" : "validated"}`} title="추천 일정의 Kakao 실제 이동 경로" locationLabel={`${summary.stopCount}곳 방문 일정`} emptyMessage={editDirty ? "수정한 순서를 재계산하면 실제 경로를 표시합니다." : "검증된 경로 geometry가 없습니다."} />
-          <p className="mt-3 rounded-xl bg-[#f4f7f4] p-3 text-xs font-semibold leading-5 text-[var(--muted)]"><MapPinned className="mr-1 inline" size={14} aria-hidden="true" /> {editDirty ? "번호는 수정한 방문 순서입니다. 경로 재계산 전에는 선을 표시하지 않습니다." : "번호는 방문 순서이며 선은 최종 Kakao 길찾기가 반환한 geometry입니다."}</p>
-          <section className="surface-card mt-4 p-4" aria-labelledby="route-reliability-heading"><h2 id="route-reliability-heading" className="flex items-center gap-2 text-sm font-black"><ShieldCheck size={17} className="text-[var(--brand)]" aria-hidden="true" /> 정보 안내</h2><p className="mt-2 text-xs leading-6 text-[var(--muted)]">한국관광공사 근거 장소와 저장된 카카오 후보를 출처·근거 상태와 함께 표시합니다. 미확인 정보는 동반 가능으로 단정하지 않으며 방문 전 확인할 수 있어요.</p></section>
+          <p className="route-result-map-note"><MapPinned className="mr-1 inline" size={14} aria-hidden="true" /> {editDirty ? "번호는 수정한 방문 순서입니다. 경로 재계산 전에는 선을 표시하지 않습니다." : "번호는 방문 순서이며 선은 최종 Kakao 길찾기가 반환한 geometry입니다."}</p>
+          <section className="route-result-reliability" aria-labelledby="route-reliability-heading"><h2 id="route-reliability-heading" className="flex items-center gap-2 text-sm font-black"><ShieldCheck size={17} className="text-[var(--brand)]" aria-hidden="true" /> 정보 안내</h2><p className="mt-2 text-xs leading-6 text-[var(--muted)]">한국관광공사 근거 장소와 저장된 카카오 후보를 출처·근거 상태와 함께 표시합니다. 미확인 정보는 동반 가능으로 단정하지 않으며 방문 전 확인할 수 있어요.</p></section>
           {displayedRoute.kind === "manual" ? <Button type="button" variant="brandSecondary" className="mt-4 w-full" onClick={() => { setActiveRoute(ready.route); setEditableIds(ready.route.stops.map(({ placeId }) => placeId)); setEditDirty(false); setSelectedPlaceId(ready.route.stops[0]?.placeId ?? null); }}><RotateCcw size={16} aria-hidden="true" /> 원래 추천 일정 복원</Button> : null}
         </aside>
       </div>

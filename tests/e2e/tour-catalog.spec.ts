@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { chooseConfirmedDeparture, continueToTrip } from "@/tests/e2e/planner-test-helpers";
+import { chooseConfirmedDeparture, continueToDay, continueToTrip } from "@/tests/e2e/planner-test-helpers";
 
 const kakaoItems = [
   {
@@ -208,6 +208,7 @@ test("keeps an official planner district code in memory and uses it on results",
   await expect(plannerDistrict.locator("option")).toHaveCount(17);
   await plannerDistrict.selectOption("230");
   await chooseConfirmedDeparture(page);
+  await continueToDay(page);
   const generationResponse = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/itineraries/generate" && response.request().method() === "POST");
   await page.getByRole("button", { name: "여행 추천 받기" }).click();
   expect((await generationResponse).status()).toBe(422);

@@ -212,6 +212,14 @@ export function DepartureSearch({
             if (status !== "idle" && query.trim().length >= 2) setOpen(true);
           }}
           onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              if (event.nativeEvent.isComposing) return;
+              event.preventDefault();
+              if (open && results.length > 0) {
+                chooseResult(results[activeIndex >= 0 ? activeIndex : 0]);
+              }
+              return;
+            }
             if (event.key === "Escape") {
               setOpen(false);
               setActiveIndex(-1);
@@ -228,18 +236,15 @@ export function DepartureSearch({
               setActiveIndex((current) =>
                 current <= 0 ? results.length - 1 : current - 1,
               );
-            } else if (event.key === "Enter" && open) {
-              event.preventDefault();
-              chooseResult(results[activeIndex >= 0 ? activeIndex : 0]);
             }
           }}
-          className="min-h-12 w-full rounded-[var(--radius-control)] border border-[var(--line)] bg-white py-3 pl-11 pr-12 font-semibold shadow-sm placeholder:text-[#8c9992]"
+          className="min-h-12 w-full rounded-lg border border-[var(--line)] bg-white py-3 pl-11 pr-12 font-semibold placeholder:text-[#8c9992]"
         />
         {query ? (
           <button
             type="button"
             onClick={clearSelection}
-            className="absolute right-0.5 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-full text-[#607168] hover:bg-[var(--brand-soft)] hover:text-[var(--brand)]"
+            className="absolute right-0.5 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-lg text-[#607168] hover:bg-[var(--brand-soft)] hover:text-[var(--brand)]"
             aria-label="출발지 지우기"
           >
             <X size={17} aria-hidden="true" />
@@ -256,7 +261,7 @@ export function DepartureSearch({
           role={status === "ready" ? "listbox" : "status"}
           aria-label={status === "ready" ? "출발지 검색 결과" : undefined}
           aria-live={status === "ready" ? undefined : "polite"}
-          className="mt-3 overflow-hidden rounded-[var(--radius-card)] border border-[var(--line)] bg-white shadow-[var(--shadow-card)]"
+          className="planner-departure-results mt-3 overflow-hidden rounded-lg border border-[var(--line)] bg-white"
         >
           {status === "loading" ? (
             <p className="flex min-h-16 items-center gap-2 px-4 text-sm font-bold text-[var(--muted)]">

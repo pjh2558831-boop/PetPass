@@ -1,9 +1,5 @@
 import Link from "next/link";
 import {
-  CalendarDays,
-  Clock3,
-  MapPin,
-  PawPrint,
   PencilLine,
 } from "lucide-react";
 import { CATEGORY_LABELS } from "@/lib/shared/format";
@@ -62,17 +58,16 @@ export function ConfirmedTripSummary({
 
   return (
     <section
-      className="surface-card p-4 sm:p-5"
+      className="confirmed-trip-summary"
       aria-labelledby="confirmed-trip-summary-heading"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="eyebrow">확정한 여행 조건</p>
           <h2
             id="confirmed-trip-summary-heading"
-            className="mt-1 text-lg font-black tracking-[-0.025em]"
+            className="text-lg font-black tracking-[-0.025em]"
           >
-            이 조건으로 계산한 추천이에요
+            확정한 여행 조건
           </h2>
         </div>
         {showEditAction ? (
@@ -86,11 +81,9 @@ export function ConfirmedTripSummary({
         ) : null}
       </div>
 
-      <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-2xl bg-[var(--surface-muted)] p-3.5">
-          <dt className="flex items-center gap-2 text-xs font-bold text-[var(--muted)]">
-            <PawPrint size={15} aria-hidden="true" /> 반려동물
-          </dt>
+      <dl className="confirmed-trip-summary__list">
+        <div>
+          <dt>반려동물</dt>
           <dd className="mt-2 text-sm font-black">
             {profile.name} · {SPECIES_LABELS[profile.species]} · {SIZE_LABELS[profile.size]}
           </dd>
@@ -98,10 +91,8 @@ export function ConfirmedTripSummary({
             {equipmentSummary(profile)}
           </dd>
         </div>
-        <div className="rounded-2xl bg-[var(--surface-muted)] p-3.5">
-          <dt className="flex items-center gap-2 text-xs font-bold text-[var(--muted)]">
-            <MapPin size={15} aria-hidden="true" /> 출발·여행 범위
-          </dt>
+        <div>
+          <dt>출발·여행 범위</dt>
           <dd className="mt-2 text-sm font-black">
             {preferences.departure?.label ?? "부산역"} → {destination}
           </dd>
@@ -111,17 +102,15 @@ export function ConfirmedTripSummary({
               : "공간 제약 없음"}
           </dd>
         </div>
-        <div className="rounded-2xl bg-[var(--surface-muted)] p-3.5">
-          <dt className="flex items-center gap-2 text-xs font-bold text-[var(--muted)]">
-            <CalendarDays size={15} aria-hidden="true" /> 날짜·시작
-          </dt>
+        <div>
+          <dt>날짜·시작</dt>
           <dd className="mt-2 text-sm font-black">{preferences.tripDate}</dd>
-          <dd className="mt-1 flex items-center gap-1.5 text-xs leading-5 text-[var(--muted)]">
-            <Clock3 size={13} aria-hidden="true" /> {preferences.startTime} 출발 · {scheduleSummary(preferences)}
+          <dd className="mt-1 text-xs leading-5 text-[var(--muted)]">
+            {preferences.startTime} 출발 · {scheduleSummary(preferences)}
           </dd>
         </div>
-        <div className="rounded-2xl bg-[var(--surface-muted)] p-3.5">
-          <dt className="text-xs font-bold text-[var(--muted)]">장소 조건</dt>
+        <div>
+          <dt>장소 조건</dt>
           <dd className="mt-2 text-sm font-black">
             {categories.length > 0 ? categories.join(" · ") : "선택 카테고리 없음"}
           </dd>

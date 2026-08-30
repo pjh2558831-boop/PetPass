@@ -2,6 +2,35 @@ import { Check } from "lucide-react";
 
 const automaticSteps = ["정보 입력", "추천 확인", "상세 일정"];
 const selectedSteps = ["장소 선택", "조건 확인", "일정 완성"];
+const formSteps = ["반려동물", "출발·시간", "원하는 하루"];
+
+export function PlannerFormProgress({
+  current,
+}: {
+  current: 1 | 2 | 3;
+}) {
+  return (
+    <nav className="planner-form-progress" aria-label="여행 정보 입력 단계">
+      <ol>
+        {formSteps.map((step, index) => {
+          const number = (index + 1) as 1 | 2 | 3;
+          const active = number === current;
+          const complete = number < current;
+          return (
+            <li
+              key={step}
+              aria-current={active ? "step" : undefined}
+              data-complete={complete || undefined}
+            >
+              <span aria-hidden="true">{complete ? <Check size={14} /> : number}</span>
+              <b>{step}</b>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
 
 export function PlannerProgress({
   current,

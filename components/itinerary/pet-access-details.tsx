@@ -97,11 +97,8 @@ function PetAccessContent({ presentation }: { presentation: StopPresentation }) 
             {equipmentRequirements.map(({ condition, equipmentKey, status }) => (
               <li
                 key={`${condition.type}:${condition.scope}:${condition.label}`}
-                className={`rounded-xl border px-3 py-2 text-xs font-bold ${
-                  status === "available"
-                    ? "border-[#c8dfd2] bg-[#f2faf5] text-[#285c45]"
-                    : "border-[#e7c6bd] bg-[#fff3ef] text-[#7f4538]"
-                }`}
+                className="pet-access-equipment"
+                data-status={status}
               >
                 {EQUIPMENT_LABELS[equipmentKey]} · {status === "available" ? "준비됨" : status === "missing" ? "준비되지 않음" : "보유 여부 확인 필요"}
               </li>
@@ -117,7 +114,7 @@ function PetAccessContent({ presentation }: { presentation: StopPresentation }) 
             {access.conditions.map((condition) => (
               <li
                 key={`${condition.type}:${condition.scope}:${condition.label}`}
-                className="rounded-xl border border-[#dce6df] bg-white p-3"
+                className="pet-access-condition"
               >
                 <p className="font-extrabold text-[#315b48]">{condition.label}</p>
                 <p className="mt-1 text-xs font-bold text-[#607269]">
@@ -136,7 +133,7 @@ function PetAccessContent({ presentation }: { presentation: StopPresentation }) 
       {access.permittedScopes.length > 0 || access.restrictedScopes.length > 0 ? (
         <div className="grid gap-2 sm:grid-cols-2">
           {access.permittedScopes.length > 0 ? (
-            <div className="rounded-xl bg-[#edf8f2] p-3">
+            <div className="pet-access-scope" data-verdict="allowed">
               <h4 className="text-xs font-black text-[#236148]">동반 가능 범위</h4>
               <p className="mt-1 text-xs font-semibold">
                 {access.permittedScopes.map((scope) => TOUR_PET_ACCESS_SCOPE_LABELS[scope]).join(" · ")}
@@ -144,7 +141,7 @@ function PetAccessContent({ presentation }: { presentation: StopPresentation }) 
             </div>
           ) : null}
           {access.restrictedScopes.length > 0 ? (
-            <div className="rounded-xl bg-[#fff1ef] p-3">
+            <div className="pet-access-scope" data-verdict="not_allowed">
               <h4 className="text-xs font-black text-[#823f36]">동반 제한 범위</h4>
               <p className="mt-1 text-xs font-semibold">
                 {access.restrictedScopes.map((scope) => TOUR_PET_ACCESS_SCOPE_LABELS[scope]).join(" · ")}
@@ -186,7 +183,7 @@ function PetAccessContent({ presentation }: { presentation: StopPresentation }) 
           <h4 className="text-xs font-black text-[#344a40]">한국관광공사 제공 근거</h4>
           <dl className="mt-2 space-y-2">
             {evidence.map((item) => (
-              <div key={item.id} className="rounded-xl border border-[#dce6df] bg-white p-3">
+              <div key={item.id} className="pet-access-evidence">
                 <dt className="text-xs font-extrabold text-[#607269]">
                   {item.fieldLabel} · {ASSERTION_LABELS[item.assertion]}
                 </dt>
@@ -228,7 +225,7 @@ export function PetAccessDetails({
 
   return (
     <section aria-label={`${stop.title} 반려동물 동반 안내`}>
-      <div className={`rounded-xl border p-3 ${VERDICT_STYLES[stop.petAccess.verdict]}`}>
+      <div className={`pet-access-verdict ${VERDICT_STYLES[stop.petAccess.verdict]}`} data-verdict={stop.petAccess.verdict}>
         <p className="flex items-center gap-2 font-black">
           <VerdictIcon size={17} aria-hidden="true" />
           {copy.label}
@@ -245,7 +242,7 @@ export function PetAccessDetails({
           <PetAccessContent presentation={presentation} />
         </div>
       ) : (
-        <details className="mt-3 rounded-xl border border-[#dce6df] bg-[#f6f8f6] px-3 py-2">
+        <details className="pet-access-details-disclosure">
           <summary className="flex min-h-9 cursor-pointer items-center gap-2 py-1 text-xs font-extrabold text-[#315b48]">
             <ShieldCheck size={15} aria-hidden="true" />
             동반 조건·근거·확인 항목 보기
