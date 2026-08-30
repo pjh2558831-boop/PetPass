@@ -45,7 +45,7 @@ function url() {
 }
 
 describe("homepage completion route", () => {
-  it("serves a successful public completion with reviewed cache headers", async () => {
+  it("serves a successful public completion without a Cookie header", async () => {
     const loadCompletion = vi.fn().mockResolvedValue(snapshot);
     const response = await createHomepageCompletionHandler({ loadCompletion })(new Request(url()));
     expect(response.status).toBe(200);
@@ -54,14 +54,67 @@ describe("homepage completion route", () => {
     expect(loadCompletion).toHaveBeenCalledTimes(1);
   });
 
-  it.each([
-    ["authorization", "Bearer private"],
-    ["cookie", "session=private"],
-  ] as const)("rejects %s-bearing requests and makes the error uncacheable", async (name, value) => {
+  it("serves the same public completion with an arbitrary Cookie header", async () => {
+    const loadCompletion = vi.fn().mockResolvedValue(snapshot);
+    const response = await createHomepageCompletionHandler({ loadCompletion })(new Request(url(), {
+      headers: { Cookie: "_vercel_sso_nonce=opaque; arbitrary=value" },
+    }));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Vercel-CDN-Cache-Control")).toContain("max-age=300");
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+    expect(await response.json()).toMatchObject({ ok: true, data: snapshot });
+    expect(loadCompletion).toHaveBeenCalledTimes(1);
+  });
+
+  it("continues to reject an Authorization header and makes the error uncacheable", async () => {
     const loadCompletion = vi.fn();
-    const response = await createHomepageCompletionHandler({ loadCompletion })(new Request(url(), { headers: { [name]: value } }));
+    const response = await createHomepageCompletionHandler({ loadCompletion })(new Request(url(), {
+      headers: { Authorization: "Bearer private" },
+    }));
     expect(response.status).toBe(400);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(loadCompletion).not.toHaveBeenCalled();
+  });
+
+  it("continues to reject Authorization when Cookie is also present", async () => {
+    const loadCompletion = vi.fn();
+    const response = await createHomepageCompletionHandler({ loadCompletion })(new Request(url(), {
+      headers: {
+        Authorization: "Bearer private",
+        Cookie: "_vercel_sso_nonce=opaque",
+      },
+    }));
+    expect(response.status).toBe(400);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(loadCompletion).not.toHaveBeenCalled();
+  });
+
+  it("validates an invalid payload normally when Cookie is present", async () => {
+    const loadCompletion = vi.fn();
+    const requestUrl = new URL(url());
+    requestUrl.searchParams.set("dataset", "not-supported");
+    const response = await createHomepageCompletionHandler({ loadCompletion })(new Request(requestUrl, {
+      headers: { Cookie: "_vercel_sso_nonce=opaque" },
+    }));
+    expect(response.status).toBe(400);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(loadCompletion).not.toHaveBeenCalled();
+  });
+
+  it("preserves repeated-request behavior without cookie-derived security state", async () => {
+    const loadCompletion = vi.fn().mockResolvedValue(snapshot);
+    const handler = createHomepageCompletionHandler({ loadCompletion });
+    const first = await handler(new Request(url(), { headers: { Cookie: "first=opaque" } }));
+    const second = await handler(new Request(url(), { headers: { Cookie: "second=opaque" } }));
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    const firstBody = await first.json();
+    const secondBody = await second.json();
+    expect(firstBody.data).toEqual(secondBody.data);
+    expect(JSON.stringify([firstBody, secondBody])).not.toContain("opaque");
+    expect(first.headers.get("Set-Cookie")).toBeNull();
+    expect(second.headers.get("Set-Cookie")).toBeNull();
+    expect(loadCompletion).toHaveBeenCalledTimes(2);
   });
 });
