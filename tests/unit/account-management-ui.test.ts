@@ -41,9 +41,11 @@ describe("account pet and profile management UI", () => {
   it("gives desktop header navigation and the signed-in account control more room", () => {
     const header = source("components", "layout", "site-header.tsx");
     const account = source("components", "layout", "site-header-account.tsx");
+    const styles = source("app", "weekendog-globals.css");
 
     expect(header).toContain('aria-label="주요 메뉴"');
-    expect(header).toContain("gap-2 lg:flex xl:gap-3");
+    expect(header).toContain('className="site-header-navigation"');
+    expect(styles).toMatch(/\.site-header-navigation\s*\{[\s\S]*?gap:\s*26px;/u);
     expect(header).toContain("Suspense");
     expect(account).toContain("min-h-12 max-w-56");
     expect(account).toContain("size-8 shrink-0");

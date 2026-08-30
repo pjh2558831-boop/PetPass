@@ -68,5 +68,4 @@ export const HERO_PHOTOS = [
   },
 ] as const satisfies readonly HeroPhoto[];
 
-export const HERO_AUTOPLAY_INTERVAL_MS = 6_000;
-export const HERO_CROSSFADE_DURATION_MS = 760;
+export const HERO_FEATURED_PHOTO = HERO_PHOTOS[7];

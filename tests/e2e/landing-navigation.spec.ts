@@ -48,14 +48,13 @@ test("renders the landing page and reaches the existing planner entry", async ({
   await expect(
     main.getByRole("heading", {
       level: 1,
-      name: /반려견과 함께,[\s\S]*어디로 떠나볼까요\?/u,
+      name: /반려견과 함께,[\s\S]*부산 여행을 계획해보세요/u,
     }),
   ).toBeVisible();
 
   const primaryCta = main
-    .getByRole("link", { name: /여행 (?:일정 )?만들기/u })
-    .first();
-  await expect(primaryCta).toHaveAttribute("href", "/planner/pet");
+    .getByRole("form", { name: "여행 만들기 빠른 시작" })
+    .getByRole("button", { name: "여행 만들기" });
   await primaryCta.click();
 
   await expect(page).toHaveURL(/\/planner\/pet$/u);
@@ -64,7 +63,7 @@ test("renders the landing page and reaches the existing planner entry", async ({
   ).toBeVisible();
 });
 
-test("keeps real desktop navigation routable and future items non-linking", async ({
+test("keeps real desktop navigation routable and hides community publicly", async ({
   page,
   request,
 }) => {
@@ -77,49 +76,43 @@ test("keeps real desktop navigation routable and future items non-linking", asyn
     "href",
     "/",
   );
-  await expect(navigation.getByRole("link", { name: "여행 만들기" })).toHaveAttribute(
+  await expect(navigation.getByRole("link", { name: "일정 만들기" })).toHaveAttribute(
     "href",
-    "/planner/pet",
+    "/results?tab=catalog&region=busan&mode=select",
   );
   await expect(navigation.getByRole("link", { name: "장소 찾기" })).toHaveAttribute(
     "href",
     "/results?tab=catalog&region=busan",
   );
-  await expect(navigation.getByRole("link", { name: "추천 코스" })).toHaveAttribute(
+  await expect(navigation.getByRole("link", { name: "맞춤 일정" })).toHaveAttribute(
     "href",
-    "/results?tab=recommendations&region=busan",
+    "/planner/pet",
   );
 
-  for (const label of ["커뮤니티"]) {
-    const future = header.getByRole("button", {
-      name: new RegExp(`${label}\\s*준비 중`, "u"),
-    });
-    await expect(future).toHaveAttribute("aria-disabled", "true");
-    await expect(future).not.toHaveAttribute("href", /.+/u);
-    await expect(header.getByRole("link", { name: new RegExp(label, "u") })).toHaveCount(0);
-  }
+  await expect(header.getByRole("button", { name: /커뮤니티/u })).toHaveCount(0);
+  await expect(header.getByRole("link", { name: /커뮤니티/u })).toHaveCount(0);
   await expect(navigation.getByRole("link", { name: "마이페이지" })).toHaveAttribute("href", "/account");
   await expect(header.getByRole("link", { name: "로그인" })).toHaveAttribute("href", "/login");
   await expect(header.getByRole("link", { name: "회원가입" })).toHaveAttribute("href", "/login");
 
   const footer = page.locator("footer");
-  await expect(footer.getByRole("link", { name: "여행 만들기" })).toHaveAttribute(
+  await expect(footer.getByRole("link", { name: "일정 만들기" })).toHaveAttribute(
     "href",
-    "/planner/pet",
+    "/results?tab=catalog&region=busan&mode=select",
   );
   await expect(footer.getByRole("link", { name: "장소 찾기" })).toHaveAttribute(
     "href",
     "/results?tab=catalog&region=busan",
   );
-  await expect(footer.getByRole("link", { name: "내 일정" })).toHaveAttribute(
+  await expect(footer.getByRole("link", { name: "자동 추천" })).toHaveAttribute(
     "href",
-    "/itinerary",
+    "/planner/pet",
   );
 
   for (const href of [
     "/",
+    "/results?tab=catalog&region=busan&mode=select",
     "/results?tab=catalog&region=busan",
-    "/results?tab=recommendations&region=busan",
     "/itinerary",
     "/planner/pet",
   ]) {
@@ -132,7 +125,7 @@ test("opens the mobile navigation and follows its real destination", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
+  await page.goto("/", { waitUntil: "networkidle" });
 
   const header = page.locator("header");
   await expect(header.getByRole("link", { name: "WEEKENDOG 홈" })).toBeVisible();
@@ -148,11 +141,12 @@ test("opens the mobile navigation and follows its real destination", async ({
     name: "모바일 주요 메뉴",
   });
   await expect(mobileNavigation).toBeVisible();
-  const community = mobileNavigation.getByRole("button", {
-    name: /커뮤니티\s*준비 중/u,
-  });
-  await expect(community).toHaveAttribute("aria-disabled", "true");
+  await expect(mobileNavigation.getByRole("button", { name: /커뮤니티/u })).toHaveCount(0);
   await expect(mobileNavigation.getByRole("link", { name: /커뮤니티/u })).toHaveCount(0);
+  await expect(mobileNavigation.getByRole("link", { name: "맞춤 일정" })).toHaveAttribute(
+    "href",
+    "/planner/pet",
+  );
 
   await mobileNavigation.getByRole("link", { name: "장소 찾기" }).click();
 

@@ -2,8 +2,7 @@ import { access, stat } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  HERO_AUTOPLAY_INTERVAL_MS,
-  HERO_CROSSFADE_DURATION_MS,
+  HERO_FEATURED_PHOTO,
   HERO_PHOTOS,
 } from "@/lib/homepage/hero-photo-manifest";
 
@@ -24,9 +23,11 @@ describe("homepage hero photo manifest", () => {
     }
   });
 
-  it("uses the approved six-second cadence and 600–900ms crossfade window", () => {
-    expect(HERO_AUTOPLAY_INTERVAL_MS).toBe(6_000);
-    expect(HERO_CROSSFADE_DURATION_MS).toBeGreaterThanOrEqual(600);
-    expect(HERO_CROSSFADE_DURATION_MS).toBeLessThanOrEqual(900);
+  it("selects one approved Busan photograph for the static hero", () => {
+    expect(HERO_FEATURED_PHOTO).toBe(HERO_PHOTOS[7]);
+    expect(HERO_FEATURED_PHOTO.src).toBe(
+      "/images/home/hero/09-bichon-busan-overlook.png",
+    );
+    expect(HERO_FEATURED_PHOTO.alt).toMatch(/광안대교와 부산 도심/u);
   });
 });

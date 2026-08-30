@@ -727,7 +727,10 @@ test("aborts an abandoned homepage snapshot request on navigation", async ({ pag
   await expect.poll(() => requested).toBe(true);
   const navigation = Promise.all([
     page.waitForURL(/\/planner\/pet/u),
-    page.getByRole("link", { name: "여행 만들기", exact: true }).first().click(),
+    page
+      .getByRole("form", { name: "여행 만들기 빠른 시작" })
+      .getByRole("button", { name: "여행 만들기" })
+      .click(),
   ]);
   await page.waitForURL(/\/planner\/pet/u);
   await expect.poll(() => page.evaluate(
@@ -770,7 +773,10 @@ test("aborts and ignores late enrichment after navigation", async ({ page }, tes
   await page.goto("/");
   await expect(page.locator(".homepage-live-ready")).toBeVisible();
   await expect.poll(() => enrichmentRequested).toBe(true);
-  await page.getByRole("link", { name: "여행 만들기", exact: true }).first().click();
+  await page
+    .getByRole("form", { name: "여행 만들기 빠른 시작" })
+    .getByRole("button", { name: "여행 만들기" })
+    .click();
   await expect(page).toHaveURL(/\/planner\/pet/u);
   await expect.poll(() => page.evaluate(
     () => Number(sessionStorage.getItem("homepage-abort-count") ?? "0"),
@@ -779,37 +785,27 @@ test("aborts and ignores late enrichment after navigation", async ({ page }, tes
   await expect(page.getByRole("heading", { name: "여행 정보 입력" })).toBeVisible();
 });
 
-test("uses one eager hero image, lazy later slides, manual controls, and six-second autoplay", async ({ page }) => {
-  await page.clock.install();
-  const requestedHeroImages = new Set<string>();
+test("uses one preloaded static Busan hero image without carousel controls", async ({ page }) => {
+  const requestedFeaturedImages = new Set<string>();
   page.on("request", (request) => {
     const url = new URL(request.url());
     const source = url.searchParams.get("url") ?? url.pathname;
-    if (source.includes("/images/home/hero/")) requestedHeroImages.add(source);
+    if (source.includes("09-bichon-busan-overlook")) {
+      requestedFeaturedImages.add(source);
+    }
   });
   await mockHomepage(page);
   await page.goto("/");
-  const carousel = page.getByRole("region", { name: "부산 반려견 여행 사진" });
-  await expect(carousel.getByRole("button", { name: /번 여행 사진 보기/u })).toHaveCount(10);
-  const first = carousel.locator("img").first();
-  await expect(first).toHaveAttribute("alt", /노란 튤립밭/u);
-  await expect(first).toHaveAttribute("fetchpriority", "high");
-  await expect.poll(() => requestedHeroImages.size).toBe(1);
-
-  await page.clock.runFor(6_100);
-  await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("02 / 10");
-  await expect(carousel.locator(".weekendoog-hero-slide.is-active img")).toHaveAttribute("loading", "lazy");
-  await expect.poll(() => requestedHeroImages.size).toBe(2);
-
-  await carousel.hover();
-  await page.clock.runFor(12_100);
-  await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("02 / 10");
-  await carousel.getByRole("button", { name: "이전 여행 사진" }).click();
-  await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("01 / 10");
-  await carousel.press("End");
-  await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("10 / 10");
-  await carousel.press("Home");
-  await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("01 / 10");
+  const heroPhoto = page.locator(".weekendoog-hero-photo-frame");
+  await expect(heroPhoto.locator("img")).toHaveCount(1);
+  await expect(heroPhoto.locator("img")).toHaveAttribute("alt", /광안대교와 부산 도심/u);
+  await expect(
+    page.locator('head link[rel="preload"][as="image"]'),
+  ).toHaveAttribute("imagesrcset", /09-bichon-busan-overlook/u);
+  await expect(heroPhoto.getByText("부산 광안대교 전망", { exact: true })).toBeVisible();
+  await expect.poll(() => requestedFeaturedImages.size).toBe(1);
+  await expect(heroPhoto.getByRole("button")).toHaveCount(0);
+  await expect(page.locator(".weekendoog-hero-slide")).toHaveCount(0);
 });
 
 test("uses compact hero copy and three local official partner marks", async ({ page }) => {
@@ -818,15 +814,18 @@ test("uses compact hero copy and three local official partner marks", async ({ p
 
   const hero = page.locator(".weekendoog-hero");
   await expect(hero).toContainText(
-    "공식 반려동물 동반 정보와 이동 동선을 바탕으로",
+    "공식 반려동물 동반 정보를 확인하고 실제 이동시간을 고려해",
   );
   await expect(hero).toContainText(
-    "가장 자연스러운 하루 일정을 제안해드려요.",
+    "우리 아이와 함께할 하루 일정을 만듭니다.",
   );
   await expect(hero.getByText("공식 데이터 기반 반려동물 여행", { exact: true })).toHaveCount(0);
 
   const launcher = page.getByRole("form", { name: "여행 만들기 빠른 시작" });
-  await expect(launcher.getByText("어디로 떠날까요?", { exact: true })).toBeVisible();
+  await expect(launcher.getByText("여행 지역", { exact: true })).toBeVisible();
+  await expect(launcher.getByLabel("부산 여행 지역")).toHaveValue("all");
+  await expect(launcher.getByRole("button", { name: "여행 만들기" })).toBeVisible();
+  await expect(launcher.getByText("빠른 지역 선택", { exact: true })).toHaveCount(0);
   await expect(launcher.getByText("언제 갈까요?", { exact: true })).toHaveCount(0);
   await expect(launcher.getByText("누구와 함께?", { exact: true })).toHaveCount(0);
   await expect(
@@ -853,7 +852,7 @@ test("uses compact hero copy and three local official partner marks", async ({ p
   await expect(trust).toHaveAttribute("data-layout", "partner-strip");
 });
 
-test("aligns the desktop launcher below the hero copy and keeps annotated dimensions", async ({ page }, testInfo) => {
+test("crosses the desktop launcher over the hero edge and keeps annotated dimensions", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "Desktop annotation only");
   await page.setViewportSize({ width: 1403, height: 986 });
   await mockHomepage(page);
@@ -872,28 +871,34 @@ test("aligns the desktop launcher below the hero copy and keeps annotated dimens
   expect(launcherBox).not.toBeNull();
   expect(trustBox).not.toBeNull();
   expect(contactBox).not.toBeNull();
-  expect(launcherBox!.width).toBeCloseTo(600, 0);
-  expect(launcherBox!.x).toBeCloseTo(layoutBox!.x, 0);
+  expect(launcherBox!.width).toBeCloseTo(760, 0);
+  expect(launcherBox!.x).toBeGreaterThan(layoutBox!.x);
   expect(launcherBox!.y).toBeGreaterThanOrEqual(copyBox!.y + copyBox!.height);
+  expect(launcherBox!.y).toBeLessThan(layoutBox!.y + layoutBox!.height);
+  expect(launcherBox!.y + launcherBox!.height).toBeGreaterThan(layoutBox!.y + layoutBox!.height);
   expect(trustBox!.height).toBeCloseTo(200, 0);
   expect(contactBox!.height).toBeCloseTo(trustBox!.height, 0);
   await expect(page.getByText(
     "실제 개인화 결과가 아니며 장소·시간은 조건에 따라 달라집니다.",
     { exact: true },
-  )).toHaveCount(0);
+  )).toHaveCount(1);
+  await expect(page.getByRole("link", { name: /이 조건으로 내 일정 만들기/u })).toHaveAttribute(
+    "href",
+    "/planner/pet",
+  );
 });
 
-test("disables hero autoplay and transition under reduced motion", async ({ page }) => {
+test("keeps the single hero photograph static under reduced motion", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.clock.install();
   await mockHomepage(page);
   await page.goto("/");
-  const carousel = page.getByRole("region", { name: "부산 반려견 여행 사진" });
+  const heroPhoto = page.locator(".weekendoog-hero-photo-frame img");
+  const source = await heroPhoto.getAttribute("src");
   await page.clock.fastForward(12_100);
-  await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("01 / 10");
-  await carousel.getByRole("button", { name: "다음 여행 사진" }).click();
-  await expect(carousel.locator(".weekendoog-hero-slide-status")).toHaveText("02 / 10");
-  await expect(carousel.locator(".weekendoog-hero-slide.is-outgoing")).toHaveCount(0);
+  await expect(heroPhoto).toHaveCount(1);
+  await expect(heroPhoto).toHaveAttribute("src", source ?? "");
+  await expect(page.locator(".weekendoog-hero-slide-status")).toHaveCount(0);
 });
 
 test("keeps loading and provider failures truthful and retryable", async ({ page }) => {
@@ -1065,12 +1070,12 @@ test("preserves mobile order, map width, card snap width, and page overflow", as
   await mockHomepage(page);
   await page.goto("/");
   await expect(page.locator(".homepage-live-ready")).toBeVisible();
-  const ctaBox = await page.locator(".weekendoog-hero-direct-cta").boundingBox();
+  const copyBox = await page.locator(".weekendoog-hero-copy").boundingBox();
   const launcherBox = await page.locator(".weekendoog-hero-launcher").boundingBox();
   const mediaBox = await page.locator(".weekendoog-hero-media").boundingBox();
-  expect(ctaBox).not.toBeNull(); expect(launcherBox).not.toBeNull(); expect(mediaBox).not.toBeNull();
-  expect(ctaBox!.y).toBeLessThan(launcherBox!.y);
-  expect(launcherBox!.y).toBeLessThan(mediaBox!.y);
+  expect(copyBox).not.toBeNull(); expect(launcherBox).not.toBeNull(); expect(mediaBox).not.toBeNull();
+  expect(copyBox!.y).toBeLessThan(mediaBox!.y);
+  expect(mediaBox!.y).toBeLessThan(launcherBox!.y);
   const mapBox = await page.locator(".homepage-map-canvas-wrap .map-canvas").boundingBox();
   expect(mapBox).not.toBeNull();
   expect(mapBox!.width).toBeLessThanOrEqual(390);

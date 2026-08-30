@@ -1,5 +1,4 @@
 import { ContactCard } from "@/components/home/contact-card";
-import { EmotionalCtaCard } from "@/components/home/emotional-cta-card";
 import { ExampleCourseCard } from "@/components/home/example-course-card";
 import { HomepageLiveExperience } from "@/components/home/homepage-live-experience";
 import { PublicDataTrustCard } from "@/components/home/public-data-trust-card";
@@ -12,23 +11,20 @@ export default function HomePage() {
     <div className="weekendoog-home">
       <WeekendoogHero />
 
+      <RecommendationProcessSection />
+
+      <section
+        className="homepage-shell weekendoog-lower-section"
+        aria-label="여행 예시"
+      >
+        <ExampleCourseCard />
+      </section>
+
       <div className="homepage-shell weekendoog-live-shell">
         <HomepageLiveExperience
           staticMapEnabled={staticMapThumbnailsEnabled()}
         />
       </div>
-
-      <RecommendationProcessSection />
-
-      <section
-        className="homepage-shell weekendoog-lower-section"
-        aria-label="여행 예시와 시작하기"
-      >
-        <div className="weekendoog-editorial-grid">
-          <ExampleCourseCard />
-          <EmotionalCtaCard />
-        </div>
-      </section>
 
       <section
         className="homepage-shell weekendoog-trust-section"
