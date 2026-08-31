@@ -113,17 +113,11 @@ function installFakeCoordinatePicker(page: Page) {
   });
 }
 
-async function expectPlannerStep(page: Page, label: string) {
-  const progress = page.getByRole("navigation", { name: "여행 만들기 단계" });
-  await expect(progress).toBeVisible();
-  const activeStep = progress.locator('li[aria-current="step"]:visible');
-  await expect(activeStep).toHaveCount(1);
-  await expect(activeStep).toContainText(label);
-}
-
 async function open(page: Page, testInfo: TestInfo) {
   await openPetPlanner(page, testInfo, "unified-planner");
-  await expectPlannerStep(page, "정보 입력");
+  await expect(
+    page.getByRole("navigation", { name: "여행 만들기 단계" }),
+  ).toHaveCount(0);
   await expect(
     page.getByRole("navigation", { name: "여행 정보 입력 단계" })
       .locator('li[aria-current="step"]'),
@@ -164,9 +158,57 @@ test("validates only the current step and focuses its first missing field", asyn
       hasText: "반려동물 이름을 1자 이상 30자 이하로 입력해 주세요.",
     }),
   ).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "반려동물 이름" })).toBeFocused();
+  const petName = page.getByRole("textbox", { name: "반려동물 이름" });
+  await expect(petName).toBeFocused();
+  await expect(petName).toHaveAttribute("aria-invalid", "true");
+  await expect(petName).toHaveAttribute("aria-describedby", "pet-name-error");
   await expect(page.getByText("검색 결과나 지도에서 실제 출발지를 선택해 주세요.")).toHaveCount(0);
   await expect(page).toHaveURL(/\/planner\/pet$/u);
+});
+
+test("shows only completed values in the planner summary", async ({
+  page,
+}, testInfo) => {
+  await open(page, testInfo);
+  const summary = page.getByRole("complementary", {
+    name: "입력한 여행 조건",
+  });
+
+  await expect(summary).toContainText("입력을 시작하면");
+  await expect(summary).toContainText("선택한 여행 조건이 여기에 정리됩니다.");
+  await expect(summary).not.toContainText(/입력 전|선택 전/u);
+
+  await continueToTrip(page);
+  await expect(summary).toContainText("보리 · 강아지 · 소형");
+  await expect(summary).not.toContainText("출발지 선택 전");
+
+  await chooseConfirmedDeparture(page);
+  await continueToDay(page);
+  await expect(summary).toContainText("부산광역시 연제구 중앙대로 1001 출발");
+  await expect(summary).toContainText("2026-08-15 · 10:00");
+  await expect(summary).toContainText("당일치기 · 적당히");
+  await expect(summary).toContainText("관광지 · 음식점");
+});
+
+test("keeps the departure error inline and focuses the search input", async ({
+  page,
+}, testInfo) => {
+  await open(page, testInfo);
+  await continueToTrip(page);
+  await page.getByRole("button", { name: "원하는 하루 입력" }).click();
+
+  const departure = page.getByRole("combobox", { name: "출발지" });
+  await expect(departure).toBeFocused();
+  await expect(departure).toHaveAttribute("aria-invalid", "true");
+  await expect(departure).toHaveAttribute(
+    "aria-describedby",
+    /departure-error/u,
+  );
+  await expect(
+    page.getByRole("alert").filter({
+      hasText: "검색 결과나 지도에서 실제 출발지를 선택해 주세요.",
+    }),
+  ).toBeVisible();
 });
 
 test("preserves entered values when moving back between steps", async ({

@@ -8,7 +8,6 @@ import {
   Check,
   LoaderCircle,
   MapPinned,
-  PawPrint,
   RefreshCw,
   RotateCcw,
   Save,
@@ -75,15 +74,42 @@ const CATEGORY_LABEL = {
   shopping: "쇼핑",
 } as const;
 
-const LOADING_STAGES = [
-  "선택 장소 확인",
-  "지역·카테고리 후보 확인",
-  "반려견 동반 근거 확인",
-  "영업시간 확인",
-  "이동시간 계산",
-  "경로 비교",
-  "추천 완료",
-] as const;
+const PET_SPECIES_LABEL = {
+  DOG: "강아지",
+  CAT: "고양이",
+  OTHER: "기타",
+} as const;
+
+const PET_SIZE_LABEL = {
+  SMALL: "소형",
+  MEDIUM: "중형",
+  LARGE: "대형",
+} as const;
+
+type RecommendationPresentationState =
+  | "missing_input"
+  | "ready_to_generate"
+  | "generating"
+  | "generated"
+  | "failed";
+
+function getRecommendationPresentationState({
+  inputConfirmed,
+  loading,
+  response,
+  hasDisplayedRoute,
+}: {
+  inputConfirmed: boolean;
+  loading: boolean;
+  response: RouteRecommendationResponseV1 | null;
+  hasDisplayedRoute: boolean;
+}): RecommendationPresentationState {
+  if (!inputConfirmed) return "missing_input";
+  if (loading) return "generating";
+  if (response && response.status !== "ready") return "failed";
+  if (response?.status === "ready" && hasDisplayedRoute) return "generated";
+  return "ready_to_generate";
+}
 
 function formatDistance(meters: number): string {
   return meters >= 1_000
@@ -173,47 +199,57 @@ const SELECTION_ISSUE_COPY: Record<string, string> = {
 
 function EmptyResult({
   selectionMode,
-  regionId,
 }: {
   selectionMode: "automatic" | "hybrid";
-  regionId: string;
 }) {
+  const plannerHref = selectionMode === "hybrid"
+    ? "/planner/pet?mode=selected"
+    : "/planner/pet";
   return (
-    <section className="surface-panel mx-auto max-w-3xl p-8 text-center" aria-labelledby="route-empty-heading">
-      <PawPrint className="mx-auto text-[var(--brand)]" aria-hidden="true" />
-      <h1 id="route-empty-heading" className="mt-4 text-2xl font-black">여행 조건이 아직 확정되지 않았어요.</h1>
-      <p className="mt-3 text-sm leading-7 text-[var(--muted)]">반려동물과 여행 조건을 입력하면 공식 동반 근거와 실제 이동 경로를 확인해 일정을 만듭니다.</p>
-      {selectionMode === "hybrid" ? (
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <Link href={`/results?tab=catalog&region=${regionId}&mode=select`} className="inline-flex min-h-12 items-center rounded-[var(--radius-control)] bg-[var(--brand)] px-5 text-sm font-extrabold text-white">장소를 직접 골라 시작</Link>
-          <Link href="/planner/pet" className="inline-flex min-h-12 items-center rounded-[var(--radius-control)] border border-[var(--brand-border)] bg-white px-5 text-sm font-extrabold text-[var(--brand)]">전체 자동 추천 받기</Link>
-        </div>
-      ) : (
-        <Link href="/planner/pet" className="mt-6 inline-flex min-h-12 items-center rounded-[var(--radius-control)] bg-[var(--brand)] px-5 text-sm font-extrabold text-white">여행 정보 입력하기</Link>
-      )}
+    <section className="recommendation-preinput" aria-labelledby="route-empty-heading">
+      <h1 id="route-empty-heading">맞춤 일정을 만들려면 여행 조건이 필요합니다.</h1>
+      <p>반려견과 출발지, 원하는 하루를 입력하면 확인 가능한 장소부터 일정으로 구성합니다.</p>
+      <Link href={plannerHref}>여행 조건 입력하기</Link>
     </section>
   );
 }
 
-function LoadingResult({ slow }: { slow: boolean }) {
+function LoadingResult({
+  slow,
+  conditions,
+}: {
+  slow: boolean;
+  conditions: string[];
+}) {
   return (
-    <section className="surface-panel p-6" aria-live="polite" aria-busy="true">
-      <div className="flex items-center gap-3">
-        <LoaderCircle className="animate-spin text-[var(--brand)]" aria-hidden="true" />
-        <div>
-          <p className="eyebrow">추천 일정 생성 중</p>
-          <h1 className="mt-1 text-xl font-black">공식 근거와 실제 경로를 차례로 확인하고 있어요.</h1>
-        </div>
+    <section
+      className="recommendation-loading"
+      role="status"
+      aria-label="맞춤 일정 생성 상태"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <header>
+        <h1>맞춤 일정을 만들고 있습니다</h1>
+        <p>반려견 동반 근거와 실제 이동 경로를 확인하고 있어요.</p>
+      </header>
+      <div className="recommendation-loading__progress" aria-hidden="true">
+        <span />
       </div>
-      <ol className="mt-6 grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="추천 일정 생성 단계">
-        {LOADING_STAGES.map((stage, index) => (
-          <li key={stage} className="flex items-center gap-2 rounded-xl bg-[#f3f7f4] p-3 text-sm font-bold text-[#52665b]">
-            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-white text-xs text-[var(--brand)]">{index + 1}</span>
-            {stage}
+      {conditions.length > 0 ? (
+        <ul className="recommendation-loading__conditions" aria-label="입력한 여행 조건">
+          {conditions.map((condition) => <li key={condition}>{condition}</li>)}
+        </ul>
+      ) : null}
+      <ol className="recommendation-loading__stops" aria-hidden="true">
+        {[1, 2, 3].map((sequence) => (
+          <li key={sequence} className="recommendation-loading-stop">
+            <span>{sequence}</span>
+            <div><i /><i /></div>
           </li>
         ))}
       </ol>
-      {slow ? <p className="mt-4 rounded-xl bg-[#fff8ec] p-3 text-sm font-bold text-[#76542f]">공식 데이터를 확인하는 데 시간이 조금 더 걸리고 있습니다.</p> : null}
+      {slow ? <p className="recommendation-loading__slow">공식 데이터를 확인하는 데 시간이 조금 더 걸리고 있습니다.</p> : null}
     </section>
   );
 }
@@ -523,6 +559,17 @@ export function RecommendationPlanner({
         : null,
     [activeRoute, editDirty, editableStops],
   );
+  const submittedConditions = [
+    profile.name.trim()
+      ? `${profile.name.trim()} · ${PET_SPECIES_LABEL[profile.species]} · ${PET_SIZE_LABEL[profile.size]}`
+      : null,
+    preferences.departure?.label
+      ? `${preferences.departure.label} 출발`
+      : null,
+    preferences.tripDate && preferences.startTime
+      ? `${preferences.tripDate} · ${preferences.startTime}`
+      : null,
+  ].filter((condition): condition is string => Boolean(condition));
   const routeLocations = useMemo<KakaoMapLocation[]>(() => {
     if (!displayedRoute || !ready) return [];
     return [
@@ -633,14 +680,27 @@ export function RecommendationPlanner({
     }
   };
 
-  if (!profileConfirmed || !preferencesConfirmed) {
-    return <EmptyResult selectionMode={selectionMode} regionId={plannerRegion.id} />;
+  const presentationState = getRecommendationPresentationState({
+    inputConfirmed: profileConfirmed && preferencesConfirmed,
+    loading,
+    response,
+    hasDisplayedRoute: Boolean(displayedRoute),
+  });
+
+  if (presentationState === "missing_input") {
+    return <EmptyResult selectionMode={selectionMode} />;
   }
-  if (loading) return <LoadingResult slow={slow} />;
-  if (response && response.status !== "ready") {
+  if (presentationState === "generating") {
+    return <LoadingResult slow={slow} conditions={submittedConditions} />;
+  }
+  if (
+    presentationState === "failed" &&
+    response &&
+    response.status !== "ready"
+  ) {
     return <div ref={errorRef} tabIndex={-1}><FailureResult response={response} onRetry={() => void runRecommendation()} selectionMode={selectionMode} regionId={plannerRegion.id} /></div>;
   }
-  if (!ready || !displayedRoute) {
+  if (presentationState === "ready_to_generate" || !ready || !displayedRoute) {
     return <section className="surface-panel p-8 text-center"><h1 className="text-2xl font-black">추천 일정을 만들어 볼까요?</h1><Button type="button" variant="brand" className="mt-5" onClick={() => void runRecommendation()}>추천 일정 만들기</Button></section>;
   }
 

@@ -25,7 +25,7 @@ describe("unified planner product flow", () => {
     expect(productPath).toContain("routeCapabilities.fullyAutomaticRecommendation");
   });
 
-  it("shows the seven truthful stages and complete route-option comparison facts", () => {
+  it("shows compact request-backed loading and complete route-option comparison facts", () => {
     const planner = source("components/itinerary/recommendation-planner.tsx");
     for (const label of [
       "선택 장소 확인",
@@ -36,8 +36,12 @@ describe("unified planner product flow", () => {
       "경로 비교",
       "추천 완료",
     ]) {
-      expect(planner).toContain(label);
+      expect(planner).not.toContain(`"${label}",`);
     }
+    expect(planner).toContain("맞춤 일정을 만들고 있습니다");
+    expect(planner).toContain("반려견 동반 근거와 실제 이동 경로를 확인하고 있어요.");
+    expect(planner).toContain("recommendation-loading-stop");
+    expect(planner).not.toContain("LOADING_STAGES");
     for (const fact of [
       "routeSummary.stopCount",
       "totalDrivingSeconds",

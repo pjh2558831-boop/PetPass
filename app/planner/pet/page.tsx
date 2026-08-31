@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { PlannerShell } from "@/components/layout/planner-shell";
 import {
   UnifiedPlannerForm,
   type SavedPetPlannerOption,
@@ -90,21 +89,23 @@ export default async function PetProfilePage({
   }
 
   return (
-    <PlannerShell
-      currentStep={selectedMode ? 2 : 1}
-      progressVariant={selectedMode ? "selected" : "automatic"}
-      eyebrow={selectedMode ? "선택 장소 일정" : "한 번에 입력"}
-      title={selectedMode ? "선택한 장소의 여행 조건 확인" : "여행 정보 입력"}
-      description={selectedMode
-        ? "고른 장소는 일정에 고정하고, 출발지와 반려동물 조건을 반영해 실제 이동 순서를 계산합니다."
-        : "반려동물 정보와 여행 조건을 한 화면에서 입력하고 바로 맞춤 경로를 추천받으세요."}
-    >
+    <div className="page-shell planner-page py-8 sm:py-12 lg:py-14">
+      <header className="planner-page-header">
+        <h1>
+          {selectedMode ? "선택한 장소의 여행 조건 확인" : "여행 정보 입력"}
+        </h1>
+        <p>
+          {selectedMode
+            ? "고른 장소는 일정에 고정하고, 출발지와 반려동물 조건을 반영해 실제 이동 순서를 계산합니다."
+            : "반려동물 정보와 여행 조건을 순서대로 입력하고 맞춤 경로를 추천받으세요."}
+        </p>
+      </header>
       <UnifiedPlannerForm
         initialSavedPets={initialSavedPets}
         isSignedIn={Boolean(userId)}
         savedPetsUnavailable={savedPetsUnavailable}
         mode={selectedMode ? "selected" : "automatic"}
       />
-    </PlannerShell>
+    </div>
   );
 }

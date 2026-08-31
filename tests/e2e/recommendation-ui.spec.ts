@@ -284,7 +284,10 @@ test("shows a deliberate empty recommendation state without a request", async ({
   const requests: string[] = [];
   page.on("request", (request) => { if (new URL(request.url()).pathname === GENERATE_PATH) requests.push(request.url()); });
   await page.goto("/results?tab=recommendations&region=busan");
-  await expect(page.getByRole("heading", { name: "여행 조건이 아직 확정되지 않았어요." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "맞춤 일정을 만들려면 여행 조건이 필요합니다." })).toBeVisible();
+  await expect(page.getByText(/반려견과 출발지, 원하는 하루를 입력하면/u)).toBeVisible();
+  await expect(page.getByRole("link", { name: "여행 조건 입력하기" })).toHaveAttribute("href", "/planner/pet");
+  await expect(page.getByText(/추천 일정 생성 중|맞춤 일정을 만들고 있습니다/u)).toHaveCount(0);
   expect(requests).toEqual([]);
 });
 
@@ -629,7 +632,7 @@ test("keeps a rejected manual edit visible and allows restoration", async ({ pag
   await expect(page.getByRole("list", { name: /균형 추천 방문 순서/u }).locator(":scope > li")).toHaveCount(2);
 });
 
-test("shows truthful staged loading labels without fake percentages", async ({ page }, testInfo) => {
+test("shows compact request-backed loading without fake pipeline stages", async ({ page }, testInfo) => {
   await installFakeMap(page);
   let release: (() => void) | undefined;
   const gate = new Promise<void>((resolve) => { release = resolve; });
@@ -643,8 +646,15 @@ test("shows truthful staged loading labels without fake percentages", async ({ p
   await continueToDay(page);
   await page.getByRole("button", { name: "여행 추천 받기" }).click();
   await expect(page).toHaveURL(/\/results\?tab=recommendations&region=busan$/u);
-  await expect(page.getByText("선택 장소 확인")).toBeVisible();
-  await expect(page.getByText("추천 완료")).toBeVisible();
+  const loading = page.getByRole("status", { name: "맞춤 일정 생성 상태" });
+  await expect(loading.getByRole("heading", { name: "맞춤 일정을 만들고 있습니다" })).toBeVisible();
+  await expect(loading).toContainText("반려견 동반 근거와 실제 이동 경로를 확인하고 있어요.");
+  await expect(loading).toContainText("보리 · 강아지 · 소형");
+  await expect(loading).toContainText("부산광역시 연제구 중앙대로 1001 출발");
+  await expect(loading).toContainText("2026-08-15 · 10:00");
+  await expect(loading.locator(".recommendation-loading-stop")).toHaveCount(3);
+  await expect(page.getByText("선택 장소 확인")).toHaveCount(0);
+  await expect(page.getByText("추천 완료")).toHaveCount(0);
   await expect(page.getByText(/\d+%/u)).toHaveCount(0);
   release!();
   await expect(page.getByRole("heading", { name: /에서 시작하는 2곳 일정/u })).toBeVisible();
