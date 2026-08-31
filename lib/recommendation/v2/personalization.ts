@@ -2,6 +2,10 @@ import "server-only";
 
 import { PERSONALIZATION_V2_CONFIG } from "@/lib/recommendation/config/personalization-v2";
 import type { UsefulTourCategory } from "@/lib/recommendation/types";
+import {
+  analyzeRecommendationHistoryV2,
+  type RecommendationHistoryAnalysisV2,
+} from "@/lib/recommendation/v2/novelty-history";
 
 export type RouteStyleV2 = "comfort" | "preference" | "efficient";
 export type EnvironmentPreferenceV2 =
@@ -31,6 +35,9 @@ export interface PersonalizationContextV2 {
   tripMood: "balanced" | "scenic" | "foodie" | "active" | "restful";
   categoryPriorities: Partial<Record<UsefulTourCategory, number>>;
   recentlySelectedCandidateIds: readonly string[];
+  recentRouteSignatures?: readonly string[];
+  protectedCandidateIds?: readonly string[];
+  history?: RecommendationHistoryAnalysisV2;
   rerollVariant: number;
 }
 
@@ -51,6 +58,7 @@ export interface PersonalizationScoreV2 {
     novelty: number;
   };
   styleUtilities: Record<RouteStyleV2, number>;
+  noveltyAdjustment?: number;
   explanationCodes: string[];
 }
 
@@ -154,7 +162,15 @@ export function scoreCandidatePersonalizationV2(
   candidate: PersonalizationCandidateV2,
   context: PersonalizationContextV2,
 ): PersonalizationScoreV2 {
-  const repeated = context.recentlySelectedCandidateIds.includes(candidate.canonicalId);
+  const history = context.history ?? analyzeRecommendationHistoryV2({
+    recentRouteSignatures: context.recentRouteSignatures ?? [],
+    recentlySelectedCandidateIds: context.recentlySelectedCandidateIds,
+    protectedPlaceIds: context.protectedCandidateIds ?? [],
+  });
+  const protectedCandidate = new Set(context.protectedCandidateIds ?? [])
+    .has(candidate.canonicalId);
+  const signals = history.byCandidate[candidate.canonicalId];
+  const repeated = Boolean(signals?.recentAppearanceCount);
   const components: PersonalizationScoreV2["components"] = {
     petProfileCompatibility: petProfileFit(candidate, context),
     categoryPreference: clamp(context.categoryPriorities[candidate.category] ?? 0.6),
@@ -168,7 +184,7 @@ export function scoreCandidatePersonalizationV2(
     informationTrust: clamp(
       candidate.informationTrust * 0.7 + candidate.dataCompleteness * 0.3,
     ),
-    novelty: repeated ? 0 : 1,
+    novelty: protectedCandidate || !repeated ? 1 : 0,
   };
   const explanationCodes = [
     `eligibility_${candidate.eligibilityTier}`,
@@ -179,7 +195,36 @@ export function scoreCandidatePersonalizationV2(
   if (candidate.eligibilityTier === "unverified") {
     explanationCodes.push("pet_evidence_unverified");
   }
-  if (repeated) explanationCodes.push("recent_place_penalty");
+  const noveltyConfig = PERSONALIZATION_V2_CONFIG.noveltyHistory;
+  const latestCompanions = history.latestOrderedPlaceIds.filter(
+    (id) => id !== candidate.canonicalId,
+  );
+  const coOccurrences = latestCompanions.reduce(
+    (sum, id) => sum + (signals?.coOccurrenceCounts[id] ?? 0),
+    0,
+  );
+  const rawNoveltyAdjustment = protectedCandidate
+    ? 0
+    : !repeated
+      ? noveltyConfig.unseenCandidateBonus
+      : -(
+          (signals?.recentAppearanceCount ?? 0) * noveltyConfig.recentAppearancePenalty +
+          (signals?.consecutiveAppearanceCount ?? 0) * noveltyConfig.consecutiveAppearancePenalty +
+          Math.max(
+            0,
+            noveltyConfig.immediateRecencyPenalty -
+              (signals?.lastAppearancePosition ?? history.routeCount) * noveltyConfig.recencyDecayPerRoute,
+          ) +
+          (signals?.firstStopAppearances ?? 0) * noveltyConfig.firstStopExposurePenalty +
+          coOccurrences * noveltyConfig.coOccurrencePenalty
+        );
+  const noveltyAdjustment = Math.max(
+    -noveltyConfig.maximumAbsoluteAdjustment,
+    Math.min(noveltyConfig.maximumAbsoluteAdjustment, rawNoveltyAdjustment),
+  );
+  if (protectedCandidate) explanationCodes.push("novelty_penalty_exempt_intentional_anchor");
+  else if (repeated) explanationCodes.push("recent_place_penalty");
+  else explanationCodes.push("unseen_candidate_bonus");
   const comfort = Math.round(
     1_000 * (
       components.petProfileCompatibility * 0.3 +
@@ -211,9 +256,14 @@ export function scoreCandidatePersonalizationV2(
   );
   return {
     version: PERSONALIZATION_V2_CONFIG.version,
-    total: weightedTotal(components),
+    total: Math.max(0, weightedTotal(components) + noveltyAdjustment),
     components,
-    styleUtilities: { comfort, preference, efficient },
+    styleUtilities: {
+      comfort: Math.max(0, comfort + noveltyAdjustment),
+      preference: Math.max(0, preference + noveltyAdjustment),
+      efficient: Math.max(0, efficient + noveltyAdjustment),
+    },
+    noveltyAdjustment,
     explanationCodes: [...new Set(explanationCodes)].sort(),
   };
 }

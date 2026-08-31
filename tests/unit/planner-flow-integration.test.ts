@@ -58,6 +58,7 @@ describe("unified planner product flow", () => {
     expect(planner).toContain('fetch("/api/itineraries/revalidate"');
     expect(planner).toContain("orderedPlaceIds: editableIds");
     expect(planner).toContain("지도에서 장소 추가");
-    expect(planner).toContain("자동 장소 다시 채우기");
+    expect(planner).toContain("rerollUi.buttonLabel");
+    expect(planner).toContain("REROLL_RECOVERY_ACTIONS");
   });
 });

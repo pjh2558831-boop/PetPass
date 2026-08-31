@@ -45,11 +45,11 @@ const REQUEST: RouteRecommendationRequest = {
   },
 };
 
-function ktoCandidate(id: string, offset: number): DetailedEligibleCandidate {
+function ktoCandidate(id: string, offset: number, title = `공식 장소 ${id}`): DetailedEligibleCandidate {
   return {
     contentId: id,
     contentTypeId: "12",
-    title: `공식 장소 ${id}`,
+    title,
     coordinates: { latitude: 35.15 + offset, longitude: 129.08 + offset },
     region: { regionCode: "26", districtCode: null },
     providerVisibility: "exposed",
@@ -58,7 +58,7 @@ function ktoCandidate(id: string, offset: number): DetailedEligibleCandidate {
     summary: {
       contentId: id,
       contentTypeId: "12",
-      title: `공식 장소 ${id}`,
+      title,
       address: "부산광역시 테스트로 1",
       phone: null,
       thumbnailUrl: null,
@@ -372,7 +372,13 @@ describe("recommendation service V2 orchestration", () => {
 
   it("exposes three authoritative, segment-preserving route options", async () => {
     const deps = dependencies(
-      [ktoCandidate("1001", 0), ktoCandidate("1002", 0.01), ktoCandidate("1003", 0.02)],
+      [
+        ktoCandidate("1001", 0),
+        ktoCandidate("1002", 0.01),
+        ktoCandidate("1003", 0.02),
+        ktoCandidate("1004", 0.03),
+        ktoCandidate("1005", 0.04),
+      ],
       [],
     );
     const result = await generateRouteRecommendation(REQUEST, deps);
@@ -406,7 +412,13 @@ describe("recommendation service V2 orchestration", () => {
     for (let run = 0; run < 5; run += 1) {
       const deps = {
         ...dependencies(
-          [ktoCandidate("1001", 0), ktoCandidate("1002", 0.01), ktoCandidate("1003", 0.02)],
+          [
+            ktoCandidate("1001", 0),
+            ktoCandidate("1002", 0.01),
+            ktoCandidate("1003", 0.02),
+            ktoCandidate("1004", 0.03),
+            ktoCandidate("1005", 0.04),
+          ],
           [kakaoMarker("201", 0), kakaoMarker("202", 0.01), kakaoMarker("203", 0.02)],
         ),
         includeDiagnostics: true,
@@ -419,33 +431,33 @@ describe("recommendation service V2 orchestration", () => {
       expect(result.routeOptions).toHaveLength(3);
       expect(result.alternatives).toHaveLength(2);
       expect(result.diagnostics?.candidateEligibility).toMatchObject({
-        providerRawCandidates: 6,
-        regionFilteredCandidates: 6,
-        districtFilteredCandidates: 6,
-        requestedCategoryCandidates: 6,
-        petEligibleCandidates: 3,
-        operatingHoursEligibleCandidates: 3,
+        providerRawCandidates: 8,
+        regionFilteredCandidates: 8,
+        districtFilteredCandidates: 8,
+        requestedCategoryCandidates: 8,
+        petEligibleCandidates: 5,
+        operatingHoursEligibleCandidates: 5,
         finalUsedPlaces: result.route.routeSummary.stopCount,
       });
       expect(result.diagnostics?.candidateFunnel).toMatchObject({
         catalog: {
-          publishedRegionalCatalog: 6,
-          core: 6,
+          publishedRegionalCatalog: 8,
+          core: 8,
           shopping: 0,
           listOnly: 0,
         },
         stages: {
-          stableIdentityUnique: 6,
-          petEvidenceEligible: 3,
-          canonicalConditionEligible: 3,
-          operatingHoursEligible: 3,
-          optimizerInput: 3,
+          stableIdentityUnique: 8,
+          petEvidenceEligible: 5,
+          canonicalConditionEligible: 5,
+          operatingHoursEligible: 5,
+          optimizerInput: 5,
         },
       });
       expect(result.diversity).toMatchObject({
-        eligibleUniqueCandidateCount: 3,
+        eligibleUniqueCandidateCount: 5,
         requestedStopCount: 3,
-        unseenEligibleCandidateCount: 3,
+        unseenEligibleCandidateCount: 5,
         maximumFeasibleNovelReplacements: 3,
         diversityCapacity: "sufficient",
       });
@@ -629,5 +641,123 @@ describe("recommendation service V2 orchestration", () => {
       if (result.status === "ready") fingerprints.push(result.requestFingerprint!);
     }
     expect(new Set(fingerprints).size).toBe(variants.length);
+  });
+
+  it("replaces at least two automatic places on a scoped three-stop reroll", async () => {
+    const candidates = Array.from({ length: 7 }, (_, index) =>
+      ktoCandidate(String(4_001 + index), index * 0.006));
+    const first = await generateRouteRecommendation(REQUEST, dependencies(candidates, []));
+    expect(first.status).toBe("ready");
+    if (first.status !== "ready") return;
+    const firstIds = first.route.stops.map(({ placeId }) => placeId);
+    const reroll = await generateRouteRecommendation({
+      ...REQUEST,
+      personalization: {
+        ...REQUEST.personalization!,
+        historyContextKey: first.historyContextKey,
+        recentRouteSignatures: [first.route.routeSignature!],
+        recentlySelectedCandidateIds: firstIds,
+        rerollVariant: 1,
+      },
+    }, dependencies(candidates, []));
+
+    expect(reroll.status).toBe("ready");
+    if (reroll.status !== "ready") return;
+    expect(reroll).toMatchObject({
+      meaningfullyDifferent: true,
+      diversityCapacity: "sufficient",
+    });
+    expect(reroll.newPlaceCount).toBeGreaterThanOrEqual(2);
+    expect(reroll.route.stops.filter(({ placeId }) => !firstIds.includes(placeId)))
+      .toHaveLength(reroll.newPlaceCount!);
+  });
+
+  it("ignores history whose context key does not match the requested trip", async () => {
+    const candidates = Array.from({ length: 5 }, (_, index) =>
+      ktoCandidate(String(5_001 + index), index * 0.006));
+    const result = await generateRouteRecommendation({
+      ...REQUEST,
+      personalization: {
+        ...REQUEST.personalization!,
+        historyContextKey: "0".repeat(64),
+        recentRouteSignatures: ["tour:5001>tour:5002>tour:5003"],
+        recentlySelectedCandidateIds: ["tour:5001", "tour:5002", "tour:5003"],
+        rerollVariant: 1,
+      },
+    }, dependencies(candidates, []));
+
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.sharedPlaceRatio).toBe(0);
+    expect(result.newPlaceCount).toBe(result.route.routeSummary.stopCount);
+    expect(result.historyContextKey).not.toBe("0".repeat(64));
+  });
+
+  it("reports exhausted capacity without claiming a cosmetic reroll is new", async () => {
+    const candidates = [
+      ktoCandidate("6001", 0),
+      ktoCandidate("6002", 0.01),
+      ktoCandidate("6003", 0.02),
+    ];
+    const first = await generateRouteRecommendation(REQUEST, dependencies(candidates, []));
+    expect(first.status).toBe("ready");
+    if (first.status !== "ready") return;
+    const firstIds = first.route.stops.map(({ placeId }) => placeId);
+    const reroll = await generateRouteRecommendation({
+      ...REQUEST,
+      personalization: {
+        ...REQUEST.personalization!,
+        historyContextKey: first.historyContextKey,
+        recentRouteSignatures: [first.route.routeSignature!],
+        recentlySelectedCandidateIds: firstIds,
+        rerollVariant: 1,
+      },
+    }, dependencies(candidates, []));
+
+    expect(reroll).toMatchObject({
+      status: "ready",
+      meaningfullyDifferent: false,
+      newPlaceCount: 0,
+      sharedPlaceRatio: 1,
+      diversityCapacity: "exhausted",
+      diversity: {
+        maximumFeasibleNovelReplacements: 0,
+        diversityCapacity: "exhausted",
+      },
+    });
+  });
+
+  it("never ignores explicit Dream Surf Lounge and Wonsihak exclusions", async () => {
+    const candidates = [
+      ktoCandidate("7001", 0, "드림서프라운지"),
+      ktoCandidate("7002", 0.006, "원시학"),
+      ktoCandidate("7003", 0.012, "안전 대안 1"),
+      ktoCandidate("7004", 0.018, "안전 대안 2"),
+      ktoCandidate("7005", 0.024, "안전 대안 3"),
+      ktoCandidate("7006", 0.03, "안전 대안 4"),
+    ];
+    const withoutDream = await generateRouteRecommendation({
+      ...REQUEST,
+      personalization: {
+        ...REQUEST.personalization!,
+        explicitlyExcludedPlaceIds: ["tour:7001"],
+      },
+    }, dependencies(candidates, []));
+    const withoutBoth = await generateRouteRecommendation({
+      ...REQUEST,
+      personalization: {
+        ...REQUEST.personalization!,
+        explicitlyExcludedPlaceIds: ["tour:7001", "tour:7002"],
+      },
+    }, dependencies(candidates, []));
+
+    expect(withoutDream.status).toBe("ready");
+    expect(withoutBoth.status).toBe("ready");
+    if (withoutDream.status !== "ready" || withoutBoth.status !== "ready") return;
+    expect(withoutDream.routeOptions?.flatMap(({ stops }) => stops)
+      .every(({ placeId }) => placeId !== "tour:7001")).toBe(true);
+    expect(withoutBoth.routeOptions?.flatMap(({ stops }) => stops)
+      .every(({ placeId }) => !["tour:7001", "tour:7002"].includes(placeId))).toBe(true);
+    expect(withoutBoth.route.routeSummary.stopCount).toBe(3);
   });
 });

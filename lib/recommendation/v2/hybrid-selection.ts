@@ -187,6 +187,7 @@ export function selectHybridShortlist(input: {
   optional: readonly CanonicalRecommendationCandidateV2[];
   desiredCategories: ReadonlySet<UsefulTourCategory>;
   capacity: number;
+  personalizationScores?: Readonly<Record<string, number>>;
 }): CanonicalRecommendationCandidateV2[] {
   const anchorIds = new Set(input.anchors.map(({ canonicalId }) => canonicalId));
   const selectedCategories = new Set(input.anchors.map(({ category }) => category));
@@ -203,6 +204,7 @@ export function selectHybridShortlist(input: {
       const distance = corridorDistanceKm(candidate, hubs);
       const score = (categoryGap ? 1_000 : 0) +
         (candidate.scheduleStatus === "known" ? 120 : 0) +
+        (input.personalizationScores?.[candidate.canonicalId] ?? 0) +
         candidate.dataCompleteness * 100 -
         distance * 12 -
         (candidate.eligibilityTier === "conditional" ? 80 : 0);

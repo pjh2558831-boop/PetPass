@@ -59,6 +59,12 @@ import {
 } from "@/lib/recommendation/v2/candidate-funnel";
 import { calculateDiversityCapacityV2 } from "@/lib/recommendation/v2/diversity-capacity";
 import {
+  analyzeRecommendationHistoryV2,
+  calculateNoveltyQuotaV2,
+  measureRerollDifferenceV2,
+  recommendationHistoryContextKeyV2,
+} from "@/lib/recommendation/v2/novelty-history";
+import {
   appendScheduledVisitTiming,
   tripStartMs,
 } from "@/lib/recommendation/optimizer/schedule-simulator";
@@ -992,6 +998,51 @@ export async function generateRouteRecommendation(
       explicitlyExcludedPlaceIds: [],
       rerollVariant: 0,
     };
+    const historyContextKey = recommendationHistoryContextKeyV2({
+      regionId: request.trip.regionId,
+      districtId: request.trip.districtId,
+      departure: {
+        latitude: request.departure.latitude,
+        longitude: request.departure.longitude,
+      },
+      date: request.trip.date,
+      startTime: request.trip.startTime,
+      tripType: request.trip.tripType,
+      tripPace: request.trip.tripPace,
+      selectedCategories: [...request.trip.selectedCategories].sort(),
+      roundTrip: request.trip.roundTrip,
+      environmentPreference: request.trip.environmentPreference ?? "any",
+      desiredStopCount: request.trip.desiredStopCount ?? null,
+      durationMinutes: request.trip.durationMinutes ?? null,
+      pet: {
+        species: request.pet.species,
+        size: request.pet.size,
+        availableEquipment: request.pet.availableEquipment,
+        acceptsOutdoorOnlyPlaces: request.pet.acceptsOutdoorOnlyPlaces,
+      },
+      selectedPlaceIds: [...selectedPlaceIds].sort(),
+      autoFill: request.autoFill ?? true,
+      includeVerificationRequired: request.includeVerificationRequired ?? false,
+      acknowledgedVerificationRequiredPlaceIds: [
+        ...(request.acknowledgedVerificationRequiredPlaceIds ?? []),
+      ].sort(),
+      personalization: {
+        petCount: personalizationRequest.petCount,
+        petActivityLevel: personalizationRequest.petActivityLevel,
+        walkingTolerance: personalizationRequest.walkingTolerance,
+        crowdPreference: personalizationRequest.crowdPreference,
+        tripMood: personalizationRequest.tripMood,
+        categoryPriorities: personalizationRequest.categoryPriorities,
+      },
+    });
+    const historyMatchesContext =
+      personalizationRequest.historyContextKey === historyContextKey;
+    const scopedRecentRouteSignatures = historyMatchesContext
+      ? personalizationRequest.recentRouteSignatures
+      : [];
+    const scopedRecentlySelectedCandidateIds = historyMatchesContext
+      ? personalizationRequest.recentlySelectedCandidateIds
+      : [];
     const fused = fuseRecommendationCandidatesV2({
       regionId: request.trip.regionId,
       districtId: request.trip.districtId,
@@ -1043,7 +1094,7 @@ export async function generateRouteRecommendation(
       })),
       requestedStopCount: requestedCapacity,
       mandatorySelectedPlaceIds: selectedPlaceIds,
-      seenCandidateIds: personalizationRequest.recentlySelectedCandidateIds,
+      seenCandidateIds: scopedRecentlySelectedCandidateIds,
       requiredCategories: usefulCategories,
       feasibleCandidateIds: [],
       requiredRoadEdgesResolved: false,
@@ -1250,17 +1301,6 @@ export async function generateRouteRecommendation(
     }
 
     const generatedAt = now();
-    const personalization = {
-      environmentPreference: normalized.environmentPreference ?? "any",
-      petCount: personalizationRequest.petCount,
-      petActivityLevel: personalizationRequest.petActivityLevel,
-      walkingTolerance: personalizationRequest.walkingTolerance,
-      crowdPreference: personalizationRequest.crowdPreference,
-      tripMood: personalizationRequest.tripMood,
-      categoryPriorities: personalizationRequest.categoryPriorities,
-      recentlySelectedCandidateIds: personalizationRequest.recentlySelectedCandidateIds,
-      rerollVariant: personalizationRequest.rerollVariant,
-    };
     const desiredSupplementCategories = hybridMode
       ? inferHybridSupplementCategories({ request, selected: anchors.filter(
           (candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate),
@@ -1281,6 +1321,44 @@ export async function generateRouteRecommendation(
           !candidate.providerIdentities.some(({ provider, id }) =>
             selectedProviderIdentities.has(`${provider}:${id}`)))
       : [];
+    const protectionPool = hybridMode
+      ? [...anchors, ...optionalCandidates]
+      : fused.candidates;
+    const protectedCandidateIds = new Set(selectedPlaceIds);
+    for (const category of desiredSupplementCategories) {
+      const matching = protectionPool.filter((candidate) => candidate.category === category);
+      if (matching.length === 1) protectedCandidateIds.add(matching[0]!.canonicalId);
+    }
+    const history = analyzeRecommendationHistoryV2({
+      recentRouteSignatures: scopedRecentRouteSignatures,
+      recentlySelectedCandidateIds: scopedRecentlySelectedCandidateIds,
+      protectedPlaceIds: [...protectedCandidateIds],
+    });
+    const personalization = {
+      environmentPreference: normalized.environmentPreference ?? "any",
+      petCount: personalizationRequest.petCount,
+      petActivityLevel: personalizationRequest.petActivityLevel,
+      walkingTolerance: personalizationRequest.walkingTolerance,
+      crowdPreference: personalizationRequest.crowdPreference,
+      tripMood: personalizationRequest.tripMood,
+      categoryPriorities: personalizationRequest.categoryPriorities,
+      recentRouteSignatures: scopedRecentRouteSignatures,
+      recentlySelectedCandidateIds: scopedRecentlySelectedCandidateIds,
+      protectedCandidateIds: [...protectedCandidateIds],
+      history,
+      rerollVariant: personalizationRequest.rerollVariant,
+    };
+    const hybridPersonalizationScores = Object.fromEntries(
+      optionalCandidates.map((candidate) => [
+        candidate.canonicalId,
+        adaptCanonicalCandidateForRouteV2({
+          candidate,
+          departure: request.departure,
+          personalization,
+          computedAt: generatedAt.toISOString(),
+        }).placeUtility.total,
+      ]),
+    );
     const targetCapacity = requestedCapacity;
     const hybridCandidates = hybridMode
       ? selectHybridShortlist({
@@ -1291,6 +1369,7 @@ export async function generateRouteRecommendation(
           optional: optionalCandidates,
           desiredCategories: desiredSupplementCategories,
           capacity: targetCapacity,
+          personalizationScores: hybridPersonalizationScores,
         })
       : [];
     const canonicalCandidates = hybridMode ? hybridCandidates : fused.candidates;
@@ -1329,6 +1408,20 @@ export async function generateRouteRecommendation(
       priority: "TIME",
       avoid: [],
       requestedDepartureAt: null,
+      requiredDirectedEdges: [
+        ...adapted.map(({ node }) => ({ fromId: departure.id, toId: node.id })),
+        ...(request.trip.roundTrip
+          ? adapted.map(({ node }) => ({ fromId: node.id, toId: departure.id }))
+          : []),
+        ...adapted.flatMap(({ node }) => selectedPlaceIds.flatMap((selectedId) =>
+          node.id === selectedId
+            ? []
+            : [
+                { fromId: selectedId, toId: node.id },
+                { fromId: node.id, toId: selectedId },
+              ]
+        )),
+      ],
     });
     dependencies.signal?.throwIfAborted();
     const tripRequest: RouteOptimizationTripRequest = {
@@ -1395,7 +1488,7 @@ export async function generateRouteRecommendation(
       candidates: adapted.map(({ node, category }) => ({ id: node.id, category })),
       requestedStopCount: targetCapacity,
       mandatorySelectedPlaceIds: selectedPlaceIds,
-      seenCandidateIds: personalizationRequest.recentlySelectedCandidateIds,
+      seenCandidateIds: scopedRecentlySelectedCandidateIds,
       requiredCategories: tripRequest.selectedCategories,
       feasibleCandidateIds:
         feasibility.status === "ready" ? feasibility.feasibleCandidateIds : [],
@@ -1457,10 +1550,26 @@ export async function generateRouteRecommendation(
         minimumRequestedCategoryCount: feasibility.requiredRequestedCategoryCount,
       },
     };
+    const feasibleIds = new Set(feasibility.feasibleCandidateIds);
+    const optimizerProtectedPlaceIds = new Set(selectedPlaceIds);
+    for (const category of tripRequest.selectedCategories) {
+      const matching = adapted.filter((candidate) =>
+        feasibleIds.has(candidate.node.id) && candidate.category === category
+      );
+      if (matching.length === 1) optimizerProtectedPlaceIds.add(matching[0]!.node.id);
+    }
+    const noveltyQuota = calculateNoveltyQuotaV2({
+      requestedStopCount: feasibility.targetStopCount,
+      mandatoryPlaceCount: selectedPlaceIds.length,
+      maximumFeasibleNovelReplacements: diversity.maximumFeasibleNovelReplacements,
+      rerollVariant: personalizationRequest.rerollVariant,
+    });
     const optimized = await routeOptionsOptimizer(optimizationInput, {
       travelTimeProvider,
-      recentRouteSignatures: normalized.recentRouteSignatures,
-      recentlySelectedCandidateIds: personalizationRequest.recentlySelectedCandidateIds,
+      recentRouteSignatures: scopedRecentRouteSignatures,
+      recentlySelectedCandidateIds: scopedRecentlySelectedCandidateIds,
+      protectedPlaceIds: [...optimizerProtectedPlaceIds],
+      minimumNewAutomaticPlaces: noveltyQuota,
       deterministicSeed: normalized.generationSeed,
       rerollVariant: personalizationRequest.rerollVariant,
     });
@@ -1578,6 +1687,19 @@ export async function generateRouteRecommendation(
       };
     }
     const route = routeOptions[0]!;
+    const rerollDifference = measureRerollDifferenceV2({
+      orderedPlaceIds: route.stops.map(({ placeId }) => placeId),
+      previousOrderedPlaceIds: history.latestOrderedPlaceIds,
+      protectedPlaceIds: [...optimizerProtectedPlaceIds],
+      noveltyQuota,
+    });
+    const diversityLimitedReasons = [
+      ...diversity.limitingReasonCodes,
+      ...(personalizationRequest.rerollVariant > 0 && rerollDifference.samePlaceSet &&
+        !rerollDifference.sameOrder ? ["only_route_order_changed"] : []),
+      ...(personalizationRequest.rerollVariant > 0 &&
+        rerollDifference.newPlaceCount < noveltyQuota ? ["novelty_quota_not_met"] : []),
+    ].filter((value, index, values) => values.indexOf(value) === index).sort();
     const resultState = route.routeSummary.stopCount === 1
       ? "single_stop_suggestion" as const
       : route.routeSummary.stopCount < requestedTarget
@@ -1637,6 +1759,12 @@ export async function generateRouteRecommendation(
           selection: { selectedPlaceIds, autoFill: request.autoFill ?? true },
         } : {}),
       }),
+      historyContextKey,
+      meaningfullyDifferent: rerollDifference.meaningfullyDifferent,
+      newPlaceCount: rerollDifference.newPlaceCount,
+      sharedPlaceRatio: rerollDifference.sharedPlaceRatio,
+      diversityCapacity: diversity.diversityCapacity,
+      diversityLimitedReasons,
       resultState,
       requestedStopCount: requestedTarget,
       feasibleStopCount: route.routeSummary.stopCount,

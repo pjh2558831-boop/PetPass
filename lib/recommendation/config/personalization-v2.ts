@@ -28,4 +28,14 @@ export const PERSONALIZATION_V2_CONFIG = {
     repeatedPlacePenalty: 120,
     categoryCoverageBonus: 90,
   },
+  noveltyHistory: {
+    unseenCandidateBonus: 360,
+    recentAppearancePenalty: 95,
+    consecutiveAppearancePenalty: 180,
+    immediateRecencyPenalty: 180,
+    recencyDecayPerRoute: 30,
+    firstStopExposurePenalty: 75,
+    coOccurrencePenalty: 28,
+    maximumAbsoluteAdjustment: 900,
+  },
 } as const;

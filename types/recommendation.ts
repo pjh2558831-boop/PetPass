@@ -77,6 +77,8 @@ export interface RouteRecommendationRequest {
     >>;
     recentRouteSignatures: string[];
     recentlySelectedCandidateIds: string[];
+    /** Server-issued key that scopes history to compatible region and trip constraints. */
+    historyContextKey?: string;
     explicitlyExcludedPlaceIds: string[];
     rerollVariant: number;
   };
@@ -306,7 +308,8 @@ export interface RouteRecommendationReadyResponseV1 {
   routeOptionCount?: number;
   routeOptionsLimitedReason?:
     | "fewer_than_three_meaningfully_distinct_routes"
-    | "final_validation_reduced_route_options";
+    | "final_validation_reduced_route_options"
+    | "novelty_quota_unmet";
   candidateSourceCounts?: { kto: number; kakao: number; merged: number };
   alternativeAvailability?: "available" | "limited";
   selectionMode?: "automatic" | "hybrid";
@@ -314,6 +317,12 @@ export interface RouteRecommendationReadyResponseV1 {
   replacementCandidates?: RecommendationReplacementCandidateV1[];
   diagnostics?: SafeRecommendationDiagnostics;
   diversity?: DiversityCapacityResultV2;
+  historyContextKey?: string;
+  meaningfullyDifferent?: boolean;
+  newPlaceCount?: number;
+  sharedPlaceRatio?: number;
+  diversityCapacity?: DiversityCapacityResultV2["diversityCapacity"];
+  diversityLimitedReasons?: string[];
 }
 
 export interface RecommendationConditionConfirmationV1 {

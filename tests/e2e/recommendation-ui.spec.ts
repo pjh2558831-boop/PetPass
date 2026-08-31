@@ -120,6 +120,20 @@ const READY = {
   engineVersion: "petpass-route-engine-v2" as const,
   region: "busan" as const,
   requestFingerprint: "0".repeat(64),
+  historyContextKey: "1".repeat(64),
+  meaningfullyDifferent: true,
+  newPlaceCount: 2,
+  sharedPlaceRatio: 0,
+  diversityCapacity: "sufficient" as const,
+  diversityLimitedReasons: [],
+  diversity: {
+    eligibleUniqueCandidateCount: 8,
+    requestedStopCount: 3,
+    unseenEligibleCandidateCount: 5,
+    maximumFeasibleNovelReplacements: 3,
+    diversityCapacity: "sufficient" as const,
+    limitingReasonCodes: [],
+  },
   resultState: "ready_with_reduced_stops" as const,
   candidateSourceCounts: { kto: 3, kakao: 1, merged: 0 },
   alternativeAvailability: "available" as const,
@@ -356,8 +370,8 @@ test("switches a V2 route style without rerunning providers and updates summary,
   })}`);
 });
 
-test("reroll sends recent signatures and a new deterministic variant", async ({ page }, testInfo) => {
-  const bodies: Array<{ personalization?: { rerollVariant?: number; recentRouteSignatures?: string[]; recentlySelectedCandidateIds?: string[] } }> = [];
+test("reroll sends only the primary scoped history and a new deterministic variant", async ({ page }, testInfo) => {
+  const bodies: Array<{ personalization?: { rerollVariant?: number; recentRouteSignatures?: string[]; recentlySelectedCandidateIds?: string[]; historyContextKey?: string } }> = [];
   await installFakeMap(page);
   await page.route(`**${GENERATE_PATH}`, async (route) => {
     bodies.push(route.request().postDataJSON());
@@ -370,7 +384,7 @@ test("reroll sends recent signatures and a new deterministic variant", async ({ 
   await continueToDay(page);
   await page.getByRole("button", { name: "여행 추천 받기" }).click();
   await expect(page.getByRole("tab", { name: "균형 추천" })).toBeVisible();
-  await page.getByRole("button", { name: "다른 조합 보기" }).click();
+  await page.getByRole("button", { name: "새로운 장소로 다시 추천" }).click();
   await expect.poll(() => bodies.length).toBe(2);
 
   expect(bodies[0]?.personalization).toMatchObject({
@@ -379,14 +393,9 @@ test("reroll sends recent signatures and a new deterministic variant", async ({ 
     recentlySelectedCandidateIds: [],
   });
   expect(bodies[1]?.personalization?.rerollVariant).toBe(1);
-  expect(bodies[1]?.personalization?.recentRouteSignatures).toEqual([
-    "1001>2001",
-    "3001>3002",
-    "2001>1001",
-  ]);
-  expect(bodies[1]?.personalization?.recentlySelectedCandidateIds).toEqual(
-    expect.arrayContaining(["1001", "2001", "3001", "3002"]),
-  );
+  expect(bodies[1]?.personalization?.historyContextKey).toBe("1".repeat(64));
+  expect(bodies[1]?.personalization?.recentRouteSignatures).toEqual(["1001>2001"]);
+  expect(bodies[1]?.personalization?.recentlySelectedCandidateIds).toEqual(["1001", "2001"]);
 });
 
 test("aborts an older reroll and prevents its late response from replacing the newer result", async ({ page }, testInfo) => {
@@ -422,7 +431,7 @@ test("aborts an older reroll and prevents its late response from replacing the n
   await page.getByRole("button", { name: "여행 추천 받기" }).click();
   await expect(page.getByText(/9\.6km/u)).toBeVisible();
 
-  await page.getByRole("button", { name: "다른 조합 보기" }).evaluate((node) => {
+  await page.getByRole("button", { name: "새로운 장소로 다시 추천" }).evaluate((node) => {
     (node as HTMLButtonElement).click();
     (node as HTMLButtonElement).click();
   });

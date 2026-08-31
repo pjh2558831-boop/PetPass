@@ -37,7 +37,11 @@ export type RouteOptionsOptimizationResultV2 =
       status: "ready";
       options: OptimizedRouteOptionV2[];
       alternativeAvailability: "available" | "limited";
-      limitedReason: "fewer_than_three_meaningfully_distinct_routes" | "final_validation_reduced_route_options" | null;
+      limitedReason:
+        | "fewer_than_three_meaningfully_distinct_routes"
+        | "final_validation_reduced_route_options"
+        | "novelty_quota_unmet"
+        | null;
       optimality: RouteSearchOptimality;
       excludedHighlights: ExcludedPlaceExplanation[];
       warnings: string[];
@@ -91,6 +95,8 @@ export async function optimizeRouteOptionsV2(
     travelTimeProvider: TravelTimeProvider;
     recentRouteSignatures: readonly string[];
     recentlySelectedCandidateIds?: readonly string[];
+    protectedPlaceIds?: readonly string[];
+    minimumNewAutomaticPlaces?: number;
     deterministicSeed?: string;
     rerollVariant: number;
     now?: () => number;
@@ -121,6 +127,8 @@ export async function optimizeRouteOptionsV2(
     recentRouteSignatures: dependencies.recentRouteSignatures,
     recentlySelectedCandidateIds: dependencies.recentlySelectedCandidateIds,
     lockedPlaceIds: input.tripRequest.requiredPlaceIds ?? [],
+    protectedPlaceIds: dependencies.protectedPlaceIds,
+    minimumNewAutomaticPlaces: dependencies.minimumNewAutomaticPlaces,
     deterministicSeed: dependencies.deterministicSeed,
     rerollVariant: dependencies.rerollVariant,
   });

@@ -38,6 +38,10 @@ import {
 import { createRouteRecommendationRequest } from "@/lib/recommendation/recommendation-ui-request";
 import { getRecommendationStopEditCopy } from "@/lib/recommendation/recommendation-stop-ui";
 import {
+  REROLL_RECOVERY_ACTIONS,
+  recommendationRerollUiState,
+} from "@/lib/recommendation/recommendation-reroll-ui";
+import {
   manualRouteValidationResponseSchema,
   routeRecommendationResponseSchema,
 } from "@/lib/recommendation/recommendation-response";
@@ -358,6 +362,7 @@ export function RecommendationPlanner({
   const rerollVariantRef = useRef(0);
   const recentSignaturesRef = useRef<string[]>([]);
   const recentCandidateIdsRef = useRef<string[]>([]);
+  const historyContextKeyRef = useRef<string | null>(null);
   const errorRef = useRef<HTMLDivElement>(null);
   const [hybridSelection, setHybridSelection] = useState(() =>
     selectionMode === "hybrid" ? loadSelectedItinerary() : null);
@@ -383,6 +388,9 @@ export function RecommendationPlanner({
         rerollVariant: rerollVariantRef.current,
         recentRouteSignatures: recentSignaturesRef.current,
         recentlySelectedCandidateIds: recentCandidateIdsRef.current,
+        ...(historyContextKeyRef.current
+          ? { historyContextKey: historyContextKeyRef.current }
+          : {}),
         explicitlyExcludedPlaceIds: excludedAutoPlaceId ? [excludedAutoPlaceId] : [],
       }, selectionMode === "hybrid" ? (() => {
         const selection = hybridSelection;
@@ -425,16 +433,24 @@ export function RecommendationPlanner({
       if (parsed.data.status === "ready") {
         const returnedRoutes = parsed.data.routeOptions ?? [parsed.data.route, ...parsed.data.alternatives];
         const selected = returnedRoutes[0] ?? parsed.data.route;
-        recentSignaturesRef.current = [...new Set([
-          ...recentSignaturesRef.current,
-          ...returnedRoutes.flatMap(({ routeSignature }) => routeSignature ? [routeSignature] : []),
-        ])].slice(-12);
-        recentCandidateIdsRef.current = [...new Set([
-          ...recentCandidateIdsRef.current,
-          ...returnedRoutes.flatMap(({ stops }) => stops
+        const contextChanged = Boolean(
+          parsed.data.historyContextKey &&
+          historyContextKeyRef.current &&
+          parsed.data.historyContextKey !== historyContextKeyRef.current,
+        );
+        const priorSignatures = contextChanged ? [] : recentSignaturesRef.current;
+        const priorCandidateIds = contextChanged ? [] : recentCandidateIdsRef.current;
+        recentSignaturesRef.current = [
+          ...priorSignatures,
+          ...(selected.routeSignature ? [selected.routeSignature] : []),
+        ].slice(-12);
+        recentCandidateIdsRef.current = [
+          ...priorCandidateIds,
+          ...selected.stops
             .filter(({ selectionOrigin }) => selectionOrigin !== "user_selected")
-            .map(({ placeId }) => placeId)),
-        ])].slice(-40);
+            .map(({ placeId }) => placeId),
+        ].slice(-30);
+        historyContextKeyRef.current = parsed.data.historyContextKey ?? null;
         setActiveRoute(selected);
         setEditableIds(selected.stops.map(({ placeId }) => placeId));
         setEditDirty(false);
@@ -635,6 +651,7 @@ export function RecommendationPlanner({
   const replacementSupported = ready.alternativeAvailability === "available";
   const hybridAutoFill = selectionMode === "hybrid" && hybridSelection?.autoFill === true;
   const hasAutoFilledStops = displayedRoute.stops.some(({ provenance }) => provenance === "auto_fill");
+  const rerollUi = recommendationRerollUiState(ready);
   const reducedCopy = ready.resultState === "single_stop_suggestion"
     ? "지금 확인된 한 곳을 중심으로 짧고 확실한 일정을 만들었어요."
     : ready.resultState === "ready_with_reduced_stops"
@@ -659,7 +676,7 @@ export function RecommendationPlanner({
             ) : null}
             <Button type="button" variant="brandSecondary" disabled={editDirty} onClick={() => { const saved = saveRouteRecommendation(ready, displayedRoute); setSaveMessage(saved ? "현재 일정을 이 브라우저에 저장했습니다." : "저장하지 못했습니다. 브라우저 저장 공간을 확인해 주세요."); }}><Save size={16} aria-hidden="true" /> 일정 저장</Button>
             {selectionMode === "automatic" || (hybridAutoFill && hasAutoFilledStops) ? (
-              <Button type="button" variant="brandSecondary" onClick={() => void runRecommendation("reroll")}><RefreshCw size={16} aria-hidden="true" /> {selectionMode === "hybrid" ? "자동 장소 다시 채우기" : "다른 조합 보기"}</Button>
+              <Button type="button" variant="brandSecondary" disabled={rerollUi.kind === "exhausted"} onClick={() => void runRecommendation("reroll")}><RefreshCw size={16} aria-hidden="true" /> {rerollUi.buttonLabel}</Button>
             ) : null}
           </div>
         </div>
@@ -671,6 +688,16 @@ export function RecommendationPlanner({
           <div><dt>방문</dt><dd>{editDirty ? `총 ${summary.stopCount}곳` : `${formatDuration(summary.totalVisitSeconds)}${summary.totalWaitSeconds > 0 ? ` · 대기 ${formatDuration(summary.totalWaitSeconds)}` : ""}`}</dd></div>
         </dl>
       </header>
+
+      {rerollUi.showRecoveryActions ? (
+        <section className="rounded-[var(--radius-card)] border border-[#eed8ae] bg-[#fff8ec] p-4" aria-labelledby="reroll-recovery-heading">
+          <h2 id="reroll-recovery-heading" className="text-sm font-black text-[#76542f]">새 장소 선택 폭을 넓히는 방법</h2>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm font-semibold leading-6 text-[#76542f]">
+            {REROLL_RECOVERY_ACTIONS.map((action) => <li key={action}>{action}</li>)}
+          </ul>
+          <p className="mt-2 text-xs font-semibold text-[#76542f]">지역이나 안전 조건은 자동으로 완화하지 않습니다.</p>
+        </section>
+      ) : null}
 
       {ready.selectionIssues && ready.selectionIssues.length > 0 ? (
         <section className="rounded-[var(--radius-card)] border border-[#eed8ae] bg-[#fff8ec] p-4" aria-labelledby="selection-issues-heading">

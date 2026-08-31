@@ -1,6 +1,10 @@
 import "server-only";
 
 import { ROUTE_COMPOSITION_V2_CONFIG } from "@/lib/recommendation/config/route-composition-v2";
+import {
+  analyzeRecommendationHistoryV2,
+  stablePlaceSetSignatureV2,
+} from "@/lib/recommendation/v2/novelty-history";
 
 export const ROUTE_STYLE_IDS_V2 = ["balanced", "shortest", "relaxed"] as const;
 export type RouteStyleIdV2 = (typeof ROUTE_STYLE_IDS_V2)[number];
@@ -28,7 +32,10 @@ export interface RouteStyleOptionV2<TRoute extends RouteStyleSelectionCandidateV
 export interface RouteStyleSelectionResultV2<TRoute extends RouteStyleSelectionCandidateV2 = RouteStyleSelectionCandidateV2> {
   options: RouteStyleOptionV2<TRoute>[];
   alternativeAvailability: "available" | "limited";
-  limitedReason: "fewer_than_three_meaningfully_distinct_routes" | null;
+  limitedReason:
+    | "fewer_than_three_meaningfully_distinct_routes"
+    | "novelty_quota_unmet"
+    | null;
 }
 
 interface RankedCandidate<TRoute extends RouteStyleSelectionCandidateV2> {
@@ -53,9 +60,13 @@ function directedLegs(route: RouteStyleSelectionCandidateV2): Set<string> {
   return new Set(route.orderedPlaceIds.slice(1).map((id, index) => `${route.orderedPlaceIds[index]}>${id}`));
 }
 
-function countSharedPlaces(route: RouteStyleSelectionCandidateV2, selected: readonly RouteStyleSelectionCandidateV2[]): number {
+function countSharedPlaces(
+  route: RouteStyleSelectionCandidateV2,
+  selected: readonly RouteStyleSelectionCandidateV2[],
+  protectedIds: ReadonlySet<string>,
+): number {
   const selectedIds = new Set(selected.flatMap(({ orderedPlaceIds }) => [...orderedPlaceIds]));
-  return route.orderedPlaceIds.filter((id) => selectedIds.has(id)).length;
+  return route.orderedPlaceIds.filter((id) => !protectedIds.has(id) && selectedIds.has(id)).length;
 }
 
 function countSharedDirectedLegs(route: RouteStyleSelectionCandidateV2, selected: readonly RouteStyleSelectionCandidateV2[]): number {
@@ -106,51 +117,129 @@ export function selectRouteStyleOptionsV2<TRoute extends RouteStyleSelectionCand
   recentRouteSignatures: readonly string[];
   recentlySelectedCandidateIds?: readonly string[];
   lockedPlaceIds?: readonly string[];
+  protectedPlaceIds?: readonly string[];
+  minimumNewAutomaticPlaces?: number;
   deterministicSeed?: string;
   rerollVariant: number;
 }): RouteStyleSelectionResultV2<TRoute> {
   const cfg = ROUTE_COMPOSITION_V2_CONFIG.routeOptions;
-  const recentSignatures = new Set(input.recentRouteSignatures);
-  const recentPlaces = new Set(input.recentlySelectedCandidateIds ?? []);
   const locked = new Set(input.lockedPlaceIds ?? []);
-  const recentFirstAutomatic = new Set(input.recentRouteSignatures.map((signature) =>
-    signature.split(">").find((id) => !locked.has(id))).filter((id): id is string => Boolean(id)));
-  const uniqueRoutes = [...new Map(input.routes.map((route) => [route.signature, route])).values()];
-  const commonPlaceIds = new Set(uniqueRoutes[0]?.orderedPlaceIds ?? []);
-  for (const route of uniqueRoutes.slice(1)) {
-    for (const id of [...commonPlaceIds]) if (!route.orderedPlaceIds.includes(id)) commonPlaceIds.delete(id);
-  }
+  const protectedIds = new Set([...(input.protectedPlaceIds ?? []), ...locked]);
+  const history = analyzeRecommendationHistoryV2({
+    recentRouteSignatures: input.recentRouteSignatures,
+    recentlySelectedCandidateIds: input.recentlySelectedCandidateIds ?? [],
+    protectedPlaceIds: [...protectedIds],
+  });
+  const recentSignatures = new Set(history.orderedRouteSignatures);
+  const recentPlaceSets = new Set(history.placeSetSignatures);
+  const orderedUnique = [...new Map(input.routes.map((route) => [route.signature, route])).values()];
+  const uniqueRoutes = [...new Map(
+    orderedUnique.map((route) => [stablePlaceSetSignatureV2(route.orderedPlaceIds), route]),
+  ).values()];
+  const previousAutomaticIds = new Set(
+    history.latestOrderedPlaceIds.filter((id) => !protectedIds.has(id)),
+  );
+  const minimumNewAutomaticPlaces = Math.max(0, input.minimumNewAutomaticPlaces ?? 0);
+  const quotaRoutes = minimumNewAutomaticPlaces === 0
+    ? uniqueRoutes
+    : uniqueRoutes.filter((route) => route.orderedPlaceIds.filter(
+        (id) => !protectedIds.has(id) && !previousAutomaticIds.has(id),
+      ).length >= minimumNewAutomaticPlaces);
+  const noveltyQuotaMet = quotaRoutes.length > 0;
+  const eligibleRoutes = noveltyQuotaMet ? quotaRoutes : uniqueRoutes;
   const selected: TRoute[] = [];
   const options: RouteStyleOptionV2<TRoute>[] = [];
 
   for (const style of ROUTE_STYLE_IDS_V2) {
-    const remaining = uniqueRoutes.filter((route) => !selected.some(({ signature }) => signature === route.signature));
+    const remaining = eligibleRoutes.filter((route) =>
+      !selected.some(({ signature }) => signature === route.signature)
+    );
     if (remaining.length === 0) break;
-    const ranked = remaining.map((route): RankedCandidate<TRoute> => {
-      const firstAutomatic = firstAutomaticPlaceId(route, locked);
+    const priorCommonAutomaticIds = selected.length < 2
+      ? []
+      : selected[0]!.orderedPlaceIds.filter((id) =>
+          !protectedIds.has(id) && selected.slice(1).every((route) =>
+            route.orderedPlaceIds.includes(id)
+          )
+        );
+    const anchorAlternatives = priorCommonAutomaticIds.length === 0
+      ? remaining
+      : remaining.filter((route) => priorCommonAutomaticIds.every((id) =>
+          !route.orderedPlaceIds.includes(id)
+        ));
+    const anchorCandidates = anchorAlternatives.length > 0
+      ? anchorAlternatives
+      : remaining;
+    const historyFirstAlternatives = anchorCandidates.filter((route) => {
+      const first = firstAutomaticPlaceId(route, protectedIds);
+      return first !== null && (history.byCandidate[first]?.firstStopAppearances ?? 0) === 0;
+    });
+    const historyCandidates = historyFirstAlternatives.length > 0
+      ? historyFirstAlternatives
+      : anchorCandidates;
+    const selectedFirstAutomatic = new Set(
+      selected.map((route) => firstAutomaticPlaceId(route, protectedIds)).filter(Boolean),
+    );
+    const firstStopAlternatives = historyCandidates.filter((route) => {
+      const first = firstAutomaticPlaceId(route, protectedIds);
+      return first !== null && !selectedFirstAutomatic.has(first);
+    });
+    const styleCandidates = selected.length > 0 && firstStopAlternatives.length > 0
+      ? firstStopAlternatives
+      : historyCandidates;
+    const ranked = styleCandidates.map((route): RankedCandidate<TRoute> => {
+      const firstAutomatic = firstAutomaticPlaceId(route, protectedIds);
+      const routePlaceSet = stablePlaceSetSignatureV2(route.orderedPlaceIds);
+      const candidateHistoryPenalty = route.orderedPlaceIds.reduce((sum, id) => {
+        if (protectedIds.has(id)) return sum;
+        const signals = history.byCandidate[id];
+        if (!signals) return sum;
+        return sum +
+          signals.recentAppearanceCount * cfg.repeatedAppearancePenalty +
+          signals.consecutiveAppearanceCount * cfg.consecutiveAppearancePenalty +
+          signals.firstStopAppearances * cfg.firstStopExposurePenalty;
+      }, 0);
+      const automaticIds = route.orderedPlaceIds.filter((id) => !protectedIds.has(id));
+      let coOccurrencePenalty = 0;
+      for (let left = 0; left < automaticIds.length; left += 1) {
+        for (let right = left + 1; right < automaticIds.length; right += 1) {
+          coOccurrencePenalty +=
+            (history.byCandidate[automaticIds[left]!]?.coOccurrenceCounts[automaticIds[right]!] ?? 0) *
+            cfg.coOccurrencePenalty;
+        }
+      }
       const historyPenalty =
         (recentSignatures.has(route.signature) ? cfg.recentSignaturePenalty : 0) +
-        (firstAutomatic && recentFirstAutomatic.has(firstAutomatic) ? cfg.recentFirstAutomaticStopPenalty : 0) +
-        route.orderedPlaceIds.reduce((sum, id) => sum +
-          (!locked.has(id) && !commonPlaceIds.has(id) && recentPlaces.has(id) ? cfg.recentAutomaticPlacePenalty : 0), 0);
+        (recentPlaceSets.has(routePlaceSet) ? cfg.recentPlaceSetPenalty : 0) +
+        (firstAutomatic && (history.byCandidate[firstAutomatic]?.firstStopAppearances ?? 0) > 0
+          ? cfg.recentFirstAutomaticStopPenalty
+          : 0) +
+        candidateHistoryPenalty + coOccurrencePenalty;
       const tieBreak = stableHash(`${input.deterministicSeed ?? "route-v2"}:${input.rerollVariant}:${style}:${route.signature}`);
       return {
         route, historyPenalty,
-        diversityPenalty: countSharedPlaces(route, selected) * cfg.selectedOptionPlaceOverlapPenalty +
+        diversityPenalty: countSharedPlaces(route, selected, protectedIds) * cfg.selectedOptionPlaceOverlapPenalty +
           countSharedDirectedLegs(route, selected) * cfg.selectedOptionOrderOverlapPenalty,
         categoryCoverageBonus: route.categoryCount * cfg.categoryCoverageBonus,
         explorationAdjustment: input.rerollVariant > 0 ? tieBreak % 61 : 0,
         tieBreak,
       };
     }).sort((left, right) => compareRanked(style, left, right));
-    const winner = ranked[0]!.route;
+    const explorationWindow = input.rerollVariant > 0
+      ? Math.min(3, ranked.length)
+      : 1;
+    const winner = ranked[input.rerollVariant % explorationWindow]!.route;
     options.push({ style, route: winner, differenceExplanationCodes: differenceCodes(winner, selected) });
     selected.push(winner);
   }
-  const available = options.length === ROUTE_STYLE_IDS_V2.length;
+  const available = noveltyQuotaMet && options.length === ROUTE_STYLE_IDS_V2.length;
   return {
     options,
     alternativeAvailability: available ? "available" : "limited",
-    limitedReason: available ? null : "fewer_than_three_meaningfully_distinct_routes",
+    limitedReason: !noveltyQuotaMet
+      ? "novelty_quota_unmet"
+      : available
+        ? null
+        : "fewer_than_three_meaningfully_distinct_routes",
   };
 }

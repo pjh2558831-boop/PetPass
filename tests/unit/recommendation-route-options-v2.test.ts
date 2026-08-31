@@ -76,6 +76,39 @@ describe("route options V2", () => {
     expect(result.alternativeAvailability).toBe("limited");
   });
 
+  it("deduplicates reordered copies by stable place set as well as ordered signature", () => {
+    const result = selectRouteStyleOptionsV2({
+      routes: [ROUTES[0]!, { ...ROUTES[0]!, signature: "c>a>b", orderedPlaceIds: ["c", "a", "b"] }],
+      recentRouteSignatures: [],
+      recentlySelectedCandidateIds: [],
+      lockedPlaceIds: [],
+      deterministicSeed: "busan:set-dedup",
+      rerollVariant: 0,
+    });
+
+    expect(result.options).toHaveLength(1);
+    expect(result.limitedReason).toBe("fewer_than_three_meaningfully_distinct_routes");
+  });
+
+  it("protects mandatory anchors while enforcing feasible automatic replacement quota", () => {
+    const result = selectRouteStyleOptionsV2({
+      routes: [
+        { ...ROUTES[0]!, signature: "locked>a>b", orderedPlaceIds: ["locked", "a", "b"] },
+        { ...ROUTES[1]!, signature: "locked>d>e", orderedPlaceIds: ["locked", "d", "e"] },
+      ],
+      recentRouteSignatures: ["locked>a>b"],
+      recentlySelectedCandidateIds: ["a", "b"],
+      lockedPlaceIds: ["locked"],
+      protectedPlaceIds: ["locked"],
+      minimumNewAutomaticPlaces: 2,
+      deterministicSeed: "busan:anchor-quota",
+      rerollVariant: 1,
+    });
+
+    expect(result.options[0]?.route.orderedPlaceIds).toEqual(["locked", "d", "e"]);
+    expect(result.options.every(({ route }) => route.orderedPlaceIds.includes("locked"))).toBe(true);
+  });
+
   it("diversifies the first automatic stop on reroll and is deterministic for a seed", () => {
     const first = selectRouteStyleOptionsV2({
       routes: ROUTES, recentRouteSignatures: [], recentlySelectedCandidateIds: [],
@@ -94,5 +127,43 @@ describe("route options V2", () => {
 
     expect(reroll).toEqual(replay);
     expect(priorFirstStops.has(reroll.options[0]!.route.orderedPlaceIds[0]!)).toBe(false);
+  });
+
+  it("uses the reroll index as deterministic controlled exploration when capacity exists", () => {
+    const common = {
+      routes: ROUTES,
+      recentRouteSignatures: [] as string[],
+      recentlySelectedCandidateIds: [] as string[],
+      lockedPlaceIds: [] as string[],
+      deterministicSeed: "busan:variant-control",
+    };
+    const first = selectRouteStyleOptionsV2({ ...common, rerollVariant: 1 });
+    const second = selectRouteStyleOptionsV2({ ...common, rerollVariant: 2 });
+
+    expect(first.options[0]?.route.signature).not.toBe(second.options[0]?.route.signature);
+    expect(selectRouteStyleOptionsV2({ ...common, rerollVariant: 2 })).toEqual(second);
+  });
+
+  it("does not keep one non-mandatory automatic anchor in all three options when alternatives exist", () => {
+    const routes = [
+      { ...ROUTES[0]!, signature: "b>a>c", orderedPlaceIds: ["b", "a", "c"] },
+      { ...ROUTES[1]!, signature: "d>a>e", orderedPlaceIds: ["d", "a", "e"] },
+      { ...ROUTES[2]!, signature: "f>a>g", orderedPlaceIds: ["f", "a", "g"] },
+      { ...ROUTES[3]!, signature: "h>i>j", orderedPlaceIds: ["h", "i", "j"] },
+    ];
+    const result = selectRouteStyleOptionsV2({
+      routes,
+      recentRouteSignatures: [],
+      recentlySelectedCandidateIds: [],
+      lockedPlaceIds: [],
+      deterministicSeed: "busan:no-common-anchor",
+      rerollVariant: 0,
+    });
+    const common = result.options[0]!.route.orderedPlaceIds.filter((id) =>
+      result.options.slice(1).every(({ route }) => route.orderedPlaceIds.includes(id))
+    );
+
+    expect(result.options).toHaveLength(3);
+    expect(common).toHaveLength(0);
   });
 });

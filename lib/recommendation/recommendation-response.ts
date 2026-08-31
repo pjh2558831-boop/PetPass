@@ -378,6 +378,7 @@ const ready = z.object({
   routeOptionsLimitedReason: z.enum([
     "fewer_than_three_meaningfully_distinct_routes",
     "final_validation_reduced_route_options",
+    "novelty_quota_unmet",
   ]).optional(),
   candidateSourceCounts: z.object({
     kto: z.number().int().nonnegative(),
@@ -390,6 +391,12 @@ const ready = z.object({
   replacementCandidates: z.array(replacementCandidate).max(3).optional(),
   diagnostics: safeDiagnostics.optional(),
   diversity: diversity.optional(),
+  historyContextKey: z.string().regex(/^[a-f0-9]{64}$/u).optional(),
+  meaningfullyDifferent: z.boolean().optional(),
+  newPlaceCount: z.number().int().nonnegative().optional(),
+  sharedPlaceRatio: z.number().min(0).max(1).optional(),
+  diversityCapacity: z.enum(["sufficient", "limited", "exhausted"]).optional(),
+  diversityLimitedReasons: z.array(nonEmpty).optional(),
 }).strict();
 
 export const routeRecommendationReadyResponseSchema = ready;

@@ -33,6 +33,7 @@ const personalizationSchema = z.object({
   categoryPriorities: z.record(categories, z.number().finite().min(0).max(1)).default({}),
   recentRouteSignatures: z.array(z.string().trim().min(1).max(512)).max(12).default([]),
   recentlySelectedCandidateIds: z.array(z.string().trim().min(1).max(128)).max(30).default([]),
+  historyContextKey: z.string().regex(/^[a-f0-9]{64}$/u).optional(),
   explicitlyExcludedPlaceIds: z.array(z.string().trim().min(1).max(128)).max(30).default([]),
   rerollVariant: z.number().int().min(0).max(10_000).default(0),
 }).strict();

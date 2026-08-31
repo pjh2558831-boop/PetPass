@@ -103,6 +103,25 @@ describe("recommendation personalization V2", () => {
     expect(scoreCandidatePersonalizationV2(BASE_CANDIDATE, BASE_CONTEXT)).toEqual(first);
   });
 
+  it("does not penalize a protected intentional anchor", () => {
+    const first = scoreCandidatePersonalizationV2(BASE_CANDIDATE, {
+      ...BASE_CONTEXT,
+      protectedCandidateIds: ["tour:1"],
+    });
+    const protectedReroll = scoreCandidatePersonalizationV2(BASE_CANDIDATE, {
+      ...BASE_CONTEXT,
+      recentRouteSignatures: ["tour:1>tour:2>tour:3"],
+      recentlySelectedCandidateIds: ["tour:1"],
+      protectedCandidateIds: ["tour:1"],
+      rerollVariant: 1,
+    });
+
+    expect(protectedReroll.total).toBe(first.total);
+    expect(protectedReroll.noveltyAdjustment).toBe(0);
+    expect(protectedReroll.explanationCodes)
+      .toContain("novelty_penalty_exempt_intentional_anchor");
+  });
+
   it("uses crowd preference and authoritative popularity without filtering", () => {
     const popular = scoreCandidatePersonalizationV2(BASE_CANDIDATE, {
       ...BASE_CONTEXT,

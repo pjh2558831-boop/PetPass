@@ -738,7 +738,7 @@ describe("selected-place hybrid recommendation", () => {
     ]);
   });
 
-  it("optimizes route order while preserving every anchor", async () => {
+  it("preserves every anchor without relabeling a reordered copy as another option", async () => {
     const result = await generateRouteRecommendation({
       ...REQUEST,
       selectedPlaceIds: ["tour:1001", "tour:1002"],
@@ -750,7 +750,10 @@ describe("selected-place hybrid recommendation", () => {
       new Set(["tour:1001", "tour:1002"]),
     );
     expect(result.route.stops.every(({ locked }) => locked)).toBe(true);
-    expect(result.routeOptions).toHaveLength(2);
+    expect(result.routeOptions).toHaveLength(1);
+    expect(result.routeOptionsLimitedReason).toBe(
+      "fewer_than_three_meaningfully_distinct_routes",
+    );
     expect(result.routeOptions?.every(({ stops }) =>
       stops.every(({ locked }) => locked))).toBe(true);
   });
