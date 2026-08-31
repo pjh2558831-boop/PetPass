@@ -1,5 +1,3 @@
-import "server-only";
-
 import { z } from "zod";
 import {
   REGION_IDS,
@@ -41,6 +39,10 @@ const canonicalPlaceId = z.string().trim().max(128).regex(
   /^(?:tour|kakao):[0-9]+$/u,
   "selectedPlaceIds must use a canonical provider identity.",
 );
+const selectedPlaceReference = z.object({
+  placeId: canonicalPlaceId,
+  regionId: z.enum(REGION_IDS),
+}).strict();
 
 export function getRequestedRecommendationRegion(
   input: unknown,
@@ -99,13 +101,6 @@ export const routeRecommendationRequestSchema = z
             message: "districtId must belong to regionId.",
           });
         }
-        if (trip.tripType === "overnight" && !trip.selectedCategories.includes("accommodation")) {
-          context.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["selectedCategories"],
-            message: "Overnight requests must include accommodation.",
-          });
-        }
       }),
     pet: z
       .object({
@@ -130,6 +125,9 @@ export const routeRecommendationRequestSchema = z
       })
       .default([]),
     autoFill: z.boolean().default(true),
+    selectedPlaceReferences: z.array(selectedPlaceReference).max(5).default([]),
+    acknowledgedVerificationRequiredPlaceIds: z.array(canonicalPlaceId).max(5).default([]),
+    includeVerificationRequired: z.boolean().default(false),
     personalization: personalizationSchema.default({}),
   })
   .strict()
@@ -146,6 +144,38 @@ export const routeRecommendationRequestSchema = z
         code: z.ZodIssueCode.custom,
         path: ["departure"],
         message: "DEPARTURE_OUTSIDE_ITINERARY_REGION",
+      });
+    }
+    const selectedIds = new Set(value.selectedPlaceIds);
+    const referenceIds = value.selectedPlaceReferences.map(({ placeId }) => placeId);
+    if (
+      new Set(referenceIds).size !== referenceIds.length ||
+      referenceIds.some((placeId) => !selectedIds.has(placeId)) ||
+      (referenceIds.length > 0 && referenceIds.length !== selectedIds.size)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["selectedPlaceReferences"],
+        message: "selectedPlaceReferences must correspond exactly to selectedPlaceIds.",
+      });
+    }
+    if (value.acknowledgedVerificationRequiredPlaceIds.some((placeId) => !selectedIds.has(placeId))) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["acknowledgedVerificationRequiredPlaceIds"],
+        message: "Acknowledgements must refer to selectedPlaceIds.",
+      });
+    }
+    const hybridAutoFill = selectedIds.size > 0 && value.autoFill;
+    if (
+      value.trip.tripType === "overnight" &&
+      !value.trip.selectedCategories.includes("accommodation") &&
+      !hybridAutoFill
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["trip", "selectedCategories"],
+        message: "Overnight requests must include accommodation unless hybrid auto-fill can reserve it.",
       });
     }
   });

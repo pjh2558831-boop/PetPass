@@ -24,6 +24,7 @@ import { optimizeRouteV1 } from "@/lib/recommendation/optimizer/route-optimizer"
 import { adaptCanonicalCandidateForRouteV2 } from "@/lib/recommendation/v2/candidate-adapter";
 import {
   fuseRecommendationCandidatesV2,
+  type CandidateFusionV2Diagnostics,
   type CanonicalRecommendationCandidateV2,
 } from "@/lib/recommendation/v2/candidate-fusion";
 import {
@@ -32,6 +33,7 @@ import {
   selectedCatalogCandidateV2,
   selectedConditionReasonCodes,
   selectedShoppingCandidateV2,
+  selectedVerificationWarning,
   selectHybridShortlist,
 } from "@/lib/recommendation/v2/hybrid-selection";
 import {
@@ -84,8 +86,10 @@ import type {
   RecommendedRouteStopV1,
   RouteAlternativeV1,
   RouteRecommendationReadyResponseV1,
+  RouteRecommendationFailureResponseV1,
   RouteRecommendationRequest,
   RouteRecommendationResponseV1,
+  SafeRecommendationDiagnostics,
 } from "@/types/recommendation";
 import {
   ROUTE_RECOMMENDATION_API_VERSION,
@@ -276,7 +280,7 @@ function pipelineFailure(
 
 function optimizerFailure(
   result: Exclude<RouteOptimizationResult, { status: "ready" }>,
-): RouteRecommendationResponseV1 {
+): RouteRecommendationFailureResponseV1 {
   switch (result.status) {
     case "matrix_incomplete":
       return recommendationFailure("travel_matrix_incomplete", result.reasonCodes);
@@ -332,6 +336,40 @@ function selectedFailure(
     selectionIssues: hydratedIssues,
     replacementCandidates: replacements,
   };
+}
+
+function safeV2DiagnosticsBeforeRoute(
+  pipeline: CandidatePipelineResult | null,
+  fusion: CandidateFusionV2Diagnostics,
+): SafeRecommendationDiagnostics {
+  return {
+    candidatePipeline: {
+      stageA: pipeline?.diagnostics.stageACount ?? 0,
+      stageB: pipeline?.diagnostics.stageBCount ?? 0,
+      detailedEvaluations: pipeline?.diagnostics.detailedEvaluationCount ?? 0,
+      eligible: fusion.finalCount,
+    },
+    candidateEligibility: {
+      ...fusion.stageCounts,
+      feasibleRouteCandidates: 0,
+      finalUsedPlaces: 0,
+      rejectedByReason: fusion.excludedByReason,
+    },
+    travelMatrix: { nodes: 0, resolvedEdges: 0, unresolvedEdges: 0 },
+    solver: { durationMs: 0, validationAttempts: 0, validationFailures: 0 },
+  };
+}
+
+function mergeReasonCounts(
+  ...records: ReadonlyArray<Readonly<Record<string, number>>>
+): Record<string, number> {
+  const merged = new Map<string, number>();
+  for (const record of records) {
+    for (const [reason, count] of Object.entries(record)) {
+      merged.set(reason, (merged.get(reason) ?? 0) + count);
+    }
+  }
+  return Object.fromEntries([...merged].sort(([left], [right]) => left.localeCompare(right)));
 }
 
 async function generateRouteRecommendationLegacy(
@@ -558,6 +596,18 @@ export async function generateRouteRecommendation(
   const hybridMode = selectedPlaceIds.length > 0;
   const selectedIdSet = new Set(selectedPlaceIds);
   const pace = getTripPaceConfig(request.trip.tripPace);
+  const crossRegionReferences = (request.selectedPlaceReferences ?? []).filter(
+    ({ regionId: selectedRegionId }) => selectedRegionId !== request.trip.regionId,
+  );
+  if (crossRegionReferences.length > 0) {
+    return selectedFailure(crossRegionReferences.map(({ placeId }) => ({
+      placeId,
+      code: "selected_place_cross_region" as const,
+      blocking: true,
+      reasonCodes: ["selected_place_region_mismatch"],
+      replacementCandidateIds: [],
+    })), []);
+  }
   if (
     hybridMode &&
     (selectedIdSet.size !== selectedPlaceIds.length ||
@@ -743,10 +793,14 @@ export async function generateRouteRecommendation(
     };
     const fused = fuseRecommendationCandidatesV2({
       regionId: request.trip.regionId,
+      districtId: request.trip.districtId,
       selectedCategories: usefulCategories,
       ktoCandidates: pipeline?.candidates ?? [],
       catalogCandidates: snapshot?.items ?? [],
       explicitlyExcludedPlaceIds: personalizationRequest.explicitlyExcludedPlaceIds,
+      selectedPlaceIds,
+      includeVerificationRequired: request.includeVerificationRequired ?? false,
+      selectionOrigin: hybridMode ? "automatic_fill" : "automatic_recommendation",
     });
 
     const fusedById = new Map(
@@ -852,12 +906,60 @@ export async function generateRouteRecommendation(
     if (selectionIssues.some(({ blocking }) => blocking)) {
       return selectedFailure(selectionIssues, replacements);
     }
+    const acknowledgedSelectedIds = new Set(
+      request.acknowledgedVerificationRequiredPlaceIds ?? [],
+    );
+    const unacknowledgedAnchors = anchors.filter(
+      (candidate) => selectedVerificationWarning(candidate) !== null &&
+        !acknowledgedSelectedIds.has(candidate.canonicalId),
+    );
+    if (unacknowledgedAnchors.length > 0) {
+      return {
+        ...recommendationFailure("confirmation_required", [
+          "selected_place_verification_acknowledgement_missing",
+        ]),
+        resultState: "confirmation_required",
+        requestedStopCount: selectedPlaceIds.length,
+        feasibleStopCount: anchors.length,
+        resultExplanation:
+          "선택한 장소는 일정에 그대로 유지됩니다. 동반 정책 또는 운영 조건을 직접 확인한다는 동의가 필요합니다.",
+        recoveryActions: ["acknowledge_selected_place_verification"],
+        selectionMode: "hybrid",
+        selectionIssues: unacknowledgedAnchors.map((candidate) => ({
+          placeId: candidate.canonicalId,
+          code: "selected_place_confirmation_required" as const,
+          blocking: true,
+          reasonCodes: [selectedVerificationWarning(candidate)!],
+          replacementCandidateIds: [],
+        })),
+        replacementCandidates: replacements,
+        ...(dependencies.includeDiagnostics ? {
+          diagnostics: safeV2DiagnosticsBeforeRoute(pipeline, fused.diagnostics),
+        } : {}),
+      };
+    }
     if (!hybridMode && fused.candidates.length === 0) {
-      return recommendationFailure("unavailable", [
-        "no_technically_valid_candidate_across_enabled_sources",
-        ...(ktoUnavailable ? ["kto_provider_unavailable"] : []),
-        ...(snapshotUnavailable ? ["kakao_catalog_unavailable"] : []),
-      ]);
+      return {
+        ...recommendationFailure("insufficient_eligible_places", [
+          "no_strictly_eligible_candidate_across_enabled_sources",
+          ...(ktoUnavailable ? ["kto_provider_unavailable"] : []),
+          ...(snapshotUnavailable ? ["kakao_catalog_unavailable"] : []),
+        ]),
+        resultState: "insufficient_eligible_places",
+        requestedStopCount: request.trip.desiredStopCount ?? pace.desiredStopCount,
+        feasibleStopCount: 0,
+        resultExplanation:
+          "요청 지역과 유형에는 후보가 있었지만 확인된 반려동물 동반 근거와 운영시간 기준을 모두 통과한 장소가 부족합니다.",
+        recoveryActions: [
+          "change_categories",
+          ...(request.trip.districtId ? ["widen_district" as const] : []),
+          "select_places_manually",
+          "allow_verification_required_candidates",
+        ],
+        ...(dependencies.includeDiagnostics ? {
+          diagnostics: safeV2DiagnosticsBeforeRoute(pipeline, fused.diagnostics),
+        } : {}),
+      };
     }
     if (hybridMode && anchors.length === 0) {
       return selectedFailure([{
@@ -992,9 +1094,55 @@ export async function generateRouteRecommendation(
         ...optimized,
         status: optimized.status,
       } as Exclude<RouteOptimizationResult, { status: "ready" }>);
+      const detailedFailure = {
+        ...failure,
+        resultState: "insufficient_eligible_places" as const,
+        requestedStopCount: targetCapacity,
+        feasibleStopCount: 0,
+        resultExplanation:
+          "동반 조건을 통과한 장소는 있지만 요청한 운영시간과 실제 이동시간을 만족하는 경로를 만들지 못했습니다.",
+        recoveryActions: [
+          "reduce_requested_stops" as const,
+          "change_time_window" as const,
+          "change_categories" as const,
+          ...(request.trip.districtId ? ["widen_district" as const] : []),
+        ],
+        ...(dependencies.includeDiagnostics ? {
+          diagnostics: {
+            candidatePipeline: {
+              stageA: pipeline?.diagnostics.stageACount ?? 0,
+              stageB: pipeline?.diagnostics.stageBCount ?? 0,
+              detailedEvaluations: pipeline?.diagnostics.detailedEvaluationCount ?? 0,
+              eligible: fused.candidates.length,
+            },
+            candidateEligibility: {
+              ...fused.diagnostics.stageCounts,
+              feasibleRouteCandidates: 0,
+              finalUsedPlaces: 0,
+              rejectedByReason: mergeReasonCounts(
+                fused.diagnostics.excludedByReason,
+                Object.fromEntries(optimized.reasonCodes.reduce((counts, reason) => {
+                  counts.set(reason, (counts.get(reason) ?? 0) + 1);
+                  return counts;
+                }, new Map<string, number>())),
+              ),
+            },
+            travelMatrix: {
+              nodes: matrix.diagnostics.nodeCount,
+              resolvedEdges: matrix.diagnostics.resolvedEdges,
+              unresolvedEdges: matrix.diagnostics.unresolvedEdges,
+            },
+            solver: {
+              durationMs: optimized.diagnostics.totalDurationMs,
+              validationAttempts: optimized.diagnostics.validationAttempts,
+              validationFailures: optimized.diagnostics.validationFailures,
+            },
+          },
+        } : {}),
+      };
       return hybridMode
         ? {
-            ...failure,
+            ...detailedFailure,
             selectionMode: "hybrid",
             selectionIssues: [{
               placeId: selectedPlaceIds[0]!,
@@ -1005,7 +1153,7 @@ export async function generateRouteRecommendation(
             }],
             replacementCandidates: replacements,
           }
-        : failure;
+        : detailedFailure;
     }
     const requestedTarget = targetCapacity;
     const routeOptions = optimized.options.map((option) => routeFromOptionV2({
@@ -1022,6 +1170,28 @@ export async function generateRouteRecommendation(
       : route.routeSummary.stopCount < requestedTarget
         ? "ready_with_reduced_stops" as const
         : "ready" as const;
+    const resultReasonCodes = resultState === "ready"
+      ? ["requested_stop_count_satisfied"]
+      : resultState === "ready_with_reduced_stops"
+        ? ["eligible_or_feasible_places_below_requested_stop_count"]
+        : ["only_one_eligible_feasible_place"];
+    const recoveryActions = resultState === "ready"
+      ? []
+      : [
+          "reduce_requested_stops" as const,
+          "change_time_window" as const,
+          "change_categories" as const,
+          ...(request.trip.districtId ? ["widen_district" as const] : []),
+        ];
+    const alternatives: RouteAlternativeV1[] = routeOptions.slice(1, 3).map(
+      (option, index) => ({
+        ...option,
+        kind: "optimized" as const,
+        alternativeType: option.style === "efficient" || index === 1
+          ? "lower_travel"
+          : "popularity_oriented",
+      }),
+    );
     const editSessionId = createEditSessionId(
       optimizationInput,
       routeOptions,
@@ -1044,11 +1214,26 @@ export async function generateRouteRecommendation(
         normalized,
         catalogVersion: snapshot?.dataVersion ?? "catalog-unavailable",
         candidates: fused.candidates,
+        eligibilityPolicy: {
+          includeVerificationRequired: request.includeVerificationRequired ?? false,
+          acknowledgedVerificationRequiredPlaceIds:
+            request.acknowledgedVerificationRequiredPlaceIds ?? [],
+          selectedPlaceReferences: request.selectedPlaceReferences ?? [],
+        },
         ...(hybridMode ? {
           selection: { selectedPlaceIds, autoFill: request.autoFill ?? true },
         } : {}),
       }),
       resultState,
+      requestedStopCount: requestedTarget,
+      feasibleStopCount: route.routeSummary.stopCount,
+      resultReasonCodes,
+      resultExplanation: resultState === "ready"
+        ? "요청한 방문지 수를 충족하는 경로입니다."
+        : resultState === "ready_with_reduced_stops"
+          ? "동반 근거, 운영시간, 이동시간을 모두 지키기 위해 방문지 수를 줄였습니다."
+          : "현재 조건에서 안전하게 제안할 수 있는 장소가 한 곳뿐입니다.",
+      recoveryActions,
       requestSummary: {
         departureLabel: request.departure.label,
         tripDate: request.trip.date,
@@ -1061,7 +1246,7 @@ export async function generateRouteRecommendation(
       optimality: optimized.optimality,
       route,
       routeOptions,
-      alternatives: [],
+      alternatives,
       alternativeAvailability: optimized.alternativeAvailability,
       candidateSourceCounts: {
         kto: fused.diagnostics.acceptedSourceCounts.kto,
@@ -1108,6 +1293,22 @@ export async function generateRouteRecommendation(
             stageB: pipeline?.diagnostics.stageBCount ?? 0,
             detailedEvaluations: pipeline?.diagnostics.detailedEvaluationCount ?? 0,
             eligible: fused.candidates.length,
+          },
+          candidateEligibility: {
+            ...fused.diagnostics.stageCounts,
+            feasibleRouteCandidates: new Set(
+              routeOptions.flatMap(({ stops }) => stops.map(({ placeId }) => placeId)),
+            ).size,
+            finalUsedPlaces: route.routeSummary.stopCount,
+            rejectedByReason: mergeReasonCounts(
+              fused.diagnostics.excludedByReason,
+              Object.fromEntries(
+                optimized.excludedHighlights.reduce((counts, { reasonCode }) => {
+                  counts.set(reasonCode, (counts.get(reasonCode) ?? 0) + 1);
+                  return counts;
+                }, new Map<string, number>()),
+              ),
+            ),
           },
           travelMatrix: {
             nodes: matrix.diagnostics.nodeCount,

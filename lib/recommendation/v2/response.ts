@@ -25,6 +25,11 @@ export function requestFingerprintV2(input: {
   catalogVersion: string;
   candidates: readonly CanonicalRecommendationCandidateV2[];
   selection?: { selectedPlaceIds: readonly string[]; autoFill: boolean };
+  eligibilityPolicy?: {
+    includeVerificationRequired: boolean;
+    acknowledgedVerificationRequiredPlaceIds: readonly string[];
+    selectedPlaceReferences: readonly { placeId: string; regionId: string }[];
+  };
 }): string {
   return createHash("sha256").update(stableJson({
     contractVersion: ROUTE_RECOMMENDATION_CONTRACT_V2,
@@ -36,6 +41,7 @@ export function requestFingerprintV2(input: {
     routeStyles: ["comfort", "preference", "efficient"],
     request: input.normalized,
     ...(input.selection ? { selection: input.selection } : {}),
+    eligibilityPolicy: input.eligibilityPolicy,
     catalogVersion: input.catalogVersion,
     candidateGeneration: input.candidates.map((candidate) => ({
       id: candidate.canonicalId,
@@ -81,6 +87,10 @@ function productStopV2(
     evidenceStatus: candidate.evidenceStatus,
     retrievedAt: candidate.retrievedAt,
     providerIdentities: candidate.providerIdentities,
+    regionId: candidate.regionId,
+    districtId: candidate.districtCode,
+    selectionOrigin: candidate.selectionOrigin,
+    operatingHoursEvidenceState: candidate.operatingHoursEvidenceState,
     ...(selectedPlaceIds ? {
       provenance: selected ? "user_selected" as const : "auto_fill" as const,
       locked: selected,

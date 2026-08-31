@@ -22,6 +22,8 @@ import {
   getSelectedItineraryCategories,
   loadSelectedItinerary,
   saveSelectedItinerary,
+  selectedItineraryNeedsWarning,
+  setSelectedItineraryVerificationAcknowledged,
   type SelectedItinerarySnapshot,
 } from "@/lib/storage/selected-itinerary-storage";
 import { BUSAN_DISTRICTS, BUSAN_REGION } from "@/lib/tour-api/catalog";
@@ -327,6 +329,10 @@ export function UnifiedPlannerForm({
     const selectedPlaces = selectedItinerary?.places ?? [];
     const autoFill = selectedItinerary?.autoFill ?? true;
     const selectedCategories = getSelectedItineraryCategories(selectedPlaces);
+    const unacknowledgedVerificationPlaces = selectedPlaces.filter(
+      (place) => selectedItineraryNeedsWarning(place) &&
+        !selectedItinerary?.acknowledgedVerificationRequiredPlaceIds.includes(place.id),
+    );
 
     if (includes("selection")) {
       if (selectedMode && selectedPlaces.length === 0) {
@@ -335,6 +341,9 @@ export function UnifiedPlannerForm({
       } else if (selectedMode && !autoFill && selectedPlaces.length < 2) {
         nextErrors.selection =
           "자동 채우기를 끄려면 장소를 두 곳 이상 골라 주세요.";
+      } else if (selectedMode && unacknowledgedVerificationPlaces.length > 0) {
+        nextErrors.selection =
+          "확인이 필요한 선택 장소의 동반·운영 조건을 직접 확인한다는 항목에 동의해 주세요.";
       } else if (
         selectedMode &&
         !autoFill &&
@@ -1034,6 +1043,37 @@ export function UnifiedPlannerForm({
                     선택한 장소 사이를 WEEKENDOG가 자동으로 채우기
                   </span>
                 </label>
+                {selectedItinerary?.places.some(selectedItineraryNeedsWarning) ? (
+                  <label className="planner-inline-check">
+                    <input
+                      type="checkbox"
+                      checked={selectedItinerary.places
+                        .filter(selectedItineraryNeedsWarning)
+                        .every(({ id }) => selectedItinerary
+                          .acknowledgedVerificationRequiredPlaceIds.includes(id))}
+                      onChange={(event) => {
+                        let next = selectedItinerary;
+                        for (const place of selectedItinerary.places.filter(selectedItineraryNeedsWarning)) {
+                          next = setSelectedItineraryVerificationAcknowledged(
+                            next,
+                            place.id,
+                            event.target.checked,
+                          );
+                        }
+                        setSelectedItinerary(next);
+                        clearError("selection");
+                        if (!saveSelectedItinerary(next)) {
+                          setSelectionError("확인 동의를 저장하지 못했습니다.");
+                        } else {
+                          setSelectionError("");
+                        }
+                      }}
+                    />
+                    <span>
+                      확인 필요 장소의 반려동물 동반 조건과 운영시간을 방문 전에 직접 확인하겠습니다
+                    </span>
+                  </label>
+                ) : null}
                 {selectionError ? (
                   <p className="planner-error" role="alert">
                     {selectionError}

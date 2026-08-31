@@ -5,6 +5,7 @@ import type {
 import { ROUTE_RECOMMENDATION_API_VERSION } from "@/types/recommendation";
 
 const KOREAN_MESSAGES: Record<Exclude<RecommendationStatus, "ready">, string> = {
+  confirmation_required: "선택한 장소의 반려동물 동반 조건을 확인하고 동의해 주세요.",
   unavailable: "현재 조건에서 경로에 넣을 수 있는 장소를 찾지 못했습니다.",
   invalid_request: "입력한 여행 조건을 확인해 주세요.",
   region_not_supported_for_itinerary:
@@ -55,6 +56,8 @@ export function recommendationHttpStatus(
   status: Exclude<RecommendationStatus, "ready">,
 ): number {
   switch (status) {
+    case "confirmation_required":
+      return 409;
     case "invalid_request":
       return 400;
     case "region_not_supported_for_itinerary":

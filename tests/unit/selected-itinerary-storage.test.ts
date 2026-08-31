@@ -7,6 +7,7 @@ import {
   removeSelectedItineraryPlace,
   requiresSelectionRegionClear,
   saveSelectedItinerary,
+  setSelectedItineraryVerificationAcknowledged,
   selectedItineraryPlaceFromCatalog,
   type SelectedItineraryPlace,
 } from "@/lib/storage/selected-itinerary-storage";
@@ -26,6 +27,10 @@ class MemoryStorage implements StorageLike {
 
   removeItem(key: string) {
     this.values.delete(key);
+  }
+
+  seed(key: string, value: string) {
+    this.values.set(key, value);
   }
 }
 
@@ -136,5 +141,37 @@ describe("selected itinerary storage", () => {
       "food",
       "shopping",
     ]);
+  });
+
+  it("persists an explicit acknowledgement only for selected verification-required places", () => {
+    const unknown = place("kakao:9001");
+    const verified = place("tour:7001", { petAccessVerdict: "allowed" });
+    let snapshot = createSelectedItinerarySnapshot("busan");
+    snapshot = addSelectedItineraryPlace(snapshot, unknown).snapshot;
+    snapshot = addSelectedItineraryPlace(snapshot, verified).snapshot;
+
+    snapshot = setSelectedItineraryVerificationAcknowledged(snapshot, "kakao:9001", true);
+    snapshot = setSelectedItineraryVerificationAcknowledged(snapshot, "tour:7001", true);
+    expect(snapshot.acknowledgedVerificationRequiredPlaceIds).toEqual(["kakao:9001"]);
+
+    expect(removeSelectedItineraryPlace(snapshot, "kakao:9001"))
+      .toMatchObject({ acknowledgedVerificationRequiredPlaceIds: [] });
+  });
+
+  it("migrates the existing selection snapshot with no implicit acknowledgement", () => {
+    const storage = new MemoryStorage();
+    storage.seed("weekendog:selected-itinerary", JSON.stringify({
+      version: 1,
+      data: {
+        regionId: "busan",
+        autoFill: true,
+        places: [place("kakao:9001")],
+      },
+    }));
+
+    expect(loadSelectedItinerary(storage)).toMatchObject({
+      acknowledgedVerificationRequiredPlaceIds: [],
+      places: [{ id: "kakao:9001" }],
+    });
   });
 });

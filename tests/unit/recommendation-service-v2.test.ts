@@ -299,7 +299,7 @@ describe("recommendation service V2 orchestration", () => {
     });
   });
 
-  it("supplements KTO with unverified Kakao candidates while sharing provider work", async () => {
+  it("excludes unverified Kakao candidates from automatic recommendations by default", async () => {
     const deps = dependencies(
       [ktoCandidate("1001", 0)],
       [kakaoMarker("201", 0), kakaoMarker("202", 0.01), kakaoMarker("203", 0.02)],
@@ -309,12 +309,9 @@ describe("recommendation service V2 orchestration", () => {
     expect(result.status).toBe("ready");
     if (result.status !== "ready") return;
     expect(routeRecommendationResponseSchema.safeParse(result).success).toBe(true);
-    expect(result.candidateSourceCounts).toEqual({ kto: 1, kakao: 3, merged: 0 });
-    expect(result.routeOptions?.length).toBeGreaterThan(1);
-    expect(new Set(result.routeOptions?.map(({ routeSignature }) => routeSignature)).size)
-      .toBe(result.routeOptions?.length);
-    expect(result.routeOptions?.flatMap(({ stops }) => stops).some((stop) =>
-      stop.source === "kakao_catalog" && stop.petAssessment === "unknown" && stop.evidenceStatus === "unverified",
+    expect(result.candidateSourceCounts).toEqual({ kto: 1, kakao: 0, merged: 0 });
+    expect(result.routeOptions?.flatMap(({ stops }) => stops).every((stop) =>
+      stop.source === "tourism_service2" && stop.petAssessment === "allowed" && stop.evidenceStatus === "verified",
     )).toBe(true);
     expect(deps.collectCatalog).toHaveBeenCalledTimes(1);
     expect(deps.candidatePipeline).toHaveBeenCalledTimes(1);
@@ -323,6 +320,26 @@ describe("recommendation service V2 orchestration", () => {
     expect(deps.provider.validateOrderedRoute.mock.calls.length).toBeLessThanOrEqual(3);
     expect(result.routeOptions?.flatMap(({ stops }) => stops).every(({ placeId }) =>
       placeId.startsWith("tour:") || placeId.startsWith("kakao:"),
+    )).toBe(true);
+  });
+
+  it("uses verification-required Kakao candidates only after an explicit opt-in", async () => {
+    const deps = dependencies(
+      [ktoCandidate("1001", 0)],
+      [kakaoMarker("201", 0), kakaoMarker("202", 0.01), kakaoMarker("203", 0.02)],
+    );
+    const result = await generateRouteRecommendation({
+      ...REQUEST,
+      includeVerificationRequired: true,
+    }, deps);
+
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.candidateSourceCounts).toEqual({ kto: 1, kakao: 3, merged: 0 });
+    expect(result.routeOptions?.flatMap(({ stops }) => stops).some((stop) =>
+      stop.source === "kakao_catalog" &&
+      stop.petAssessment === "unknown" &&
+      stop.operatingHoursEvidenceState === "verification_required",
     )).toBe(true);
   });
 
@@ -343,6 +360,16 @@ describe("recommendation service V2 orchestration", () => {
       expect(result.status).toBe("ready");
       if (result.status !== "ready") continue;
       expect(result.routeOptions).toHaveLength(3);
+      expect(result.alternatives).toHaveLength(2);
+      expect(result.diagnostics?.candidateEligibility).toMatchObject({
+        providerRawCandidates: 6,
+        regionFilteredCandidates: 6,
+        districtFilteredCandidates: 6,
+        requestedCategoryCandidates: 6,
+        petEligibleCandidates: 3,
+        operatingHoursEligibleCandidates: 3,
+        finalUsedPlaces: result.route.routeSummary.stopCount,
+      });
       measurement = {
         routeOptions: result.routeOptions?.length ?? 0,
         catalogCalls: deps.collectCatalog.mock.calls.length,
@@ -405,11 +432,23 @@ describe("recommendation service V2 orchestration", () => {
     });
   });
 
-  it("returns unavailable only after both enabled sources produce zero candidates", async () => {
-    const deps = dependencies([], []);
+  it("returns an inspectable insufficient-eligibility state before matrix work", async () => {
+    const deps = { ...dependencies([], []), includeDiagnostics: true };
     const result = await generateRouteRecommendation(REQUEST, deps);
 
-    expect(result).toMatchObject({ status: "unavailable" });
+    expect(result).toMatchObject({
+      status: "insufficient_eligible_places",
+      resultState: "insufficient_eligible_places",
+      feasibleStopCount: 0,
+      recoveryActions: expect.arrayContaining(["select_places_manually"]),
+      diagnostics: {
+        candidateEligibility: {
+          providerRawCandidates: 0,
+          feasibleRouteCandidates: 0,
+          finalUsedPlaces: 0,
+        },
+      },
+    });
     expect(deps.provider.buildMatrix).not.toHaveBeenCalled();
   });
 
@@ -433,13 +472,16 @@ describe("recommendation service V2 orchestration", () => {
     });
   });
 
-  it("uses stored Kakao candidates after a partial KTO provider failure", async () => {
+  it("uses stored Kakao candidates after a partial KTO failure only with opt-in", async () => {
     const deps = dependencies([], [kakaoMarker("201", 0)]);
     deps.candidatePipeline.mockResolvedValue({
       ...pipeline([]),
       status: "provider_unavailable",
     });
-    const result = await generateRouteRecommendation(REQUEST, deps);
+    const result = await generateRouteRecommendation({
+      ...REQUEST,
+      includeVerificationRequired: true,
+    }, deps);
 
     expect(result).toMatchObject({
       status: "ready",
@@ -463,6 +505,7 @@ describe("recommendation service V2 orchestration", () => {
       { ...REQUEST, personalization: { ...REQUEST.personalization!, categoryPriorities: { attraction: 0.2 } } },
       { ...REQUEST, personalization: { ...REQUEST.personalization!, recentRouteSignatures: ["old>route"] } },
       { ...REQUEST, personalization: { ...REQUEST.personalization!, recentlySelectedCandidateIds: ["tour:old"] } },
+      { ...REQUEST, includeVerificationRequired: true },
       { ...REQUEST, personalization: { ...REQUEST.personalization!, explicitlyExcludedPlaceIds: ["tour:not-present"] } },
       { ...REQUEST, personalization: { ...REQUEST.personalization!, rerollVariant: 1 } },
     ];

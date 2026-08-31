@@ -37,13 +37,22 @@ const preferences: TravelPreferences = {
 describe("selected itinerary request", () => {
   it("adds canonical selected IDs and auto-fill only for the hybrid flow", () => {
     const request = createRouteRecommendationRequest(profile, preferences, {}, {
-      selectedPlaceIds: ["tour:7001", "kakao:9001"],
+      selectedPlaces: [
+        { id: "tour:7001", regionId: "busan" },
+        { id: "kakao:9001", regionId: "busan" },
+      ],
       autoFill: true,
       selectedCategories: ["attraction", "food"],
+      acknowledgedVerificationRequiredPlaceIds: ["kakao:9001"],
     });
 
     expect(request).toMatchObject({
       selectedPlaceIds: ["tour:7001", "kakao:9001"],
+      selectedPlaceReferences: [
+        { placeId: "tour:7001", regionId: "busan" },
+        { placeId: "kakao:9001", regionId: "busan" },
+      ],
+      acknowledgedVerificationRequiredPlaceIds: ["kakao:9001"],
       autoFill: true,
       trip: { selectedCategories: ["attraction", "food"] },
     });
@@ -53,7 +62,28 @@ describe("selected itinerary request", () => {
     const request = createRouteRecommendationRequest(profile, preferences);
 
     expect(request.trip.selectedCategories).toEqual(["attraction"]);
-    expect(request).not.toHaveProperty("selectedPlaceIds");
-    expect(request).not.toHaveProperty("autoFill");
+    expect(request).toMatchObject({
+      selectedPlaceIds: [],
+      selectedPlaceReferences: [],
+      acknowledgedVerificationRequiredPlaceIds: [],
+      includeVerificationRequired: false,
+      autoFill: true,
+    });
+  });
+
+  it("derives the request region from the shared 17-region configuration", () => {
+    const request = createRouteRecommendationRequest(profile, {
+      ...preferences,
+      regionCode: "11",
+      regionName: "서울특별시",
+      districtCode: undefined,
+      departure: {
+        label: "서울역",
+        coordinates: { latitude: 37.5547, longitude: 126.9707 },
+        source: "kakao_place_search",
+      },
+    });
+
+    expect(request.trip.regionId).toBe("seoul");
   });
 });

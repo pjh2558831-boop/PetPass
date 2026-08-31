@@ -12,7 +12,7 @@ import {
   type StorageLike,
 } from "@/lib/storage/versioned-storage";
 
-const STORAGE_VERSION = 1;
+const STORAGE_VERSION = 2;
 const STORAGE_KEY = "weekendog:selected-itinerary";
 
 export const MAX_SELECTED_ITINERARY_PLACES = 5;
@@ -39,6 +39,9 @@ const selectedItinerarySnapshotSchema = z.object({
   regionId: z.enum(REGION_IDS),
   autoFill: z.boolean(),
   places: z.array(selectedItineraryPlaceSchema).max(MAX_SELECTED_ITINERARY_PLACES),
+  acknowledgedVerificationRequiredPlaceIds: z.array(
+    z.string().regex(/^(?:tour|kakao):[0-9]+$/u),
+  ).max(MAX_SELECTED_ITINERARY_PLACES),
 }).superRefine((value, context) => {
   const ids = value.places.map(({ id }) => id);
   if (new Set(ids).size !== ids.length) {
@@ -46,6 +49,10 @@ const selectedItinerarySnapshotSchema = z.object({
   }
   if (value.places.some(({ regionId }) => regionId !== value.regionId)) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["places"], message: "Cross-region selected place" });
+  }
+  const selectedIds = new Set(ids);
+  if (value.acknowledgedVerificationRequiredPlaceIds.some((id) => !selectedIds.has(id))) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["acknowledgedVerificationRequiredPlaceIds"], message: "Acknowledged place is not selected" });
   }
 });
 
@@ -77,7 +84,7 @@ const SELECTED_CATEGORY_MAP: Partial<Record<SelectedItineraryPlace["category"], 
 export function createSelectedItinerarySnapshot(
   regionId: RegionId,
 ): SelectedItinerarySnapshot {
-  return { regionId, autoFill: true, places: [] };
+  return { regionId, autoFill: true, places: [], acknowledgedVerificationRequiredPlaceIds: [] };
 }
 
 export function selectedItineraryPlaceFromCatalog(
@@ -132,6 +139,23 @@ export function removeSelectedItineraryPlace(
   return {
     ...snapshot,
     places: snapshot.places.filter(({ id }) => id !== placeId),
+    acknowledgedVerificationRequiredPlaceIds:
+      snapshot.acknowledgedVerificationRequiredPlaceIds.filter((id) => id !== placeId),
+  };
+}
+
+export function setSelectedItineraryVerificationAcknowledged(
+  snapshot: SelectedItinerarySnapshot,
+  placeId: string,
+  acknowledged: boolean,
+): SelectedItinerarySnapshot {
+  const place = snapshot.places.find(({ id }) => id === placeId);
+  const ids = new Set(snapshot.acknowledgedVerificationRequiredPlaceIds);
+  if (acknowledged && place && selectedItineraryNeedsWarning(place)) ids.add(placeId);
+  else ids.delete(placeId);
+  return {
+    ...snapshot,
+    acknowledgedVerificationRequiredPlaceIds: [...ids].sort(),
   };
 }
 
@@ -157,6 +181,11 @@ export function loadSelectedItinerary(
 ): SelectedItinerarySnapshot | null {
   return readVersionedValue(STORAGE_KEY, selectedItinerarySnapshotSchema, {
     version: STORAGE_VERSION,
+    migrations: {
+      1: (value) => value && typeof value === "object"
+        ? { ...value, acknowledgedVerificationRequiredPlaceIds: [] }
+        : value,
+    },
     storage,
   });
 }

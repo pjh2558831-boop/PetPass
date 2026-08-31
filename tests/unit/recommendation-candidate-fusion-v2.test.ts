@@ -49,7 +49,7 @@ function kakaoCandidate(overrides: Partial<MapPlacesSnapshotMarker> = {}): MapPl
 }
 
 describe("recommendation candidate fusion V2", () => {
-  it("keeps a Kakao candidate without pet evidence active but unverified", () => {
+  it("excludes a Kakao candidate without pet or hours evidence by default", () => {
     const result = fuseRecommendationCandidatesV2({
       regionId: "busan",
       selectedCategories: ["attraction"],
@@ -58,12 +58,30 @@ describe("recommendation candidate fusion V2", () => {
       explicitlyExcludedPlaceIds: [],
     });
 
+    expect(result.candidates).toEqual([]);
+    expect(result.diagnostics.excludedByReason).toMatchObject({
+      pet_evidence_unverified: 1,
+    });
+  });
+
+  it("admits verification-required candidates only through the explicit opt-in", () => {
+    const result = fuseRecommendationCandidatesV2({
+      regionId: "busan",
+      selectedCategories: ["attraction"],
+      ktoCandidates: [],
+      catalogCandidates: [kakaoCandidate()],
+      explicitlyExcludedPlaceIds: [],
+      includeVerificationRequired: true,
+    });
+
     expect(result.candidates).toHaveLength(1);
     expect(result.candidates[0]).toMatchObject({
       canonicalId: "kakao:2001",
       eligibilityTier: "unverified",
       petVerdict: "unknown",
       evidenceStatus: "unverified",
+      operatingHoursEvidenceState: "verification_required",
+      selectionOrigin: "automatic_recommendation",
       sourceLabel: "카카오 검색 후보",
     } satisfies Partial<CanonicalRecommendationCandidateV2>);
   });
@@ -116,11 +134,85 @@ describe("recommendation candidate fusion V2", () => {
         coordinates: { latitude: 35.2446, longitude: 129.2223 },
       })],
       explicitlyExcludedPlaceIds: [],
+      includeVerificationRequired: true,
     });
 
     expect(result.candidates.map(({ canonicalId }) => canonicalId).sort()).toEqual([
       "kakao:far",
       "tour:1001",
     ]);
+  });
+
+  it("applies requested district and stage diagnostics before eligibility", () => {
+    const result = fuseRecommendationCandidatesV2({
+      regionId: "busan",
+      districtId: "350",
+      selectedCategories: ["attraction"],
+      ktoCandidates: [
+        ktoCandidate({ contentId: "1001", region: { regionCode: "26", districtCode: "350" } }),
+        ktoCandidate({ contentId: "1002", region: { regionCode: "26", districtCode: "710" } }),
+      ],
+      catalogCandidates: [],
+      explicitlyExcludedPlaceIds: [],
+    });
+
+    expect(result.candidates.map(({ canonicalId }) => canonicalId)).toEqual(["tour:1001"]);
+    expect(result.diagnostics.stageCounts).toEqual({
+      providerRawCandidates: 2,
+      regionFilteredCandidates: 2,
+      districtFilteredCandidates: 1,
+      requestedCategoryCandidates: 1,
+      petEligibleCandidates: 1,
+      operatingHoursEligibleCandidates: 1,
+    });
+    expect(result.diagnostics.excludedByReason).toMatchObject({ district_mismatch: 1 });
+  });
+
+  it("allows only presentable compatible conditional evidence in the strict pool", () => {
+    const base = ktoCandidate();
+    const conditional = ktoCandidate({
+      assessment: {
+        ...base.assessment,
+        verdict: "conditional",
+        conditions: [{
+          type: "leash_required",
+          scope: "whole_place",
+          label: "목줄 착용 필수",
+          sourceText: "목줄 착용 필수",
+          evidenceIds: [],
+          manualConfirmationRecommended: false,
+        }],
+      },
+      eligibility: {
+        ...base.eligibility,
+        tier: "conditional",
+      },
+    });
+    const result = fuseRecommendationCandidatesV2({
+      regionId: "busan",
+      selectedCategories: ["attraction"],
+      ktoCandidates: [conditional],
+      catalogCandidates: [],
+      explicitlyExcludedPlaceIds: [],
+    });
+
+    expect(result.candidates).toEqual([
+      expect.objectContaining({ petVerdict: "conditional", evidenceStatus: "conditional" }),
+    ]);
+  });
+
+  it("excludes verified pet candidates whose operating hours remain unknown", () => {
+    const result = fuseRecommendationCandidatesV2({
+      regionId: "busan",
+      selectedCategories: ["attraction"],
+      ktoCandidates: [ktoCandidate({
+        scheduleCompatibility: { status: "unknown", warningCodes: ["operating_hours_missing"], reasonCodes: [] },
+      })],
+      catalogCandidates: [],
+      explicitlyExcludedPlaceIds: [],
+    });
+
+    expect(result.candidates).toEqual([]);
+    expect(result.diagnostics.excludedByReason).toEqual({ operating_hours_unknown: 1 });
   });
 });

@@ -209,6 +209,11 @@ describe("Stage 5 recommendation product contract", () => {
         availableEquipment: { carrier: true, leash: true, muzzle: false },
         acceptsOutdoorOnlyPlaces: false,
       },
+      selectedPlaceIds: [],
+      autoFill: true,
+      selectedPlaceReferences: [],
+      acknowledgedVerificationRequiredPlaceIds: [],
+      includeVerificationRequired: false,
       personalization: {
         petCount: 1,
         petActivityLevel: "moderate",
@@ -252,6 +257,54 @@ describe("Stage 5 recommendation product contract", () => {
     );
 
     expect(request.trip.environmentPreference).toBe("any");
+  });
+
+  it("accepts overnight hybrid auto-fill without duplicating accommodation validation", () => {
+    const hybrid = {
+      ...VALID_REQUEST,
+      trip: {
+        ...VALID_REQUEST.trip,
+        tripType: "overnight" as const,
+        selectedCategories: ["attraction", "food"] as const,
+      },
+      selectedPlaceIds: ["tour:1001", "tour:1002"],
+      autoFill: true,
+    };
+
+    expect(routeRecommendationRequestSchema.safeParse(hybrid).success).toBe(true);
+    expect(routeRecommendationRequestSchema.safeParse({
+      ...hybrid,
+      autoFill: false,
+    }).success).toBe(false);
+    expect(routeRecommendationRequestSchema.safeParse({
+      ...hybrid,
+      selectedPlaceIds: [],
+    }).success).toBe(false);
+  });
+
+  it.each([
+    ["day one-way automatic tourism", {
+      ...VALID_REQUEST,
+      trip: { ...VALID_REQUEST.trip, roundTrip: false, selectedCategories: ["attraction"] },
+    }],
+    ["day round-trip selected-only mixed", {
+      ...VALID_REQUEST,
+      trip: { ...VALID_REQUEST.trip, roundTrip: true, selectedCategories: ["attraction", "food"] },
+      selectedPlaceIds: ["tour:1001", "tour:1002"],
+      autoFill: false,
+    }],
+    ["overnight automatic lodging", {
+      ...VALID_REQUEST,
+      trip: { ...VALID_REQUEST.trip, tripType: "overnight", selectedCategories: ["accommodation"] },
+    }],
+    ["overnight hybrid mixed auto-fill", {
+      ...VALID_REQUEST,
+      trip: { ...VALID_REQUEST.trip, tripType: "overnight", selectedCategories: ["attraction", "food"] },
+      selectedPlaceIds: ["tour:1001"],
+      autoFill: true,
+    }],
+  ])("uses one request contract for %s", (_label, value) => {
+    expect(routeRecommendationRequestSchema.safeParse(value).success).toBe(true);
   });
 
   it("requires a resolved departure before submission", () => {

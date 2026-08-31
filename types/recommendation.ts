@@ -56,6 +56,12 @@ export interface RouteRecommendationRequest {
   selectedPlaceIds?: string[];
   /** Applies only when selectedPlaceIds is non-empty. Defaults to true. */
   autoFill?: boolean;
+  /** Region identity retained with each user selection to prevent silent cross-region loss. */
+  selectedPlaceReferences?: Array<{ placeId: string; regionId: RegionId }>;
+  /** Explicit user acknowledgement for selected places whose policy needs confirmation. */
+  acknowledgedVerificationRequiredPlaceIds?: string[];
+  /** Opt-in for automatic candidates whose pet policy or hours still need verification. */
+  includeVerificationRequired?: boolean;
   personalization?: {
     petCount: number;
     petActivityLevel: "low" | "moderate" | "high";
@@ -75,6 +81,7 @@ export interface RouteRecommendationRequest {
 
 export type RecommendationStatus =
   | "ready"
+  | "confirmation_required"
   | "unavailable"
   | "invalid_request"
   | "region_not_supported_for_itinerary"
@@ -108,6 +115,11 @@ export interface RecommendedRouteStopV1 {
   evidenceStatus?: "verified" | "conditional" | "unverified";
   retrievedAt?: string | null;
   providerIdentities?: Array<{ provider: "kto" | "kakao"; id: string }>;
+  regionId?: RegionId;
+  districtId?: string | null;
+  selectionOrigin?: "user_selected" | "automatic_fill" | "automatic_recommendation";
+  operatingHoursEvidenceState?: "verified" | "verification_required";
+  /** @deprecated Use selectionOrigin. */
   provenance?: "user_selected" | "auto_fill";
   locked?: boolean;
   verificationWarning?: string | null;
@@ -143,6 +155,7 @@ export interface RecommendationSelectionIssueV1 {
     | "selected_place_condition_unsatisfied"
     | "selected_place_trip_incompatible"
     | "selected_place_explicitly_excluded"
+    | "selected_place_confirmation_required"
     | "selected_anchor_large_detour";
   blocking: boolean;
   reasonCodes: string[];
@@ -190,6 +203,17 @@ export interface RouteAlternativeV1 extends ProductRouteV1 {
 }
 
 export interface SafeRecommendationDiagnostics {
+  candidateEligibility?: {
+    providerRawCandidates: number;
+    regionFilteredCandidates: number;
+    districtFilteredCandidates: number;
+    requestedCategoryCandidates: number;
+    petEligibleCandidates: number;
+    operatingHoursEligibleCandidates: number;
+    feasibleRouteCandidates: number;
+    finalUsedPlaces: number;
+    rejectedByReason: Record<string, number>;
+  };
   candidatePipeline: {
     stageA: number;
     stageB: number;
@@ -241,6 +265,11 @@ export interface RouteRecommendationReadyResponseV1 {
   region?: RegionId;
   requestFingerprint?: string;
   resultState?: "ready" | "ready_with_reduced_stops" | "single_stop_suggestion";
+  requestedStopCount?: number;
+  feasibleStopCount?: number;
+  resultReasonCodes?: string[];
+  resultExplanation?: string;
+  recoveryActions?: RecommendationRecoveryAction[];
   routeOptions?: ProductRouteV1[];
   candidateSourceCounts?: { kto: number; kakao: number; merged: number };
   alternativeAvailability?: "available" | "limited";
@@ -256,10 +285,25 @@ export interface RouteRecommendationFailureResponseV1 {
   reasonCodes: string[];
   userMessage: string;
   retryable: boolean;
+  resultState?: "insufficient_eligible_places" | "confirmation_required";
+  requestedStopCount?: number;
+  feasibleStopCount?: number;
+  resultExplanation?: string;
+  recoveryActions?: RecommendationRecoveryAction[];
+  diagnostics?: SafeRecommendationDiagnostics;
   selectionMode?: "hybrid";
   selectionIssues?: RecommendationSelectionIssueV1[];
   replacementCandidates?: RecommendationReplacementCandidateV1[];
 }
+
+export type RecommendationRecoveryAction =
+  | "reduce_requested_stops"
+  | "change_time_window"
+  | "change_categories"
+  | "widen_district"
+  | "select_places_manually"
+  | "allow_verification_required_candidates"
+  | "acknowledge_selected_place_verification";
 
 export type RouteRecommendationResponseV1 =
   | RouteRecommendationReadyResponseV1

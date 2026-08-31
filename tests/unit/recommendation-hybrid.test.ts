@@ -388,20 +388,59 @@ describe("selected-place hybrid recommendation", () => {
     });
   });
 
-  it("retains an unknown Kakao anchor with an explicit warning", async () => {
+  it("requires explicit acknowledgement before routing an unknown selected anchor", async () => {
     const result = await generateRouteRecommendation({
       ...REQUEST,
       selectedPlaceIds: ["kakao:201"],
+      autoFill: false,
+    }, dependencies([], [marker("kakao:201")]));
+    expect(result).toMatchObject({
+      status: "confirmation_required",
+      resultState: "confirmation_required",
+      requestedStopCount: 1,
+      feasibleStopCount: 1,
+      selectionIssues: [{
+        placeId: "kakao:201",
+        code: "selected_place_confirmation_required",
+        blocking: true,
+      }],
+      recoveryActions: ["acknowledge_selected_place_verification"],
+    });
+  });
+
+  it("retains an acknowledged unknown Kakao anchor with an explicit warning", async () => {
+    const result = await generateRouteRecommendation({
+      ...REQUEST,
+      selectedPlaceIds: ["kakao:201"],
+      acknowledgedVerificationRequiredPlaceIds: ["kakao:201"],
       autoFill: false,
     }, dependencies([], [marker("kakao:201")]));
     expect(result.status).toBe("ready");
     if (result.status !== "ready") return;
     expect(result.route.stops).toEqual([expect.objectContaining({
       placeId: "kakao:201",
-      provenance: "user_selected",
+      selectionOrigin: "user_selected",
       locked: true,
       verificationWarning: "selected_kakao_requires_confirmation",
     })]);
+  });
+
+  it("rejects an explicitly cross-region selected reference instead of discarding it", async () => {
+    const result = await generateRouteRecommendation({
+      ...REQUEST,
+      selectedPlaceIds: ["tour:1001"],
+      selectedPlaceReferences: [{ placeId: "tour:1001", regionId: "jeju" }],
+      autoFill: false,
+    }, dependencies([ktoCandidate("1001")], []));
+
+    expect(result).toMatchObject({
+      status: "invalid_request",
+      selectionIssues: [{
+        placeId: "tour:1001",
+        code: "selected_place_cross_region",
+        blocking: true,
+      }],
+    });
   });
 
   it("supplements only the remaining pace capacity", async () => {
@@ -502,6 +541,7 @@ describe("selected-place hybrid recommendation", () => {
     const result = await generateRouteRecommendation({
       ...REQUEST,
       selectedPlaceIds: ["tour:9001"],
+      acknowledgedVerificationRequiredPlaceIds: ["tour:9001"],
       autoFill: false,
     }, deps);
     expect(result.status).toBe("ready");

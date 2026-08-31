@@ -4,6 +4,7 @@ import type {
   RouteRecommendationResponseV1,
 } from "@/types/recommendation";
 import type { TourPetAccessConditionType } from "@/types/tour-pet-access";
+import { REGION_IDS } from "@/types/region";
 
 const coordinates = z.object({
   latitude: z.number().finite().min(-90).max(90),
@@ -21,6 +22,7 @@ const category = z.enum([
   "shopping",
 ]);
 const failureStatus = z.enum([
+  "confirmation_required",
   "unavailable",
   "invalid_request",
   "region_not_supported_for_itinerary",
@@ -41,6 +43,19 @@ const failure = z.object({
   reasonCodes: z.array(nonEmpty),
   userMessage: nonEmpty,
   retryable: z.boolean(),
+  resultState: z.enum(["insufficient_eligible_places", "confirmation_required"]).optional(),
+  requestedStopCount: z.number().int().min(1).max(5).optional(),
+  feasibleStopCount: z.number().int().min(0).max(5).optional(),
+  resultExplanation: nonEmpty.optional(),
+  recoveryActions: z.array(z.enum([
+    "reduce_requested_stops",
+    "change_time_window",
+    "change_categories",
+    "widen_district",
+    "select_places_manually",
+    "allow_verification_required_candidates",
+    "acknowledge_selected_place_verification",
+  ])).optional(),
 }).strict();
 const stop = z.object({
   placeId: nonEmpty,
@@ -64,6 +79,10 @@ const stop = z.object({
     provider: z.enum(["kto", "kakao"]),
     id: nonEmpty,
   }).strict()).optional(),
+  regionId: z.enum(REGION_IDS).optional(),
+  districtId: z.string().nullable().optional(),
+  selectionOrigin: z.enum(["user_selected", "automatic_fill", "automatic_recommendation"]).optional(),
+  operatingHoursEvidenceState: z.enum(["verified", "verification_required"]).optional(),
   provenance: z.enum(["user_selected", "auto_fill"]).optional(),
   locked: z.boolean().optional(),
   verificationWarning: nonEmpty.nullable().optional(),
@@ -131,6 +150,7 @@ const selectionIssue = z.object({
     "selected_place_condition_unsatisfied",
     "selected_place_trip_incompatible",
     "selected_place_explicitly_excluded",
+    "selected_place_confirmation_required",
     "selected_anchor_large_detour",
   ]),
   blocking: z.boolean(),
@@ -143,10 +163,40 @@ const replacementCandidate = z.object({
   category,
   source: z.enum(["tourism_service2", "kakao_catalog"]),
 }).strict();
+const safeDiagnostics = z.object({
+  candidatePipeline: z.object({
+    stageA: z.number().int().nonnegative(),
+    stageB: z.number().int().nonnegative(),
+    detailedEvaluations: z.number().int().nonnegative(),
+    eligible: z.number().int().nonnegative(),
+  }).strict(),
+  candidateEligibility: z.object({
+    providerRawCandidates: z.number().int().nonnegative(),
+    regionFilteredCandidates: z.number().int().nonnegative(),
+    districtFilteredCandidates: z.number().int().nonnegative(),
+    requestedCategoryCandidates: z.number().int().nonnegative(),
+    petEligibleCandidates: z.number().int().nonnegative(),
+    operatingHoursEligibleCandidates: z.number().int().nonnegative(),
+    feasibleRouteCandidates: z.number().int().nonnegative(),
+    finalUsedPlaces: z.number().int().nonnegative(),
+    rejectedByReason: z.record(z.string(), z.number().int().nonnegative()),
+  }).strict().optional(),
+  travelMatrix: z.object({
+    nodes: z.number().int().nonnegative(),
+    resolvedEdges: z.number().int().nonnegative(),
+    unresolvedEdges: z.number().int().nonnegative(),
+  }).strict(),
+  solver: z.object({
+    durationMs: nonNegative,
+    validationAttempts: z.number().int().nonnegative(),
+    validationFailures: z.number().int().nonnegative(),
+  }).strict(),
+}).strict();
 const failureWithSelection = failure.extend({
   selectionMode: z.literal("hybrid").optional(),
   selectionIssues: z.array(selectionIssue).optional(),
   replacementCandidates: z.array(replacementCandidate).max(3).optional(),
+  diagnostics: safeDiagnostics.optional(),
 });
 const ready = z.object({
   status: z.literal("ready"),
@@ -175,9 +225,22 @@ const ready = z.object({
   ),
   warnings: z.array(nonEmpty),
   contractVersion: z.literal("route-recommendation-v2").optional(),
-  region: z.enum(["busan", "jeju"]).optional(),
+  region: z.enum(REGION_IDS).optional(),
   requestFingerprint: z.string().regex(/^[a-f0-9]{64}$/u).optional(),
   resultState: z.enum(["ready", "ready_with_reduced_stops", "single_stop_suggestion"]).optional(),
+  requestedStopCount: z.number().int().min(1).max(5).optional(),
+  feasibleStopCount: z.number().int().min(0).max(5).optional(),
+  resultReasonCodes: z.array(nonEmpty).optional(),
+  resultExplanation: nonEmpty.optional(),
+  recoveryActions: z.array(z.enum([
+    "reduce_requested_stops",
+    "change_time_window",
+    "change_categories",
+    "widen_district",
+    "select_places_manually",
+    "allow_verification_required_candidates",
+    "acknowledge_selected_place_verification",
+  ])).optional(),
   routeOptions: z.array(route.extend({ kind: z.literal("optimized") })).min(1).max(3).optional(),
   candidateSourceCounts: z.object({
     kto: z.number().int().nonnegative(),
@@ -188,27 +251,7 @@ const ready = z.object({
   selectionMode: z.enum(["automatic", "hybrid"]).optional(),
   selectionIssues: z.array(selectionIssue).optional(),
   replacementCandidates: z.array(replacementCandidate).max(3).optional(),
-  diagnostics: z
-    .object({
-      candidatePipeline: z.object({
-        stageA: z.number().int().nonnegative(),
-        stageB: z.number().int().nonnegative(),
-        detailedEvaluations: z.number().int().nonnegative(),
-        eligible: z.number().int().nonnegative(),
-      }).strict(),
-      travelMatrix: z.object({
-        nodes: z.number().int().nonnegative(),
-        resolvedEdges: z.number().int().nonnegative(),
-        unresolvedEdges: z.number().int().nonnegative(),
-      }).strict(),
-      solver: z.object({
-        durationMs: nonNegative,
-        validationAttempts: z.number().int().nonnegative(),
-        validationFailures: z.number().int().nonnegative(),
-      }).strict(),
-    })
-    .strict()
-    .optional(),
+  diagnostics: safeDiagnostics.optional(),
 }).strict();
 
 export const routeRecommendationReadyResponseSchema = ready;

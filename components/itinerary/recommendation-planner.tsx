@@ -356,9 +356,11 @@ export function RecommendationPlanner({
           throw new Error("선택한 장소 유형을 일정 후보로 변환하지 못했습니다.");
         }
         return {
-          selectedPlaceIds: selection.places.map(({ id }) => id),
+          selectedPlaces: selection.places.map(({ id, regionId }) => ({ id, regionId })),
           autoFill: selection.autoFill,
           selectedCategories: categories,
+          acknowledgedVerificationRequiredPlaceIds:
+            selection.acknowledgedVerificationRequiredPlaceIds,
         };
       })() : undefined);
       const result = await fetch("/api/itineraries/generate", {

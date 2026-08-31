@@ -1,4 +1,6 @@
 import type { TourCatalogCategory } from "@/lib/tour-api/catalog";
+import { getRegionConfigByService2LegalDongCode } from "@/lib/regions/config";
+import { routeRecommendationRequestSchema } from "@/lib/recommendation/recommendation-request";
 import type { PetProfile, TravelPreferences } from "@/types/pet";
 import type { RouteRecommendationRequest } from "@/types/recommendation";
 
@@ -31,15 +33,20 @@ export function createRouteRecommendationRequest(
     NonNullable<RouteRecommendationRequest["personalization"]>
   > = {},
   selection?: {
-    selectedPlaceIds: string[];
+    selectedPlaces: Array<{ id: string; regionId: RouteRecommendationRequest["trip"]["regionId"] }>;
     autoFill: boolean;
     selectedCategories: RouteRecommendationRequest["trip"]["selectedCategories"];
+    acknowledgedVerificationRequiredPlaceIds?: string[];
   },
 ): RouteRecommendationRequest {
   if (!preferences.departure) {
     throw new TypeError("A resolved departure is required.");
   }
-  return {
+  const region = getRegionConfigByService2LegalDongCode(preferences.regionCode);
+  if (!region) {
+    throw new TypeError("The selected region is not part of the supported regional configuration.");
+  }
+  const request: RouteRecommendationRequest = {
     departure: {
       label: preferences.departure.label,
       latitude: preferences.departure.coordinates.latitude,
@@ -47,7 +54,7 @@ export function createRouteRecommendationRequest(
       source: preferences.departure.source ?? "kakao_place_search",
     },
     trip: {
-      regionId: "busan",
+      regionId: region.id,
       districtId: preferences.districtCode ?? null,
       date: preferences.tripDate,
       startTime: preferences.startTime,
@@ -78,7 +85,13 @@ export function createRouteRecommendationRequest(
       acceptsOutdoorOnlyPlaces: profile.acceptsOutdoorOnly,
     },
     ...(selection ? {
-      selectedPlaceIds: selection.selectedPlaceIds,
+      selectedPlaceIds: selection.selectedPlaces.map(({ id }) => id),
+      selectedPlaceReferences: selection.selectedPlaces.map(({ id, regionId }) => ({
+        placeId: id,
+        regionId,
+      })),
+      acknowledgedVerificationRequiredPlaceIds:
+        selection.acknowledgedVerificationRequiredPlaceIds ?? [],
       autoFill: selection.autoFill,
     } : {}),
     personalization: {
@@ -95,4 +108,5 @@ export function createRouteRecommendationRequest(
       ...personalizationOverrides,
     },
   };
+  return routeRecommendationRequestSchema.parse(request);
 }
