@@ -2,6 +2,7 @@ import "server-only";
 
 import { ROUTE_OBJECTIVE_V1_CONFIG } from "@/lib/recommendation/config/route-objective-v1";
 import { ROUTE_SOLVER_V1_CONFIG } from "@/lib/recommendation/config/route-solver-v1";
+import { paceWaitLimitsV2 } from "@/lib/recommendation/config/route-composition-v2";
 import { getRouteTripConstraints } from "@/lib/recommendation/optimizer/trip-constraints";
 import { compareCompletedRoutes, scoreCompletedRouteV1 } from "@/lib/recommendation/optimizer/route-score";
 import {
@@ -119,6 +120,15 @@ function completedConstraint(input: RouteOptimizationInput, visits: ScheduledRou
   if (input.tripRequest.requiredPlaceIds?.some((placeId) => !visitedIds.has(placeId))) {
     return false;
   }
+  const requestedCategories = new Set(input.tripRequest.selectedCategories);
+  const coveredRequestedCategories = new Set(
+    visits
+      .filter(({ candidate }) => candidate.locked ||
+        (candidate.eligibilityTier !== "unverified" && candidate.evidenceStatus !== "unverified"))
+      .map(({ candidate }) => candidate.category)
+      .filter((category) => requestedCategories.has(category)),
+  ).size;
+  if (coveredRequestedCategories < (input.tripRequest.minimumRequestedCategoryCount ?? 0)) return false;
   if (input.tripRequest.tripType === "overnight") {
     return visits.at(-1)?.candidate.visitRole === "accommodation";
   }
@@ -235,6 +245,15 @@ function expandState(
     return null;
   }
   const visits = [...state.visits, appended.visit];
+  const waitLimits = paceWaitLimitsV2(input.tripRequest.tripPace);
+  const totalWaitSeconds = visits.reduce((sum, visit) => sum + visit.waitSeconds, 0);
+  if (
+    appended.visit.waitSeconds > waitLimits.maximumSingleWaitMinutes * 60 ||
+    totalWaitSeconds > waitLimits.maximumTotalWaitMinutes * 60
+  ) {
+    diagnostics.prunedByConstraint += 1;
+    return null;
+  }
   return {
     visits,
     used: new Set([...state.used, candidate.node.id]),

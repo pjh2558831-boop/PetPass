@@ -179,6 +179,16 @@ export interface ProductRouteSummaryV1 {
   totalWaitSeconds: number;
 }
 
+export type ProductRouteObjectiveV2 = "balanced" | "shortest" | "relaxed";
+
+export interface ProductRouteSegmentV1 {
+  fromPlaceId: string;
+  toPlaceId: string;
+  travelSeconds: number;
+  distanceMeters: number;
+  temporalBasis: string;
+}
+
 export interface ProductRouteV1 {
   id: string;
   kind: "optimized" | "manual";
@@ -190,11 +200,22 @@ export interface ProductRouteV1 {
   };
   stops: RecommendedRouteStopV1[];
   geometry: Coordinates[];
-  style?: "comfort" | "preference" | "efficient";
+  style?: ProductRouteObjectiveV2;
+  objective?: ProductRouteObjectiveV2;
   routeSignature?: string;
   requestedTarget?: number;
   reductionStatus?: "complete" | "reduced" | "single_stop";
   personalizationExplanationCodes?: string[];
+  maximumSingleWaitSeconds?: number;
+  estimatedFinishAt?: string;
+  categoryComposition?: Partial<Record<Exclude<TourPlaceCategory, "transportation" | "unknown">, number>>;
+  selectedPlaceCount?: number;
+  automaticPlaceCount?: number;
+  evidenceWarnings?: string[];
+  warningCodes?: string[];
+  reductionReasonCodes?: string[];
+  differenceExplanationCodes?: string[];
+  segments?: ProductRouteSegmentV1[];
 }
 
 export interface RouteAlternativeV1 extends ProductRouteV1 {
@@ -253,7 +274,9 @@ export interface RouteRecommendationReadyResponseV1 {
   optimality:
     | "optimal_within_candidate_set_current_matrix"
     | "best_found_within_time_limit";
+  /** @deprecated V2 compatibility adapter. Use primaryRouteId + routeOptions. */
   route: ProductRouteV1;
+  /** @deprecated V2 compatibility adapter. Use routeOptions. */
   alternatives: RouteAlternativeV1[];
   excludedHighlights: Array<{
     placeId: string;
@@ -270,7 +293,13 @@ export interface RouteRecommendationReadyResponseV1 {
   resultReasonCodes?: string[];
   resultExplanation?: string;
   recoveryActions?: RecommendationRecoveryAction[];
+  /** Authoritative V2 route collection. */
   routeOptions?: ProductRouteV1[];
+  primaryRouteId?: string;
+  routeOptionCount?: number;
+  routeOptionsLimitedReason?:
+    | "fewer_than_three_meaningfully_distinct_routes"
+    | "final_validation_reduced_route_options";
   candidateSourceCounts?: { kto: number; kakao: number; merged: number };
   alternativeAvailability?: "available" | "limited";
   selectionMode?: "automatic" | "hybrid";
@@ -285,7 +314,7 @@ export interface RouteRecommendationFailureResponseV1 {
   reasonCodes: string[];
   userMessage: string;
   retryable: boolean;
-  resultState?: "insufficient_eligible_places" | "confirmation_required";
+  resultState?: "insufficient_eligible_places" | "insufficient_feasible_route" | "confirmation_required";
   requestedStopCount?: number;
   feasibleStopCount?: number;
   resultExplanation?: string;

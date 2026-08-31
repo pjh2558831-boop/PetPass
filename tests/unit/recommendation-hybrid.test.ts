@@ -487,7 +487,9 @@ describe("selected-place hybrid recommendation", () => {
       new Set(["tour:1001", "tour:1002"]),
     );
     expect(result.route.stops.every(({ locked }) => locked)).toBe(true);
-    expect(result.routeOptions).toHaveLength(1);
+    expect(result.routeOptions).toHaveLength(2);
+    expect(result.routeOptions?.every(({ stops }) =>
+      stops.every(({ locked }) => locked))).toBe(true);
   });
 
   it("returns a structured warning for widely separated selected anchors", async () => {

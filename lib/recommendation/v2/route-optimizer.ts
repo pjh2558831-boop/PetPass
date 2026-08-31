@@ -4,6 +4,7 @@ import { explainExcludedPlaces, explainStops } from "@/lib/recommendation/optimi
 import { validateFinalistsV1 } from "@/lib/recommendation/optimizer/final-validation";
 import { searchRoutesV1 } from "@/lib/recommendation/optimizer/route-search";
 import { tripStartMs } from "@/lib/recommendation/optimizer/schedule-simulator";
+import { paceWaitLimitsV2 } from "@/lib/recommendation/config/route-composition-v2";
 import type {
   CompletedRouteCandidate,
   ExcludedPlaceExplanation,
@@ -25,8 +26,10 @@ export interface OptimizedRouteOptionV2 {
   route: CompletedRouteCandidate;
   stops: RecommendedRouteStop[];
   geometry: Array<{ latitude: number; longitude: number }>;
+  segments: ValidatedInternalRoute["validation"]["sections"];
   temporalBasis: ValidatedInternalRoute["validation"]["temporalBasis"];
   explanationCodes: string[];
+  differenceExplanationCodes: string[];
 }
 
 export type RouteOptionsOptimizationResultV2 =
@@ -34,6 +37,7 @@ export type RouteOptionsOptimizationResultV2 =
       status: "ready";
       options: OptimizedRouteOptionV2[];
       alternativeAvailability: "available" | "limited";
+      limitedReason: "fewer_than_three_meaningfully_distinct_routes" | "final_validation_reduced_route_options" | null;
       optimality: RouteSearchOptimality;
       excludedHighlights: ExcludedPlaceExplanation[];
       warnings: string[];
@@ -66,10 +70,18 @@ function selectable(route: CompletedRouteCandidate): SelectableRoute {
     orderedPlaceIds: route.orderedPlaceIds,
     totalDrivingSeconds: route.totalDrivingSeconds,
     totalDistanceMeters: route.totalDistanceMeters,
+    totalWaitSeconds: route.totalWaitSeconds,
     maximumLegSeconds: Math.max(0, ...route.visits.map(({ travelSeconds }) => travelSeconds)),
+    maximumSingleWaitSeconds: Math.max(0, ...route.visits.map(({ waitSeconds }) => waitSeconds)),
     categoryCount: new Set(route.visits.map(({ candidate }) => candidate.category)).size,
+    categorySignature: route.visits.map(({ candidate }) => candidate.category).join(">"),
     unknownScheduleCount: route.unknownScheduleCount,
-    styleScores,
+    styleScores: {
+      balanced: route.score + styleScores.preference,
+      shortest: styleScores.efficient,
+      relaxed: styleScores.comfort - route.totalWaitSeconds / 60 -
+        Math.max(0, ...route.visits.map(({ travelSeconds }) => travelSeconds)) / 60,
+    },
   };
 }
 
@@ -78,6 +90,8 @@ export async function optimizeRouteOptionsV2(
   dependencies: {
     travelTimeProvider: TravelTimeProvider;
     recentRouteSignatures: readonly string[];
+    recentlySelectedCandidateIds?: readonly string[];
+    deterministicSeed?: string;
     rerollVariant: number;
     now?: () => number;
     solverDeadlineMs?: number;
@@ -105,11 +119,12 @@ export async function optimizeRouteOptionsV2(
   const selected = selectRouteStyleOptionsV2({
     routes: search.finalists.map(selectable),
     recentRouteSignatures: dependencies.recentRouteSignatures,
+    recentlySelectedCandidateIds: dependencies.recentlySelectedCandidateIds,
+    lockedPlaceIds: input.tripRequest.requiredPlaceIds ?? [],
+    deterministicSeed: dependencies.deterministicSeed,
     rerollVariant: dependencies.rerollVariant,
   });
-  const selectedOptions = input.tripRequest.requiredPlaceIds?.length
-    ? selected.options.slice(0, 1)
-    : selected.options;
+  const selectedOptions = selected.options;
   const options: OptimizedRouteOptionV2[] = [];
   let attempts = 0;
   let failures = 0;
@@ -128,18 +143,29 @@ export async function optimizeRouteOptionsV2(
     validationDurationMs += validated.durationMs;
     const exact = validated.routes[0];
     if (!exact) continue;
+    const waitLimits = paceWaitLimitsV2(input.tripRequest.tripPace);
+    if (
+      exact.route.totalWaitSeconds > waitLimits.maximumTotalWaitMinutes * 60 ||
+      Math.max(0, ...exact.route.visits.map(({ waitSeconds }) => waitSeconds)) >
+        waitLimits.maximumSingleWaitMinutes * 60
+    ) {
+      failures += 1;
+      continue;
+    }
     options.push({
       style: option.style,
       route: exact.route,
       stops: explainStops(exact.route, input.tripRequest.selectedCategories),
       geometry: exact.validation.geometry,
+      segments: exact.validation.sections,
       temporalBasis: exact.validation.temporalBasis,
       explanationCodes: [
         `route_style_${option.style}`,
-        option.style === "efficient" ? "lowest_practical_travel_cost" :
-          option.style === "comfort" ? "pet_comfort_and_lower_burden" :
-            "preference_and_trip_mood_fit",
+        option.style === "shortest" ? "lowest_practical_travel_cost" :
+          option.style === "relaxed" ? "lower_wait_and_leg_burden" :
+            "balanced_route_quality",
       ],
+      differenceExplanationCodes: option.differenceExplanationCodes,
     });
   }
   search.diagnostics.validationAttempts = attempts;
@@ -162,6 +188,9 @@ export async function optimizeRouteOptionsV2(
       options.length === 3 && selected.alternativeAvailability === "available"
         ? "available"
         : "limited",
+    limitedReason: options.length === selected.options.length
+      ? selected.limitedReason
+      : "final_validation_reduced_route_options",
     optimality: search.diagnostics.exactSearchCompleted
       ? "optimal_within_candidate_set_current_matrix"
       : "best_found_within_time_limit",

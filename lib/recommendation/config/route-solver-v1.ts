@@ -8,7 +8,7 @@ export const ROUTE_SOLVER_V1_CONFIG = {
   solverDeadlineMs: 1_000,
   maxExpandedStates: 1_000_000,
   beamWidth: 256,
-  maxInternalFinalists: 10,
+  maxInternalFinalists: 60,
   maxFinalValidationAttempts: 3,
   maxReturnedAlternatives: 2,
   maxExcludedHighlights: 5,

@@ -76,6 +76,10 @@ export interface RouteOptimizationTripRequest {
   desiredStopCount?: number;
   durationMinutes?: number;
   allowReducedStops?: boolean;
+  /** Feasibility pass fixes this to the maximum honest stop count. */
+  minimumStopCount?: number;
+  /** Maximum jointly feasible count among requested categories. */
+  minimumRequestedCategoryCount?: number;
   /** Every completed route must contain this canonical set. */
   requiredPlaceIds?: string[];
 }

@@ -38,7 +38,7 @@ export function requestFingerprintV2(input: {
       kakaoCatalog: "map-places-snapshot-v1",
       mobility: "travel-matrix-v1",
     },
-    routeStyles: ["comfort", "preference", "efficient"],
+    routeStyles: ["balanced", "shortest", "relaxed"],
     request: input.normalized,
     ...(input.selection ? { selection: input.selection } : {}),
     eligibilityPolicy: input.eligibilityPolicy,
@@ -122,6 +122,7 @@ export function routeFromOptionV2(input: {
   optimization: RouteOptimizationInput;
   candidates: Map<string, CanonicalRecommendationCandidateV2>;
   requestedTarget: number;
+  reductionReasonCodes?: readonly string[];
   licensingStatus: (candidate: DetailedEligibleCandidate) => RecommendedRouteStopV1["licensingStatus"];
   selectedPlaceIds?: ReadonlySet<string>;
 }): ProductRouteV1 {
@@ -133,19 +134,48 @@ export function routeFromOptionV2(input: {
       ? "reduced" as const
       : "complete" as const;
   const labels = {
-    comfort: "편안함 우선",
-    preference: "취향 우선",
-    efficient: "이동 최소",
+    balanced: "균형 경로",
+    shortest: "이동 최소",
+    relaxed: "여유 경로",
   } as const;
+  const stops = input.option.stops.map((stop) => {
+    const candidate = input.candidates.get(stop.placeId);
+    if (!candidate) {
+      throw new TypeError("Final V2 route stop is outside the validated canonical candidate map.");
+    }
+    return productStopV2(stop, candidate, input.licensingStatus, input.selectedPlaceIds);
+  });
+  const categoryComposition = Object.fromEntries(
+    [...new Set(stops.map(({ category }) => category))].sort().map((category) => [
+      category,
+      stops.filter((stop) => stop.category === category).length,
+    ]),
+  );
+  const selectedPlaceCount = stops.filter(({ placeId }) => input.selectedPlaceIds?.has(placeId)).length;
+  const maximumSingleWaitSeconds = Math.max(0, ...input.option.route.visits.map(({ waitSeconds }) => waitSeconds));
   return {
     id: `optimized:${input.option.style}:${input.option.route.signature}`,
     kind: "optimized",
     label: labels[input.option.style],
     style: input.option.style,
+    objective: input.option.style,
     routeSignature: input.option.route.signature,
     requestedTarget: input.requestedTarget,
     reductionStatus,
     personalizationExplanationCodes: input.option.explanationCodes,
+    differenceExplanationCodes: input.option.differenceExplanationCodes,
+    reductionReasonCodes: [...new Set(input.reductionReasonCodes ?? [])].sort(),
+    maximumSingleWaitSeconds,
+    estimatedFinishAt: schedule.endAt,
+    categoryComposition,
+    selectedPlaceCount,
+    automaticPlaceCount: stopCount - selectedPlaceCount,
+    evidenceWarnings: [...new Set(stops.flatMap(({ warningCodes }) => warningCodes))].sort(),
+    warningCodes: [...new Set([
+      ...input.option.route.warningCodes,
+      ...(input.option.route.totalWaitSeconds > 0 ? ["route_contains_waiting_time"] : []),
+      ...(maximumSingleWaitSeconds >= 20 * 60 ? ["long_wait_within_pace_limit"] : []),
+    ])].sort(),
     routeSummary: {
       startAt: schedule.startAt,
       endAt: schedule.endAt,
@@ -159,13 +189,14 @@ export function routeFromOptionV2(input: {
       searchMatrix: schedule.matrixTemporalBasis,
       finalRoute: schedule.finalValidationTemporalBasis,
     },
-    stops: input.option.stops.map((stop) => {
-      const candidate = input.candidates.get(stop.placeId);
-      if (!candidate) {
-        throw new TypeError("Final V2 route stop is outside the validated canonical candidate map.");
-      }
-      return productStopV2(stop, candidate, input.licensingStatus, input.selectedPlaceIds);
-    }),
+    stops,
+    segments: input.option.segments.map((segment) => ({
+      fromPlaceId: segment.fromId,
+      toPlaceId: segment.toId,
+      travelSeconds: segment.durationSeconds,
+      distanceMeters: segment.distanceMeters,
+      temporalBasis: input.option.temporalBasis,
+    })),
     geometry: input.option.geometry,
   };
 }

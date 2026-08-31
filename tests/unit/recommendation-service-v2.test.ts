@@ -343,6 +343,36 @@ describe("recommendation service V2 orchestration", () => {
     )).toBe(true);
   });
 
+  it("exposes three authoritative, segment-preserving route options", async () => {
+    const deps = dependencies(
+      [ktoCandidate("1001", 0), ktoCandidate("1002", 0.01), ktoCandidate("1003", 0.02)],
+      [],
+    );
+    const result = await generateRouteRecommendation(REQUEST, deps);
+
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(routeRecommendationResponseSchema.safeParse(result).success).toBe(true);
+    expect(result.primaryRouteId).toBe(result.routeOptions?.[0]?.id);
+    expect(result.routeOptionCount).toBe(3);
+    expect(result.routeOptions?.map(({ objective }) => objective)).toEqual([
+      "balanced", "shortest", "relaxed",
+    ]);
+    expect(result.routeOptions?.every((option) =>
+      option.segments?.every((segment, index) =>
+        segment.travelSeconds === option.stops[index]?.driveSecondsFromPrevious) &&
+      option.estimatedFinishAt === option.routeSummary.endAt &&
+      option.maximumSingleWaitSeconds !== undefined &&
+      option.categoryComposition !== undefined &&
+      option.selectedPlaceCount !== undefined &&
+      option.automaticPlaceCount !== undefined &&
+      option.evidenceWarnings !== undefined &&
+      option.warningCodes !== undefined &&
+      option.reductionReasonCodes !== undefined &&
+      option.differenceExplanationCodes !== undefined,
+    )).toBe(true);
+  });
+
   it("records bounded three-option work and response size for the controlled benchmark", async () => {
     const durations: number[] = [];
     let measurement: Record<string, number> = {};

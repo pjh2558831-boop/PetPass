@@ -1,5 +1,7 @@
 import "server-only";
 
+import { ROUTE_COMPOSITION_V2_CONFIG } from "@/lib/recommendation/config/route-composition-v2";
+
 export const ROUTE_OBJECTIVE_V1_CONFIG = {
   version: "route-objective-v1",
   positionDiscount: [1, 0.95, 0.9, 0.82, 0.74],
@@ -8,7 +10,9 @@ export const ROUTE_OBJECTIVE_V1_CONFIG = {
   drivingPenaltyPerMinute: 5,
   waitingFreeMinutes: 15,
   waitingPenaltyPerMinute: 2,
-  consecutiveCategoryPenalty: 120,
+  consecutiveCategoryPenalty: ROUTE_COMPOSITION_V2_CONFIG.categoryBalance.consecutiveVisitPenalty,
+  secondCategoryVisitPenalty: ROUTE_COMPOSITION_V2_CONFIG.categoryBalance.secondVisitPenalty,
+  additionalCategoryVisitPenalty: ROUTE_COMPOSITION_V2_CONFIG.categoryBalance.additionalVisitPenalty,
   unknownSchedulePenalty: 150,
   paceDeviationPenaltyPerStop: 120,
   mealAlignmentBonus: 100,
@@ -28,4 +32,3 @@ export const ROUTE_OBJECTIVE_V1_CONFIG = {
   lowerTravelAlternativeMinimumRatio: 0.9,
   popularityAlternativeMinimumRatio: 0.85,
 } as const;
-

@@ -116,9 +116,9 @@ function evidenceStatusLabel(
 }
 
 const ROUTE_STYLE_COPY = {
-  comfort: "긴 이동과 활동 부담을 낮추고 동반 근거가 더 분명한 장소를 우선했어요.",
-  preference: "선택한 관심사와 여행 분위기에 가장 잘 맞는 조합을 우선했어요.",
-  efficient: "실제 이동시간과 거리가 가장 작은 실용적인 동선을 우선했어요.",
+  balanced: "카테고리, 이동, 대기, 취향을 함께 고려한 균형 경로예요.",
+  shortest: "검증된 실제 이동시간과 거리가 가장 작은 동선을 우선했어요.",
+  relaxed: "긴 단일 이동과 대기 부담이 더 낮은 여유 경로예요.",
 } as const;
 
 const SELECTION_ISSUE_COPY: Record<string, string> = {
@@ -382,7 +382,9 @@ export function RecommendationPlanner({
         ])].slice(-12);
         recentCandidateIdsRef.current = [...new Set([
           ...recentCandidateIdsRef.current,
-          ...returnedRoutes.flatMap(({ stops }) => stops.map(({ placeId }) => placeId)),
+          ...returnedRoutes.flatMap(({ stops }) => stops
+            .filter(({ selectionOrigin }) => selectionOrigin !== "user_selected")
+            .map(({ placeId }) => placeId)),
         ])].slice(-40);
         setActiveRoute(selected);
         setEditableIds(selected.stops.map(({ placeId }) => placeId));

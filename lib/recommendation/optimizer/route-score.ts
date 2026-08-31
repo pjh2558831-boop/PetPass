@@ -185,6 +185,13 @@ export function scoreCompletedRouteV1(input: {
       cfg.waitingPenaltyPerMinute,
   );
   let repeatedCategoryPenalty = 0;
+  const categoryFrequency = new Map<string, number>();
+  for (const { candidate } of visits) {
+    const count = (categoryFrequency.get(candidate.category) ?? 0) + 1;
+    categoryFrequency.set(candidate.category, count);
+    if (count === 2) repeatedCategoryPenalty += cfg.secondCategoryVisitPenalty;
+    if (count > 2) repeatedCategoryPenalty += cfg.additionalCategoryVisitPenalty;
+  }
   for (let index = 1; index < visits.length; index += 1) {
     if (visits[index - 1].candidate.category === visits[index].candidate.category) {
       repeatedCategoryPenalty += cfg.consecutiveCategoryPenalty;

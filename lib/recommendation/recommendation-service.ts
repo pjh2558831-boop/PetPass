@@ -40,6 +40,7 @@ import {
   optimizeRouteOptionsV2,
 } from "@/lib/recommendation/v2/route-optimizer";
 import { requestFingerprintV2, routeFromOptionV2 } from "@/lib/recommendation/v2/response";
+import { analyzeRouteFeasibilityV2 } from "@/lib/recommendation/v2/feasibility";
 import {
   appendScheduledVisitTiming,
   tripStartMs,
@@ -1007,10 +1008,10 @@ export async function generateRouteRecommendation(
       : [];
     const targetCapacity = hybridMode
       ? (request.autoFill ?? true)
-        ? Math.min(
-            pace.maxStops,
-            Math.max(anchors.length, request.trip.desiredStopCount ?? pace.maxStops),
-          )
+        ? Math.min(5, Math.max(
+            anchors.length,
+            Math.min(pace.maxStops, request.trip.desiredStopCount ?? pace.maxStops),
+          ))
         : anchors.length
       : request.trip.desiredStopCount ?? pace.desiredStopCount;
     const hybridCandidates = hybridMode
@@ -1077,15 +1078,57 @@ export async function generateRouteRecommendation(
       allowReducedStops: true,
       ...(hybridMode ? { requiredPlaceIds: selectedPlaceIds } : {}),
     };
-    const optimizationInput: RouteOptimizationInput = {
+    const feasibilityInput: RouteOptimizationInput = {
       departure,
       candidates: adapted,
       matrix,
       tripRequest,
     };
+    const feasibility = analyzeRouteFeasibilityV2(feasibilityInput);
+    if (feasibility.status !== "ready") {
+      const detailedFailure = {
+        ...recommendationFailure("insufficient_feasible_route", feasibility.limitingReasonCodes),
+        resultState: "insufficient_feasible_route" as const,
+        requestedStopCount: targetCapacity,
+        feasibleStopCount: 0,
+        resultExplanation:
+          `요청 ${targetCapacity}곳 중 운영시간, 실제 이동시간, 대기 한도를 함께 만족하는 장소 조합은 0곳입니다. 제한 요인: ${feasibility.limitingReasonCodes.join(", ")}.`,
+        recoveryActions: [
+          "reduce_requested_stops" as const,
+          "change_time_window" as const,
+          "change_categories" as const,
+          ...(request.trip.districtId ? ["widen_district" as const] : []),
+        ],
+      };
+      return hybridMode
+        ? {
+            ...detailedFailure,
+            selectionMode: "hybrid" as const,
+            selectionIssues: [{
+              placeId: selectedPlaceIds.join(","),
+              code: "selected_place_trip_incompatible" as const,
+              blocking: true,
+              reasonCodes: feasibility.limitingReasonCodes,
+              replacementCandidateIds: replacements.map(({ placeId }) => placeId),
+            }],
+            replacementCandidates: replacements,
+          }
+        : detailedFailure;
+    }
+    const optimizationInput: RouteOptimizationInput = {
+      ...feasibilityInput,
+      tripRequest: {
+        ...tripRequest,
+        desiredStopCount: feasibility.targetStopCount,
+        minimumStopCount: feasibility.targetStopCount,
+        minimumRequestedCategoryCount: feasibility.requiredRequestedCategoryCount,
+      },
+    };
     const optimized = await routeOptionsOptimizer(optimizationInput, {
       travelTimeProvider,
       recentRouteSignatures: normalized.recentRouteSignatures,
+      recentlySelectedCandidateIds: personalizationRequest.recentlySelectedCandidateIds,
+      deterministicSeed: normalized.generationSeed,
       rerollVariant: personalizationRequest.rerollVariant,
     });
     dependencies.signal?.throwIfAborted();
@@ -1096,7 +1139,7 @@ export async function generateRouteRecommendation(
       } as Exclude<RouteOptimizationResult, { status: "ready" }>);
       const detailedFailure = {
         ...failure,
-        resultState: "insufficient_eligible_places" as const,
+        resultState: "insufficient_feasible_route" as const,
         requestedStopCount: targetCapacity,
         feasibleStopCount: 0,
         resultExplanation:
@@ -1161,6 +1204,7 @@ export async function generateRouteRecommendation(
       optimization: optimizationInput,
       candidates: candidateById,
       requestedTarget,
+      reductionReasonCodes: feasibility.limitingReasonCodes,
       licensingStatus,
       ...(hybridMode ? { selectedPlaceIds: selectedIdSet } : {}),
     }));
@@ -1171,10 +1215,10 @@ export async function generateRouteRecommendation(
         ? "ready_with_reduced_stops" as const
         : "ready" as const;
     const resultReasonCodes = resultState === "ready"
-      ? ["requested_stop_count_satisfied"]
+      ? ["requested_stop_count_satisfied", ...feasibility.limitingReasonCodes]
       : resultState === "ready_with_reduced_stops"
-        ? ["eligible_or_feasible_places_below_requested_stop_count"]
-        : ["only_one_eligible_feasible_place"];
+        ? ["feasible_stop_count_below_requested_stop_count", ...feasibility.limitingReasonCodes]
+        : ["only_one_eligible_feasible_place", ...feasibility.limitingReasonCodes];
     const recoveryActions = resultState === "ready"
       ? []
       : [
@@ -1187,7 +1231,7 @@ export async function generateRouteRecommendation(
       (option, index) => ({
         ...option,
         kind: "optimized" as const,
-        alternativeType: option.style === "efficient" || index === 1
+        alternativeType: option.style === "shortest" || index === 1
           ? "lower_travel"
           : "popularity_oriented",
       }),
@@ -1231,8 +1275,8 @@ export async function generateRouteRecommendation(
       resultExplanation: resultState === "ready"
         ? "요청한 방문지 수를 충족하는 경로입니다."
         : resultState === "ready_with_reduced_stops"
-          ? "동반 근거, 운영시간, 이동시간을 모두 지키기 위해 방문지 수를 줄였습니다."
-          : "현재 조건에서 안전하게 제안할 수 있는 장소가 한 곳뿐입니다.",
+          ? `요청 ${requestedTarget}곳 중 ${route.routeSummary.stopCount}곳이 현재 운영시간, 실제 이동시간, 대기 한도를 함께 만족하는 최대 경로입니다. 제한 요인: ${feasibility.limitingReasonCodes.join(", ")}.`
+          : `요청 ${requestedTarget}곳 중 현재 조건에서 안전하게 제안할 수 있는 장소는 1곳입니다. 제한 요인: ${feasibility.limitingReasonCodes.join(", ")}.`,
       recoveryActions,
       requestSummary: {
         departureLabel: request.departure.label,
@@ -1246,6 +1290,9 @@ export async function generateRouteRecommendation(
       optimality: optimized.optimality,
       route,
       routeOptions,
+      primaryRouteId: route.id,
+      routeOptionCount: routeOptions.length,
+      ...(optimized.limitedReason ? { routeOptionsLimitedReason: optimized.limitedReason } : {}),
       alternatives,
       alternativeAvailability: optimized.alternativeAvailability,
       candidateSourceCounts: {
@@ -1260,6 +1307,7 @@ export async function generateRouteRecommendation(
       })),
       warnings: [
         ...optimized.warnings,
+        ...feasibility.limitingReasonCodes,
         ...(ktoUnavailable ? ["kto_provider_partial_failure"] : []),
         ...(snapshotUnavailable ? ["kakao_catalog_partial_failure"] : []),
         ...(hybridMode && anchors.some((candidate) =>
@@ -1296,9 +1344,7 @@ export async function generateRouteRecommendation(
           },
           candidateEligibility: {
             ...fused.diagnostics.stageCounts,
-            feasibleRouteCandidates: new Set(
-              routeOptions.flatMap(({ stops }) => stops.map(({ placeId }) => placeId)),
-            ).size,
+            feasibleRouteCandidates: feasibility.feasibleCandidateIds.length,
             finalUsedPlaces: route.routeSummary.stopCount,
             rejectedByReason: mergeReasonCounts(
               fused.diagnostics.excludedByReason,

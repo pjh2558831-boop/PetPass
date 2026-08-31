@@ -8,7 +8,8 @@ export function getRouteTripConstraints(request: RouteOptimizationTripRequest) {
   const targetStops = request.desiredStopCount ?? pace.targetStops;
   return {
     targetStops,
-    minStops: request.allowReducedStops ? 1 : Math.min(pace.minStops, targetStops),
+    minStops: request.minimumStopCount ??
+      (request.allowReducedStops ? 1 : Math.min(pace.minStops, targetStops)),
     maxStops: request.desiredStopCount ?? pace.maxStops,
     maxDurationMinutes: request.durationMinutes ?? pace.maxDurationMinutes,
   };
