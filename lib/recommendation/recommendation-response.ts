@@ -253,6 +253,37 @@ const replacementCandidate = z.object({
   source: z.enum(["tourism_service2", "kakao_catalog"]),
 }).strict();
 const safeDiagnostics = z.object({
+  candidateFunnel: z.object({
+    version: z.literal("candidate-funnel-v1"),
+    catalog: z.object({
+      publishedRegionalCatalog: z.number().int().nonnegative(),
+      core: z.number().int().nonnegative(),
+      shopping: z.number().int().nonnegative(),
+      detailedEvidence: z.number().int().nonnegative(),
+      listOnly: z.number().int().nonnegative(),
+    }).strict(),
+    petEvidence: z.object({
+      verified: z.number().int().nonnegative(),
+      conditional: z.number().int().nonnegative(),
+      unknown: z.number().int().nonnegative(),
+      notAllowed: z.number().int().nonnegative(),
+    }).strict(),
+    stages: z.object({
+      activeRecords: z.number().int().nonnegative(),
+      stableIdentityUnique: z.number().int().nonnegative(),
+      requestedRegion: z.number().int().nonnegative(),
+      requestedDistrict: z.number().int().nonnegative(),
+      supportedCategories: z.number().int().nonnegative(),
+      petEvidenceEligible: z.number().int().nonnegative(),
+      canonicalConditionEligible: z.number().int().nonnegative(),
+      operatingHoursEligible: z.number().int().nonnegative(),
+      dateTimeFeasible: z.number().int().nonnegative(),
+      departureDistanceFeasible: z.number().int().nonnegative(),
+      matrixFeasible: z.number().int().nonnegative(),
+      optimizerInput: z.number().int().nonnegative(),
+    }).strict(),
+    rejectedByReason: z.record(z.string(), z.number().int().nonnegative()),
+  }).strict().optional(),
   candidatePipeline: z.object({
     stageA: z.number().int().nonnegative(),
     stageB: z.number().int().nonnegative(),
@@ -281,12 +312,21 @@ const safeDiagnostics = z.object({
     validationFailures: z.number().int().nonnegative(),
   }).strict(),
 }).strict();
+const diversity = z.object({
+  eligibleUniqueCandidateCount: z.number().int().nonnegative(),
+  requestedStopCount: z.number().int().min(1).max(5),
+  unseenEligibleCandidateCount: z.number().int().nonnegative(),
+  maximumFeasibleNovelReplacements: z.number().int().nonnegative(),
+  diversityCapacity: z.enum(["sufficient", "limited", "exhausted"]),
+  limitingReasonCodes: z.array(nonEmpty),
+}).strict();
 const failureWithSelection = failure.extend({
   selectionMode: z.enum(["automatic", "hybrid"]).optional(),
   selectionIssues: z.array(selectionIssue).optional(),
   replacementCandidates: z.array(replacementCandidate).max(3).optional(),
   routeOptions: z.array(route).min(1).max(3).optional(),
   diagnostics: safeDiagnostics.optional(),
+  diversity: diversity.optional(),
 });
 const ready = z.object({
   status: z.literal("ready"),
@@ -349,6 +389,7 @@ const ready = z.object({
   selectionIssues: z.array(selectionIssue).optional(),
   replacementCandidates: z.array(replacementCandidate).max(3).optional(),
   diagnostics: safeDiagnostics.optional(),
+  diversity: diversity.optional(),
 }).strict();
 
 export const routeRecommendationReadyResponseSchema = ready;

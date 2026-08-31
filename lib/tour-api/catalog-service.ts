@@ -2,7 +2,6 @@ import "server-only";
 
 import {
   TOUR_DEFAULT_CATALOG_CONTENT_TYPE_IDS,
-  type BusanDistrictCode,
 } from "@/lib/tour-api/catalog";
 import { TourProviderError } from "@/lib/tour-api/errors";
 import type {
@@ -21,8 +20,13 @@ export const TOUR_CATALOG_PROVIDER_PAGE_SIZE = 50;
 export const TOUR_CATALOG_MAX_PAGES_PER_CONTENT_TYPE = 20;
 
 export interface TourCatalogQuery {
+  /** KTO areaCode for area-code queries, otherwise a legal region code. */
   regionCode: string;
-  districtCode?: BusanDistrictCode;
+  districtCode?: string;
+  administrativeCodeSystem?: "legal_dong" | "area_code";
+  /** Legal codes used only by petTourSyncList2 visibility lookup. */
+  visibilityRegionCode?: string;
+  visibilityDistrictCode?: string;
   contentTypeId?: TourContentTypeId;
   page: number;
   pageSize: number;
@@ -42,6 +46,9 @@ async function collectContentType(
   const providerQuery = {
     regionCode: query.regionCode,
     districtCode: query.districtCode,
+    ...(query.administrativeCodeSystem
+      ? { administrativeCodeSystem: query.administrativeCodeSystem }
+      : {}),
     contentTypeId,
     page: 1,
     pageSize: TOUR_CATALOG_PROVIDER_PAGE_SIZE,
@@ -56,7 +63,15 @@ async function collectContentType(
   }
 
   const visibilityQuery = {
-    ...providerQuery,
+    regionCode: query.visibilityRegionCode ?? query.regionCode,
+    districtCode:
+      query.visibilityDistrictCode ??
+      (query.administrativeCodeSystem === "area_code"
+        ? undefined
+        : query.districtCode),
+    contentTypeId,
+    page: 1,
+    pageSize: TOUR_CATALOG_PROVIDER_PAGE_SIZE,
     showFlag: "1" as const,
   };
   const [first, firstVisibility] = await Promise.all([

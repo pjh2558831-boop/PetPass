@@ -102,8 +102,9 @@ function normalizeCoordinate(
 export function normalizeTourContentTypeId(
   input: string | null | undefined,
 ): TourContentTypeId | null {
-  return TOUR_CONTENT_TYPE_IDS.includes(input as TourContentTypeId)
-    ? (input as TourContentTypeId)
+  const normalized = input?.trim();
+  return TOUR_CONTENT_TYPE_IDS.includes(normalized as TourContentTypeId)
+    ? (normalized as TourContentTypeId)
     : null;
 }
 

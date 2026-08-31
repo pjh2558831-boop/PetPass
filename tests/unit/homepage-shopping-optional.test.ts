@@ -284,7 +284,10 @@ describe("region-generic KTO Shopping optional dataset", () => {
       displayName: "Future",
       providerCodes: {
         ...BUSAN_REGION_CONFIG.providerCodes,
-        korPetTourService2: { legalDongRegionCode: "99" },
+        korPetTourService2: {
+          ...BUSAN_REGION_CONFIG.providerCodes.korPetTourService2,
+          legalDongRegionCode: "99",
+        },
       },
       homepageOptionalDatasets: {
         ktoShopping: {

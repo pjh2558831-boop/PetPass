@@ -3,6 +3,8 @@ import "server-only";
 import {
   coordinatesInRegion,
   getRegionConfigByService2LegalDongCode,
+  matchesKtoRegionIdentity,
+  resolveRegionDistrictCode,
 } from "@/lib/regions/config";
 import type { KakaoDiscoveryCandidate } from "@/types/kakao";
 import type { TourPlaceSummary } from "@/types/place";
@@ -159,6 +161,17 @@ export function classifyTourTravelSuitability(
       ? null
       : place.category;
   const evidence: TravelSuitabilityEvidence[] = [];
+  const requestedRegion = getRegionConfigByService2LegalDongCode(
+    request.scope.regionCode,
+  );
+  const resolvedDistrict = requestedRegion
+    ? resolveRegionDistrictCode(requestedRegion, {
+        legalRegionCode: place.legalRegionCode,
+        areaCode: place.areaCode,
+        legalDistrictCode: place.legalDistrictCode,
+        areaDistrictCode: place.sigunguCode,
+      })
+    : null;
 
   if (
     place.latitude === null ||
@@ -172,11 +185,13 @@ export function classifyTourTravelSuitability(
   }
   if (
     !coordinatesInRequestedRegion(request, place.latitude, place.longitude) ||
-    (place.legalRegionCode !== null &&
-      place.legalRegionCode !== request.scope.regionCode) ||
+    !requestedRegion ||
+    !matchesKtoRegionIdentity(requestedRegion, {
+      legalRegionCode: place.legalRegionCode,
+      areaCode: place.areaCode,
+    }) ||
     (request.scope.type === "district" &&
-      place.legalDistrictCode !== null &&
-      place.legalDistrictCode !== request.scope.districtCode)
+      resolvedDistrict !== request.scope.districtCode)
   ) {
     return excludedAssessment(source, category, "outside_selected_region", [
       { source: "region", code: "outside_selected_region", value: request.scope.type },

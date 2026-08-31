@@ -178,6 +178,17 @@ function kakaoMarker(id: string, offset: number): MapPlacesSnapshotMarker {
   };
 }
 
+function tourMarker(id: string, offset: number): MapPlacesSnapshotMarker {
+  return {
+    ...kakaoMarker(id, offset),
+    id: `tour:${id}`,
+    layer: "tourism",
+    petAccessVerdict: "allowed",
+    publicLabel: "반려동물 동반 가능",
+    sourceLabel: "한국관광공사",
+  };
+}
+
 function snapshot(items: MapPlacesSnapshotMarker[]): MapPlacesSnapshot {
   return {
     contractVersion: 1,
@@ -323,6 +334,22 @@ describe("recommendation service V2 orchestration", () => {
     )).toBe(true);
   });
 
+  it("counts one published identity once when snapshot, list, and enriched views overlap", async () => {
+    const kto = ktoCandidate("1001", 0);
+    const deps = {
+      ...dependencies([kto], [tourMarker("1001", 0)]),
+      includeDiagnostics: true,
+    };
+    deps.collectCatalog.mockResolvedValue({ places: [kto.summary] } as never);
+
+    const result = await generateRouteRecommendation(REQUEST, deps);
+
+    expect(result.diagnostics?.candidateFunnel).toMatchObject({
+      catalog: { publishedRegionalCatalog: 1, core: 1, shopping: 0 },
+      stages: { stableIdentityUnique: 1, optimizerInput: 1 },
+    });
+  });
+
   it("keeps unknown-evidence Kakao candidates out after explicit opt-in", async () => {
     const deps = dependencies(
       [ktoCandidate("1001", 0)],
@@ -335,6 +362,7 @@ describe("recommendation service V2 orchestration", () => {
 
     expect(result.status).toBe("ready");
     if (result.status !== "ready") return;
+    expect(result.diagnostics).toBeUndefined();
     expect(result.candidateSourceCounts).toEqual({ kto: 1, kakao: 0, merged: 0 });
     expect(result.routeOptions?.flatMap(({ stops }) => stops).every((stop) =>
       stop.source === "tourism_service2" &&
@@ -399,6 +427,28 @@ describe("recommendation service V2 orchestration", () => {
         operatingHoursEligibleCandidates: 3,
         finalUsedPlaces: result.route.routeSummary.stopCount,
       });
+      expect(result.diagnostics?.candidateFunnel).toMatchObject({
+        catalog: {
+          publishedRegionalCatalog: 6,
+          core: 6,
+          shopping: 0,
+          listOnly: 0,
+        },
+        stages: {
+          stableIdentityUnique: 6,
+          petEvidenceEligible: 3,
+          canonicalConditionEligible: 3,
+          operatingHoursEligible: 3,
+          optimizerInput: 3,
+        },
+      });
+      expect(result.diversity).toMatchObject({
+        eligibleUniqueCandidateCount: 3,
+        requestedStopCount: 3,
+        unseenEligibleCandidateCount: 3,
+        maximumFeasibleNovelReplacements: 3,
+        diversityCapacity: "sufficient",
+      });
       measurement = {
         routeOptions: result.routeOptions?.length ?? 0,
         catalogCalls: deps.collectCatalog.mock.calls.length,
@@ -413,6 +463,26 @@ describe("recommendation service V2 orchestration", () => {
     durations.sort((left, right) => left - right);
     measurement.medianWallMs = Math.round(durations[2]! * 100) / 100;
     console.log(`V2_SERVICE_METRICS ${JSON.stringify(measurement)}`);
+  });
+
+  it("applies the solver cap only after the verified pool reaches service scoring", async () => {
+    const kto = Array.from({ length: 20 }, (_, index) =>
+      ktoCandidate(String(3_000 + index), index / 1_000));
+    const deps = {
+      ...dependencies(kto, []),
+      includeDiagnostics: true,
+    };
+
+    const result = await generateRouteRecommendation(REQUEST, deps);
+
+    expect(result.status).toBe("ready");
+    const matrixInput = deps.provider.buildMatrix.mock.calls[0]?.[0];
+    expect(matrixInput?.candidates).toHaveLength(15);
+    expect(result.diagnostics?.candidateFunnel).toMatchObject({
+      catalog: { publishedRegionalCatalog: 20 },
+      stages: { stableIdentityUnique: 20, matrixFeasible: 15 },
+      rejectedByReason: { matrix_evaluation_limit: 5 },
+    });
   });
 
   it.each([
@@ -476,6 +546,14 @@ describe("recommendation service V2 orchestration", () => {
           feasibleRouteCandidates: 0,
           finalUsedPlaces: 0,
         },
+        candidateFunnel: {
+          stages: { optimizerInput: 0 },
+        },
+      },
+      diversity: {
+        eligibleUniqueCandidateCount: 0,
+        maximumFeasibleNovelReplacements: 0,
+        diversityCapacity: "exhausted",
       },
     });
     expect(deps.provider.buildMatrix).not.toHaveBeenCalled();

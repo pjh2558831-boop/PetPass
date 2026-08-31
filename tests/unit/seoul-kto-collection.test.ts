@@ -381,7 +381,7 @@ describe("generic regional KTO collector", () => {
       id: "future-city",
       displayName: "미래도시",
       providerCodes: {
-        korPetTourService2: { legalDongRegionCode: "99" },
+        korPetTourService2: { areaCode: "99", legalDongRegionCode: "99" },
         legacyTourismAreaCode: null,
       },
       mapBounds: { west: 126.75, south: 37.4, east: 127.2, north: 37.72 },

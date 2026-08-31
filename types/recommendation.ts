@@ -3,6 +3,8 @@ import type { PetSize, PetSpecies, TripPace } from "@/types/pet";
 import type { RegionId } from "@/types/region";
 import type { TourPetAccessConditionType } from "@/types/tour-pet-access";
 import type { CanonicalPetConditionEligibility } from "@/types/pet-condition-eligibility";
+import type { CandidateFunnelDiagnostics } from "@/lib/recommendation/v2/candidate-funnel";
+import type { DiversityCapacityResultV2 } from "@/lib/recommendation/v2/diversity-capacity";
 
 export const ROUTE_RECOMMENDATION_ENGINE_VERSION =
   "petpass-route-engine-v1" as const;
@@ -228,6 +230,7 @@ export interface RouteAlternativeV1 extends ProductRouteV1 {
 }
 
 export interface SafeRecommendationDiagnostics {
+  candidateFunnel?: CandidateFunnelDiagnostics;
   candidateEligibility?: {
     providerRawCandidates: number;
     regionFilteredCandidates: number;
@@ -310,6 +313,7 @@ export interface RouteRecommendationReadyResponseV1 {
   selectionIssues?: RecommendationSelectionIssueV1[];
   replacementCandidates?: RecommendationReplacementCandidateV1[];
   diagnostics?: SafeRecommendationDiagnostics;
+  diversity?: DiversityCapacityResultV2;
 }
 
 export interface RecommendationConditionConfirmationV1 {
@@ -331,6 +335,7 @@ export interface RouteRecommendationFailureResponseV1 {
   resultExplanation?: string;
   recoveryActions?: RecommendationRecoveryAction[];
   diagnostics?: SafeRecommendationDiagnostics;
+  diversity?: DiversityCapacityResultV2;
   selectionMode?: "automatic" | "hybrid";
   selectionIssues?: RecommendationSelectionIssueV1[];
   replacementCandidates?: RecommendationReplacementCandidateV1[];

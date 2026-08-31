@@ -603,7 +603,7 @@ describe("candidate-pipeline-v1 foundations", () => {
       ...input,
       catalog: [...input.catalog].reverse(),
     });
-    expect(first).toHaveLength(25);
+    expect(first).toHaveLength(31);
     expect(first.map(({ contentId }) => contentId)).toEqual(
       second.map(({ contentId }) => contentId),
     );
@@ -801,7 +801,7 @@ describe("candidate-pipeline-v1 Stage A retrieval", () => {
       context: context(["attraction", "food"]),
       asOf: RETRIEVED_AT,
     });
-    expect(noFood).toHaveLength(25);
+    expect(noFood).toHaveLength(30);
     expect(noFood.every(({ category }) => category === "attraction")).toBe(true);
 
     const stay = makeSummary("far-stay", "32", {
@@ -975,7 +975,7 @@ describe("candidate-pipeline-v1 Stage A retrieval", () => {
 });
 
 describe("candidate-pipeline-v1 Stage B schedule shortlist", () => {
-  it("caps twenty compatible candidates before Stage C", async () => {
+  it("keeps compatible candidates below the post-diversity cap before Stage C", async () => {
     const places = Array.from({ length: 25 }, (_, index) =>
       makeSummary(`stage-b-${String(index).padStart(2, "0")}`),
     );
@@ -990,7 +990,7 @@ describe("candidate-pipeline-v1 Stage B schedule shortlist", () => {
     });
 
     expect(result.diagnostics.stageACount).toBe(25);
-    expect(result.diagnostics.stageBCount).toBe(20);
+    expect(result.diagnostics.stageBCount).toBe(25);
     expect(service.scheduleIds).toHaveLength(25);
   });
 
@@ -1015,7 +1015,7 @@ describe("candidate-pipeline-v1 Stage B schedule shortlist", () => {
       now: () => new Date(RETRIEVED_AT),
     });
 
-    expect(result.diagnostics.stageBCount).toBe(20);
+    expect(result.diagnostics.stageBCount).toBe(21);
     expect(result.candidates.some(({ contentId }) => contentId === unknown.contentId)).toBe(false);
   });
 
@@ -1089,13 +1089,13 @@ describe("candidate-pipeline-v1 adaptive Stage C", () => {
       now: () => new Date(RETRIEVED_AT),
     });
 
-    expect(result.eligiblePoolTarget).toBe(5);
-    expect(result.diagnostics.detailedBatchCount).toBe(1);
-    expect(result.diagnostics.detailedEvaluationCount).toBe(5);
-    expect(service.detailIds).toHaveLength(5);
+    expect(result.eligiblePoolTarget).toBe(6);
+    expect(result.diagnostics.detailedBatchCount).toBe(2);
+    expect(result.diagnostics.detailedEvaluationCount).toBe(10);
+    expect(service.detailIds).toHaveLength(10);
   });
 
-  it("continues through all four batches for late strict coverage and caps fifteen", async () => {
+  it("continues through all four batches and preserves the verified pool for service scoring", async () => {
     const attractions = Array.from({ length: 18 }, (_, index) =>
       makeSummary(`max-${String(index).padStart(2, "0")}`, "12", {
         longitude: 129.05 + index / 100_000,
@@ -1136,7 +1136,7 @@ describe("candidate-pipeline-v1 adaptive Stage C", () => {
     expect(result.diagnostics.detailedBatchCount).toBe(4);
     expect(result.diagnostics.detailedEvaluationCount).toBe(20);
     expect(result.diagnostics.eligibleCount).toBe(19);
-    expect(result.candidates).toHaveLength(15);
+    expect(result.candidates).toHaveLength(19);
     expect(result.candidates.some(({ contentId }) => contentId === food.contentId)).toBe(true);
   });
 

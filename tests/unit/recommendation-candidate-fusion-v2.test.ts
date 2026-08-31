@@ -222,4 +222,17 @@ describe("recommendation candidate fusion V2", () => {
     expect(result.candidates).toEqual([]);
     expect(result.diagnostics.excludedByReason).toEqual({ operating_hours_unknown: 1 });
   });
+
+  it("preserves explicit exclusions after safe eligibility succeeds", () => {
+    const result = fuseRecommendationCandidatesV2({
+      regionId: "busan",
+      selectedCategories: ["attraction"],
+      ktoCandidates: [ktoCandidate()],
+      catalogCandidates: [],
+      explicitlyExcludedPlaceIds: ["tour:1001"],
+    });
+
+    expect(result.candidates).toEqual([]);
+    expect(result.diagnostics.excludedByReason).toEqual({ explicit_user_exclusion: 1 });
+  });
 });

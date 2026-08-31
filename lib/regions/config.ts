@@ -124,8 +124,12 @@ export interface RegionConfig<TId extends string = RegionId> {
   displayName: string;
   providerCodes: {
     korPetTourService2: {
+      /** KTO `areaCode` used by areaBasedList2. */
+      areaCode: string;
+      /** Legal administrative region code used by petTourSyncList2 and domain validation. */
       legalDongRegionCode: string;
     };
+    /** @deprecated Use providerCodes.korPetTourService2.areaCode. */
     legacyTourismAreaCode: string | null;
   };
   mapEnabled: boolean;
@@ -172,7 +176,7 @@ export const BUSAN_REGION_CONFIG = {
   id: "busan",
   displayName: "부산",
   providerCodes: {
-    korPetTourService2: { legalDongRegionCode: "26" },
+    korPetTourService2: { areaCode: "6", legalDongRegionCode: "26" },
     legacyTourismAreaCode: "6",
   },
   mapEnabled: true,
@@ -286,7 +290,7 @@ export const JEJU_REGION_CONFIG = {
   id: "jeju",
   displayName: "제주",
   providerCodes: {
-    korPetTourService2: { legalDongRegionCode: "50" },
+    korPetTourService2: { areaCode: "39", legalDongRegionCode: "50" },
     legacyTourismAreaCode: "39",
   },
   mapEnabled: true,
@@ -376,7 +380,7 @@ export const SEOUL_REGION_CONFIG = {
   id: "seoul",
   displayName: "서울",
   providerCodes: {
-    korPetTourService2: { legalDongRegionCode: "11" },
+    korPetTourService2: { areaCode: "1", legalDongRegionCode: "11" },
     legacyTourismAreaCode: "1",
   },
   mapEnabled: true,
@@ -504,7 +508,10 @@ function createProgressiveKtoMapRegion<TId extends RegionId>(input: {
     id: input.id,
     displayName: input.displayName,
     providerCodes: {
-      korPetTourService2: { legalDongRegionCode: input.legalDongRegionCode },
+      korPetTourService2: {
+        areaCode: input.legacyTourismAreaCode,
+        legalDongRegionCode: input.legalDongRegionCode,
+      },
       legacyTourismAreaCode: input.legacyTourismAreaCode,
     },
     mapEnabled: true,
@@ -951,6 +958,141 @@ export function getRegionDistrict(
   return region.districts.find(
     ({ legalDongDistrictCode }) => legalDongDistrictCode === districtCode,
   ) ?? null;
+}
+
+export function getRegionConfigByKtoAreaCode(
+  areaCode: string | null | undefined,
+): RegionConfig | null {
+  if (!areaCode) return null;
+  return REGION_CONFIGS.find(
+    (region) =>
+      region.providerCodes.korPetTourService2.areaCode === areaCode.trim(),
+  ) ?? null;
+}
+
+export interface KtoRegionLookupIdentity {
+  internalRegionId: RegionId;
+  areaCode: string;
+  legalRegionCode: string;
+  district: {
+    stableCode: string;
+    name: string;
+    areaCodes: readonly string[];
+    legalCodes: readonly string[];
+  } | null;
+  geographicBoundary: RegionBounds;
+  routeCapabilities: RegionRouteCapabilities;
+}
+
+/**
+ * One authoritative projection for provider lookup, domain identity, and
+ * capability checks. `areaCode` and legal-dong codes are deliberately kept in
+ * separate fields because the KTO operations do not accept them interchangeably.
+ */
+export function getKtoRegionLookupIdentity(
+  region: RegionConfig,
+  districtCode?: string | null,
+): KtoRegionLookupIdentity {
+  const district = getRegionDistrict(region, districtCode);
+  const collectionUsesLegalCodes =
+    region.ktoCollection?.administrativeCodeSystem !== "area_code";
+  return {
+    internalRegionId: region.id,
+    areaCode: region.providerCodes.korPetTourService2.areaCode,
+    legalRegionCode:
+      region.providerCodes.korPetTourService2.legalDongRegionCode,
+    district: district
+      ? {
+          stableCode: district.legalDongDistrictCode,
+          name: district.name,
+          areaCodes: district.collectionAreaDistrictCodes ?? [],
+          legalCodes: [
+            ...(collectionUsesLegalCodes
+              ? [district.legalDongDistrictCode]
+              : []),
+            ...(district.collectionLegalDongDistrictCodes ?? []),
+          ],
+        }
+      : null,
+    geographicBoundary: region.mapBounds,
+    routeCapabilities: region.routeCapabilities,
+  };
+}
+
+export function matchesKtoRegionIdentity(
+  region: RegionConfig,
+  identity: {
+    legalRegionCode: string | null | undefined;
+    areaCode: string | null | undefined;
+  },
+): boolean {
+  const legal = identity.legalRegionCode?.trim() || null;
+  const area = identity.areaCode?.trim() || null;
+  if (!legal && !area) return false;
+  if (
+    legal &&
+    legal !== region.providerCodes.korPetTourService2.legalDongRegionCode
+  ) {
+    return false;
+  }
+  if (area && area !== region.providerCodes.korPetTourService2.areaCode) {
+    return false;
+  }
+  return true;
+}
+
+function districtFromLegalCode(
+  region: RegionConfig,
+  code: string | null,
+): RegionDistrictConfig | null {
+  if (!code) return null;
+  return region.districts.find((district) =>
+    district.legalDongDistrictCode === code ||
+    district.collectionLegalDongDistrictCodes?.includes(code)
+  ) ?? null;
+}
+
+function districtFromAreaCode(
+  region: RegionConfig,
+  code: string | null,
+): RegionDistrictConfig | null {
+  if (!code) return null;
+  return region.districts.find((district) =>
+    district.collectionAreaDistrictCodes?.includes(code)
+  ) ?? null;
+}
+
+/** Resolves provider-specific district codes back to the stable public key. */
+export function resolveRegionDistrictCode(
+  region: RegionConfig,
+  identity: {
+    legalRegionCode: string | null | undefined;
+    areaCode: string | null | undefined;
+    legalDistrictCode: string | null | undefined;
+    areaDistrictCode: string | null | undefined;
+  },
+): string | null {
+  if (!matchesKtoRegionIdentity(region, identity)) return null;
+  const legalDistrict = districtFromLegalCode(
+    region,
+    identity.legalDistrictCode?.trim() || null,
+  );
+  const areaDistrict = districtFromAreaCode(
+    region,
+    identity.areaDistrictCode?.trim() || null,
+  );
+  if (
+    legalDistrict &&
+    areaDistrict &&
+    legalDistrict.legalDongDistrictCode !== areaDistrict.legalDongDistrictCode
+  ) {
+    return null;
+  }
+  return (
+    legalDistrict?.legalDongDistrictCode ??
+    areaDistrict?.legalDongDistrictCode ??
+    null
+  );
 }
 
 export function coordinatesInRegion(

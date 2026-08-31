@@ -2,6 +2,11 @@ import "server-only";
 
 import { evaluateCanonicalPetConditions } from "@/lib/pet-access/canonical-condition-eligibility";
 import { assessPetSizeCompatibility } from "@/lib/pet-access/tourism/size-compatibility";
+import {
+  getRegionConfigByService2LegalDongCode,
+  matchesKtoRegionIdentity,
+  resolveRegionDistrictCode,
+} from "@/lib/regions/config";
 import type { LicensingMatchResult } from "@/types/license";
 import { TOUR_CONTENT_TYPE_IDS } from "@/types/place";
 import type { TourPetPolicyFieldName } from "@/types/place";
@@ -142,6 +147,8 @@ function hasExpectedSourceIdentity(input: AutomaticRouteEligibilityInput): boole
 function scopeOutcome(input: AutomaticRouteEligibilityInput): ConditionOutcome {
   const scope = input.tripRequest.scope as AutomaticRouteGeographicScope | undefined;
   if (!scope || !scope.regionCode.trim()) return "verification_required";
+  const region = getRegionConfigByService2LegalDongCode(scope.regionCode);
+  if (!region) return "verification_required";
   const { bounds } = scope;
   if (
     ![bounds.south, bounds.west, bounds.north, bounds.east].every(
@@ -165,30 +172,34 @@ function scopeOutcome(input: AutomaticRouteEligibilityInput): ConditionOutcome {
     latitude > bounds.north ||
     longitude < bounds.west ||
     longitude > bounds.east ||
-    (input.detail.summary.legalRegionCode !== null &&
-      input.detail.summary.legalRegionCode !== scope.regionCode) ||
-    (input.summary.legalRegionCode !== null &&
-      input.summary.legalRegionCode !== scope.regionCode)
+    !matchesKtoRegionIdentity(region, {
+      legalRegionCode: input.detail.summary.legalRegionCode,
+      areaCode: input.detail.summary.areaCode,
+    }) ||
+    !matchesKtoRegionIdentity(region, {
+      legalRegionCode: input.summary.legalRegionCode,
+      areaCode: input.summary.areaCode,
+    })
   ) {
     return "unsatisfied";
   }
 
-  if (
-    input.detail.summary.legalRegionCode === null ||
-    input.summary.legalRegionCode === null
-  ) {
-    return "verification_required";
-  }
-
   if (scope.districtCode === null) return "satisfied";
-  if (
-    input.detail.summary.legalDistrictCode === null ||
-    input.summary.legalDistrictCode === null
-  ) {
-    return "verification_required";
-  }
-  return input.detail.summary.legalDistrictCode === scope.districtCode &&
-    input.summary.legalDistrictCode === scope.districtCode
+  const detailDistrict = resolveRegionDistrictCode(region, {
+    legalRegionCode: input.detail.summary.legalRegionCode,
+    areaCode: input.detail.summary.areaCode,
+    legalDistrictCode: input.detail.summary.legalDistrictCode,
+    areaDistrictCode: input.detail.summary.sigunguCode,
+  });
+  const summaryDistrict = resolveRegionDistrictCode(region, {
+    legalRegionCode: input.summary.legalRegionCode,
+    areaCode: input.summary.areaCode,
+    legalDistrictCode: input.summary.legalDistrictCode,
+    areaDistrictCode: input.summary.sigunguCode,
+  });
+  if (!detailDistrict || !summaryDistrict) return "verification_required";
+  return detailDistrict === scope.districtCode &&
+    summaryDistrict === scope.districtCode
     ? "satisfied"
     : "unsatisfied";
 }

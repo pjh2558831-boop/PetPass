@@ -2,13 +2,16 @@ import "server-only";
 
 export const CANDIDATE_PIPELINE_V1_CONFIG = {
   version: "candidate-pipeline-v1",
-  stageALimit: 25,
-  stageBLimit: 20,
+  /** Bounded list shortlist after category + district diversity is available. */
+  stageALimit: 45,
+  /** Bounded schedule shortlist after schedule + geographic diversity is available. */
+  stageBLimit: 30,
   detailBatchSize: 5,
-  maxDetailedEvaluations: 20,
-  finalEligibleLimit: 15,
+  maxDetailedEvaluations: 30,
+  /** Service-level personalization applies the solver's final 15-place cap. */
+  finalEligibleLimit: 30,
   eligibleReserveAboveMaxStops: 3,
-  maximumEligiblePoolTarget: 10,
+  maximumEligiblePoolTarget: 30,
   detailConcurrency: 3,
   /** Mirrors the server-owned Service2 list/visibility cache contract. */
   visibilityFreshnessMs: 5 * 60 * 1_000,

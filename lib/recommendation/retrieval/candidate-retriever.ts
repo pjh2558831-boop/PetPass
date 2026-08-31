@@ -2,6 +2,11 @@ import "server-only";
 
 import { haversineKm } from "@/lib/itinerary/optimizer";
 import { classifyTourTravelSuitability } from "@/lib/itinerary/travel-suitability";
+import {
+  getRegionConfigByService2LegalDongCode,
+  matchesKtoRegionIdentity,
+  resolveRegionDistrictCode,
+} from "@/lib/regions/config";
 import { CANDIDATE_PIPELINE_V1_CONFIG } from "@/lib/recommendation/config/candidate-pipeline-v1";
 import { reserveCandidateCategoriesV1 } from "@/lib/recommendation/retrieval/category-reservation";
 import { scoreRetrievalCandidateV1 } from "@/lib/recommendation/scoring/retrieval-score";
@@ -114,7 +119,9 @@ function inScope(
   context: CandidatePipelineRequestContext,
 ): boolean {
   const { scope } = context.tripRequest;
+  const region = getRegionConfigByService2LegalDongCode(scope.regionCode);
   if (
+    !region ||
     !validCoordinate(place.latitude, -90, 90) ||
     !validCoordinate(place.longitude, -180, 180) ||
     (place.latitude === 0 && place.longitude === 0) ||
@@ -125,8 +132,17 @@ function inScope(
   ) {
     return false;
   }
-  if (place.legalRegionCode !== scope.regionCode) return false;
-  return scope.districtCode === null || place.legalDistrictCode === scope.districtCode;
+  if (!matchesKtoRegionIdentity(region, {
+    legalRegionCode: place.legalRegionCode,
+    areaCode: place.areaCode,
+  })) return false;
+  if (scope.districtCode === null) return true;
+  return resolveRegionDistrictCode(region, {
+    legalRegionCode: place.legalRegionCode,
+    areaCode: place.areaCode,
+    legalDistrictCode: place.legalDistrictCode,
+    areaDistrictCode: place.sigunguCode,
+  }) === scope.districtCode;
 }
 
 function visibilityTimestampStatus(
@@ -313,8 +329,20 @@ export function retrieveStageACandidatesV1(
       title: place.title,
       coordinates: { latitude, longitude },
       region: {
-        regionCode: place.legalRegionCode as string,
-        districtCode: place.legalDistrictCode,
+        regionCode: input.context.tripRequest.scope.regionCode,
+        districtCode: (() => {
+          const region = getRegionConfigByService2LegalDongCode(
+            input.context.tripRequest.scope.regionCode,
+          );
+          return region
+            ? resolveRegionDistrictCode(region, {
+                legalRegionCode: place.legalRegionCode,
+                areaCode: place.areaCode,
+                legalDistrictCode: place.legalDistrictCode,
+                areaDistrictCode: place.sigunguCode,
+              })
+            : null;
+        })(),
       },
       providerVisibility: "exposed",
       source: "tourism_service2",
@@ -328,17 +356,41 @@ export function retrieveStageACandidatesV1(
       retrievalScore: score,
     });
   }
-  const reserved = reserveCandidateCategoriesV1({
+  const ranked = reserveCandidateCategoriesV1({
     candidates: [...unique.values()],
-    limit: CANDIDATE_PIPELINE_V1_CONFIG.stageALimit,
+    limit: unique.size,
     selectedCategories,
     tripType: input.context.tripType,
   });
   const required = [...(input.requiredContentIds ?? [])]
     .map((contentId) => unique.get(contentId))
     .filter((candidate): candidate is LightweightRouteCandidate => Boolean(candidate));
-  return [
-    ...required,
-    ...reserved.filter(({ contentId }) => !input.requiredContentIds?.has(contentId)),
-  ].slice(0, CANDIDATE_PIPELINE_V1_CONFIG.stageALimit);
+  const selected = required.slice(0, CANDIDATE_PIPELINE_V1_CONFIG.stageALimit);
+  const selectedIds = new Set(selected.map(({ contentId }) => contentId));
+  const buckets = new Map<string, LightweightRouteCandidate[]>();
+  for (const candidate of ranked) {
+    if (selectedIds.has(candidate.contentId)) continue;
+    const key = `${candidate.category}:${candidate.region.districtCode ?? "region"}`;
+    const values = buckets.get(key) ?? [];
+    values.push(candidate);
+    buckets.set(key, values);
+  }
+  const bucketValues = [...buckets.values()];
+  for (
+    let offset = 0;
+    selected.length < CANDIDATE_PIPELINE_V1_CONFIG.stageALimit;
+    offset += 1
+  ) {
+    let added = false;
+    for (const values of bucketValues) {
+      const candidate = values[offset];
+      if (!candidate || selectedIds.has(candidate.contentId)) continue;
+      selected.push(candidate);
+      selectedIds.add(candidate.contentId);
+      added = true;
+      if (selected.length >= CANDIDATE_PIPELINE_V1_CONFIG.stageALimit) break;
+    }
+    if (!added) break;
+  }
+  return selected;
 }

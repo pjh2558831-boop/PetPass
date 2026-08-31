@@ -22,7 +22,6 @@ import {
   hasFreshExposedProviderVisibilityV1,
   retrieveStageACandidatesV1,
 } from "@/lib/recommendation/retrieval/candidate-retriever";
-import { reserveCandidateCategoriesV1 } from "@/lib/recommendation/retrieval/category-reservation";
 import { assessScheduleCompatibilityV1 } from "@/lib/recommendation/schedule/schedule-compatibility";
 import { scorePlaceUtilityV1 } from "@/lib/recommendation/scoring/place-utility";
 import type {
@@ -239,6 +238,63 @@ function scheduleOrder(
       left.retrievalScore.categoryCoverageNeed ||
     left.contentId.localeCompare(right.contentId)
   );
+}
+
+export function adaptiveEligiblePoolTargetV1(input: {
+  maxStops: number;
+  recentlySelectedCandidateCount: number;
+  maximumTarget: number;
+}): number {
+  const stopCapacity = Math.max(1, Math.floor(input.maxStops));
+  const exposureReserve = Math.min(
+    Math.max(0, Math.floor(input.recentlySelectedCandidateCount)),
+    stopCapacity * 2,
+  );
+  return Math.min(
+    Math.max(1, Math.floor(input.maximumTarget)),
+    stopCapacity * 3 + exposureReserve,
+  );
+}
+
+/**
+ * Keeps required identities first, then round-robins category + district
+ * buckets. The operational detail-call cap is therefore applied only after
+ * the diversity features available at this stage have been considered.
+ */
+export function selectDetailedEvaluationCandidatesV1(input: {
+  candidates: readonly ScheduledRouteCandidate[];
+  limit: number;
+  requiredContentIds: ReadonlySet<string>;
+}): ScheduledRouteCandidate[] {
+  const limit = Math.max(0, Math.floor(input.limit));
+  const ranked = [...input.candidates].sort(scheduleOrder);
+  const required = ranked.filter(({ contentId }) =>
+    input.requiredContentIds.has(contentId)
+  );
+  const selected = required.slice(0, limit);
+  const selectedIds = new Set(selected.map(({ contentId }) => contentId));
+  const buckets = new Map<string, ScheduledRouteCandidate[]>();
+  for (const candidate of ranked) {
+    if (selectedIds.has(candidate.contentId)) continue;
+    const key = `${candidate.category}:${candidate.region.districtCode ?? "region"}`;
+    const values = buckets.get(key) ?? [];
+    values.push(candidate);
+    buckets.set(key, values);
+  }
+  const bucketValues = [...buckets.values()];
+  for (let offset = 0; selected.length < limit; offset += 1) {
+    let added = false;
+    for (const values of bucketValues) {
+      const candidate = values[offset];
+      if (!candidate || selectedIds.has(candidate.contentId)) continue;
+      selected.push(candidate);
+      selectedIds.add(candidate.contentId);
+      added = true;
+      if (selected.length >= limit) break;
+    }
+    if (!added) break;
+  }
+  return selected;
 }
 
 function requiredCoverage(
@@ -686,23 +742,11 @@ export async function runCandidatePipelineV1(
           scheduleCompatibility.status !== "provider_unavailable"),
     )
     .sort(scheduleOrder);
-  const stageBReserved = reserveCandidateCategoriesV1({
-      candidates: stageBAvailable,
-      limit: CANDIDATE_PIPELINE_V1_CONFIG.stageBLimit,
-      selectedCategories: [
-        ...new Set(input.context.request.selectedCategories),
-      ].filter(
-        (category): category is UsefulTourCategory =>
-          category !== "transportation" && category !== "unknown",
-      ),
-      tripType: input.context.tripType,
-      compare: scheduleOrder,
-    });
-  const stageB = [
-    ...stageBAvailable.filter(({ contentId }) => requiredContentIds.has(contentId)),
-    ...stageBReserved.filter(({ contentId }) => !requiredContentIds.has(contentId)),
-  ]
-    .slice(0, CANDIDATE_PIPELINE_V1_CONFIG.stageBLimit)
+  const stageB = selectDetailedEvaluationCandidatesV1({
+    candidates: stageBAvailable,
+    limit: CANDIDATE_PIPELINE_V1_CONFIG.stageBLimit,
+    requiredContentIds,
+  })
     .sort((left, right) =>
       Number(requiredContentIds.has(right.contentId)) - Number(requiredContentIds.has(left.contentId)) ||
       scheduleOrder(left, right));
@@ -718,11 +762,12 @@ export async function runCandidatePipelineV1(
   output.stageBCount = stageB.length;
   output.skippedCandidates += Math.max(0, scheduled.length - stageB.length);
 
-  const target = Math.min(
-    CANDIDATE_PIPELINE_V1_CONFIG.maximumEligiblePoolTarget,
-    input.context.maxStops +
-      CANDIDATE_PIPELINE_V1_CONFIG.eligibleReserveAboveMaxStops,
-  );
+  const target = adaptiveEligiblePoolTargetV1({
+    maxStops: input.context.maxStops,
+    recentlySelectedCandidateCount:
+      input.context.request.personalization?.recentlySelectedCandidateIds.length ?? 0,
+    maximumTarget: CANDIDATE_PIPELINE_V1_CONFIG.maximumEligiblePoolTarget,
+  });
   const coverage = requiredCoverage(stageB, input.context);
   const eligibleInputs: StrictEligibleCandidateInput[] = [];
   for (

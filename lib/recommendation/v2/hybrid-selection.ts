@@ -13,6 +13,16 @@ import type { RegionId } from "@/types/region";
 export const HYBRID_CANDIDATE_LIMIT = ROUTE_SOLVER_V1_CONFIG.maxCandidates;
 export const LARGE_ANCHOR_DETOUR_KM = 35;
 
+export function findPublishedSelectedMarkerV2(input: {
+  placeId: string;
+  requestedRegionId: RegionId;
+  markers: readonly MapPlacesSnapshotMarker[];
+}): MapPlacesSnapshotMarker | null {
+  return input.markers.find((marker) =>
+    marker.id === input.placeId && marker.regionId === input.requestedRegionId
+  ) ?? null;
+}
+
 function usefulCategory(value: MapPlacesSnapshotMarker["category"]): UsefulTourCategory | null {
   switch (value) {
     case "attraction": return "attraction";

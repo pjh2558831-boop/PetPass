@@ -4,9 +4,14 @@ import { BUSAN_DISCOVERY_BOUNDS } from "@/lib/kakao/discovery";
 import { KakaoMobilityProviderError } from "@/lib/kakao/directions";
 import { KakaoTravelTimeProvider } from "@/lib/kakao/travel-time-provider";
 import { getTripPaceConfig } from "@/lib/itinerary/trip-pace";
+import { ROUTE_SOLVER_V1_CONFIG } from "@/lib/recommendation/config/route-solver-v1";
 import {
+  getKtoRegionLookupIdentity,
   getRegionConfig,
+  getRegionConfigByKtoAreaCode,
+  getRegionConfigByService2LegalDongCode,
   getRegionRouteCapabilityBlock,
+  resolveRegionDistrictCode,
 } from "@/lib/regions/config";
 import { loadMapPlacesSnapshot } from "@/lib/map-places/snapshot";
 import {
@@ -36,6 +41,7 @@ import {
   type CanonicalRecommendationCandidateV2,
 } from "@/lib/recommendation/v2/candidate-fusion";
 import {
+  findPublishedSelectedMarkerV2,
   hasLargeAnchorDetour,
   inferHybridSupplementCategories,
   selectedCatalogCandidateV2,
@@ -47,6 +53,11 @@ import {
 } from "@/lib/recommendation/v2/route-optimizer";
 import { requestFingerprintV2, routeFromOptionV2 } from "@/lib/recommendation/v2/response";
 import { analyzeRouteFeasibilityV2 } from "@/lib/recommendation/v2/feasibility";
+import {
+  buildCandidateFunnelDiagnostics,
+  type CandidateFunnelRecord,
+} from "@/lib/recommendation/v2/candidate-funnel";
+import { calculateDiversityCapacityV2 } from "@/lib/recommendation/v2/diversity-capacity";
 import {
   appendScheduledVisitTiming,
   tripStartMs,
@@ -74,7 +85,6 @@ import {
 } from "@/lib/tour-api/catalog-service";
 import {
   getCatalogContentTypeId,
-  type BusanDistrictCode,
   type TourCatalogCategory,
 } from "@/lib/tour-api/catalog";
 import { TourProviderError } from "@/lib/tour-api/errors";
@@ -84,7 +94,10 @@ import {
   type TourRequestObservation,
 } from "@/lib/tour-api/service";
 import type { TourPlaceSummary } from "@/types/place";
-import type { MapPlacesSnapshot } from "@/types/map-places-snapshot";
+import type {
+  MapPlacesSnapshot,
+  MapPlacesSnapshotMarker,
+} from "@/types/map-places-snapshot";
 import type {
   ManualRouteValidationResponseV1,
   ProductRouteV1,
@@ -351,8 +364,10 @@ function selectedFailure(
 function safeV2DiagnosticsBeforeRoute(
   pipeline: CandidatePipelineResult | null,
   fusion: CandidateFusionV2Diagnostics,
+  candidateFunnel?: SafeRecommendationDiagnostics["candidateFunnel"],
 ): SafeRecommendationDiagnostics {
   return {
+    ...(candidateFunnel ? { candidateFunnel } : {}),
     candidatePipeline: {
       stageA: pipeline?.diagnostics.stageACount ?? 0,
       stageB: pipeline?.diagnostics.stageBCount ?? 0,
@@ -382,6 +397,137 @@ function mergeReasonCounts(
   return Object.fromEntries([...merged].sort(([left], [right]) => left.localeCompare(right)));
 }
 
+function funnelCategory(
+  category: MapPlacesSnapshotMarker["category"] | TourPlaceSummary["category"],
+): CandidateFunnelRecord["category"] {
+  switch (category) {
+    case "attraction":
+      return "attraction";
+    case "park_walk":
+    case "leisure":
+    case "camping":
+      return "leisure";
+    case "food":
+    case "cafe":
+      return "food";
+    case "accommodation":
+      return "accommodation";
+    case "shopping":
+      return "shopping";
+    case "culture":
+      return "culture";
+    case "festival":
+      return "festival";
+    default:
+      return "unsupported";
+  }
+}
+
+function buildCandidateFunnelRecordsV2(input: {
+  requestedRegion: NonNullable<ReturnType<typeof getRegionConfig>>;
+  publishedMarkers: readonly MapPlacesSnapshotMarker[];
+  collectedCatalog: readonly TourPlaceSummary[];
+  fusedCandidates: readonly CanonicalRecommendationCandidateV2[];
+  explicitlyExcludedPlaceIds: readonly string[];
+}): CandidateFunnelRecord[] {
+  const excluded = new Set(input.explicitlyExcludedPlaceIds);
+  let records: CandidateFunnelRecord[] = input.publishedMarkers.map((marker) => ({
+    identity: marker.id,
+    dataset: marker.dataset ?? (marker.category === "shopping" ? "shopping" : "core"),
+    evidenceMode: marker.category === "shopping" ? "list_only" : "detailed",
+    active: true,
+    regionId: marker.regionId,
+    districtCode: marker.districtCode,
+    category: funnelCategory(marker.category),
+    petEvidenceState:
+      marker.petAccessVerdict === "allowed"
+        ? "verified"
+        : marker.petAccessVerdict === "conditional"
+          ? "conditional"
+          : marker.petAccessVerdict === "not_allowed"
+            ? "not_allowed"
+            : "unknown",
+    canonicalConditionState: "insufficient_evidence",
+    operatingHoursState: "verification_required",
+    explicitlyExcluded:
+      excluded.has(marker.id) || excluded.has(marker.providerPlaceId),
+  }));
+  const publishedMarkerIds = new Set(records.map(({ identity }) => identity));
+  for (const summary of input.collectedCatalog) {
+    const identity = `tour:${summary.contentId}`;
+    if (publishedMarkerIds.has(identity)) continue;
+    const legalRegion = getRegionConfigByService2LegalDongCode(
+      summary.legalRegionCode,
+    );
+    const areaRegion = getRegionConfigByKtoAreaCode(summary.areaCode);
+    const resolvedRegion =
+      legalRegion && areaRegion && legalRegion.id !== areaRegion.id
+        ? null
+        : legalRegion ?? areaRegion;
+    records.push({
+      identity,
+      dataset: summary.category === "shopping" ? "shopping" : "core",
+      evidenceMode: summary.category === "shopping" ? "list_only" : "detailed",
+      active: summary.providerVisibility?.status === "exposed",
+      regionId: resolvedRegion?.id ?? null,
+      districtCode: resolvedRegion
+        ? resolveRegionDistrictCode(resolvedRegion, {
+            legalRegionCode: summary.legalRegionCode,
+            areaCode: summary.areaCode,
+            legalDistrictCode: summary.legalDistrictCode,
+            areaDistrictCode: summary.sigunguCode,
+          })
+        : null,
+      category: funnelCategory(summary.category),
+      petEvidenceState: "unknown",
+      canonicalConditionState: "insufficient_evidence",
+      operatingHoursState: "verification_required",
+      explicitlyExcluded:
+        excluded.has(`tour:${summary.contentId}`) || excluded.has(summary.contentId),
+    });
+  }
+  for (const candidate of input.fusedCandidates) {
+    const enriched: CandidateFunnelRecord = {
+      identity: candidate.canonicalId,
+      dataset: candidate.category === "shopping" ? "shopping" : "core",
+      evidenceMode: candidate.category === "shopping" ? "list_only" : "detailed",
+      active: true,
+      regionId: candidate.regionId,
+      districtCode: candidate.districtCode,
+      category: candidate.category,
+      petEvidenceState:
+        candidate.catalogPetVerdict === "allowed"
+          ? "verified"
+          : candidate.catalogPetVerdict === "conditional"
+            ? "conditional"
+            : candidate.catalogPetVerdict === "not_allowed"
+              ? "not_allowed"
+              : "unknown",
+      canonicalConditionState: candidate.conditionEligibility.state,
+      operatingHoursState:
+        candidate.operatingHoursEvidenceState === "verified"
+          ? "verified"
+          : "verification_required",
+      explicitlyExcluded: excluded.has(candidate.canonicalId),
+    };
+    let matchedPublishedIdentity = false;
+    records = records.map((record) => {
+      if (record.identity !== candidate.canonicalId) return record;
+      matchedPublishedIdentity = true;
+      return {
+        ...enriched,
+        dataset: record.dataset,
+        evidenceMode: record.evidenceMode,
+        active: record.active,
+        explicitlyExcluded:
+          record.explicitlyExcluded === true || enriched.explicitlyExcluded === true,
+      };
+    });
+    if (!matchedPublishedIdentity) records.push(enriched);
+  }
+  return records;
+}
+
 async function generateRouteRecommendationLegacy(
   request: RouteRecommendationRequest,
   dependencies: RecommendationServiceDependencies = {},
@@ -397,6 +543,8 @@ async function generateRouteRecommendationLegacy(
   const catalogLoader = dependencies.collectCatalog ?? collectTourCatalog;
   const now = dependencies.now ?? (() => new Date());
   const normalized = normalizeRecommendationRequest(request);
+  const region = getRegionConfig(request.trip.regionId);
+  const lookup = getKtoRegionLookupIdentity(region, request.trip.districtId);
   const observations: TourRequestObservation[] = [];
   try {
     const catalogGroups = await mapWithConcurrency(
@@ -410,11 +558,11 @@ async function generateRouteRecommendationLegacy(
         const catalog = await catalogLoader(
           tourService,
           {
-            regionCode: normalized.scope.regionCode,
-            districtCode:
-              normalized.scope.type === "district"
-                ? (normalized.scope.districtCode as BusanDistrictCode)
-                : undefined,
+            regionCode: lookup.areaCode,
+            districtCode: lookup.district?.areaCodes[0],
+            administrativeCodeSystem: "area_code",
+            visibilityRegionCode: lookup.legalRegionCode,
+            visibilityDistrictCode: lookup.district?.legalCodes[0],
             contentTypeId,
           },
           (event) => observations.push(event),
@@ -468,7 +616,7 @@ async function generateRouteRecommendationLegacy(
     });
     if (pipeline.status !== "ready") return pipelineFailure(pipeline);
     const candidates = pipeline.candidates
-      .slice(0, 15)
+      .slice(0, ROUTE_SOLVER_V1_CONFIG.maxCandidates)
       .map((candidate) => adaptEligibleCandidateForRouteV1({ candidate }));
     const departure = {
       id: "departure",
@@ -604,6 +752,7 @@ export async function generateRouteRecommendation(
     acceptsOutdoorOnly: normalized.acceptsOutdoorOnly,
   };
   const region = getRegionConfig(request.trip.regionId);
+  const lookup = getKtoRegionLookupIdentity(region, request.trip.districtId);
   const selectedPlaceIds = [...(request.selectedPlaceIds ?? [])];
   const hybridMode = selectedPlaceIds.length > 0;
   const capabilityBlock = getRegionRouteCapabilityBlock(region, {
@@ -657,22 +806,58 @@ export async function generateRouteRecommendation(
     const now = dependencies.now ?? (() => new Date());
     const observations: TourRequestObservation[] = [];
     let snapshotUnavailable = false;
-    const snapshotPromise: Promise<MapPlacesSnapshot | null> = (
+    const snapshotLoader = (
       dependencies.loadCatalogSnapshot ??
       (dependencies.tourService
         ? async () => null
         : loadMapPlacesSnapshot)
-    )({ version: 1, region: request.trip.regionId, scope: "default", dataset: "core" })
+    );
+    const snapshotPromise: Promise<MapPlacesSnapshot | null> = snapshotLoader(
+      { version: 1, region: request.trip.regionId, scope: "default", dataset: "core" },
+    )
       .catch(() => {
         snapshotUnavailable = true;
         return null;
       });
 
     let snapshot = hybridMode ? await snapshotPromise : null;
+    let publishedMarkers = [...(snapshot?.items ?? [])];
+    const unresolvedPublishedTourSelection = hybridMode && selectedPlaceIds.some(
+      (placeId) =>
+        placeId.startsWith("tour:") &&
+        !findPublishedSelectedMarkerV2({
+          placeId,
+          requestedRegionId: request.trip.regionId,
+          markers: publishedMarkers,
+        }),
+    );
+    if (
+      unresolvedPublishedTourSelection &&
+      region.mapCatalog.snapshotDatasets.includes("shopping")
+    ) {
+      const shoppingSnapshot = await snapshotLoader({
+        version: 1,
+        region: request.trip.regionId,
+        scope: "default",
+        dataset: "shopping",
+      }).catch(() => {
+        snapshotUnavailable = true;
+        return null;
+      });
+      publishedMarkers = [
+        ...publishedMarkers,
+        ...(shoppingSnapshot?.items ?? []),
+      ];
+    }
     const selectedMarkers = new Map(
-      (snapshot?.items ?? [])
-        .filter(({ id }) => selectedIdSet.has(id))
-        .map((marker) => [marker.id, marker]),
+      selectedPlaceIds.flatMap((placeId) => {
+        const marker = findPublishedSelectedMarkerV2({
+          placeId,
+          requestedRegionId: request.trip.regionId,
+          markers: publishedMarkers,
+        });
+        return marker ? [[marker.id, marker] as const] : [];
+      }),
     );
     const preliminaryAnchors = [...selectedMarkers.values()]
       .map(selectedCatalogCandidateV2)
@@ -722,10 +907,11 @@ export async function generateRouteRecommendation(
           const catalog = await catalogLoader(
             tourService,
             {
-              regionCode: normalized.scope.regionCode,
-              districtCode: normalized.scope.type === "district"
-                ? (normalized.scope.districtCode as BusanDistrictCode)
-                : undefined,
+              regionCode: lookup.areaCode,
+              districtCode: lookup.district?.areaCodes[0],
+              administrativeCodeSystem: "area_code",
+              visibilityRegionCode: lookup.legalRegionCode,
+              visibilityDistrictCode: lookup.district?.legalCodes[0],
               contentTypeId,
             },
             (event) => observations.push(event),
@@ -787,6 +973,9 @@ export async function generateRouteRecommendation(
 
     dependencies.signal?.throwIfAborted();
     snapshot ??= await snapshotPromise;
+    if (publishedMarkers.length === 0) {
+      publishedMarkers = [...(snapshot?.items ?? [])];
+    }
     const usefulCategories = (hybridMode ? pipelineCategories : normalized.selectedCategories).filter(
       (category): category is UsefulTourCategory =>
         category !== "transportation" && category !== "unknown",
@@ -816,6 +1005,48 @@ export async function generateRouteRecommendation(
         request.acknowledgedVerificationRequiredPlaceIds ?? [],
       petProfile,
       selectionOrigin: hybridMode ? "automatic_fill" : "automatic_recommendation",
+    });
+    const reconciledRecords = buildCandidateFunnelRecordsV2({
+      requestedRegion: region,
+      publishedMarkers,
+      collectedCatalog,
+      fusedCandidates: fused.candidates,
+      explicitlyExcludedPlaceIds: personalizationRequest.explicitlyExcludedPlaceIds,
+    });
+    const emptyCandidateIds = new Set<string>();
+    const candidateFunnelBeforeRoute = buildCandidateFunnelDiagnostics({
+      records: reconciledRecords,
+      requestedRegionId: request.trip.regionId,
+      requestedDistrictCode: request.trip.districtId,
+      selectedCategories: usefulCategories,
+      dateTimeFeasibleIds: emptyCandidateIds,
+      departureDistanceFeasibleIds: emptyCandidateIds,
+      matrixFeasibleIds: emptyCandidateIds,
+      optimizerInputIds: emptyCandidateIds,
+      includeVerificationRequired: request.includeVerificationRequired ?? false,
+      acknowledgedConditionIds: new Set(
+        request.acknowledgedVerificationRequiredPlaceIds ?? [],
+      ),
+    });
+    const requestedCapacity = hybridMode
+      ? (request.autoFill ?? true)
+        ? Math.min(5, Math.max(
+            selectedPlaceIds.length,
+            Math.min(pace.maxStops, request.trip.desiredStopCount ?? pace.maxStops),
+          ))
+        : selectedPlaceIds.length
+      : request.trip.desiredStopCount ?? pace.desiredStopCount;
+    const diversityBeforeRoute = calculateDiversityCapacityV2({
+      candidates: fused.candidates.map(({ canonicalId, category }) => ({
+        id: canonicalId,
+        category,
+      })),
+      requestedStopCount: requestedCapacity,
+      mandatorySelectedPlaceIds: selectedPlaceIds,
+      seenCandidateIds: personalizationRequest.recentlySelectedCandidateIds,
+      requiredCategories: usefulCategories,
+      feasibleCandidateIds: [],
+      requiredRoadEdgesResolved: false,
     });
 
     const fusedById = new Map(
@@ -876,9 +1107,8 @@ export async function generateRouteRecommendation(
         continue;
       }
 
-      let candidate = placeId.startsWith("kakao:")
-        ? marker ? selectedCatalogCandidateV2(marker) : null
-        : fusedById.get(placeId) ?? null;
+      let candidate = fusedById.get(placeId) ??
+        (marker ? selectedCatalogCandidateV2(marker) : null);
       if (!candidate && placeId.startsWith("tour:")) {
         const summary = shoppingById.get(placeId);
         if (summary) candidate = selectedShoppingCandidateV2(summary, request.trip.regionId);
@@ -971,8 +1201,13 @@ export async function generateRouteRecommendation(
           conditionEligibility: candidate.conditionEligibility,
         })),
         replacementCandidates: replacements,
+        diversity: diversityBeforeRoute,
         ...(dependencies.includeDiagnostics ? {
-          diagnostics: safeV2DiagnosticsBeforeRoute(pipeline, fused.diagnostics),
+          diagnostics: safeV2DiagnosticsBeforeRoute(
+            pipeline,
+            fused.diagnostics,
+            candidateFunnelBeforeRoute,
+          ),
         } : {}),
       };
     }
@@ -994,8 +1229,13 @@ export async function generateRouteRecommendation(
           "select_places_manually",
           "allow_verification_required_candidates",
         ],
+        diversity: diversityBeforeRoute,
         ...(dependencies.includeDiagnostics ? {
-          diagnostics: safeV2DiagnosticsBeforeRoute(pipeline, fused.diagnostics),
+          diagnostics: safeV2DiagnosticsBeforeRoute(
+            pipeline,
+            fused.diagnostics,
+            candidateFunnelBeforeRoute,
+          ),
         } : {}),
       };
     }
@@ -1041,14 +1281,7 @@ export async function generateRouteRecommendation(
           !candidate.providerIdentities.some(({ provider, id }) =>
             selectedProviderIdentities.has(`${provider}:${id}`)))
       : [];
-    const targetCapacity = hybridMode
-      ? (request.autoFill ?? true)
-        ? Math.min(5, Math.max(
-            anchors.length,
-            Math.min(pace.maxStops, request.trip.desiredStopCount ?? pace.maxStops),
-          ))
-        : anchors.length
-      : request.trip.desiredStopCount ?? pace.desiredStopCount;
+    const targetCapacity = requestedCapacity;
     const hybridCandidates = hybridMode
       ? selectHybridShortlist({
           departure: request.departure,
@@ -1061,7 +1294,7 @@ export async function generateRouteRecommendation(
         })
       : [];
     const canonicalCandidates = hybridMode ? hybridCandidates : fused.candidates;
-    const adapted = canonicalCandidates
+    const adaptedAll = canonicalCandidates
       .map((candidate) => ({
         ...adaptCanonicalCandidateForRouteV2({
         candidate,
@@ -1074,8 +1307,8 @@ export async function generateRouteRecommendation(
       .sort((left, right) =>
         Number(Boolean(right.locked)) - Number(Boolean(left.locked)) ||
         right.placeUtility.total - left.placeUtility.total ||
-        left.node.id.localeCompare(right.node.id))
-      .slice(0, 15);
+        left.node.id.localeCompare(right.node.id));
+    const adapted = adaptedAll.slice(0, ROUTE_SOLVER_V1_CONFIG.maxCandidates);
     const adaptedIds = new Set(adapted.map(({ node }) => node.id));
     const candidateById = new Map(
       canonicalCandidates
@@ -1120,6 +1353,56 @@ export async function generateRouteRecommendation(
       tripRequest,
     };
     const feasibility = analyzeRouteFeasibilityV2(feasibilityInput);
+    const dateTimeFeasibleIds = new Set(
+      canonicalCandidates
+        .filter((candidate) =>
+          candidate.scheduleStatus === "known" ||
+          candidate.selectionOrigin === "user_selected"
+        )
+        .map(({ canonicalId }) => canonicalId),
+    );
+    const departureDistanceFeasibleIds = new Set(
+      adaptedAll.map(({ node }) => node.id),
+    );
+    const matrixFeasibleIds = new Set(
+      adapted.flatMap((candidate) => {
+        const inbound = matrix.edges[departure.id]?.[candidate.node.id];
+        const hasInbound = inbound?.status === "resolved";
+        const hasContinuation = adapted.length === 1 || adapted.some((other) =>
+          other.node.id !== candidate.node.id &&
+          matrix.edges[candidate.node.id]?.[other.node.id]?.status === "resolved"
+        );
+        return hasInbound && hasContinuation ? [candidate.node.id] : [];
+      }),
+    );
+    const optimizerInputIds = new Set(
+      feasibility.status === "ready" ? feasibility.feasibleCandidateIds : [],
+    );
+    const candidateFunnel = buildCandidateFunnelDiagnostics({
+      records: reconciledRecords,
+      requestedRegionId: request.trip.regionId,
+      requestedDistrictCode: request.trip.districtId,
+      selectedCategories: usefulCategories,
+      dateTimeFeasibleIds,
+      departureDistanceFeasibleIds,
+      matrixEvaluatedIds: adaptedIds,
+      matrixFeasibleIds,
+      optimizerInputIds,
+      includeVerificationRequired: request.includeVerificationRequired ?? false,
+      acknowledgedConditionIds: acknowledgedSelectedIds,
+    });
+    const diversity = calculateDiversityCapacityV2({
+      candidates: adapted.map(({ node, category }) => ({ id: node.id, category })),
+      requestedStopCount: targetCapacity,
+      mandatorySelectedPlaceIds: selectedPlaceIds,
+      seenCandidateIds: personalizationRequest.recentlySelectedCandidateIds,
+      requiredCategories: tripRequest.selectedCategories,
+      feasibleCandidateIds:
+        feasibility.status === "ready" ? feasibility.feasibleCandidateIds : [],
+      requiredRoadEdgesResolved:
+        feasibility.status === "ready" && feasibility.feasibleCandidateIds.length > 0,
+      feasibilityReasonCodes: feasibility.limitingReasonCodes,
+    });
     if (feasibility.status !== "ready") {
       const detailedFailure = {
         ...recommendationFailure("insufficient_feasible_route", feasibility.limitingReasonCodes),
@@ -1134,6 +1417,21 @@ export async function generateRouteRecommendation(
           "change_categories" as const,
           ...(request.trip.districtId ? ["widen_district" as const] : []),
         ],
+        diversity,
+        ...(dependencies.includeDiagnostics ? {
+          diagnostics: {
+            ...safeV2DiagnosticsBeforeRoute(
+              pipeline,
+              fused.diagnostics,
+              candidateFunnel,
+            ),
+            travelMatrix: {
+              nodes: matrix.diagnostics.nodeCount,
+              resolvedEdges: matrix.diagnostics.resolvedEdges,
+              unresolvedEdges: matrix.diagnostics.unresolvedEdges,
+            },
+          },
+        } : {}),
       };
       return hybridMode
         ? {
@@ -1185,8 +1483,10 @@ export async function generateRouteRecommendation(
           "change_categories" as const,
           ...(request.trip.districtId ? ["widen_district" as const] : []),
         ],
+        diversity,
         ...(dependencies.includeDiagnostics ? {
           diagnostics: {
+            candidateFunnel,
             candidatePipeline: {
               stageA: pipeline?.diagnostics.stageACount ?? 0,
               stageB: pipeline?.diagnostics.stageBCount ?? 0,
@@ -1274,6 +1574,7 @@ export async function generateRouteRecommendation(
         selectionMode: hybridMode ? "hybrid" : "automatic",
         routeOptions: pendingRouteOptions,
         confirmationRequirements,
+        diversity,
       };
     }
     const route = routeOptions[0]!;
@@ -1395,6 +1696,7 @@ export async function generateRouteRecommendation(
           anchors.filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate)),
         ) ? ["selected_anchor_large_detour"] : []),
       ],
+      diversity,
       ...(hybridMode ? {
         selectionMode: "hybrid" as const,
         selectionIssues: hasLargeAnchorDetour(
@@ -1410,6 +1712,7 @@ export async function generateRouteRecommendation(
       } : {}),
       ...(dependencies.includeDiagnostics ? {
         diagnostics: {
+          candidateFunnel,
           candidatePipeline: {
             stageA: pipeline?.diagnostics.stageACount ?? 0,
             stageB: pipeline?.diagnostics.stageBCount ?? 0,
