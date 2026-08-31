@@ -1,8 +1,8 @@
 import "server-only";
 
 import {
-  BUSAN_REGION_CONFIG,
   coordinatesInRegion,
+  getRegionConfigByService2LegalDongCode,
 } from "@/lib/regions/config";
 import type { KakaoDiscoveryCandidate } from "@/types/kakao";
 import type { TourPlaceSummary } from "@/types/place";
@@ -115,8 +115,15 @@ function roleFromText(
   };
 }
 
-function coordinatesInBusan(latitude: number, longitude: number): boolean {
-  return coordinatesInRegion(BUSAN_REGION_CONFIG, { latitude, longitude });
+function coordinatesInRequestedRegion(
+  request: NormalizedItineraryRequest,
+  latitude: number,
+  longitude: number,
+): boolean {
+  const region = getRegionConfigByService2LegalDongCode(
+    request.scope.regionCode,
+  );
+  return region !== null && coordinatesInRegion(region, { latitude, longitude });
 }
 
 function excludedAssessment(
@@ -164,7 +171,7 @@ export function classifyTourTravelSuitability(
     ]);
   }
   if (
-    !coordinatesInBusan(place.latitude, place.longitude) ||
+    !coordinatesInRequestedRegion(request, place.latitude, place.longitude) ||
     (place.legalRegionCode !== null &&
       place.legalRegionCode !== request.scope.regionCode) ||
     (request.scope.type === "district" &&
@@ -252,7 +259,8 @@ export function classifyKakaoTravelSuitability(
   };
   const evidence: TravelSuitabilityEvidence[] = [];
   if (
-    !coordinatesInBusan(
+    !coordinatesInRequestedRegion(
+      request,
       candidate.coordinates.latitude,
       candidate.coordinates.longitude,
     )
