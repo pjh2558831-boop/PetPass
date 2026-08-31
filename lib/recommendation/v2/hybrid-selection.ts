@@ -1,8 +1,9 @@
 import "server-only";
 
 import { haversineKm } from "@/lib/itinerary/optimizer";
+import { insufficientEvidencePetConditionEligibility } from "@/lib/pet-access/canonical-condition-eligibility";
 import { ROUTE_SOLVER_V1_CONFIG } from "@/lib/recommendation/config/route-solver-v1";
-import type { DetailedEligibleCandidate, UsefulTourCategory } from "@/lib/recommendation/types";
+import type { UsefulTourCategory } from "@/lib/recommendation/types";
 import type { CanonicalRecommendationCandidateV2 } from "@/lib/recommendation/v2/candidate-fusion";
 import type { MapPlacesSnapshotMarker } from "@/types/map-places-snapshot";
 import type { TourPlaceSummary } from "@/types/place";
@@ -73,6 +74,7 @@ export function selectedCatalogCandidateV2(
     placeUrl: marker.placeUrl ?? null,
     dataCompleteness: marker.completeness ?? 0.5,
     ktoCandidate: null,
+    conditionEligibility: insufficientEvidencePetConditionEligibility(),
   };
 }
 
@@ -120,37 +122,8 @@ export function selectedShoppingCandidateV2(
     placeUrl: null,
     dataCompleteness: 0.5,
     ktoCandidate: null,
+    conditionEligibility: insufficientEvidencePetConditionEligibility(),
   };
-}
-
-export function selectedConditionReasonCodes(
-  candidate: DetailedEligibleCandidate,
-  request: RouteRecommendationRequest,
-): string[] {
-  if (candidate.assessment.verdict !== "conditional") return [];
-  const reasons = new Set<string>();
-  if (candidate.sizeCompatibility.state === "incompatible") {
-    reasons.add("pet_size_incompatible");
-  }
-  for (const condition of candidate.assessment.conditions) {
-    if (condition.manualConfirmationRecommended) {
-      reasons.add("mandatory_condition_verification_required");
-      continue;
-    }
-    const satisfied = condition.type === "carrier_required"
-      ? request.pet.availableEquipment.carrier
-      : condition.type === "leash_required"
-        ? request.pet.availableEquipment.leash
-        : condition.type === "muzzle_required"
-          ? request.pet.availableEquipment.muzzle
-          : condition.type === "outdoor_only" || condition.type === "indoor_restricted"
-            ? request.pet.acceptsOutdoorOnlyPlaces
-            : condition.type === "size_limit"
-              ? candidate.sizeCompatibility.state === "compatible"
-              : false;
-    if (!satisfied) reasons.add("mandatory_condition_unsatisfied");
-  }
-  return [...reasons].sort();
 }
 
 function crossesWindow(start: number, end: number, windowStart: number, windowEnd: number): boolean {
@@ -246,15 +219,4 @@ export function hasLargeAnchorDetour(
     }
   }
   return false;
-}
-
-export function selectedVerificationWarning(
-  candidate: CanonicalRecommendationCandidateV2,
-): string | null {
-  if (candidate.category === "shopping") return "selected_shopping_requires_confirmation";
-  if (candidate.source === "kakao_catalog") return "selected_kakao_requires_confirmation";
-  if (candidate.evidenceStatus === "unverified" || candidate.petVerdict === "unknown") {
-    return "selected_pet_policy_requires_confirmation";
-  }
-  return null;
 }

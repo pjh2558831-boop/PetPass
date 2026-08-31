@@ -9,6 +9,7 @@ import type {
 import type { TravelMatrixEdge } from "@/lib/travel/types";
 
 const DAY_MS = 86_400_000;
+const KOREA_OFFSET_MS = 9 * 60 * 60 * 1_000;
 
 export function tripStartMs(request: RouteOptimizationTripRequest): number {
   const parsed = Date.parse(`${request.date}T${request.startTime}:00+09:00`);
@@ -30,8 +31,13 @@ export function isUsableTravelEdge(
 }
 
 export function koreaMinuteOfDay(epochMs: number): number {
-  const minutes = Math.floor((epochMs + 9 * 60 * 60 * 1000) / 60_000);
+  const minutes = Math.floor((epochMs + KOREA_OFFSET_MS) / 60_000);
   return ((minutes % (24 * 60)) + 24 * 60) % (24 * 60);
+}
+
+function koreaStartOfDayMs(epochMs: number): number {
+  return Math.floor((epochMs + KOREA_OFFSET_MS) / DAY_MS) * DAY_MS -
+    KOREA_OFFSET_MS;
 }
 
 export function appendScheduledVisit(input: {
@@ -67,21 +73,29 @@ export function appendScheduledVisitTiming(input: {
   let visitStartsAtMs = arrivalAtMs;
   let unknownIncrement = 0;
   if (input.candidate.schedule.status === "known") {
-    const arrivalMinutes = koreaMinuteOfDay(arrivalAtMs);
-    const window = input.candidate.schedule.windows.find((item) => {
-      const start = Math.max(arrivalMinutes, item.startMinutes);
-      const finalEntryOkay =
-        item.finalEntryMinutes === null || start <= item.finalEntryMinutes;
-      return (
-        finalEntryOkay &&
-        start + input.candidate.dwellDurationMinutes <= item.endMinutes
-      );
-    });
-    if (!window) return null;
-    const serviceMidnightMs =
-      input.serviceDayStartMs - koreaMinuteOfDay(input.serviceDayStartMs) * 60_000;
-    visitStartsAtMs =
-      serviceMidnightMs + Math.max(arrivalMinutes, window.startMinutes) * 60_000;
+    const arrivalDayStartMs = koreaStartOfDayMs(arrivalAtMs);
+    const timing = input.candidate.schedule.windows
+      .map((window) => {
+        const openingAtMs = arrivalDayStartMs + window.startMinutes * 60_000;
+        const closingAtMs = arrivalDayStartMs + window.endMinutes * 60_000;
+        const exactVisitStartMs = Math.max(arrivalAtMs, openingAtMs);
+        const departureAtMs = exactVisitStartMs +
+          input.candidate.dwellDurationMinutes * 60_000;
+        const finalEntryAtMs = window.finalEntryMinutes === null
+          ? null
+          : arrivalDayStartMs + window.finalEntryMinutes * 60_000;
+        return {
+          visitStartsAtMs: exactVisitStartMs,
+          departureAtMs,
+          feasible:
+            (finalEntryAtMs === null || exactVisitStartMs <= finalEntryAtMs) &&
+            departureAtMs <= closingAtMs,
+        };
+      })
+      .filter(({ feasible }) => feasible)
+      .sort((left, right) => left.visitStartsAtMs - right.visitStartsAtMs)[0];
+    if (!timing) return null;
+    visitStartsAtMs = timing.visitStartsAtMs;
   } else {
     unknownIncrement = 1;
   }
@@ -100,7 +114,7 @@ export function appendScheduledVisitTiming(input: {
       departureAtMs,
       travelSeconds: input.edge.durationSeconds,
       travelDistanceMeters: input.edge.distanceMeters,
-      waitSeconds: Math.max(0, Math.round((visitStartsAtMs - arrivalAtMs) / 1000)),
+      waitSeconds: Math.max(0, (visitStartsAtMs - arrivalAtMs) / 1000),
     },
   };
 }

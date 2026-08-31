@@ -10,6 +10,10 @@ import {
 } from "@/lib/regions/config";
 import { loadMapPlacesSnapshot } from "@/lib/map-places/snapshot";
 import {
+  applyCanonicalPetConditionPolicy,
+  eligiblePetConditionEligibility,
+} from "@/lib/pet-access/canonical-condition-eligibility";
+import {
   getDefaultLicenseMatchingService,
   type LicenseMatcher,
 } from "@/lib/licenses/service";
@@ -23,6 +27,7 @@ import {
   type ManualEditCandidate,
 } from "@/lib/recommendation/edit-session";
 import { adaptEligibleCandidateForRouteV1 } from "@/lib/recommendation/optimizer/candidate-adapter";
+import { getRouteTripConstraints } from "@/lib/recommendation/optimizer/trip-constraints";
 import { optimizeRouteV1 } from "@/lib/recommendation/optimizer/route-optimizer";
 import { adaptCanonicalCandidateForRouteV2 } from "@/lib/recommendation/v2/candidate-adapter";
 import {
@@ -34,9 +39,7 @@ import {
   hasLargeAnchorDetour,
   inferHybridSupplementCategories,
   selectedCatalogCandidateV2,
-  selectedConditionReasonCodes,
   selectedShoppingCandidateV2,
-  selectedVerificationWarning,
   selectHybridShortlist,
 } from "@/lib/recommendation/v2/hybrid-selection";
 import {
@@ -178,6 +181,9 @@ function productStop(
     source: "tourism_service2",
     sourceLabel: "한국관광공사",
     petAssessment: stop.petAssessment,
+    petConditionEligibility:
+      candidate.eligibility.conditionEligibility ?? eligiblePetConditionEligibility(),
+    conditionAcknowledged: true,
     mandatoryConditions: candidate.assessment.conditions.map((condition) => ({
       type: condition.type,
       label: condition.label,
@@ -589,6 +595,14 @@ export async function generateRouteRecommendation(
   }
 
   const normalized = normalizeRecommendationRequest(request);
+  const petProfile = {
+    species: normalized.petSpecies,
+    size: normalized.petSize,
+    hasCarrier: normalized.petEquipment.hasCarrier,
+    hasLeash: normalized.petEquipment.hasLeash,
+    hasMuzzle: normalized.petEquipment.hasMuzzle,
+    acceptsOutdoorOnly: normalized.acceptsOutdoorOnly,
+  };
   const region = getRegionConfig(request.trip.regionId);
   const selectedPlaceIds = [...(request.selectedPlaceIds ?? [])];
   const hybridMode = selectedPlaceIds.length > 0;
@@ -739,14 +753,7 @@ export async function generateRouteRecommendation(
           maxStops: pace.maxStops,
           minStops: pace.minStops,
           tripType: normalized.tripType,
-          petProfile: {
-            species: normalized.petSpecies,
-            size: normalized.petSize,
-            hasCarrier: normalized.petEquipment.hasCarrier,
-            hasLeash: normalized.petEquipment.hasLeash,
-            hasMuzzle: normalized.petEquipment.hasMuzzle,
-            acceptsOutdoorOnly: normalized.acceptsOutdoorOnly,
-          },
+          petProfile,
           tripRequest: {
             scope: {
               regionCode: normalized.scope.regionCode,
@@ -805,6 +812,9 @@ export async function generateRouteRecommendation(
       explicitlyExcludedPlaceIds: personalizationRequest.explicitlyExcludedPlaceIds,
       selectedPlaceIds,
       includeVerificationRequired: request.includeVerificationRequired ?? false,
+      acknowledgedVerificationRequiredPlaceIds:
+        request.acknowledgedVerificationRequiredPlaceIds ?? [],
+      petProfile,
       selectionOrigin: hybridMode ? "automatic_fill" : "automatic_recommendation",
     });
 
@@ -820,6 +830,9 @@ export async function generateRouteRecommendation(
 
     const selectionIssues: RecommendationSelectionIssueV1[] = [];
     const anchors: CanonicalRecommendationCandidateV2[] = [];
+    const acknowledgedSelectedIds = new Set(
+      request.acknowledgedVerificationRequiredPlaceIds ?? [],
+    );
     for (const placeId of selectedPlaceIds) {
       const marker = selectedMarkers.get(placeId);
       if (personalizationRequest.explicitlyExcludedPlaceIds.includes(placeId)) {
@@ -891,15 +904,23 @@ export async function generateRouteRecommendation(
         });
         continue;
       }
-      const conditionReasons = candidate.ktoCandidate
-        ? selectedConditionReasonCodes(candidate.ktoCandidate, request)
-        : [];
-      if (conditionReasons.length > 0) {
+      const selectedPolicy = applyCanonicalPetConditionPolicy({
+        analysis: candidate.conditionEligibility,
+        flow: "user_selected",
+        includeVerificationRequired: request.includeVerificationRequired ?? false,
+        acknowledged: acknowledgedSelectedIds.has(candidate.canonicalId),
+      });
+      if (selectedPolicy.decision === "reject") {
         selectionIssues.push({
           placeId,
           code: "selected_place_condition_unsatisfied",
           blocking: true,
-          reasonCodes: conditionReasons,
+          reasonCodes: [
+            ...new Set([
+              ...selectedPolicy.reasonCodes,
+              ...candidate.conditionEligibility.reasonCodes,
+            ]),
+          ].sort(),
           replacementCandidateIds: [],
         });
         continue;
@@ -911,12 +932,13 @@ export async function generateRouteRecommendation(
     if (selectionIssues.some(({ blocking }) => blocking)) {
       return selectedFailure(selectionIssues, replacements);
     }
-    const acknowledgedSelectedIds = new Set(
-      request.acknowledgedVerificationRequiredPlaceIds ?? [],
-    );
     const unacknowledgedAnchors = anchors.filter(
-      (candidate) => selectedVerificationWarning(candidate) !== null &&
-        !acknowledgedSelectedIds.has(candidate.canonicalId),
+      (candidate) => applyCanonicalPetConditionPolicy({
+        analysis: candidate.conditionEligibility,
+        flow: "user_selected",
+        includeVerificationRequired: request.includeVerificationRequired ?? false,
+        acknowledged: acknowledgedSelectedIds.has(candidate.canonicalId),
+      }).decision === "confirmation_required",
     );
     if (unacknowledgedAnchors.length > 0) {
       return {
@@ -934,8 +956,19 @@ export async function generateRouteRecommendation(
           placeId: candidate.canonicalId,
           code: "selected_place_confirmation_required" as const,
           blocking: true,
-          reasonCodes: [selectedVerificationWarning(candidate)!],
+          reasonCodes: [
+            ...new Set([
+              ...candidate.conditionEligibility.reasonCodes,
+              ...candidate.conditionEligibility.warnings.map(({ code }) => code),
+            ]),
+          ].sort(),
           replacementCandidateIds: [],
+        })),
+        confirmationRequirements: unacknowledgedAnchors.map((candidate) => ({
+          placeId: candidate.canonicalId,
+          title: candidate.title,
+          selectionOrigin: "user_selected" as const,
+          conditionEligibility: candidate.conditionEligibility,
         })),
         replacementCandidates: replacements,
         ...(dependencies.includeDiagnostics ? {
@@ -1004,10 +1037,6 @@ export async function generateRouteRecommendation(
           candidate.source === "tourism_service2" &&
           candidate.ktoCandidate !== null &&
           candidate.category !== "shopping" &&
-          ((request.includeVerificationRequired ?? false) || (
-            candidate.petVerdict !== "unknown" &&
-            candidate.eligibilityTier !== "unverified"
-          )) &&
           desiredSupplementCategories.has(candidate.category) &&
           !candidate.providerIdentities.some(({ provider, id }) =>
             selectedProviderIdentities.has(`${provider}:${id}`)))
@@ -1205,15 +1234,48 @@ export async function generateRouteRecommendation(
         : detailedFailure;
     }
     const requestedTarget = targetCapacity;
-    const routeOptions = optimized.options.map((option) => routeFromOptionV2({
+    const evaluatedRouteOptions = optimized.options.map((option) => routeFromOptionV2({
       option,
       optimization: optimizationInput,
       candidates: candidateById,
       requestedTarget,
       reductionReasonCodes: feasibility.limitingReasonCodes,
       licensingStatus,
+      includeVerificationRequired: request.includeVerificationRequired ?? false,
+      acknowledgedPlaceIds: acknowledgedSelectedIds,
       ...(hybridMode ? { selectedPlaceIds: selectedIdSet } : {}),
     }));
+    const routeOptions = evaluatedRouteOptions.filter(
+      ({ confirmationStatus }) => confirmationStatus === "ready",
+    );
+    if (routeOptions.length === 0) {
+      const pendingRouteOptions = evaluatedRouteOptions.slice(0, 1);
+      const confirmationRequirements = [...new Map(
+        pendingRouteOptions
+          .flatMap(({ stops }) => stops)
+          .filter(({ conditionAcknowledged }) => conditionAcknowledged === false)
+          .map((stop) => [stop.placeId, {
+            placeId: stop.placeId,
+            title: stop.title,
+            selectionOrigin: stop.selectionOrigin ?? "automatic_recommendation",
+            conditionEligibility: stop.petConditionEligibility!,
+          }]),
+      ).values()];
+      return {
+        ...recommendationFailure("confirmation_required", [
+          "route_condition_acknowledgement_missing",
+        ]),
+        resultState: "confirmation_required",
+        requestedStopCount: requestedTarget,
+        feasibleStopCount: pendingRouteOptions[0]?.routeSummary.stopCount ?? 0,
+        resultExplanation:
+          "경로는 계산됐지만 자동으로 확인할 수 없는 반려동물 동반 조건이 있습니다. 각 조건의 원문을 확인하고 동의하기 전에는 저장하거나 확정할 수 없습니다.",
+        recoveryActions: ["acknowledge_route_conditions"],
+        selectionMode: hybridMode ? "hybrid" : "automatic",
+        routeOptions: pendingRouteOptions,
+        confirmationRequirements,
+      };
+    }
     const route = routeOptions[0]!;
     const resultState = route.routeSummary.stopCount === 1
       ? "single_stop_suggestion" as const
@@ -1298,9 +1360,15 @@ export async function generateRouteRecommendation(
       routeOptions,
       primaryRouteId: route.id,
       routeOptionCount: routeOptions.length,
-      ...(optimized.limitedReason ? { routeOptionsLimitedReason: optimized.limitedReason } : {}),
+      ...(routeOptions.length < evaluatedRouteOptions.length
+        ? { routeOptionsLimitedReason: "final_validation_reduced_route_options" as const }
+        : optimized.limitedReason
+          ? { routeOptionsLimitedReason: optimized.limitedReason }
+          : {}),
       alternatives,
-      alternativeAvailability: optimized.alternativeAvailability,
+      alternativeAvailability: routeOptions.length < evaluatedRouteOptions.length
+        ? "limited"
+        : optimized.alternativeAvailability,
       candidateSourceCounts: {
         kto: fused.diagnostics.acceptedSourceCounts.kto,
         kakao: fused.diagnostics.acceptedSourceCounts.kakao,
@@ -1433,6 +1501,23 @@ export async function validateManualRoute(
     return recommendationFailure("invalid_request", ["manual_route_contains_unknown_place"]);
   }
   const ordered = candidates as ManualEditCandidate[];
+  const conditionRevalidationFailed = ordered.some((candidate) => {
+    const analysis = candidate.originalStop.petConditionEligibility;
+    if (!analysis) return true;
+    return applyCanonicalPetConditionPolicy({
+      analysis,
+      flow: "revalidation",
+      includeVerificationRequired: true,
+      acknowledged: candidate.originalStop.conditionAcknowledged === true,
+      preserveUserSelection:
+        candidate.originalStop.selectionOrigin === "user_selected",
+    }).decision !== "allow";
+  });
+  if (conditionRevalidationFailed) {
+    return recommendationFailure("confirmation_required", [
+      "manual_route_condition_revalidation_required",
+    ]);
+  }
   const provider = dependencies.travelTimeProvider ?? new KakaoTravelTimeProvider();
   const requestedDepartureAt = new Date(
     tripStartMs(session.tripRequest),
@@ -1469,6 +1554,22 @@ export async function validateManualRoute(
   if (validation.sections.length !== expectedSections) {
     return recommendationFailure("final_route_validation_failed", [
       "manual_route_section_count_mismatch",
+    ]);
+  }
+  const sectionTravelSeconds = validation.sections.reduce(
+    (total, section) => total + section.durationSeconds,
+    0,
+  );
+  const sectionDistanceMeters = validation.sections.reduce(
+    (total, section) => total + section.distanceMeters,
+    0,
+  );
+  if (
+    sectionTravelSeconds !== validation.totalDurationSeconds ||
+    sectionDistanceMeters !== validation.totalDistanceMeters
+  ) {
+    return recommendationFailure("final_route_validation_failed", [
+      "manual_route_aggregate_mismatch",
     ]);
   }
   const startMs = tripStartMs(session.tripRequest);
@@ -1511,6 +1612,14 @@ export async function validateManualRoute(
   }
   if (session.tripRequest.roundTrip) {
     currentTimeMs += validation.sections.at(-1)!.durationSeconds * 1_000;
+  }
+  if (
+    currentTimeMs - startMs >
+    getRouteTripConstraints(session.tripRequest).maxDurationMinutes * 60_000
+  ) {
+    return recommendationFailure("insufficient_feasible_route", [
+      "manual_route_maximum_duration_exceeded",
+    ]);
   }
   return {
     status: "ready",

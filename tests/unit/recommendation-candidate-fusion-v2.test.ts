@@ -1,10 +1,24 @@
 import { describe, expect, it } from "vitest";
 import {
-  fuseRecommendationCandidatesV2,
-  type CanonicalRecommendationCandidateV2,
+  fuseRecommendationCandidatesV2 as fuseWithProfile,
 } from "@/lib/recommendation/v2/candidate-fusion";
 import type { DetailedEligibleCandidate } from "@/lib/recommendation/types";
 import type { MapPlacesSnapshotMarker } from "@/types/map-places-snapshot";
+
+const TEST_PET_PROFILE = {
+  species: "DOG" as const,
+  size: "SMALL" as const,
+  hasCarrier: true,
+  hasLeash: true,
+  hasMuzzle: true,
+  acceptsOutdoorOnly: true,
+};
+
+function fuseRecommendationCandidatesV2(
+  input: Omit<Parameters<typeof fuseWithProfile>[0], "petProfile">,
+) {
+  return fuseWithProfile({ ...input, petProfile: TEST_PET_PROFILE });
+}
 
 function ktoCandidate(overrides: Partial<DetailedEligibleCandidate> = {}): DetailedEligibleCandidate {
   return {
@@ -64,7 +78,7 @@ describe("recommendation candidate fusion V2", () => {
     });
   });
 
-  it("admits verification-required candidates only through the explicit opt-in", () => {
+  it("keeps unknown-evidence candidates out even with explicit opt-in", () => {
     const result = fuseRecommendationCandidatesV2({
       regionId: "busan",
       selectedCategories: ["attraction"],
@@ -74,16 +88,10 @@ describe("recommendation candidate fusion V2", () => {
       includeVerificationRequired: true,
     });
 
-    expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]).toMatchObject({
-      canonicalId: "kakao:2001",
-      eligibilityTier: "unverified",
-      petVerdict: "unknown",
-      evidenceStatus: "unverified",
-      operatingHoursEvidenceState: "verification_required",
-      selectionOrigin: "automatic_recommendation",
-      sourceLabel: "카카오 검색 후보",
-    } satisfies Partial<CanonicalRecommendationCandidateV2>);
+    expect(result.candidates).toEqual([]);
+    expect(result.diagnostics.excludedByReason).toMatchObject({
+      pet_evidence_unverified: 1,
+    });
   });
 
   it("never activates an explicitly not-allowed Kakao candidate", () => {
@@ -137,8 +145,7 @@ describe("recommendation candidate fusion V2", () => {
       includeVerificationRequired: true,
     });
 
-    expect(result.candidates.map(({ canonicalId }) => canonicalId).sort()).toEqual([
-      "kakao:far",
+    expect(result.candidates.map(({ canonicalId }) => canonicalId)).toEqual([
       "tour:1001",
     ]);
   });

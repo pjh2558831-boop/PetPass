@@ -1,10 +1,10 @@
 import "server-only";
 
+import { evaluateCanonicalPetConditions } from "@/lib/pet-access/canonical-condition-eligibility";
 import { assessPetSizeCompatibility } from "@/lib/pet-access/tourism/size-compatibility";
 import type { LicensingMatchResult } from "@/types/license";
 import { TOUR_CONTENT_TYPE_IDS } from "@/types/place";
 import type { TourPetPolicyFieldName } from "@/types/place";
-import type { TourPetAccessCondition } from "@/types/tour-pet-access";
 import type {
   AutomaticRouteEligibilityInput,
   AutomaticRouteEligibilityReasonCode,
@@ -248,55 +248,6 @@ function normalizeEvidenceText(value: string | null | undefined): string | null 
   return normalized || null;
 }
 
-function conditionOutcome(
-  condition: TourPetAccessCondition,
-  input: AutomaticRouteEligibilityInput,
-): ConditionOutcome {
-  if (condition.manualConfirmationRecommended) return "verification_required";
-
-  switch (condition.type) {
-    case "leash_required":
-      return input.petProfile.hasLeash === null
-        ? "verification_required"
-        : input.petProfile.hasLeash
-          ? "satisfied"
-          : "unsatisfied";
-    case "muzzle_required":
-      return input.petProfile.hasMuzzle === null
-        ? "verification_required"
-        : input.petProfile.hasMuzzle
-          ? "satisfied"
-          : "unsatisfied";
-    case "carrier_required":
-      return input.petProfile.hasCarrier === null
-        ? "verification_required"
-        : input.petProfile.hasCarrier
-          ? "satisfied"
-          : "unsatisfied";
-    case "outdoor_only":
-    case "indoor_restricted":
-      // V2 treats environment as a route-ranking preference. These conditions
-      // remain visible in provenance but never become an implicit must-have.
-      return "satisfied";
-    case "size_limit": {
-      const compatibility = assessPetSizeCompatibility(
-        input.assessment,
-        input.petProfile.size,
-        input.assessment.evidence
-          .filter(({ operation }) => operation === "detailPetTour2")
-          .map(({ id, originalText }) => ({ id, sourceText: originalText })),
-      );
-      if (compatibility.state === "compatible") return "satisfied";
-      if (compatibility.state === "incompatible") return "unsatisfied";
-      return "verification_required";
-    }
-    default:
-      // V1 has no machine-readable user input for weight, breed, count,
-      // documents, reservations, fees, selected rooms, or other manual rules.
-      return "verification_required";
-  }
-}
-
 function isConfirmedClosedLicense(licensing: LicensingMatchResult): boolean {
   return (
     licensing.matchState === "matched_high" &&
@@ -352,6 +303,8 @@ export function evaluateAutomaticRouteEligibility(
   const warnings: AutomaticRouteEligibilityWarning[] = [];
   let providerUnavailable = false;
   let verificationRequired = false;
+  let speciesCompatibility: "compatible" | "incompatible" | "verification_required" =
+    "compatible";
 
   const sourceIsKtoService2 = input.providerService === KTO_SERVICE2_NAME;
   if (!sourceIsKtoService2) addUnique(reasons, "source_not_kto_service2");
@@ -508,29 +461,60 @@ export function evaluateAutomaticRouteEligibility(
   } else {
     const typeOutcome = petSpeciesOutcome(input);
     if (typeOutcome === "unsatisfied") {
+      speciesCompatibility = "incompatible";
       addUnique(reasons, "pet_type_incompatible");
     } else if (typeOutcome === "verification_required") {
+      speciesCompatibility = "verification_required";
       addUnique(reasons, "pet_type_verification_required");
       verificationRequired = true;
     }
+  }
 
-    for (const condition of input.assessment.conditions) {
-      const outcome = conditionOutcome(condition, input);
-      if (outcome === "unsatisfied") {
-        if (condition.type === "size_limit") {
-          addUnique(reasons, "pet_size_incompatible");
-        } else {
-          addUnique(reasons, "mandatory_condition_unsatisfied");
-        }
-      } else if (outcome === "verification_required") {
-        if (condition.type === "size_limit" || condition.type === "weight_limit") {
-          addUnique(reasons, "pet_size_verification_required");
-        } else {
-          addUnique(reasons, "mandatory_condition_verification_required");
-        }
-        verificationRequired = true;
-      }
+  const sizeCompatibility = assessPetSizeCompatibility(
+    input.assessment,
+    input.petProfile.size,
+    input.assessment.evidence
+      .filter(({ operation }) => operation === "detailPetTour2")
+      .map(({ id, originalText }) => ({ id, sourceText: originalText })),
+  );
+  const conditionEligibility = evaluateCanonicalPetConditions({
+    assessment: input.assessment,
+    petProfile: input.petProfile,
+    sizeCompatibility: sizeCompatibility.state,
+    speciesCompatibility,
+  });
+  for (const condition of conditionEligibility.conflictingConditions) {
+    if (
+      condition.sourceType === "assessment_conflict" ||
+      condition.sourceType === "verification_item"
+    ) continue;
+    if (condition.code === "size_restriction") {
+      addUnique(reasons, "pet_size_incompatible");
+    } else {
+      addUnique(reasons, "mandatory_condition_unsatisfied");
     }
+  }
+  for (const condition of conditionEligibility.confirmationRequiredConditions) {
+    if (
+      condition.sourceType === "assessment_conflict" ||
+      condition.sourceType === "verification_item"
+    ) continue;
+    if (
+      condition.code === "size_restriction" ||
+      condition.code === "weight_restriction"
+    ) {
+      addUnique(reasons, "pet_size_verification_required");
+    } else {
+      addUnique(reasons, "mandatory_condition_verification_required");
+    }
+    verificationRequired = true;
+  }
+  if (
+    input.assessment.conflicts.length > 0 ||
+    input.assessment.verificationItems.length > 0
+  ) {
+    addUnique(reasons, "mandatory_condition_verification_required");
+    verificationRequired = true;
   }
 
   addLicensingOutcome(input.licensing, reasons, warnings);
@@ -586,6 +570,7 @@ export function evaluateAutomaticRouteEligibility(
       reasonCodes: reasons,
       warnings,
       evidenceFieldNames,
+      conditionEligibility,
     };
   }
   if (verificationRequired || reasons.length > 0) {
@@ -599,6 +584,7 @@ export function evaluateAutomaticRouteEligibility(
       reasonCodes: reasons,
       warnings,
       evidenceFieldNames,
+      conditionEligibility,
     };
   }
   return {
@@ -611,5 +597,6 @@ export function evaluateAutomaticRouteEligibility(
     reasonCodes: [],
     warnings,
     evidenceFieldNames,
+    conditionEligibility,
   };
 }

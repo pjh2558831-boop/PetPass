@@ -2,6 +2,7 @@ import type { Coordinates, TourPlaceCategory } from "@/types/place";
 import type { PetSize, PetSpecies, TripPace } from "@/types/pet";
 import type { RegionId } from "@/types/region";
 import type { TourPetAccessConditionType } from "@/types/tour-pet-access";
+import type { CanonicalPetConditionEligibility } from "@/types/pet-condition-eligibility";
 
 export const ROUTE_RECOMMENDATION_ENGINE_VERSION =
   "petpass-route-engine-v1" as const;
@@ -123,6 +124,8 @@ export interface RecommendedRouteStopV1 {
   provenance?: "user_selected" | "auto_fill";
   locked?: boolean;
   verificationWarning?: string | null;
+  petConditionEligibility?: CanonicalPetConditionEligibility;
+  conditionAcknowledged?: boolean;
   mandatoryConditions: Array<{
     type: TourPetAccessConditionType;
     label: string;
@@ -200,6 +203,7 @@ export interface ProductRouteV1 {
   };
   stops: RecommendedRouteStopV1[];
   geometry: Coordinates[];
+  confirmationStatus?: "ready" | "confirmation_required";
   style?: ProductRouteObjectiveV2;
   objective?: ProductRouteObjectiveV2;
   routeSignature?: string;
@@ -308,6 +312,13 @@ export interface RouteRecommendationReadyResponseV1 {
   diagnostics?: SafeRecommendationDiagnostics;
 }
 
+export interface RecommendationConditionConfirmationV1 {
+  placeId: string;
+  title: string;
+  selectionOrigin: "user_selected" | "automatic_fill" | "automatic_recommendation";
+  conditionEligibility: CanonicalPetConditionEligibility;
+}
+
 export interface RouteRecommendationFailureResponseV1 {
   status: Exclude<RecommendationStatus, "ready">;
   apiVersion: typeof ROUTE_RECOMMENDATION_API_VERSION;
@@ -320,9 +331,11 @@ export interface RouteRecommendationFailureResponseV1 {
   resultExplanation?: string;
   recoveryActions?: RecommendationRecoveryAction[];
   diagnostics?: SafeRecommendationDiagnostics;
-  selectionMode?: "hybrid";
+  selectionMode?: "automatic" | "hybrid";
   selectionIssues?: RecommendationSelectionIssueV1[];
   replacementCandidates?: RecommendationReplacementCandidateV1[];
+  confirmationRequirements?: RecommendationConditionConfirmationV1[];
+  routeOptions?: ProductRouteV1[];
 }
 
 export type RecommendationRecoveryAction =
@@ -332,7 +345,8 @@ export type RecommendationRecoveryAction =
   | "widen_district"
   | "select_places_manually"
   | "allow_verification_required_candidates"
-  | "acknowledge_selected_place_verification";
+  | "acknowledge_selected_place_verification"
+  | "acknowledge_route_conditions";
 
 export type RouteRecommendationResponseV1 =
   | RouteRecommendationReadyResponseV1

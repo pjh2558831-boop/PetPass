@@ -160,11 +160,14 @@ export const routeRecommendationRequestSchema = z
         message: "selectedPlaceReferences must correspond exactly to selectedPlaceIds.",
       });
     }
-    if (value.acknowledgedVerificationRequiredPlaceIds.some((placeId) => !selectedIds.has(placeId))) {
+    if (
+      !value.includeVerificationRequired &&
+      value.acknowledgedVerificationRequiredPlaceIds.some((placeId) => !selectedIds.has(placeId))
+    ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["acknowledgedVerificationRequiredPlaceIds"],
-        message: "Acknowledgements must refer to selectedPlaceIds.",
+        message: "Automatic-place acknowledgements require includeVerificationRequired.",
       });
     }
     const hybridAutoFill = selectedIds.size > 0 && value.autoFill;

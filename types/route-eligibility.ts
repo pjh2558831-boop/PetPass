@@ -7,6 +7,7 @@ import type {
 } from "@/types/place";
 import type { PetSize, PetSpecies } from "@/types/pet";
 import type { TourPetAccessSemanticAssessment } from "@/types/tour-pet-access";
+import type { CanonicalPetConditionEligibility } from "@/types/pet-condition-eligibility";
 
 export const AUTOMATIC_ROUTE_ELIGIBILITY_STATUSES = [
   "eligible",
@@ -153,4 +154,6 @@ export interface AutomaticRouteEligibilityResult {
   warnings: AutomaticRouteEligibilityWarning[];
   /** Meaningful `detailPetTour2` fields actually consumed by Phase 3. */
   evidenceFieldNames: string[];
+  /** Shared condition interpretation consumed by every route entry point. */
+  conditionEligibility?: CanonicalPetConditionEligibility;
 }

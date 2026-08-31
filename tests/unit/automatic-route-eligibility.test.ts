@@ -281,13 +281,14 @@ function license(
 
 describe("automatic-route eligibility V1", () => {
   it("accepts an exposed KTO Service2 place with consumed primary evidence", () => {
-    expect(evaluateAutomaticRouteEligibility(input())).toEqual({
+    expect(evaluateAutomaticRouteEligibility(input())).toMatchObject({
       eligible: true,
       status: "eligible",
       tier: "verified",
       reasonCodes: [],
       warnings: ["license_no_match"],
       evidenceFieldNames: ["acmpyTypeCd"],
+      conditionEligibility: { state: "eligible", reasonCodes: [] },
     });
   });
 
@@ -369,6 +370,31 @@ describe("automatic-route eligibility V1", () => {
       status: "verification_required",
       tier: "conditional",
       reasonCodes: ["mandatory_condition_verification_required"],
+    });
+  });
+
+  it("keeps assessment conflicts in the canonical verification state", () => {
+    const candidate = input();
+    candidate.assessment = assessment({
+      verdict: "conditional",
+      conflicts: [{
+        id: "conflict:1",
+        scope: "whole_place",
+        evidenceIds: ["detailPetTour2:acmpyTypeCd:1"],
+        summary: "동일 범위의 허용 및 제한 문구가 충돌합니다.",
+      }],
+    });
+
+    expect(evaluateAutomaticRouteEligibility(candidate)).toMatchObject({
+      status: "verification_required",
+      reasonCodes: ["mandatory_condition_verification_required"],
+      conditionEligibility: {
+        state: "eligible_with_confirmation",
+        confirmationRequiredConditions: [expect.objectContaining({
+          code: "operator_confirmation_required",
+          sourceType: "assessment_conflict",
+        })],
+      },
     });
   });
 

@@ -1,6 +1,11 @@
 import "server-only";
 
 import { haversineKm } from "@/lib/itinerary/optimizer";
+import {
+  applyCanonicalPetConditionPolicy,
+  evaluateCanonicalPetConditions,
+  insufficientEvidencePetConditionEligibility,
+} from "@/lib/pet-access/canonical-condition-eligibility";
 import { coordinatesInRegion, getRegionConfig, getRegionDistrict } from "@/lib/regions/config";
 import type {
   DetailedEligibleCandidate,
@@ -8,7 +13,11 @@ import type {
 } from "@/lib/recommendation/types";
 import type { MapPlacesSnapshotMarker } from "@/types/map-places-snapshot";
 import type { RegionId } from "@/types/region";
-import type { RouteEligibilityTier } from "@/types/route-eligibility";
+import type {
+  AutomaticRoutePetProfile,
+  RouteEligibilityTier,
+} from "@/types/route-eligibility";
+import type { CanonicalPetConditionEligibility } from "@/types/pet-condition-eligibility";
 
 export const CANDIDATE_FUSION_V2_VERSION = "candidate-fusion-v2" as const;
 
@@ -42,6 +51,7 @@ export interface CanonicalRecommendationCandidateV2 {
   placeUrl: string | null;
   dataCompleteness: number;
   ktoCandidate: DetailedEligibleCandidate | null;
+  conditionEligibility: CanonicalPetConditionEligibility;
 }
 
 export interface CandidateFusionV2Diagnostics {
@@ -117,6 +127,7 @@ function fromKto(
   candidate: DetailedEligibleCandidate,
   regionId: RegionId,
   selectionOrigin: CanonicalRecommendationCandidateV2["selectionOrigin"],
+  petProfile: AutomaticRoutePetProfile,
 ): CanonicalRecommendationCandidateV2 {
   const tier = ktoTier(candidate);
   const verdict = candidate.assessment.verdict === "allowed"
@@ -135,6 +146,17 @@ function fromKto(
             type === "outdoor_only" || type === "indoor_restricted")
           ? "outdoor"
           : "unknown";
+  const conditionEligibility = candidate.eligibility.conditionEligibility ??
+    evaluateCanonicalPetConditions({
+      assessment: candidate.assessment,
+      petProfile,
+      sizeCompatibility: candidate.sizeCompatibility?.state ?? "unknown",
+      speciesCompatibility: candidate.eligibility.reasonCodes.includes("pet_type_incompatible")
+        ? "incompatible"
+        : candidate.eligibility.reasonCodes.includes("pet_type_verification_required")
+          ? "verification_required"
+          : "compatible",
+    });
   return {
     canonicalId: `tour:${candidate.contentId}`,
     providerIdentities: [{ provider: "kto", id: candidate.contentId }],
@@ -162,6 +184,7 @@ function fromKto(
     placeUrl: null,
     dataCompleteness: Math.max(0, Math.min(1, candidate.utility.dataQuality)),
     ktoCandidate: candidate,
+    conditionEligibility,
   };
 }
 
@@ -195,6 +218,7 @@ function fromKakao(
     placeUrl: candidate.placeUrl ?? null,
     dataCompleteness: candidate.completeness ?? 0.5,
     ktoCandidate: null,
+    conditionEligibility: insufficientEvidencePetConditionEligibility(),
   };
 }
 
@@ -250,6 +274,8 @@ export function fuseRecommendationCandidatesV2(input: {
   explicitlyExcludedPlaceIds: readonly string[];
   selectedPlaceIds?: readonly string[];
   includeVerificationRequired?: boolean;
+  acknowledgedVerificationRequiredPlaceIds?: readonly string[];
+  petProfile: AutomaticRoutePetProfile;
   selectionOrigin?: "automatic_fill" | "automatic_recommendation";
 }): {
   candidates: CanonicalRecommendationCandidateV2[];
@@ -257,6 +283,9 @@ export function fuseRecommendationCandidatesV2(input: {
 } {
   const excluded = new Set(input.explicitlyExcludedPlaceIds);
   const selectedPlaceIds = new Set(input.selectedPlaceIds ?? []);
+  const acknowledgedPlaceIds = new Set(
+    input.acknowledgedVerificationRequiredPlaceIds ?? [],
+  );
   const selected = new Set(input.selectedCategories);
   const region = getRegionConfig(input.regionId);
   const requestedDistrict = input.districtId
@@ -285,18 +314,15 @@ export function fuseRecommendationCandidatesV2(input: {
 
   const inRequestedDistrict = (districtCode: string | null) =>
     !input.districtId || Boolean(districtCode && acceptedDistrictCodes.has(districtCode));
-  const hasPresentableConditionalEvidence = (candidate: CanonicalRecommendationCandidateV2) =>
-    candidate.petVerdict === "conditional" &&
-    candidate.evidenceStatus === "conditional" &&
-    candidate.ktoCandidate?.eligibility.eligible === true &&
-    (candidate.ktoCandidate.assessment.conditions ?? []).length > 0 &&
-    (candidate.ktoCandidate.assessment.conditions ?? []).every(({ label }) => label.trim().length > 0) &&
-    candidate.ktoCandidate.sizeCompatibility?.state !== "incompatible";
   const passesPetGate = (candidate: CanonicalRecommendationCandidateV2, userSelected: boolean) => {
-    if (userSelected || input.includeVerificationRequired) return candidate.catalogPetVerdict !== "not_allowed";
-    return (
-      candidate.petVerdict === "allowed" && candidate.evidenceStatus === "verified"
-    ) || hasPresentableConditionalEvidence(candidate);
+    if (userSelected) return candidate.catalogPetVerdict !== "not_allowed";
+    const policy = applyCanonicalPetConditionPolicy({
+      analysis: candidate.conditionEligibility,
+      flow: defaultOrigin,
+      includeVerificationRequired: input.includeVerificationRequired ?? false,
+      acknowledged: acknowledgedPlaceIds.has(candidate.canonicalId),
+    });
+    return candidate.catalogPetVerdict !== "not_allowed" && policy.decision !== "reject";
   };
   const passesHoursGate = (candidate: CanonicalRecommendationCandidateV2, userSelected: boolean) =>
     userSelected || input.includeVerificationRequired || candidate.scheduleStatus === "known";
@@ -304,7 +330,12 @@ export function fuseRecommendationCandidatesV2(input: {
   for (const value of input.ktoCandidates) {
     const canonicalId = `tour:${value.contentId}`;
     const userSelected = selectedPlaceIds.has(canonicalId);
-    const candidate = fromKto(value, input.regionId, userSelected ? "user_selected" : defaultOrigin);
+    const candidate = fromKto(
+      value,
+      input.regionId,
+      userSelected ? "user_selected" : defaultOrigin,
+      input.petProfile,
+    );
     if (
       value.region.regionCode !== region.providerCodes.korPetTourService2.legalDongRegionCode ||
       !coordinatesInRegion(region, value.coordinates)

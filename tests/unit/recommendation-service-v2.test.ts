@@ -323,7 +323,7 @@ describe("recommendation service V2 orchestration", () => {
     )).toBe(true);
   });
 
-  it("uses verification-required Kakao candidates only after an explicit opt-in", async () => {
+  it("keeps unknown-evidence Kakao candidates out after explicit opt-in", async () => {
     const deps = dependencies(
       [ktoCandidate("1001", 0)],
       [kakaoMarker("201", 0), kakaoMarker("202", 0.01), kakaoMarker("203", 0.02)],
@@ -335,11 +335,10 @@ describe("recommendation service V2 orchestration", () => {
 
     expect(result.status).toBe("ready");
     if (result.status !== "ready") return;
-    expect(result.candidateSourceCounts).toEqual({ kto: 1, kakao: 3, merged: 0 });
-    expect(result.routeOptions?.flatMap(({ stops }) => stops).some((stop) =>
-      stop.source === "kakao_catalog" &&
-      stop.petAssessment === "unknown" &&
-      stop.operatingHoursEvidenceState === "verification_required",
+    expect(result.candidateSourceCounts).toEqual({ kto: 1, kakao: 0, merged: 0 });
+    expect(result.routeOptions?.flatMap(({ stops }) => stops).every((stop) =>
+      stop.source === "tourism_service2" &&
+      stop.petAssessment === "allowed",
     )).toBe(true);
   });
 
@@ -502,7 +501,7 @@ describe("recommendation service V2 orchestration", () => {
     });
   });
 
-  it("uses stored Kakao candidates after a partial KTO failure only with opt-in", async () => {
+  it("does not substitute unknown stored Kakao evidence after a partial KTO failure", async () => {
     const deps = dependencies([], [kakaoMarker("201", 0)]);
     deps.candidatePipeline.mockResolvedValue({
       ...pipeline([]),
@@ -514,11 +513,14 @@ describe("recommendation service V2 orchestration", () => {
     }, deps);
 
     expect(result).toMatchObject({
-      status: "ready",
-      resultState: "single_stop_suggestion",
-      route: { stops: [{ source: "kakao_catalog", petAssessment: "unknown" }] },
-      warnings: expect.arrayContaining(["kto_provider_partial_failure"]),
+      status: "insufficient_eligible_places",
+      resultState: "insufficient_eligible_places",
+      reasonCodes: expect.arrayContaining([
+        "no_strictly_eligible_candidate_across_enabled_sources",
+        "kto_provider_unavailable",
+      ]),
     });
+    expect(deps.provider.buildMatrix).not.toHaveBeenCalled();
   });
 
   it("changes the canonical fingerprint for every result-changing V2 field", async () => {

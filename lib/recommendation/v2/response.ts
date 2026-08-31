@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
+import { applyCanonicalPetConditionPolicy } from "@/lib/pet-access/canonical-condition-eligibility";
 import type { normalizeRecommendationRequest } from "@/lib/recommendation/recommendation-request";
 import type { DetailedEligibleCandidate } from "@/lib/recommendation/types";
 import type { RecommendedRouteStop, RouteOptimizationInput } from "@/lib/recommendation/types/route-optimizer";
@@ -56,18 +57,35 @@ function productStopV2(
   candidate: CanonicalRecommendationCandidateV2,
   licensingStatus: (candidate: DetailedEligibleCandidate) => RecommendedRouteStopV1["licensingStatus"],
   selectedPlaceIds?: ReadonlySet<string>,
+  includeVerificationRequired = false,
+  acknowledgedPlaceIds: ReadonlySet<string> = new Set(),
 ): RecommendedRouteStopV1 {
   const kto = candidate.ktoCandidate;
   const selected = selectedPlaceIds?.has(candidate.canonicalId) ?? false;
-  const verificationWarning = selected
-    ? candidate.category === "shopping"
+  const conditionPolicy = applyCanonicalPetConditionPolicy({
+    analysis: candidate.conditionEligibility,
+    flow: "route_option_validation",
+    includeVerificationRequired,
+    acknowledged: acknowledgedPlaceIds.has(candidate.canonicalId),
+    preserveUserSelection: selected,
+  });
+  if (conditionPolicy.decision === "reject") {
+    throw new TypeError(
+      `Final V2 route stop failed canonical pet-condition validation: ${candidate.canonicalId}`,
+    );
+  }
+  const verificationWarning = conditionPolicy.decision === "confirmation_required"
+    ? candidate.conditionEligibility.warnings[0]?.message ??
+      "반려동물 동반 조건을 확인하고 동의해 주세요."
+    : selected
+      ? candidate.category === "shopping"
       ? "selected_shopping_requires_confirmation"
       : candidate.source === "kakao_catalog"
         ? "selected_kakao_requires_confirmation"
         : candidate.evidenceStatus === "unverified" || candidate.petVerdict === "unknown"
           ? "selected_pet_policy_requires_confirmation"
           : null
-    : null;
+      : null;
   return {
     placeId: candidate.canonicalId,
     sequence: stop.sequence,
@@ -96,6 +114,8 @@ function productStopV2(
       locked: selected,
       verificationWarning,
     } : {}),
+    petConditionEligibility: candidate.conditionEligibility,
+    conditionAcknowledged: conditionPolicy.routeStatus === "ready",
     mandatoryConditions: kto?.assessment.conditions.map((condition) => ({
       type: condition.type,
       label: condition.label,
@@ -106,9 +126,11 @@ function productStopV2(
     operatingHoursWarnings: kto?.scheduleCompatibility.warningCodes ?? ["operating_hours_unverified"],
     inclusionReasonCodes: stop.inclusionReasonCodes,
     orderingReasonCodes: stop.orderingReasonCodes,
-    warningCodes: verificationWarning
-      ? [...new Set([...stop.warningCodes, verificationWarning])].sort()
-      : stop.warningCodes,
+    warningCodes: [...new Set([
+      ...stop.warningCodes,
+      ...candidate.conditionEligibility.warnings.map(({ code }) => code),
+      ...(verificationWarning ? [verificationWarning] : []),
+    ])].sort(),
     evidence: kto?.assessment.evidence.slice(0, 9).map((evidence) => ({
       field: evidence.field,
       label: evidence.fieldLabel,
@@ -125,6 +147,8 @@ export function routeFromOptionV2(input: {
   reductionReasonCodes?: readonly string[];
   licensingStatus: (candidate: DetailedEligibleCandidate) => RecommendedRouteStopV1["licensingStatus"];
   selectedPlaceIds?: ReadonlySet<string>;
+  includeVerificationRequired?: boolean;
+  acknowledgedPlaceIds?: ReadonlySet<string>;
 }): ProductRouteV1 {
   const schedule = routeOptionScheduleV2(input.option, input.optimization);
   const stopCount = input.option.stops.length;
@@ -143,7 +167,14 @@ export function routeFromOptionV2(input: {
     if (!candidate) {
       throw new TypeError("Final V2 route stop is outside the validated canonical candidate map.");
     }
-    return productStopV2(stop, candidate, input.licensingStatus, input.selectedPlaceIds);
+    return productStopV2(
+      stop,
+      candidate,
+      input.licensingStatus,
+      input.selectedPlaceIds,
+      input.includeVerificationRequired,
+      input.acknowledgedPlaceIds,
+    );
   });
   const categoryComposition = Object.fromEntries(
     [...new Set(stops.map(({ category }) => category))].sort().map((category) => [
@@ -198,5 +229,9 @@ export function routeFromOptionV2(input: {
       temporalBasis: input.option.temporalBasis,
     })),
     geometry: input.option.geometry,
+    confirmationStatus: stops.some(({ conditionAcknowledged }) =>
+      conditionAcknowledged === false)
+      ? "confirmation_required"
+      : "ready",
   };
 }

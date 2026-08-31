@@ -3,7 +3,16 @@ import type {
   ManualRouteValidationResponseV1,
   RouteRecommendationResponseV1,
 } from "@/types/recommendation";
-import type { TourPetAccessConditionType } from "@/types/tour-pet-access";
+import type {
+  TourPetAccessConditionType,
+  TourPetAccessScope,
+} from "@/types/tour-pet-access";
+import type {
+  CanonicalPetConditionCode,
+  CanonicalPetConditionItem,
+  CanonicalPetConditionReasonCode,
+  CanonicalPetConditionWarning,
+} from "@/types/pet-condition-eligibility";
 import { REGION_IDS } from "@/types/region";
 
 const coordinates = z.object({
@@ -21,6 +30,64 @@ const category = z.enum([
   "food",
   "shopping",
 ]);
+const petConditionItem = z.object({
+  code: z.custom<CanonicalPetConditionCode>(
+    (value) => typeof value === "string" && value.length > 0,
+  ),
+  sourceType: z.custom<CanonicalPetConditionItem["sourceType"]>(
+    (value) => typeof value === "string" && value.length > 0,
+  ),
+  label: nonEmpty,
+  sourceText: nonEmpty,
+  scope: z.custom<TourPetAccessScope>(
+    (value) => typeof value === "string" && value.length > 0,
+  ),
+  evidenceIds: z.array(nonEmpty),
+}).strict();
+const petConditionWarning = z.object({
+  code: z.custom<CanonicalPetConditionWarning["code"]>(
+    (value) => typeof value === "string" && value.length > 0,
+  ),
+  message: nonEmpty,
+  sourceText: z.string().nullable(),
+  evidenceIds: z.array(nonEmpty),
+}).strict();
+const petConditionEligibility = z.object({
+  version: z.literal("canonical-pet-condition-v1"),
+  state: z.enum([
+    "eligible",
+    "eligible_with_confirmation",
+    "ineligible",
+    "insufficient_evidence",
+  ]),
+  conditionCodes: z.array(z.custom<CanonicalPetConditionCode>(
+    (value) => typeof value === "string" && value.length > 0,
+  )),
+  satisfiedConditions: z.array(petConditionItem),
+  conflictingConditions: z.array(petConditionItem),
+  confirmationRequiredConditions: z.array(petConditionItem),
+  unsupportedConditions: z.array(petConditionItem),
+  evidenceSources: z.array(z.object({
+    operation: z.enum(["detailPetTour2", "detailIntro2"]),
+    status: z.enum(["available", "empty", "unavailable"]),
+    retrievedAt: z.string().datetime({ offset: true }),
+    providerModifiedTime: z.string().nullable(),
+  }).strict()),
+  warnings: z.array(petConditionWarning),
+  reasonCodes: z.array(z.custom<CanonicalPetConditionReasonCode>(
+    (value) => typeof value === "string" && value.length > 0,
+  )),
+}).strict();
+const confirmationRequirement = z.object({
+  placeId: nonEmpty,
+  title: nonEmpty,
+  selectionOrigin: z.enum([
+    "user_selected",
+    "automatic_fill",
+    "automatic_recommendation",
+  ]),
+  conditionEligibility: petConditionEligibility,
+}).strict();
 const failureStatus = z.enum([
   "confirmation_required",
   "unavailable",
@@ -43,6 +110,7 @@ const failure = z.object({
   reasonCodes: z.array(nonEmpty),
   userMessage: nonEmpty,
   retryable: z.boolean(),
+  confirmationRequirements: z.array(confirmationRequirement).max(5).optional(),
   resultState: z.enum(["insufficient_eligible_places", "insufficient_feasible_route", "confirmation_required"]).optional(),
   requestedStopCount: z.number().int().min(1).max(5).optional(),
   feasibleStopCount: z.number().int().min(0).max(5).optional(),
@@ -55,6 +123,7 @@ const failure = z.object({
     "select_places_manually",
     "allow_verification_required_candidates",
     "acknowledge_selected_place_verification",
+    "acknowledge_route_conditions",
   ])).optional(),
 }).strict();
 const stop = z.object({
@@ -86,6 +155,8 @@ const stop = z.object({
   provenance: z.enum(["user_selected", "auto_fill"]).optional(),
   locked: z.boolean().optional(),
   verificationWarning: nonEmpty.nullable().optional(),
+  petConditionEligibility: petConditionEligibility.optional(),
+  conditionAcknowledged: z.boolean().optional(),
   mandatoryConditions: z.array(
     z.object({
       type: z.custom<TourPetAccessConditionType>(
@@ -130,6 +201,7 @@ const route = z.object({
   }).strict(),
   stops: z.array(stop).min(1).max(5),
   geometry: z.array(coordinates).min(2),
+  confirmationStatus: z.enum(["ready", "confirmation_required"]).optional(),
   style: z.enum(["balanced", "shortest", "relaxed"]).optional(),
   objective: z.enum(["balanced", "shortest", "relaxed"]).optional(),
   routeSignature: nonEmpty.optional(),
@@ -210,9 +282,10 @@ const safeDiagnostics = z.object({
   }).strict(),
 }).strict();
 const failureWithSelection = failure.extend({
-  selectionMode: z.literal("hybrid").optional(),
+  selectionMode: z.enum(["automatic", "hybrid"]).optional(),
   selectionIssues: z.array(selectionIssue).optional(),
   replacementCandidates: z.array(replacementCandidate).max(3).optional(),
+  routeOptions: z.array(route).min(1).max(3).optional(),
   diagnostics: safeDiagnostics.optional(),
 });
 const ready = z.object({
@@ -257,6 +330,7 @@ const ready = z.object({
     "select_places_manually",
     "allow_verification_required_candidates",
     "acknowledge_selected_place_verification",
+    "acknowledge_route_conditions",
   ])).optional(),
   routeOptions: z.array(route.extend({ kind: z.literal("optimized") })).min(1).max(3).optional(),
   primaryRouteId: nonEmpty.optional(),

@@ -421,4 +421,83 @@ describe("Stage 5 canonical recommendation orchestration", () => {
       ),
     ).toMatchObject({ status: "invalid_request" });
   });
+
+  it("preserves exact seconds and total elapsed time when returning to origin", async () => {
+    const roundTripRequest = {
+      ...REQUEST,
+      trip: { ...REQUEST.trip, roundTrip: true },
+    };
+    const generated = await generateRouteRecommendation(
+      roundTripRequest,
+      dependencies(pipeline("ready"), readyOptimizer()),
+    );
+    expect(generated.status).toBe("ready");
+    if (generated.status !== "ready") return;
+
+    const travelTimeProvider: TravelTimeProvider = {
+      buildMatrix: vi.fn(),
+      validateOrderedRoute: vi.fn(async () => ({
+        status: "validated" as const,
+        totalDistanceMeters: 15_000,
+        totalDurationSeconds: 2_701,
+        temporalBasis: "future_departure" as const,
+        geometry: [
+          { latitude: 35.115, longitude: 129.04 },
+          { latitude: 35.16, longitude: 129.16 },
+          { latitude: 35.115, longitude: 129.04 },
+        ],
+        sections: [
+          {
+            fromId: "departure",
+            toId: "1001",
+            distanceMeters: 12_000,
+            durationSeconds: 1_801,
+          },
+          {
+            fromId: "1001",
+            toId: "departure",
+            distanceMeters: 3_000,
+            durationSeconds: 900,
+          },
+        ],
+        providerResultCode: 0,
+        reasonCodes: [],
+        diagnostics: {
+          providerOperation: "future_directions" as const,
+          cacheHit: false,
+          providerCalls: 1,
+          durationMs: 5,
+        },
+      })),
+    };
+    const revalidated = await validateManualRoute(
+      generated.editSessionId,
+      ["1001"],
+      {
+        travelTimeProvider,
+        now: () => new Date("2026-08-15T00:01:00.000Z"),
+        editSessionSecret: "unit-test-route-edit-session-secret",
+      },
+    );
+
+    expect(revalidated.status).toBe("ready");
+    if (revalidated.status !== "ready") return;
+    const stop = revalidated.route.stops[0]!;
+    expect(stop.arrivalAt.endsWith(":01.000Z")).toBe(true);
+    expect(Date.parse(stop.visitStartsAt)).toBeGreaterThanOrEqual(
+      Date.parse(stop.arrivalAt),
+    );
+    expect(Date.parse(stop.departureAt)).toBeGreaterThanOrEqual(
+      Date.parse(stop.visitStartsAt) + stop.dwellMinutes * 60_000,
+    );
+    const exactElapsedSeconds =
+      (Date.parse(revalidated.route.routeSummary.endAt) -
+        Date.parse(revalidated.route.routeSummary.startAt)) /
+      1_000;
+    expect(exactElapsedSeconds).toBe(
+      revalidated.route.routeSummary.totalDrivingSeconds +
+        revalidated.route.routeSummary.totalVisitSeconds +
+        revalidated.route.routeSummary.totalWaitSeconds,
+    );
+  });
 });
