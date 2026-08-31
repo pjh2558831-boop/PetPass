@@ -4,6 +4,7 @@ import {
   coordinatesInItineraryOriginScope,
   getRegionConfig,
   getRegionDistrict,
+  getRegionRouteCapabilityBlock,
   type RegionConfig,
 } from "@/lib/regions/config";
 import { getTripPaceConfig } from "@/lib/itinerary/trip-pace";
@@ -184,7 +185,10 @@ export function normalizeRecommendationRequest(
   input: RouteRecommendationRequest,
 ): NormalizedItineraryRequest {
   const requestedRegion = getRegionConfig(input.trip.regionId);
-  if (!requestedRegion.itineraryEnabled) {
+  if (getRegionRouteCapabilityBlock(requestedRegion, {
+    selectedPlaceCount: input.selectedPlaceIds?.length ?? 0,
+    autoFill: input.autoFill ?? true,
+  })) {
     throw new TypeError("REGION_NOT_SUPPORTED_FOR_ITINERARY");
   }
   if (!coordinatesInItineraryOriginScope(requestedRegion, {

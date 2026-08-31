@@ -1,5 +1,5 @@
 import {
-  BUSAN_REGION_CONFIG,
+  REGION_CONFIGS,
   getRegionConfig,
   getRegionDefaultCatalogCategories,
   getRegionDistrict,
@@ -37,7 +37,7 @@ export function parsePublicCatalogUrlState(
   const explicitRegion = rawRegion !== undefined;
   const requestedRegion = getRegionConfig(single(rawRegion));
   if (explicitRegion && !requestedRegion?.mapEnabled) return null;
-  const region = requestedRegion ?? BUSAN_REGION_CONFIG;
+  const region = requestedRegion ?? REGION_CONFIGS[0];
   const defaultCategories = getRegionDefaultCatalogCategories(region) as PlaceCategory[];
   const districtValue = single(params.district);
   const categoriesValue = single(params.categories);

@@ -517,7 +517,7 @@ describe("recommendation service V2 orchestration", () => {
       status: "ready",
       resultState: "single_stop_suggestion",
       route: { stops: [{ source: "kakao_catalog", petAssessment: "unknown" }] },
-      warnings: ["kto_provider_partial_failure"],
+      warnings: expect.arrayContaining(["kto_provider_partial_failure"]),
     });
   });
 

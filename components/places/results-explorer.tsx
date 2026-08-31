@@ -86,6 +86,13 @@ import type { PublicMapPlacePage } from "@/types/public-map-place";
 import type { TourPlaceList } from "@/types/place";
 import type { RegionId } from "@/types/region";
 import {
+  createPlanDraft,
+  loadPlanDraft,
+  plannerInputFromPlanDraft,
+  savePlanDraft,
+  updatePlanDraftScope,
+} from "@/lib/storage/plan-draft-storage";
+import {
   MAX_SELECTED_ITINERARY_PLACES,
   requiresSelectionRegionClear,
   selectedItineraryPlaceFromCatalog,
@@ -363,7 +370,13 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   itineraryMode?: "browse" | "selection" | "hybrid";
 }) {
   const router = useRouter();
-  const { generationRequested, consumeGenerationRequest } = usePlannerState();
+  const {
+    generationRequested,
+    consumeGenerationRequest,
+    profileConfirmed,
+    preferencesConfirmed,
+    confirmPlannerAndRequestGeneration,
+  } = usePlannerState();
   const [region, setRegion] = useState<RegionId>(initialCatalogState.region);
   const regionConfig = getRegionConfig(region);
   const [activeTab, setActiveTab] = useState<ExplorerTab>(() =>
@@ -371,7 +384,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       ? "catalog"
       : itineraryMode === "hybrid"
         ? "recommendations"
-        : initialTab === "recommendations" && !regionConfig.itineraryEnabled
+        : initialTab === "recommendations" && !regionConfig.routeCapabilities.fullyAutomaticRecommendation
       ? "catalog"
       : initialTab);
   const [district, setDistrict] = useState(initialCatalogState.district);
@@ -414,6 +427,9 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     message: selectionMessage,
     toggle: toggleSelection,
     remove: removeSelection,
+    move: moveSelection,
+    setAutoFill,
+    setIncludeVerificationRequired,
     resetRegion: resetSelectionRegion,
   } = useSelectedItinerarySelection({
     regionId: region,
@@ -448,6 +464,30 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     abortTimer: ReturnType<typeof setTimeout> | null;
   } | null>(null);
   const [rankingAsOf] = useState(() => new Date().toISOString());
+
+  useEffect(() => {
+    if (
+      activeTab !== "recommendations" ||
+      (profileConfirmed && preferencesConfirmed)
+    ) return;
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      const draft = loadPlanDraft();
+      const restored = draft ? plannerInputFromPlanDraft(draft) : null;
+      if (!restored) return;
+      confirmPlannerAndRequestGeneration(
+        restored.petProfile,
+        restored.preferences,
+      );
+    });
+    return () => { active = false; };
+  }, [
+    activeTab,
+    confirmPlannerAndRequestGeneration,
+    preferencesConfirmed,
+    profileConfirmed,
+  ]);
 
   useEffect(() => {
     if (!filterOpen) return;
@@ -605,7 +645,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
         ? "catalog"
         : itineraryMode === "hybrid"
           ? "recommendations"
-          : params.tab === "recommendations" && restoredRegion.itineraryEnabled
+          : params.tab === "recommendations" && restoredRegion.routeCapabilities.fullyAutomaticRecommendation
             ? "recommendations"
             : "catalog");
       setSelectedId(null);
@@ -901,6 +941,8 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     setTourState("loading");
     setKakaoState(nextConfig.kakaoDiscoveryEnabled ? "loading" : "ready");
     resetViewportScope();
+    const draft = loadPlanDraft() ?? createPlanDraft(nextRegion);
+    savePlanDraft(updatePlanDraftScope(draft, nextRegion, null));
   };
   const requestRegionChange = (nextRegion: RegionId, startedAt: number) => {
     if (nextRegion === region) return;
@@ -933,6 +975,12 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       setDistrictQuery(getPublicCatalogDistrictName(region, nextDistrict));
       setOptionalLoadedFor(null);
     });
+    const draft = loadPlanDraft() ?? createPlanDraft(region);
+    savePlanDraft(updatePlanDraftScope(
+      draft,
+      region,
+      nextDistrict === "all" ? null : nextDistrict,
+    ));
   };
   const toggleDraftCategory = (category: PlaceCategory) => {
     setDraftCategories((current) => current.includes(category)
@@ -983,6 +1031,10 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     if (selectionSnapshot.places.length === 0) return;
     router.push("/planner/pet?mode=selected");
   };
+  const startAutomaticItinerary = () => {
+    if (!regionConfig.routeCapabilities.fullyAutomaticRecommendation) return;
+    router.push("/planner/pet");
+  };
   const toggleLayer = (layer: PublicCatalogLayer) => {
     setLayers((current) => visibleLayers.filter((value) =>
       value === layer ? !current.includes(layer) : current.includes(value)));
@@ -1028,7 +1080,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
         </div>
         <div className="mb-6 inline-flex rounded-2xl border border-[#d7e0da] bg-white p-1" role="tablist" aria-label="장소 및 추천 보기">
           {itineraryMode === "hybrid" ? (
-            <Link href="/results?tab=catalog&region=busan&mode=select" role="tab" aria-selected="false" className="inline-flex min-h-11 items-center gap-2 rounded-xl px-5 text-sm font-extrabold text-[#52665b]"><Rows3 size={16} aria-hidden="true" />장소 다시 선택</Link>
+            <Link href={`/results?tab=catalog&region=${region}&mode=select`} role="tab" aria-selected="false" className="inline-flex min-h-11 items-center gap-2 rounded-xl px-5 text-sm font-extrabold text-[#52665b]"><Rows3 size={16} aria-hidden="true" />장소 다시 선택</Link>
           ) : (
             <button id="catalog-tab" type="button" role="tab" aria-selected="false" onClick={() => setActiveTab("catalog")} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-5 text-sm font-extrabold text-[#52665b]"><Rows3 size={16} aria-hidden="true" />전체 장소</button>
           )}
@@ -1084,7 +1136,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
         ) : (
           <div className="inline-flex rounded-xl border border-[#d7e0da] bg-white p-1" role="tablist" aria-label="장소 및 추천 보기">
             <button id="catalog-tab" type="button" role="tab" aria-selected="true" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#236148] px-4 text-sm font-extrabold text-white"><Rows3 size={16} aria-hidden="true" />장소 찾기</button>
-            {regionConfig.itineraryEnabled ? (
+            {regionConfig.routeCapabilities.fullyAutomaticRecommendation ? (
               <Link href="/planner/pet" role="tab" aria-selected="false" className="inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-extrabold text-[#52665b]"><Route size={16} aria-hidden="true" />맞춤 일정</Link>
             ) : (
               <button id="recommendations-tab" type="button" role="tab" aria-selected="false" aria-disabled="true" disabled className="inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-extrabold text-[#7a8780]"><Route size={16} aria-hidden="true" />{regionConfig.displayName} 경로 추천은 준비 중입니다.</button>
@@ -1142,9 +1194,9 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
         </div>
       </div>
 
-      {itineraryMode === "selection" && !regionConfig.itineraryEnabled ? (
+      {itineraryMode === "selection" && !regionConfig.routeCapabilities.automaticFill ? (
         <p className="selected-itinerary-region-notice" role="status">
-          {regionConfig.displayName}은 장소 탐색만 제공하며, 선택 장소 맞춤 일정은 아직 준비 중입니다.
+          {regionConfig.displayName}에서는 직접 고른 장소의 경로와 순서를 만들 수 있습니다. 자동 채우기와 전체 자동 추천은 아직 지원하지 않습니다.
         </p>
       ) : null}
 
@@ -1189,12 +1241,19 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
         </section>
 
         <aside className="full-map-explorer__sidebar" aria-label="장소 검색 결과">
-          {itineraryMode === "selection" && regionConfig.itineraryEnabled && selectionHydrated ? (
+          {itineraryMode === "selection" && regionConfig.routeCapabilities.selectedPlaceRouting && selectionHydrated ? (
             <SelectedItineraryTray
               variant="desktop"
               snapshot={selectionSnapshot}
               onRemove={removeItineraryPlace}
+              onMove={moveSelection}
               onContinue={continueSelectedItinerary}
+              onAutomaticStart={startAutomaticItinerary}
+              onAutoFillChange={setAutoFill}
+              onIncludeVerificationRequiredChange={setIncludeVerificationRequired}
+              automaticFillSupported={regionConfig.routeCapabilities.automaticFill}
+              automaticRecommendationSupported={regionConfig.routeCapabilities.fullyAutomaticRecommendation}
+              regionName={regionConfig.displayName}
             />
           ) : null}
           <header className="explorer-results-header" data-presentation-state={presentationState}>
@@ -1254,7 +1313,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
                   setMobileMode("map");
                 }}
                 staticMapEnabled={staticMapEnabled}
-                itinerarySelection={itineraryMode === "selection" && regionConfig.itineraryEnabled ? {
+                itinerarySelection={itineraryMode === "selection" && regionConfig.routeCapabilities.selectedPlaceRouting ? {
                   selected: selectionSnapshot.places.some(({ id }) => id === place.id),
                   disabledReason: selectionSnapshot.places.some(({ id }) => id === place.id)
                     ? undefined
@@ -1281,12 +1340,19 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
           </nav> : null}
         </aside>
       </div>
-      {itineraryMode === "selection" && regionConfig.itineraryEnabled && selectionHydrated ? (
+      {itineraryMode === "selection" && regionConfig.routeCapabilities.selectedPlaceRouting && selectionHydrated ? (
         <SelectedItineraryTray
           variant="mobile"
           snapshot={selectionSnapshot}
           onRemove={removeItineraryPlace}
+          onMove={moveSelection}
           onContinue={continueSelectedItinerary}
+          onAutomaticStart={startAutomaticItinerary}
+          onAutoFillChange={setAutoFill}
+          onIncludeVerificationRequiredChange={setIncludeVerificationRequired}
+          automaticFillSupported={regionConfig.routeCapabilities.automaticFill}
+          automaticRecommendationSupported={regionConfig.routeCapabilities.fullyAutomaticRecommendation}
+          regionName={regionConfig.displayName}
         />
       ) : null}
       <p className="sr-only" aria-live="polite" aria-atomic="true">{selectionMessage}</p>

@@ -22,9 +22,10 @@ import {
   isKakaoBaseMapsReady,
   loadKakaoMapsSdk,
 } from "@/lib/kakao/sdk-loader";
-import { BUSAN_REGION_CONFIG } from "@/lib/regions/config";
+import { getRegionConfig } from "@/lib/regions/config";
 import type { Coordinates } from "@/types/place";
 import type { ResolvedDeparture } from "@/types/pet";
+import type { RegionId } from "@/types/region";
 
 function mapDeparture(coordinates: Coordinates): ResolvedDeparture {
   return {
@@ -37,10 +38,13 @@ function mapDeparture(coordinates: Coordinates): ResolvedDeparture {
 export function DepartureMapPicker({
   value,
   onChange,
+  regionId,
 }: {
   value?: ResolvedDeparture;
   onChange: (value: ResolvedDeparture) => void;
+  regionId: RegionId;
 }) {
+  const region = getRegionConfig(regionId);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<KakaoCoordinatePickerController | null>(null);
   const onChangeRef = useRef(onChange);
@@ -72,7 +76,7 @@ export function DepartureMapPicker({
     if (!container || !isKakaoBaseMapsReady() || controllerRef.current) return;
     try {
       controllerRef.current = createKakaoCoordinatePicker(container, {
-        defaultCenter: BUSAN_REGION_CONFIG.defaultMapCenter,
+        defaultCenter: region.defaultMapCenter,
         initialCoordinates:
           selectedLatitude !== undefined && selectedLongitude !== undefined
             ? { latitude: selectedLatitude, longitude: selectedLongitude }
@@ -93,7 +97,7 @@ export function DepartureMapPicker({
       setLoadState("error");
       setLoadError(getKakaoMapsPublicError(error));
     }
-  }, [selectedLatitude, selectedLongitude]);
+  }, [region.defaultMapCenter, selectedLatitude, selectedLongitude]);
 
   useEffect(() => {
     let cancelled = false;

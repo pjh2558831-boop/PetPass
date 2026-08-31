@@ -6,13 +6,19 @@ import {
 import { REGION_IDS, type RegionId } from "@/types/region";
 import type { TourCatalogCategory } from "@/lib/tour-api/catalog";
 import type { PublicCatalogPlace } from "@/types/public-catalog-place";
+import { getRegionConfig } from "@/lib/regions/config";
+import {
+  createPlanDraft,
+  loadPlanDraft,
+  savePlanDraft,
+  updatePlanDraftSelection,
+} from "@/lib/storage/plan-draft-storage";
 import {
   readVersionedValue,
-  writeVersionedValue,
   type StorageLike,
 } from "@/lib/storage/versioned-storage";
 
-const STORAGE_VERSION = 2;
+const STORAGE_VERSION = 3;
 const STORAGE_KEY = "weekendog:selected-itinerary";
 
 export const MAX_SELECTED_ITINERARY_PLACES = 5;
@@ -38,6 +44,7 @@ const selectedItineraryPlaceSchema = z.object({
 const selectedItinerarySnapshotSchema = z.object({
   regionId: z.enum(REGION_IDS),
   autoFill: z.boolean(),
+  includeVerificationRequired: z.boolean(),
   places: z.array(selectedItineraryPlaceSchema).max(MAX_SELECTED_ITINERARY_PLACES),
   acknowledgedVerificationRequiredPlaceIds: z.array(
     z.string().regex(/^(?:tour|kakao):[0-9]+$/u),
@@ -84,7 +91,13 @@ const SELECTED_CATEGORY_MAP: Partial<Record<SelectedItineraryPlace["category"], 
 export function createSelectedItinerarySnapshot(
   regionId: RegionId,
 ): SelectedItinerarySnapshot {
-  return { regionId, autoFill: true, places: [], acknowledgedVerificationRequiredPlaceIds: [] };
+  return {
+    regionId,
+    autoFill: getRegionConfig(regionId).routeCapabilities.automaticFill,
+    includeVerificationRequired: false,
+    places: [],
+    acknowledgedVerificationRequiredPlaceIds: [],
+  };
 }
 
 export function selectedItineraryPlaceFromCatalog(
@@ -179,11 +192,36 @@ export function getSelectedItineraryCategories(
 export function loadSelectedItinerary(
   storage?: StorageLike | null,
 ): SelectedItinerarySnapshot | null {
+  const draft = loadPlanDraft(storage);
+  if (draft) {
+    return selectedItinerarySnapshotSchema.parse({
+      regionId: draft.regionId,
+      autoFill: draft.autoFill,
+      includeVerificationRequired: draft.includeVerificationRequired,
+      places: draft.selectedPlaces.map((place) => ({
+        id: place.id,
+        regionId: place.regionId,
+        providerPlaceId: place.providerPlaceId,
+        name: place.name,
+        layer: place.layer,
+        category: place.category,
+        sourceLabel: place.sourceLabel,
+        publicLabel: place.evidence.label,
+        petAccessVerdict: place.evidence.verdict,
+        imageUrl: null,
+      })),
+      acknowledgedVerificationRequiredPlaceIds:
+        draft.acknowledgedVerificationRequiredPlaceIds,
+    });
+  }
   return readVersionedValue(STORAGE_KEY, selectedItinerarySnapshotSchema, {
     version: STORAGE_VERSION,
     migrations: {
       1: (value) => value && typeof value === "object"
         ? { ...value, acknowledgedVerificationRequiredPlaceIds: [] }
+        : value,
+      2: (value) => value && typeof value === "object"
+        ? { ...value, includeVerificationRequired: false }
         : value,
     },
     storage,
@@ -194,10 +232,10 @@ export function saveSelectedItinerary(
   snapshot: SelectedItinerarySnapshot,
   storage?: StorageLike | null,
 ): boolean {
-  return writeVersionedValue(STORAGE_KEY, snapshot, selectedItinerarySnapshotSchema, {
-    version: STORAGE_VERSION,
-    storage,
-  });
+  const parsed = selectedItinerarySnapshotSchema.safeParse(snapshot);
+  if (!parsed.success) return false;
+  const currentDraft = loadPlanDraft(storage) ?? createPlanDraft(snapshot.regionId);
+  return savePlanDraft(updatePlanDraftSelection(currentDraft, snapshot), storage);
 }
 
 export function selectedItineraryVerdictLabel(
@@ -206,7 +244,7 @@ export function selectedItineraryVerdictLabel(
   if (verdict === "allowed") return "동반 가능 근거 확인";
   if (verdict === "conditional") return "조건 확인 필요";
   if (verdict === "not_allowed") return "동반 불가";
-  return "동반 여부 미확인";
+  return "동반 가능 여부 확인 필요";
 }
 
 export function selectedItineraryNeedsWarning(place: SelectedItineraryPlace): boolean {

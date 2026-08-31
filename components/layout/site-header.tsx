@@ -9,8 +9,8 @@ import {
 } from "@/components/layout/site-header-account";
 
 const navigationItems = [
-  { kind: "link", href: "/results?tab=catalog&region=busan&mode=select", label: "일정 만들기" },
-  { kind: "link", href: "/results?tab=catalog&region=busan", label: "장소 찾기" },
+  { kind: "link", href: "/results?tab=catalog&mode=select", label: "일정 만들기" },
+  { kind: "link", href: "/results?tab=catalog", label: "장소 찾기" },
   {
     kind: "link",
     href: "/planner/pet",

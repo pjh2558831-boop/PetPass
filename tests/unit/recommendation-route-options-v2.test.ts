@@ -61,6 +61,21 @@ describe("route options V2", () => {
     expect(result.limitedReason).toBe("fewer_than_three_meaningfully_distinct_routes");
   });
 
+  it("returns exactly two non-empty options when only two routes are meaningful", () => {
+    const result = selectRouteStyleOptionsV2({
+      routes: ROUTES.slice(0, 2),
+      recentRouteSignatures: [],
+      recentlySelectedCandidateIds: [],
+      lockedPlaceIds: [],
+      deterministicSeed: "nationwide:two-options",
+      rerollVariant: 0,
+    });
+
+    expect(result.options).toHaveLength(2);
+    expect(result.options.every(({ route }) => route.orderedPlaceIds.length > 0)).toBe(true);
+    expect(result.alternativeAvailability).toBe("limited");
+  });
+
   it("diversifies the first automatic stop on reroll and is deterministic for a seed", () => {
     const first = selectRouteStyleOptionsV2({
       routes: ROUTES, recentRouteSignatures: [], recentlySelectedCandidateIds: [],

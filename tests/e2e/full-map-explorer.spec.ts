@@ -639,6 +639,54 @@ test("keeps the single toolbar filter reachable and centers the current-area sea
   expect((researchBox?.x ?? 0)).toBeGreaterThanOrEqual((legendBox?.x ?? 0) + (legendBox?.width ?? 0) + 8);
 });
 
+test("synchronizes the selected-place tray with list and map selection", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === "mobile-chrome", "Desktop tray synchronization is verified once; mobile layout has separate responsive coverage.");
+  await page.goto("/results?tab=catalog&region=busan&mode=select&page=1");
+
+  const card = page.locator('[id^="place-card-"]').first();
+  const placeName = await card.getByRole("heading").innerText();
+  const escapedPlaceName = placeName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const addButton = card.getByRole("button", { name: "일정에 담기", exact: true });
+  const tray = page.locator(".selected-itinerary-tray");
+  const mapRoot = page.locator("[data-marker-registry-size]");
+  const markerCount = await mapRoot.getAttribute("data-marker-registry-size");
+
+  await addButton.click();
+  await expect(card.getByRole("button", { name: "일정에 담음", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(tray.getByRole("heading", { name: "1 / 5곳 담음" })).toBeVisible();
+  await expect(tray).toContainText(placeName);
+  await expect(tray.getByRole("button", { name: "선택한 장소로 일정 만들기" })).toBeEnabled();
+
+  await mapRoot.getByRole("button", { name: new RegExp(`^${escapedPlaceName}`, "u") }).click();
+  await expect(card).toHaveAttribute("aria-current", "true");
+  await expect(card.getByRole("button", { name: "일정에 담음", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(mapRoot).toHaveAttribute("data-marker-registry-size", markerCount ?? "");
+
+  await card.getByRole("button", { name: "일정에 담음", exact: true }).click();
+  await expect(tray.getByRole("heading", { name: "0 / 5곳 담음" })).toBeVisible();
+  await expect(tray).not.toContainText(placeName);
+});
+
+test("keeps the mobile selected-place CTA reachable without covering the map", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chrome", "Mobile tray geometry is verified in the mobile project only.");
+  await page.goto("/results?tab=catalog&region=busan&mode=select&page=1");
+
+  const card = page.locator('[id^="place-card-"]').first();
+  await card.getByRole("button", { name: "일정에 담기", exact: true }).click();
+  const mobileBar = page.getByLabel("선택한 일정 장소");
+  await expect(mobileBar).toBeVisible();
+  await expect(mobileBar.getByRole("button", { name: "일정 만들기" })).toBeEnabled();
+
+  await page.getByRole("group", { name: "지도 또는 목록 보기" })
+    .getByRole("button", { name: "지도" }).click();
+  const map = page.locator(".full-map-explorer__map");
+  await expect(map).toBeVisible();
+  const [barBox, mapBox] = await Promise.all([mobileBar.boundingBox(), map.boundingBox()]);
+  expect(barBox).not.toBeNull();
+  expect(mapBox).not.toBeNull();
+  expect((mapBox?.y ?? 0) + (mapBox?.height ?? 0)).toBeLessThanOrEqual((barBox?.y ?? 0) + 1);
+});
+
 test("keeps one source marker per place across pagination, selection, and viewport commit", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === "mobile-chrome", "Desktop registry flow; responsive behavior has a dedicated cross-viewport test.");
   const startedAt = Date.now();

@@ -19,7 +19,7 @@ import { DemoBadge } from "@/components/ui/demo-badge";
 import { MissingImage } from "@/components/ui/missing-image";
 import { demoPlaces, getDemoPlace } from "@/fixtures/demo-data";
 import { CATEGORY_LABELS } from "@/lib/shared/format";
-import { getRegionConfig } from "@/lib/regions/config";
+import { REGION_CONFIGS, getRegionConfig } from "@/lib/regions/config";
 import type { LicenseStatus } from "@/types/license";
 import type { RegionId } from "@/types/region";
 
@@ -53,7 +53,9 @@ export default async function PlaceDetailPage({
   const { contentId } = await params;
   const { contentTypeId, region: requestedRegion } = await searchParams;
   const selectedRegion = getRegionConfig(requestedRegion);
-  const regionId: RegionId = selectedRegion?.mapEnabled ? selectedRegion.id : "busan";
+  const regionId: RegionId = selectedRegion?.mapEnabled
+    ? selectedRegion.id
+    : REGION_CONFIGS[0].id;
   const place = regionId === "busan" ? getDemoPlace(contentId) : undefined;
   if (!place) {
     return (
@@ -72,7 +74,7 @@ export default async function PlaceDetailPage({
   return (
     <div className="page-shell py-8 sm:py-12">
       <Link
-        href="/results?tab=catalog&region=busan"
+        href={`/results?tab=catalog&region=${regionId}`}
         className="inline-flex min-h-10 items-center gap-2 rounded-full text-sm font-bold text-[#52665b] hover:text-[#236148]"
       >
         <ArrowLeft size={17} aria-hidden="true" />
@@ -189,7 +191,7 @@ export default async function PlaceDetailPage({
               {alternatives.map((alternative) => (
                 <Link
                   key={alternative.contentId}
-                  href={`/places/${alternative.contentId}?region=busan`}
+                  href={`/places/${alternative.contentId}?region=${regionId}`}
                   className="surface-card block p-5 transition hover:border-[#9bb8a8]"
                 >
                   <div className="flex flex-wrap items-center gap-2">

@@ -32,6 +32,10 @@ import {
 } from "@/lib/kakao/directions-client";
 import type { KakaoMapLocation } from "@/lib/kakao/maps";
 import {
+  REGION_CONFIGS,
+  getRegionConfigByService2LegalDongCode,
+} from "@/lib/regions/config";
+import {
   loadStoredItineraryRestoration,
   selectItineraryRestoration,
   type ItineraryRestoration,
@@ -183,6 +187,9 @@ export function ItineraryEditor() {
   const currentItinerary = restoration.itinerary;
   const routeDate = generation.request.travelDate;
   const routeStart = generation.request.startTime;
+  const routeRegion = getRegionConfigByService2LegalDongCode(
+    preferences.regionCode,
+  ) ?? REGION_CONFIGS[0];
 
   return (
     <div className="space-y-6">
@@ -202,7 +209,7 @@ export function ItineraryEditor() {
             <span className="inline-flex items-center gap-1.5"><MapPinned size={16} aria-hidden="true" /> {generation.request.start.label ?? "출발지"}</span>
           </p>
         </div>
-        <Button type="button" variant="brandSecondary" onClick={() => router.push("/results?tab=recommendations&region=busan")}>
+        <Button type="button" variant="brandSecondary" onClick={() => router.push(`/results?tab=recommendations&region=${routeRegion.id}`)}>
           <ArrowLeft size={17} aria-hidden="true" /> 경로 비교로 돌아가기
         </Button>
       </header>
@@ -277,7 +284,7 @@ export function ItineraryEditor() {
 
           <div className="mt-4">
             <MapPanel
-              regionId="busan"
+              regionId={routeRegion.id}
               compact
               locations={routeLocations}
               routeCoordinates={presentation.geometry}
@@ -296,7 +303,7 @@ export function ItineraryEditor() {
           </p>
 
           <div className="mt-4 grid gap-2">
-            <Button type="button" variant="brand" className="w-full" onClick={() => router.push("/results?tab=recommendations&region=busan")}>
+            <Button type="button" variant="brand" className="w-full" onClick={() => router.push(`/results?tab=recommendations&region=${routeRegion.id}`)}>
               <ArrowLeft size={17} aria-hidden="true" /> 경로 비교로 돌아가기
             </Button>
             <Link

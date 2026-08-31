@@ -475,6 +475,28 @@ describe("selected-place hybrid recommendation", () => {
     expect(result.route.stops.map(({ placeId }) => placeId)).not.toContain("tour:1004");
   });
 
+  it("allows an unverified supplement only after the separate explicit opt-in", async () => {
+    const result = await generateRouteRecommendation({
+      ...REQUEST,
+      selectedPlaceIds: ["tour:1001"],
+      autoFill: true,
+      includeVerificationRequired: true,
+    }, dependencies([
+      ktoCandidate("1001"),
+      ktoCandidate("1002", { verdict: "unknown", tier: "unverified" }),
+    ], []));
+
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.route.stops).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        placeId: "tour:1002",
+        provenance: "auto_fill",
+        petAssessment: "unknown",
+      }),
+    ]));
+  });
+
   it("optimizes route order while preserving every anchor", async () => {
     const result = await generateRouteRecommendation({
       ...REQUEST,
@@ -490,6 +512,27 @@ describe("selected-place hybrid recommendation", () => {
     expect(result.routeOptions).toHaveLength(2);
     expect(result.routeOptions?.every(({ stops }) =>
       stops.every(({ locked }) => locked))).toBe(true);
+  });
+
+  it("returns an honest insufficient state instead of dropping any of five incompatible locked anchors", async () => {
+    const selectedPlaceIds = ["tour:1001", "tour:1002", "tour:1003", "tour:1004", "tour:1005"];
+    const result = await generateRouteRecommendation({
+      ...REQUEST,
+      trip: { ...REQUEST.trip, tripPace: "relaxed", desiredStopCount: 1 },
+      selectedPlaceIds,
+      autoFill: false,
+    }, dependencies(selectedPlaceIds.map((id) => ktoCandidate(id.split(":")[1]!)), []));
+
+    expect(result).toMatchObject({
+      status: "insufficient_feasible_route",
+      selectionMode: "hybrid",
+      requestedStopCount: 5,
+      feasibleStopCount: 0,
+      selectionIssues: [expect.objectContaining({
+        code: "selected_place_trip_incompatible",
+        blocking: true,
+      })],
+    });
   });
 
   it("returns a structured warning for widely separated selected anchors", async () => {

@@ -14,7 +14,7 @@ export function EmotionalCtaCard() {
           <br />
           지금 시작해보세요!
         </h2>
-        <ButtonLink href="/results?tab=catalog&region=busan&mode=select" variant="brand" className="mt-6">
+        <ButtonLink href="/results?tab=catalog&mode=select" variant="brand" className="mt-6">
           <PawPrint size={17} aria-hidden="true" />
           장소 고르고 일정 만들기
           <ArrowRight size={17} aria-hidden="true" />

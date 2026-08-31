@@ -35,9 +35,11 @@ export function createRouteRecommendationRequest(
   selection?: {
     selectedPlaces: Array<{ id: string; regionId: RouteRecommendationRequest["trip"]["regionId"] }>;
     autoFill: boolean;
+    includeVerificationRequired?: boolean;
     selectedCategories: RouteRecommendationRequest["trip"]["selectedCategories"];
     acknowledgedVerificationRequiredPlaceIds?: string[];
   },
+  eligibility: { includeVerificationRequired?: boolean } = {},
 ): RouteRecommendationRequest {
   if (!preferences.departure) {
     throw new TypeError("A resolved departure is required.");
@@ -93,7 +95,14 @@ export function createRouteRecommendationRequest(
       acknowledgedVerificationRequiredPlaceIds:
         selection.acknowledgedVerificationRequiredPlaceIds ?? [],
       autoFill: selection.autoFill,
-    } : {}),
+      includeVerificationRequired:
+        selection.includeVerificationRequired ??
+        eligibility.includeVerificationRequired ??
+        false,
+    } : {
+      includeVerificationRequired:
+        eligibility.includeVerificationRequired ?? false,
+    }),
     personalization: {
       petCount: 1,
       petActivityLevel: "moderate",

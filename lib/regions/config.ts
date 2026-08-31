@@ -66,6 +66,18 @@ export interface KtoCollectionPartitionConfig {
 }
 
 export type RegionMapProvider = "tour" | "kakao";
+export interface RegionRouteCapabilities {
+  /** Order and validate places explicitly chosen by the user. */
+  selectedPlaceRouting: boolean;
+  /** Add strictly eligible candidates around locked user selections. */
+  automaticFill: boolean;
+  /** Build an itinerary without any user-selected place. */
+  fullyAutomaticRecommendation: boolean;
+}
+export type RegionRouteCapabilityBlock =
+  | "selected_place_routing"
+  | "automatic_fill"
+  | "fully_automatic_recommendation";
 export type RegionCatalogCategory =
   | "attraction"
   | "food"
@@ -120,6 +132,7 @@ export interface RegionConfig<TId extends string = RegionId> {
   ktoCatalogEnabled: boolean;
   ktoCollection: KtoCollectionDatasetConfig | null;
   itineraryEnabled: boolean;
+  routeCapabilities: RegionRouteCapabilities;
   kakaoDiscoveryEnabled: boolean;
   allowedMapProviders: readonly RegionMapProvider[];
   mapCatalog: RegionMapCatalogConfig;
@@ -194,6 +207,11 @@ export const BUSAN_REGION_CONFIG = {
     },
   },
   itineraryEnabled: true,
+  routeCapabilities: {
+    selectedPlaceRouting: true,
+    automaticFill: true,
+    fullyAutomaticRecommendation: true,
+  },
   kakaoDiscoveryEnabled: true,
   allowedMapProviders: ["tour", "kakao"],
   mapCatalog: {
@@ -303,6 +321,11 @@ export const JEJU_REGION_CONFIG = {
     },
   },
   itineraryEnabled: false,
+  routeCapabilities: {
+    selectedPlaceRouting: true,
+    automaticFill: false,
+    fullyAutomaticRecommendation: false,
+  },
   kakaoDiscoveryEnabled: false,
   allowedMapProviders: ["tour"],
   mapCatalog: {
@@ -388,6 +411,11 @@ export const SEOUL_REGION_CONFIG = {
     },
   },
   itineraryEnabled: false,
+  routeCapabilities: {
+    selectedPlaceRouting: true,
+    automaticFill: false,
+    fullyAutomaticRecommendation: false,
+  },
   kakaoDiscoveryEnabled: false,
   allowedMapProviders: ["tour"],
   mapCatalog: {
@@ -511,6 +539,11 @@ function createProgressiveKtoMapRegion<TId extends RegionId>(input: {
       },
     },
     itineraryEnabled: false,
+    routeCapabilities: {
+      selectedPlaceRouting: true,
+      automaticFill: false,
+      fullyAutomaticRecommendation: false,
+    },
     kakaoDiscoveryEnabled: false,
     allowedMapProviders: ["tour"],
     mapCatalog: {
@@ -829,6 +862,24 @@ export function getItineraryEnabledRegionConfigs(
   regions: readonly RegionConfig[] = REGION_CONFIGS,
 ): RegionConfig[] {
   return regions.filter((region) => region.itineraryEnabled);
+}
+
+export function getRegionRouteCapabilityBlock(
+  region: RegionConfig,
+  request: { selectedPlaceCount: number; autoFill: boolean },
+): RegionRouteCapabilityBlock | null {
+  if (request.selectedPlaceCount > 0) {
+    if (!region.routeCapabilities.selectedPlaceRouting) {
+      return "selected_place_routing";
+    }
+    if (request.autoFill && !region.routeCapabilities.automaticFill) {
+      return "automatic_fill";
+    }
+    return null;
+  }
+  return region.routeCapabilities.fullyAutomaticRecommendation
+    ? null
+    : "fully_automatic_recommendation";
 }
 
 export function getKakaoDiscoveryEnabledRegionConfigs(

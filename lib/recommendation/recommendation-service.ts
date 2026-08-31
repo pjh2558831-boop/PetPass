@@ -4,7 +4,10 @@ import { BUSAN_DISCOVERY_BOUNDS } from "@/lib/kakao/discovery";
 import { KakaoMobilityProviderError } from "@/lib/kakao/directions";
 import { KakaoTravelTimeProvider } from "@/lib/kakao/travel-time-provider";
 import { getTripPaceConfig } from "@/lib/itinerary/trip-pace";
-import { getRegionConfig } from "@/lib/regions/config";
+import {
+  getRegionConfig,
+  getRegionRouteCapabilityBlock,
+} from "@/lib/regions/config";
 import { loadMapPlacesSnapshot } from "@/lib/map-places/snapshot";
 import {
   getDefaultLicenseMatchingService,
@@ -587,14 +590,18 @@ export async function generateRouteRecommendation(
 
   const normalized = normalizeRecommendationRequest(request);
   const region = getRegionConfig(request.trip.regionId);
-  if (!region?.itineraryEnabled) {
+  const selectedPlaceIds = [...(request.selectedPlaceIds ?? [])];
+  const hybridMode = selectedPlaceIds.length > 0;
+  const capabilityBlock = getRegionRouteCapabilityBlock(region, {
+    selectedPlaceCount: selectedPlaceIds.length,
+    autoFill: request.autoFill ?? true,
+  });
+  if (capabilityBlock) {
     return recommendationFailure("region_not_supported_for_itinerary", [
-      "itinerary_capability_disabled",
+      capabilityBlock,
     ]);
   }
 
-  const selectedPlaceIds = [...(request.selectedPlaceIds ?? [])];
-  const hybridMode = selectedPlaceIds.length > 0;
   const selectedIdSet = new Set(selectedPlaceIds);
   const pace = getTripPaceConfig(request.trip.tripPace);
   const crossRegionReferences = (request.selectedPlaceReferences ?? []).filter(
@@ -612,7 +619,6 @@ export async function generateRouteRecommendation(
   if (
     hybridMode &&
     (selectedIdSet.size !== selectedPlaceIds.length ||
-      selectedPlaceIds.length > pace.maxStops ||
       selectedPlaceIds.some((placeId) => !/^(?:tour|kakao):[0-9]+$/u.test(placeId)))
   ) {
     return selectedFailure([{
@@ -621,9 +627,7 @@ export async function generateRouteRecommendation(
         selectedPlaceIds.at(-1) ?? "selected-place",
       code: "selected_place_not_found_in_region",
       blocking: true,
-      reasonCodes: selectedPlaceIds.length > pace.maxStops
-        ? ["selected_place_count_exceeds_trip_pace_limit"]
-        : ["selected_place_identity_invalid_or_duplicated"],
+      reasonCodes: ["selected_place_identity_invalid_or_duplicated"],
       replacementCandidateIds: [],
     }], []);
   }
@@ -1000,8 +1004,10 @@ export async function generateRouteRecommendation(
           candidate.source === "tourism_service2" &&
           candidate.ktoCandidate !== null &&
           candidate.category !== "shopping" &&
-          candidate.petVerdict !== "unknown" &&
-          candidate.eligibilityTier !== "unverified" &&
+          ((request.includeVerificationRequired ?? false) || (
+            candidate.petVerdict !== "unknown" &&
+            candidate.eligibilityTier !== "unverified"
+          )) &&
           desiredSupplementCategories.has(candidate.category) &&
           !candidate.providerIdentities.some(({ provider, id }) =>
             selectedProviderIdentities.has(`${provider}:${id}`)))

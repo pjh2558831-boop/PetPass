@@ -27,6 +27,10 @@ import { RecommendationStopProvenance } from "@/components/itinerary/recommendat
 import { usePlannerState } from "@/components/planner/planner-state";
 import { Button } from "@/components/ui/button";
 import {
+  REGION_CONFIGS,
+  getRegionConfigByService2LegalDongCode,
+} from "@/lib/regions/config";
+import {
   recommendationActions,
   recommendationReasonCopy,
   recommendationWarningCopy,
@@ -38,6 +42,7 @@ import {
   routeRecommendationResponseSchema,
 } from "@/lib/recommendation/recommendation-response";
 import { saveRouteRecommendation } from "@/lib/storage/recommendation-storage";
+import { loadPlanDraft } from "@/lib/storage/plan-draft-storage";
 import {
   getSelectedItineraryCategories,
   loadSelectedItinerary,
@@ -67,11 +72,13 @@ const CATEGORY_LABEL = {
 } as const;
 
 const LOADING_STAGES = [
-  "방문 가능한 공식 장소를 확인하고 있어요",
-  "동반 조건과 운영 정보를 확인하고 있어요",
-  "실제 이동시간을 비교하고 있어요",
-  "가장 자연스러운 일정 순서를 찾고 있어요",
-  "최종 이동 경로를 확인하고 있어요",
+  "선택 장소 확인",
+  "지역·카테고리 후보 확인",
+  "반려견 동반 근거 확인",
+  "영업시간 확인",
+  "이동시간 계산",
+  "경로 비교",
+  "추천 완료",
 ] as const;
 
 function formatDistance(meters: number): string {
@@ -121,6 +128,34 @@ const ROUTE_STYLE_COPY = {
   relaxed: "긴 단일 이동과 대기 부담이 더 낮은 여유 경로예요.",
 } as const;
 
+const ROUTE_DIFFERENCE_COPY: Record<string, string> = {
+  primary_balanced_objective: "이동·대기·장소 구성을 함께 고려한 기준 경로",
+  different_places_or_order: "방문 장소 또는 순서가 다른 경로",
+  different_travel_time: "총 이동시간이 다른 경로",
+  different_wait_time: "예상 대기시간이 다른 경로",
+  different_category_composition: "장소 유형 구성이 다른 경로",
+};
+
+function routeCategorySummary(route: ProductRouteV1): string {
+  const composition = route.categoryComposition ?? Object.fromEntries(
+    [...new Set(route.stops.map(({ category }) => category))].map((category) => [
+      category,
+      route.stops.filter((stop) => stop.category === category).length,
+    ]),
+  );
+  return Object.entries(composition)
+    .filter(([, count]) => count > 0)
+    .map(([category, count]) =>
+      `${CATEGORY_LABEL[category as keyof typeof CATEGORY_LABEL]} ${count}`)
+    .join(" · ");
+}
+
+function routeDifferenceSummary(route: ProductRouteV1): string {
+  return route.differenceExplanationCodes
+    ?.map((code) => ROUTE_DIFFERENCE_COPY[code])
+    .find(Boolean) ?? ROUTE_STYLE_COPY[route.style ?? "balanced"];
+}
+
 const SELECTION_ISSUE_COPY: Record<string, string> = {
   selected_place_not_found_in_region: "선택한 장소를 현재 지역 데이터에서 찾지 못했습니다.",
   selected_place_cross_region: "다른 지역의 장소가 포함되어 있습니다.",
@@ -132,7 +167,13 @@ const SELECTION_ISSUE_COPY: Record<string, string> = {
   selected_anchor_large_detour: "직접 고른 장소를 유지해 이동 거리가 길어졌습니다.",
 };
 
-function EmptyResult({ selectionMode }: { selectionMode: "automatic" | "hybrid" }) {
+function EmptyResult({
+  selectionMode,
+  regionId,
+}: {
+  selectionMode: "automatic" | "hybrid";
+  regionId: string;
+}) {
   return (
     <section className="surface-panel mx-auto max-w-3xl p-8 text-center" aria-labelledby="route-empty-heading">
       <PawPrint className="mx-auto text-[var(--brand)]" aria-hidden="true" />
@@ -140,7 +181,7 @@ function EmptyResult({ selectionMode }: { selectionMode: "automatic" | "hybrid" 
       <p className="mt-3 text-sm leading-7 text-[var(--muted)]">반려동물과 여행 조건을 입력하면 공식 동반 근거와 실제 이동 경로를 확인해 일정을 만듭니다.</p>
       {selectionMode === "hybrid" ? (
         <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <Link href="/results?tab=catalog&region=busan&mode=select" className="inline-flex min-h-12 items-center rounded-[var(--radius-control)] bg-[var(--brand)] px-5 text-sm font-extrabold text-white">장소를 직접 골라 시작</Link>
+          <Link href={`/results?tab=catalog&region=${regionId}&mode=select`} className="inline-flex min-h-12 items-center rounded-[var(--radius-control)] bg-[var(--brand)] px-5 text-sm font-extrabold text-white">장소를 직접 골라 시작</Link>
           <Link href="/planner/pet" className="inline-flex min-h-12 items-center rounded-[var(--radius-control)] border border-[var(--brand-border)] bg-white px-5 text-sm font-extrabold text-[var(--brand)]">전체 자동 추천 받기</Link>
         </div>
       ) : (
@@ -177,10 +218,12 @@ function FailureResult({
   response,
   onRetry,
   selectionMode,
+  regionId,
 }: {
   response: Exclude<RouteRecommendationResponseV1, { status: "ready" }>;
   onRetry: () => void;
   selectionMode: "automatic" | "hybrid";
+  regionId: string;
 }) {
   return (
     <section className="surface-panel p-6" role="alert" aria-labelledby="route-error-heading">
@@ -193,7 +236,7 @@ function FailureResult({
       <div className="mt-5 flex flex-wrap gap-2">
         {response.retryable ? <Button type="button" variant="brand" onClick={onRetry}><RefreshCw size={16} aria-hidden="true" /> 다시 시도</Button> : null}
         <Link href={selectionMode === "hybrid" ? "/planner/pet?mode=selected" : "/planner/pet"} className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">여행 조건 수정</Link>
-        <Link href={selectionMode === "hybrid" ? "/results?tab=catalog&region=busan&mode=select" : "/results?tab=catalog&region=busan"} className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">{selectionMode === "hybrid" ? "장소 다시 선택" : "방문 가능한 장소 보기"}</Link>
+        <Link href={selectionMode === "hybrid" ? `/results?tab=catalog&region=${regionId}&mode=select` : `/results?tab=catalog&region=${regionId}`} className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">{selectionMode === "hybrid" ? "장소 다시 선택" : "방문 가능한 장소 보기"}</Link>
         {selectionMode === "hybrid" ? <Link href="/planner/pet" className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">전체 자동 추천</Link> : null}
       </div>
     </section>
@@ -297,6 +340,8 @@ export function RecommendationPlanner({
   selectionMode?: "automatic" | "hybrid";
 }) {
   const { profile, preferences, profileConfirmed, preferencesConfirmed } = usePlannerState();
+  const plannerRegion = getRegionConfigByService2LegalDongCode(preferences.regionCode) ??
+    REGION_CONFIGS[0];
   const [response, setResponse] = useState<RouteRecommendationResponseV1 | null>(null);
   const [activeRoute, setActiveRoute] = useState<ProductRouteV1 | null>(null);
   const [editableIds, setEditableIds] = useState<string[]>([]);
@@ -358,11 +403,15 @@ export function RecommendationPlanner({
         return {
           selectedPlaces: selection.places.map(({ id, regionId }) => ({ id, regionId })),
           autoFill: selection.autoFill,
+          includeVerificationRequired: selection.includeVerificationRequired,
           selectedCategories: categories,
           acknowledgedVerificationRequiredPlaceIds:
             selection.acknowledgedVerificationRequiredPlaceIds,
         };
-      })() : undefined);
+      })() : undefined, {
+        includeVerificationRequired:
+          loadPlanDraft()?.includeVerificationRequired ?? false,
+      });
       const result = await fetch("/api/itineraries/generate", {
         method: "POST",
         headers: { Accept: "application/json", "Content-Type": "application/json" },
@@ -498,16 +547,28 @@ export function RecommendationPlanner({
   }, []);
 
   const moveStop = (id: string, direction: -1 | 1) => {
-    setEditableIds((current) => {
-      const index = current.indexOf(id);
-      const target = index + direction;
-      if (index < 0 || target < 0 || target >= current.length) return current;
-      const next = [...current];
-      [next[index], next[target]] = [next[target]!, next[index]!];
-      return next;
-    });
+    const index = editableIds.indexOf(id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= editableIds.length) return;
+    const next = [...editableIds];
+    [next[index], next[target]] = [next[target]!, next[index]!];
+    setEditableIds(next);
+    if (selectionMode === "hybrid" && hybridSelection) {
+      const selectedById = new Map(
+        hybridSelection.places.map((place) => [place.id, place]),
+      );
+      const orderedSelected = next.flatMap((placeId) => {
+        const place = selectedById.get(placeId);
+        return place ? [place] : [];
+      });
+      const nextSelection = { ...hybridSelection, places: orderedSelected };
+      setHybridSelection(nextSelection);
+      if (!saveSelectedItinerary(nextSelection)) {
+        setManualError("선택 장소 순서를 브라우저에 저장하지 못했습니다.");
+      }
+    }
     setEditDirty(true);
-    setManualError("");
+    if (!(selectionMode === "hybrid" && hybridSelection)) setManualError("");
   };
 
   const removeStop = (id: string) => {
@@ -556,10 +617,12 @@ export function RecommendationPlanner({
     }
   };
 
-  if (!profileConfirmed || !preferencesConfirmed) return <EmptyResult selectionMode={selectionMode} />;
+  if (!profileConfirmed || !preferencesConfirmed) {
+    return <EmptyResult selectionMode={selectionMode} regionId={plannerRegion.id} />;
+  }
   if (loading) return <LoadingResult slow={slow} />;
   if (response && response.status !== "ready") {
-    return <div ref={errorRef} tabIndex={-1}><FailureResult response={response} onRetry={() => void runRecommendation()} selectionMode={selectionMode} /></div>;
+    return <div ref={errorRef} tabIndex={-1}><FailureResult response={response} onRetry={() => void runRecommendation()} selectionMode={selectionMode} regionId={plannerRegion.id} /></div>;
   }
   if (!ready || !displayedRoute) {
     return <section className="surface-panel p-8 text-center"><h1 className="text-2xl font-black">추천 일정을 만들어 볼까요?</h1><Button type="button" variant="brand" className="mt-5" onClick={() => void runRecommendation()}>추천 일정 만들기</Button></section>;
@@ -589,6 +652,11 @@ export function RecommendationPlanner({
             {!editDirty && displayedRoute.temporalBasis.searchMatrix !== displayedRoute.temporalBasis.finalRoute ? <p className="mt-2 text-xs font-bold text-[#76542f]">장소 순서는 확인된 이동 정보로 비교하고, 표시된 시간과 경로는 Kakao의 최종 길찾기 결과를 반영했습니다.</p> : null}
           </div>
           <div className="flex flex-wrap gap-2">
+            {selectionMode === "hybrid" ? (
+              <Link href={`/results?tab=catalog&region=${plannerRegion.id}&mode=select`} className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">
+                지도에서 장소 추가
+              </Link>
+            ) : null}
             <Button type="button" variant="brandSecondary" disabled={editDirty} onClick={() => { const saved = saveRouteRecommendation(ready, displayedRoute); setSaveMessage(saved ? "현재 일정을 이 브라우저에 저장했습니다." : "저장하지 못했습니다. 브라우저 저장 공간을 확인해 주세요."); }}><Save size={16} aria-hidden="true" /> 일정 저장</Button>
             {selectionMode === "automatic" || (hybridAutoFill && hasAutoFilledStops) ? (
               <Button type="button" variant="brandSecondary" onClick={() => void runRecommendation("reroll")}><RefreshCw size={16} aria-hidden="true" /> {selectionMode === "hybrid" ? "자동 장소 다시 채우기" : "다른 조합 보기"}</Button>
@@ -617,12 +685,40 @@ export function RecommendationPlanner({
         <section className="route-result-alternatives" aria-labelledby="route-alternatives-heading">
           <h2 id="route-alternatives-heading" className="text-sm font-black">추천 기준을 바꿔 비교해 보세요</h2>
           <div className="mt-3 flex flex-wrap gap-2" role="tablist" aria-label="일정 대안">
-            {availableRoutes.map((route) => (
-              <button key={route.id} type="button" role="tab" aria-selected={activeRoute?.id === route.id} onClick={() => { setActiveRoute(route); setEditableIds(route.stops.map(({ placeId }) => placeId)); setEditDirty(false); setSelectedPlaceId(route.stops[0]?.placeId ?? null); setManualError(""); }} className={`min-h-11 rounded-full border px-4 text-sm font-extrabold ${activeRoute?.id === route.id ? "border-[var(--mint-500)] bg-[var(--brand-soft)] text-[var(--brand)]" : "border-[var(--line)] bg-white text-[#607168]"}`}>{route.label}</button>
-            ))}
+            {availableRoutes.map((route) => {
+              const verificationCount = route.stops.filter((stop) =>
+                stop.petAssessment === "unknown" ||
+                stop.evidenceStatus === "unverified" ||
+                Boolean(stop.verificationWarning)).length;
+              const reduced = route.reductionStatus === "reduced" ||
+                route.reductionStatus === "single_stop";
+              return (
+                <button
+                  key={route.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeRoute?.id === route.id}
+                  onClick={() => {
+                    setActiveRoute(route);
+                    setEditableIds(route.stops.map(({ placeId }) => placeId));
+                    setEditDirty(false);
+                    setSelectedPlaceId(route.stops[0]?.placeId ?? null);
+                    setManualError("");
+                  }}
+                  className={`grid min-h-11 min-w-[220px] gap-1 rounded-2xl border px-4 py-3 text-left text-sm ${activeRoute?.id === route.id ? "border-[var(--mint-500)] bg-[var(--brand-soft)] text-[var(--brand)]" : "border-[var(--line)] bg-white text-[#607168]"}`}
+                >
+                  <strong className="font-black">{route.label}</strong>
+                  <span className="text-xs font-bold">{route.routeSummary.stopCount}곳 · 이동 {formatDuration(route.routeSummary.totalDrivingSeconds)} · 대기 {formatDuration(route.routeSummary.totalWaitSeconds)}</span>
+                  <span className="text-xs">종료 {koreaTime(route.estimatedFinishAt ?? route.routeSummary.endAt)} · {routeCategorySummary(route) || "장소 유형 확인"}</span>
+                  <span className="text-xs">자동 추가 {route.automaticPlaceCount ?? route.stops.filter(({ provenance }) => provenance === "auto_fill").length}곳 · 확인 필요 {verificationCount}곳</span>
+                  {reduced ? <span className="text-xs font-bold text-[#76542f]">축소 결과 · 안전하게 완성 가능한 장소만 포함</span> : null}
+                  <span className="text-xs leading-5">차이: {routeDifferenceSummary(route)}</span>
+                </button>
+              );
+            })}
           </div>
           {activeStyle ? <p className="mt-3 text-sm leading-6 text-[var(--muted)]" role="tabpanel">{ROUTE_STYLE_COPY[activeStyle]}</p> : null}
-          {ready.alternativeAvailability === "limited" ? <p className="mt-2 text-xs font-semibold text-[var(--muted)]">현재 후보에서는 서로 다른 검증 경로만 표시했어요.</p> : null}
+          {ready.alternativeAvailability === "limited" ? <p className="mt-2 text-xs font-semibold text-[var(--muted)]">현재 조건에서 의미 있게 다른 검증 경로는 {availableRoutes.length}개입니다. 빈 대안은 표시하지 않았어요.</p> : null}
         </section>
       ) : null}
 
@@ -635,7 +731,7 @@ export function RecommendationPlanner({
         </section>
 
         <aside className="min-w-0 lg:sticky lg:top-24 lg:self-start" aria-label="추천 일정 지도">
-          <MapPanel regionId="busan" compact locations={routeLocations} routeCoordinates={editDirty ? [] : displayedRoute.geometry} selectedLocationId={selectedPlaceId} onLocationSelect={selectPlace} viewportKey={`route:${displayedRoute.id}:${editDirty ? "draft" : "validated"}`} title="추천 일정의 Kakao 실제 이동 경로" locationLabel={`${summary.stopCount}곳 방문 일정`} emptyMessage={editDirty ? "수정한 순서를 재계산하면 실제 경로를 표시합니다." : "검증된 경로 geometry가 없습니다."} />
+          <MapPanel regionId={plannerRegion.id} compact locations={routeLocations} routeCoordinates={editDirty ? [] : displayedRoute.geometry} selectedLocationId={selectedPlaceId} onLocationSelect={selectPlace} viewportKey={`route:${displayedRoute.id}:${editDirty ? "draft" : "validated"}`} title="추천 일정의 Kakao 실제 이동 경로" locationLabel={`${summary.stopCount}곳 방문 일정`} emptyMessage={editDirty ? "수정한 순서를 재계산하면 실제 경로를 표시합니다." : "검증된 경로 geometry가 없습니다."} />
           <p className="route-result-map-note"><MapPinned className="mr-1 inline" size={14} aria-hidden="true" /> {editDirty ? "번호는 수정한 방문 순서입니다. 경로 재계산 전에는 선을 표시하지 않습니다." : "번호는 방문 순서이며 선은 최종 Kakao 길찾기가 반환한 geometry입니다."}</p>
           <section className="route-result-reliability" aria-labelledby="route-reliability-heading"><h2 id="route-reliability-heading" className="flex items-center gap-2 text-sm font-black"><ShieldCheck size={17} className="text-[var(--brand)]" aria-hidden="true" /> 정보 안내</h2><p className="mt-2 text-xs leading-6 text-[var(--muted)]">한국관광공사 근거 장소와 저장된 카카오 후보를 출처·근거 상태와 함께 표시합니다. 미확인 정보는 동반 가능으로 단정하지 않으며 방문 전 확인할 수 있어요.</p></section>
           {displayedRoute.kind === "manual" ? <Button type="button" variant="brandSecondary" className="mt-4 w-full" onClick={() => { setActiveRoute(ready.route); setEditableIds(ready.route.stops.map(({ placeId }) => placeId)); setEditDirty(false); setSelectedPlaceId(ready.route.stops[0]?.placeId ?? null); }}><RotateCcw size={16} aria-hidden="true" /> 원래 추천 일정 복원</Button> : null}

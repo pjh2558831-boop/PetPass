@@ -125,35 +125,35 @@ const READY = {
   alternativeAvailability: "available" as const,
   route: {
     ...BASE_READY.route,
-    id: "optimized:comfort:1001>2001",
-    label: "편안함 우선",
-    style: "comfort" as const,
+    id: "optimized:balanced:1001>2001",
+    label: "균형 추천",
+    style: "balanced" as const,
     routeSignature: "1001>2001",
     requestedTarget: 3,
     reductionStatus: "reduced" as const,
-    personalizationExplanationCodes: ["route_style_comfort"],
+    personalizationExplanationCodes: ["route_style_balanced"],
   },
   alternatives: [],
   routeOptions: [
     {
       ...BASE_READY.route,
-      id: "optimized:comfort:1001>2001",
-      label: "편안함 우선",
-      style: "comfort" as const,
+      id: "optimized:balanced:1001>2001",
+      label: "균형 추천",
+      style: "balanced" as const,
       routeSignature: "1001>2001",
       requestedTarget: 3,
       reductionStatus: "reduced" as const,
-      personalizationExplanationCodes: ["route_style_comfort"],
+      personalizationExplanationCodes: ["route_style_balanced"],
     },
     {
       ...BASE_READY.route,
-      id: "optimized:preference:3001>3002",
-      label: "취향 우선",
-      style: "preference" as const,
+      id: "optimized:relaxed:3001>3002",
+      label: "여유 일정",
+      style: "relaxed" as const,
       routeSignature: "3001>3002",
       requestedTarget: 3,
       reductionStatus: "reduced" as const,
-      personalizationExplanationCodes: ["route_style_preference"],
+      personalizationExplanationCodes: ["route_style_relaxed"],
       stops: preferenceStops,
       geometry: [
         { latitude: 35.1796, longitude: 129.0756 },
@@ -163,13 +163,13 @@ const READY = {
     },
     {
       ...BASE_READY.route,
-      id: "optimized:efficient:2001>1001",
+      id: "optimized:shortest:2001>1001",
       label: "이동 최소",
-      style: "efficient" as const,
+      style: "shortest" as const,
       routeSignature: "2001>1001",
       requestedTarget: 3,
       reductionStatus: "reduced" as const,
-      personalizationExplanationCodes: ["route_style_efficient"],
+      personalizationExplanationCodes: ["route_style_shortest"],
       routeSummary: {
         ...BASE_READY.route.routeSummary,
         endAt: "2026-08-15T04:40:00.000Z",
@@ -369,7 +369,7 @@ test("reroll sends recent signatures and a new deterministic variant", async ({ 
   await chooseConfirmedDeparture(page);
   await continueToDay(page);
   await page.getByRole("button", { name: "여행 추천 받기" }).click();
-  await expect(page.getByRole("tab", { name: "편안함 우선" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "균형 추천" })).toBeVisible();
   await page.getByRole("button", { name: "다른 조합 보기" }).click();
   await expect.poll(() => bodies.length).toBe(2);
 
@@ -546,7 +546,7 @@ test("restores a saved recommendation directly and after refresh without provide
   await expect(page.getByRole("heading", { name: "여행 정보 입력" })).toBeVisible();
   await page.goto("/itinerary");
   await expect(page.getByText("저장된 일정", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "편안함 우선" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "균형 추천" })).toBeVisible();
   await expect(page.getByRole("list", { name: "저장된 일정 방문 순서" }).locator(":scope > li")).toHaveCount(2);
   await expect(page.getByText("해운대 공식 공원")).toBeVisible();
   await expect(page.getByText("광안 공식 식당")).toBeVisible();
@@ -563,7 +563,7 @@ test("restores a saved recommendation directly and after refresh without provide
 
   await page.reload();
   await expect(page.getByText("저장된 일정", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "편안함 우선" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "균형 추천" })).toBeVisible();
   const refreshMetrics = await page.evaluate(() =>
     (window as unknown as { __savedRouteStorageMetrics: { reads: number; parses: number; parseDurationMs: number } }).__savedRouteStorageMetrics,
   );
@@ -617,7 +617,7 @@ test("keeps a rejected manual edit visible and allows restoration", async ({ pag
   await page.getByRole("button", { name: "경로 다시 계산" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "운영시간과 이동시간" })).toBeVisible();
   await page.getByRole("button", { name: "원래 추천 복원" }).click();
-  await expect(page.getByRole("list", { name: /편안함 우선 방문 순서/u }).locator(":scope > li")).toHaveCount(2);
+  await expect(page.getByRole("list", { name: /균형 추천 방문 순서/u }).locator(":scope > li")).toHaveCount(2);
 });
 
 test("shows truthful staged loading labels without fake percentages", async ({ page }, testInfo) => {
@@ -634,8 +634,8 @@ test("shows truthful staged loading labels without fake percentages", async ({ p
   await continueToDay(page);
   await page.getByRole("button", { name: "여행 추천 받기" }).click();
   await expect(page).toHaveURL(/\/results\?tab=recommendations&region=busan$/u);
-  await expect(page.getByText("방문 가능한 공식 장소를 확인하고 있어요")).toBeVisible();
-  await expect(page.getByText("최종 이동 경로를 확인하고 있어요")).toBeVisible();
+  await expect(page.getByText("선택 장소 확인")).toBeVisible();
+  await expect(page.getByText("추천 완료")).toBeVisible();
   await expect(page.getByText(/\d+%/u)).toHaveCount(0);
   release!();
   await expect(page.getByRole("heading", { name: /에서 시작하는 2곳 일정/u })).toBeVisible();
@@ -674,7 +674,7 @@ test("keeps the Stage 5 result usable at desktop, tablet, and mobile widths", as
     await page.setViewportSize(viewport);
     await expectNoHorizontalOverflow(page);
     await expect(page.getByRole("heading", { name: /에서 시작하는 2곳 일정/u })).toBeVisible();
-    await expect(page.getByRole("list", { name: /편안함 우선 방문 순서/u })).toBeVisible();
+    await expect(page.getByRole("list", { name: /균형 추천 방문 순서/u })).toBeVisible();
     const map = page.locator(".kakao-map-canvas");
     await expect(map).toBeVisible();
     expect((await map.boundingBox())?.height ?? 0).toBeGreaterThan(280);

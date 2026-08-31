@@ -1,8 +1,13 @@
 "use client";
 
-import { AlertTriangle, ChevronDown, ChevronUp, Route, Trash2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronUp, LockKeyhole, Route, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { AppDialog } from "@/components/ui/app-dialog";
+import type { SelectedItineraryMoveDirection } from "@/components/places/use-selected-itinerary-selection";
+import {
+  mapCatalogPlaceToCategory,
+  PLACE_CATEGORY_LABELS,
+} from "@/lib/map-places/place-categories";
 import {
   MAX_SELECTED_ITINERARY_PLACES,
   selectedItineraryNeedsWarning,
@@ -14,12 +19,26 @@ function SelectionTrayContents({
   snapshot,
   canContinue,
   onRemove,
+  onMove,
   onContinue,
+  onAutomaticStart,
+  onAutoFillChange,
+  onIncludeVerificationRequiredChange,
+  automaticFillSupported,
+  automaticRecommendationSupported,
+  regionName,
 }: {
   snapshot: SelectedItinerarySnapshot;
   canContinue: boolean;
   onRemove: (placeId: string) => void;
+  onMove: (placeId: string, direction: SelectedItineraryMoveDirection) => void;
   onContinue: () => void;
+  onAutomaticStart: () => void;
+  onAutoFillChange: (enabled: boolean) => void;
+  onIncludeVerificationRequiredChange: (enabled: boolean) => void;
+  automaticFillSupported: boolean;
+  automaticRecommendationSupported: boolean;
+  regionName: string;
 }) {
   return (
     <>
@@ -27,33 +46,45 @@ function SelectionTrayContents({
         <p className="selected-itinerary-tray__empty">카드의 ‘+ 일정에 담기’를 눌러 방문할 장소를 골라보세요.</p>
       ) : (
         <ul className="selected-itinerary-tray__list" aria-label="일정에 담은 장소">
-          {snapshot.places.map((place) => (
+          {snapshot.places.map((place, index) => (
             <li key={place.id}>
               <div className="min-w-0">
                 <strong>{place.name}</strong>
-                <span>{place.sourceLabel} · {selectedItineraryVerdictLabel(place.petAccessVerdict)}</span>
+                <span>{PLACE_CATEGORY_LABELS[mapCatalogPlaceToCategory(place)]} · {place.sourceLabel}</span>
+                <span><LockKeyhole size={12} aria-hidden="true" /> 일정에 고정 · {selectedItineraryVerdictLabel(place.petAccessVerdict)}</span>
                 {selectedItineraryNeedsWarning(place) ? (
-                  <small><AlertTriangle size={12} aria-hidden="true" /> 방문 전 동반 조건 확인 필요</small>
+                  <small><AlertTriangle size={12} aria-hidden="true" /> 동반 가능 여부 확인 필요 · 사용자가 선택한 미확인 장소</small>
                 ) : null}
               </div>
-              <button type="button" onClick={() => onRemove(place.id)} aria-label={`${place.name} 일정에서 빼기`}>
-                <Trash2 size={16} aria-hidden="true" />
-              </button>
+              <div className="selected-itinerary-tray__controls">
+                <button type="button" disabled={index === 0} onClick={() => onMove(place.id, "forward")} aria-label={`${place.name} 앞으로 이동`}><ChevronUp size={16} aria-hidden="true" /></button>
+                <button type="button" disabled={index === snapshot.places.length - 1} onClick={() => onMove(place.id, "backward")} aria-label={`${place.name} 뒤로 이동`}><ChevronDown size={16} aria-hidden="true" /></button>
+                <button type="button" onClick={() => onRemove(place.id)} aria-label={`${place.name} 일정에서 빼기`}><Trash2 size={16} aria-hidden="true" /></button>
+              </div>
             </li>
           ))}
         </ul>
       )}
+      <p className="selected-itinerary-tray__range">추천 범위 1–{MAX_SELECTED_ITINERARY_PLACES}곳</p>
+      <label className="selected-itinerary-tray__option">
+        <input type="checkbox" checked={snapshot.autoFill} disabled={!automaticFillSupported} onChange={(event) => onAutoFillChange(event.target.checked)} />
+        <span>부족한 장소는 WEEKENDOG가 추천</span>
+      </label>
+      {!automaticFillSupported ? <p className="selected-itinerary-tray__hint">{regionName}에서는 선택 장소 경로만 지원하며 자동 채우기는 아직 제공하지 않습니다.</p> : null}
+      <label className="selected-itinerary-tray__option">
+        <input type="checkbox" checked={snapshot.includeVerificationRequired} disabled={!automaticFillSupported} onChange={(event) => onIncludeVerificationRequiredChange(event.target.checked)} />
+        <span>확인 필요한 장소도 후보에 포함</span>
+      </label>
       <button
         type="button"
         className="selected-itinerary-tray__continue"
         disabled={!canContinue}
         onClick={onContinue}
       >
-        <Route size={16} aria-hidden="true" /> 선택한 장소로 조건 확인
+        <Route size={16} aria-hidden="true" /> 선택한 장소로 일정 만들기
       </button>
-      <p className="selected-itinerary-tray__hint">
-        자동 채우기를 켜면 1곳부터, 끄면 2곳부터 일정을 만들 수 있어요.
-      </p>
+      <button type="button" className="selected-itinerary-tray__automatic" disabled={!automaticRecommendationSupported} onClick={onAutomaticStart}>장소 없이 알아서 추천받기</button>
+      {!automaticRecommendationSupported ? <p className="selected-itinerary-tray__hint">{regionName}의 전체 자동 추천은 준비 중입니다.</p> : null}
     </>
   );
 }
@@ -61,12 +92,26 @@ function SelectionTrayContents({
 export function SelectedItineraryTray({
   snapshot,
   onRemove,
+  onMove,
   onContinue,
+  onAutomaticStart,
+  onAutoFillChange,
+  onIncludeVerificationRequiredChange,
+  automaticFillSupported,
+  automaticRecommendationSupported,
+  regionName,
   variant,
 }: {
   snapshot: SelectedItinerarySnapshot;
   onRemove: (placeId: string) => void;
+  onMove: (placeId: string, direction: SelectedItineraryMoveDirection) => void;
   onContinue: () => void;
+  onAutomaticStart: () => void;
+  onAutoFillChange: (enabled: boolean) => void;
+  onIncludeVerificationRequiredChange: (enabled: boolean) => void;
+  automaticFillSupported: boolean;
+  automaticRecommendationSupported: boolean;
+  regionName: string;
   variant: "desktop" | "mobile";
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -81,7 +126,7 @@ export function SelectedItineraryTray({
             <span><b>{snapshot.places.length}</b> / {MAX_SELECTED_ITINERARY_PLACES}곳 담음</span>
             <ChevronUp size={17} aria-hidden="true" />
           </button>
-          <button type="button" disabled={!canContinue} onClick={onContinue}>조건 확인</button>
+          <button type="button" disabled={!canContinue} onClick={onContinue}>일정 만들기</button>
         </div>
         <AppDialog
           open={mobileOpen}
@@ -95,7 +140,14 @@ export function SelectedItineraryTray({
               snapshot={snapshot}
               canContinue={canContinue}
               onRemove={onRemove}
+              onMove={onMove}
               onContinue={onContinue}
+              onAutomaticStart={onAutomaticStart}
+              onAutoFillChange={onAutoFillChange}
+              onIncludeVerificationRequiredChange={onIncludeVerificationRequiredChange}
+              automaticFillSupported={automaticFillSupported}
+              automaticRecommendationSupported={automaticRecommendationSupported}
+              regionName={regionName}
             />
           </div>
         </AppDialog>
@@ -121,7 +173,14 @@ export function SelectedItineraryTray({
             snapshot={snapshot}
             canContinue={canContinue}
             onRemove={onRemove}
+            onMove={onMove}
             onContinue={onContinue}
+            onAutomaticStart={onAutomaticStart}
+            onAutoFillChange={onAutoFillChange}
+            onIncludeVerificationRequiredChange={onIncludeVerificationRequiredChange}
+            automaticFillSupported={automaticFillSupported}
+            automaticRecommendationSupported={automaticRecommendationSupported}
+            regionName={regionName}
           />
         </div>
       ) : null}

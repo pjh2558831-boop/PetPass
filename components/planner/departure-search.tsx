@@ -198,7 +198,7 @@ export function DepartureSearch({
           type="search"
           value={query}
           autoComplete="off"
-          placeholder="부산역, 서면역, 광안리처럼 장소명 또는 주소로 검색"
+          placeholder="역, 관광지, 도로명 주소로 검색"
           aria-autocomplete="list"
           aria-expanded={open}
           aria-controls={listboxId}

@@ -24,6 +24,7 @@ import {
   generateRouteRecommendation,
   type RecommendationServiceDependencies,
 } from "@/lib/recommendation/recommendation-service";
+import { getRegionRouteCapabilityBlock } from "@/lib/regions/config";
 
 export function createItineraryGenerationHandler(
   dependencies: ItineraryGenerationDependencies = {},
@@ -122,10 +123,25 @@ export function createRouteRecommendationHandler(
       });
     }
     const requestedRegion = getRequestedRecommendationRegion(body);
-    if (requestedRegion && !requestedRegion.itineraryEnabled) {
+    const requestObject = body && typeof body === "object"
+      ? body as Record<string, unknown>
+      : null;
+    const selectedPlaceIds = Array.isArray(requestObject?.selectedPlaceIds)
+      ? requestObject.selectedPlaceIds
+      : [];
+    const requestedAutoFill = requestObject?.autoFill !== false;
+    const unsupportedRegionCapability = requestedRegion
+      ? getRegionRouteCapabilityBlock(requestedRegion, {
+          selectedPlaceCount: selectedPlaceIds.length,
+          autoFill: requestedAutoFill,
+        })
+      : null;
+    if (unsupportedRegionCapability) {
       const failure = recommendationFailure(
         "region_not_supported_for_itinerary",
-        ["REGION_NOT_SUPPORTED_FOR_ITINERARY"],
+        [unsupportedRegionCapability === "automatic_fill"
+          ? "AUTOMATIC_FILL_NOT_SUPPORTED_FOR_REGION"
+          : "REGION_NOT_SUPPORTED_FOR_ITINERARY"],
       );
       return Response.json(failure, {
         status: recommendationHttpStatus(failure.status),

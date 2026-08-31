@@ -11,7 +11,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
-import { BUSAN_REGION } from "@/lib/tour-api/catalog";
+import { REGION_CONFIGS } from "@/lib/regions/config";
 import type { PetProfile, TravelPreferences } from "@/types/pet";
 import type {
   GeneratedItinerary,
@@ -29,9 +29,14 @@ export const DEFAULT_PLANNER_PROFILE: PetProfile = {
   acceptsOutdoorOnly: false,
 };
 
+const DEFAULT_PLANNER_REGION = REGION_CONFIGS.find(
+  ({ routeCapabilities }) => routeCapabilities.fullyAutomaticRecommendation,
+) ?? REGION_CONFIGS[0];
+
 export const DEFAULT_PLANNER_PREFERENCES: TravelPreferences = {
-  regionCode: BUSAN_REGION.code,
-  regionName: BUSAN_REGION.name,
+  regionCode:
+    DEFAULT_PLANNER_REGION.providerCodes.korPetTourService2.legalDongRegionCode,
+  regionName: DEFAULT_PLANNER_REGION.displayName,
   tripDate: "",
   tripType: "DAY_TRIP",
   tripPace: "balanced",

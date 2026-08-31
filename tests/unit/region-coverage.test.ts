@@ -14,9 +14,12 @@ import {
   getMapEnabledRegionConfigs,
   getRegionConfig,
   getRegionConfigByService2LegalDongCode,
+  REGION_CONFIGS,
 } from "@/lib/regions/config";
 import { UNKNOWN_REGION_LABEL, deriveRegionLabel } from "@/lib/regions/label";
+import { normalizeRecommendationRequest } from "@/lib/recommendation/recommendation-request";
 import type { KakaoPlaceSearchResult } from "@/types/kakao";
+import type { RouteRecommendationRequest } from "@/types/recommendation";
 
 const originalRestKey = process.env.KAKAO_REST_API_KEY;
 
@@ -60,6 +63,57 @@ describe("provider-neutral region labels", () => {
 });
 
 describe("region configuration and bounded Kakao search", () => {
+  it("supports direct selected-place routing in all 17 regions without overstating automatic capability", () => {
+    expect(REGION_CONFIGS).toHaveLength(17);
+    expect(REGION_CONFIGS.every(({ routeCapabilities }) =>
+      routeCapabilities.selectedPlaceRouting)).toBe(true);
+    expect(BUSAN_REGION_CONFIG.routeCapabilities).toEqual({
+      selectedPlaceRouting: true,
+      automaticFill: true,
+      fullyAutomaticRecommendation: true,
+    });
+    expect(JEJU_REGION_CONFIG.routeCapabilities).toEqual({
+      selectedPlaceRouting: true,
+      automaticFill: false,
+      fullyAutomaticRecommendation: false,
+    });
+  });
+
+  it.each(REGION_CONFIGS)("normalizes a locked selected-place route for $displayName", (region) => {
+    const request: RouteRecommendationRequest = {
+      departure: {
+        label: `${region.displayName} 출발지`,
+        latitude: region.defaultMapCenter.latitude,
+        longitude: region.defaultMapCenter.longitude,
+        source: "map_selection",
+      },
+      trip: {
+        regionId: region.id,
+        districtId: null,
+        date: "2026-09-12",
+        startTime: "10:00",
+        tripType: "day_trip",
+        tripPace: "balanced",
+        selectedCategories: ["attraction"],
+        roundTrip: false,
+      },
+      pet: {
+        name: "까꿍",
+        species: "DOG",
+        size: "SMALL",
+        availableEquipment: { carrier: false, leash: true, muzzle: false },
+        acceptsOutdoorOnlyPlaces: false,
+      },
+      selectedPlaceIds: ["tour:101"],
+      selectedPlaceReferences: [{ placeId: "tour:101", regionId: region.id }],
+      autoFill: false,
+    };
+
+    expect(normalizeRecommendationRequest(request).scope.regionCode).toBe(
+      region.providerCodes.korPetTourService2.legalDongRegionCode,
+    );
+  });
+
   it("separates map, itinerary, and Kakao discovery capabilities", () => {
     expect(
       getMapEnabledRegionConfigs([BUSAN_REGION_CONFIG, JEJU_REGION_CONFIG]).map(

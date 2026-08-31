@@ -32,7 +32,7 @@ describe("public catalog URL state", () => {
 
   it("fails invalid values to safe defaults", () => {
     expect(parsePublicCatalogUrlState({ district: "seoul", categories: "invalid", layers: "tourism,raw", page: "-1" }))
-      .toEqual({ region: "busan", district: "all", categories: ["attraction", "food", "cafe", "accommodation"], layers: [...PUBLIC_CATALOG_LAYERS], page: 1, sort: "recommendation" });
+      .toEqual({ region: "seoul", district: "all", categories: ["attraction", "food", "cafe", "accommodation", "other"], layers: [...PUBLIC_CATALOG_LAYERS], page: 1, sort: "recommendation" });
   });
 
   it("resolves district 110 within the selected region", () => {
@@ -53,7 +53,7 @@ describe("public catalog URL state", () => {
     expect(parsePublicCatalogUrlState({ region: ["seoul", "busan"] })).toBeNull();
     expect(parsePublicCatalogUrlState({ regionId: "seoul" })).toBeNull();
     expect(parsePublicCatalogUrlState({ selectedRegion: "seoul" })).toBeNull();
-    expect(parsePublicCatalogUrlState({})).toMatchObject({ region: "busan" });
+    expect(parsePublicCatalogUrlState({})).toMatchObject({ region: "seoul" });
   });
 
   it("keeps deferred Seoul shopping out of the local default selection", () => {

@@ -134,9 +134,9 @@ export function routeFromOptionV2(input: {
       ? "reduced" as const
       : "complete" as const;
   const labels = {
-    balanced: "균형 경로",
+    balanced: "균형 추천",
     shortest: "이동 최소",
-    relaxed: "여유 경로",
+    relaxed: "여유 일정",
   } as const;
   const stops = input.option.stops.map((stop) => {
     const candidate = input.candidates.get(stop.placeId);

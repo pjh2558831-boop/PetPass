@@ -15,13 +15,13 @@ export function SiteFooter() {
         </div>
         <nav aria-label="하단 메뉴" className="site-footer__navigation flex flex-wrap gap-x-4 gap-y-1">
           <Link
-            href="/results?tab=catalog&region=busan&mode=select"
+            href="/results?tab=catalog&mode=select"
             className="site-footer__link inline-flex min-h-11 items-center font-semibold hover:text-[var(--brand)]"
           >
             일정 만들기
           </Link>
           <Link
-            href="/results?tab=catalog&region=busan"
+            href="/results?tab=catalog"
             className="site-footer__link inline-flex min-h-11 items-center font-semibold hover:text-[var(--brand)]"
           >
             장소 찾기

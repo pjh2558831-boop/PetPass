@@ -5,11 +5,10 @@ import { useRouter } from "next/navigation";
 import { BedDouble, Coffee, Landmark, Utensils } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import {
-  BUSAN_DISTRICTS,
-  BUSAN_REGION,
-  isBusanDistrictCode,
-} from "@/lib/tour-api/catalog";
-import { getItineraryEnabledRegionConfigs } from "@/lib/regions/config";
+  REGION_CONFIGS,
+  getItineraryEnabledRegionConfigs,
+  getRegionConfigByService2LegalDongCode,
+} from "@/lib/regions/config";
 import { TRIP_PACE_OPTIONS } from "@/lib/itinerary/trip-pace";
 import {
   loadTravelPreferences,
@@ -17,9 +16,12 @@ import {
 } from "@/lib/storage/profile-storage";
 import type { PlaceCategory, TravelPreferences } from "@/types/pet";
 
+const ENABLED_REGIONS = getItineraryEnabledRegionConfigs();
+const DEFAULT_REGION = ENABLED_REGIONS[0] ?? REGION_CONFIGS[0];
+
 const defaultPreferences: TravelPreferences = {
-  regionCode: BUSAN_REGION.code,
-  regionName: BUSAN_REGION.name,
+  regionCode: DEFAULT_REGION.providerCodes.korPetTourService2.legalDongRegionCode,
+  regionName: DEFAULT_REGION.displayName,
   tripDate: "2026-08-15",
   tripType: "DAY_TRIP",
   tripPace: "balanced",
@@ -35,8 +37,6 @@ const categories = [
   { value: "ACCOMMODATION" as const, label: "숙소", icon: BedDouble },
 ];
 
-const ENABLED_REGIONS = getItineraryEnabledRegionConfigs();
-
 export function TripPreferencesForm() {
   const router = useRouter();
   const [preferences, setPreferences] =
@@ -47,21 +47,21 @@ export function TripPreferencesForm() {
     const saved = loadTravelPreferences();
     // Hydrate validated client-only storage after the server render.
     if (saved) {
+      const savedRegion = getRegionConfigByService2LegalDongCode(saved.regionCode);
+      const region = savedRegion?.routeCapabilities.fullyAutomaticRecommendation
+        ? savedRegion
+        : DEFAULT_REGION;
+      const district = region.districts.find(
+        ({ legalDongDistrictCode }) =>
+          legalDongDistrictCode === saved.districtCode,
+      );
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setPreferences({
         ...saved,
-        regionCode: BUSAN_REGION.code,
-        regionName: BUSAN_REGION.name,
-        districtCode:
-          saved.regionCode === BUSAN_REGION.code &&
-          isBusanDistrictCode(saved.districtCode)
-            ? saved.districtCode
-            : undefined,
-        districtName:
-          saved.regionCode === BUSAN_REGION.code &&
-          isBusanDistrictCode(saved.districtCode)
-            ? saved.districtName
-            : undefined,
+        regionCode: region.providerCodes.korPetTourService2.legalDongRegionCode,
+        regionName: region.displayName,
+        districtCode: district?.legalDongDistrictCode,
+        districtName: district?.name,
       });
     }
   }, []);
@@ -77,6 +77,9 @@ export function TripPreferencesForm() {
       };
     });
   };
+  const selectedRegion = getRegionConfigByService2LegalDongCode(
+    preferences.regionCode,
+  ) ?? DEFAULT_REGION;
 
   return (
     <form
@@ -91,7 +94,7 @@ export function TripPreferencesForm() {
           setError("여행 조건을 이 브라우저에 저장하지 못했어요.");
           return;
         }
-        router.push("/results?tab=recommendations&region=busan");
+        router.push(`/results?tab=recommendations&region=${selectedRegion.id}`);
       }}
     >
       <div className="grid gap-4 sm:grid-cols-2">
@@ -133,20 +136,21 @@ export function TripPreferencesForm() {
             id="district"
             value={preferences.districtCode ?? "all"}
             onChange={(event) => {
-              const district = BUSAN_DISTRICTS.find(
-                ({ code }) => code === event.target.value,
+              const district = selectedRegion.districts.find(
+                ({ legalDongDistrictCode }) =>
+                  legalDongDistrictCode === event.target.value,
               );
               setPreferences((current) => ({
                 ...current,
-                districtCode: district?.code,
+                districtCode: district?.legalDongDistrictCode,
                 districtName: district?.name,
               }));
             }}
             className="min-h-12 w-full rounded-2xl border border-[#cfd9d3] bg-white px-4 font-semibold"
           >
-            <option value="all">부산 전체</option>
-            {BUSAN_DISTRICTS.map((district) => (
-              <option key={district.code} value={district.code}>
+            <option value="all">{selectedRegion.displayName} 전체</option>
+            {selectedRegion.districts.map((district) => (
+              <option key={district.legalDongDistrictCode} value={district.legalDongDistrictCode}>
                 {district.name}
               </option>
             ))}

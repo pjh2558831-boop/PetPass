@@ -19,6 +19,20 @@ import {
   TRIP_PACE_OPTIONS,
 } from "@/lib/itinerary/trip-pace";
 import {
+  REGION_CONFIGS,
+  getRegionConfig,
+  getRegionConfigByService2LegalDongCode,
+  getRegionDistrict,
+} from "@/lib/regions/config";
+import {
+  createPlanDraft,
+  loadPlanDraft,
+  savePlanDraft,
+  updatePlanDraftFromPlanner,
+  updatePlanDraftSelection,
+  type PlanDraft,
+} from "@/lib/storage/plan-draft-storage";
+import {
   getSelectedItineraryCategories,
   loadSelectedItinerary,
   saveSelectedItinerary,
@@ -26,7 +40,6 @@ import {
   setSelectedItineraryVerificationAcknowledged,
   type SelectedItinerarySnapshot,
 } from "@/lib/storage/selected-itinerary-storage";
-import { BUSAN_DISTRICTS, BUSAN_REGION } from "@/lib/tour-api/catalog";
 import type {
   PetProfile,
   PetSize,
@@ -81,6 +94,55 @@ const categoryLabels: Record<PlaceCategory, string> = {
   WALK: "산책·공원",
   ACCOMMODATION: "숙소",
 };
+
+const AUTOMATIC_REGIONS = REGION_CONFIGS.filter(
+  ({ routeCapabilities }) => routeCapabilities.fullyAutomaticRecommendation,
+);
+
+function preferencesFromDraft(
+  draft: PlanDraft,
+  current: TravelPreferences,
+): TravelPreferences {
+  const region = getRegionConfig(draft.regionId);
+  const categoryMap: Partial<Record<PlanDraft["requestedCategories"][number], PlaceCategory>> = {
+    attraction: "ATTRACTION",
+    food: "RESTAURANT",
+    leisure: "WALK",
+    accommodation: "ACCOMMODATION",
+  };
+  const preferredCategories = [...new Set(draft.requestedCategories.flatMap((category) => {
+    const mapped = categoryMap[category];
+    return mapped ? [mapped] : [];
+  }))];
+  return {
+    ...current,
+    regionCode: region.providerCodes.korPetTourService2.legalDongRegionCode,
+    regionName: region.displayName,
+    districtCode: draft.districtId ?? undefined,
+    districtName: draft.districtId
+      ? getRegionDistrict(region, draft.districtId)?.name
+      : undefined,
+    tripDate: draft.travelDate ?? current.tripDate,
+    startTime: draft.startTime ?? current.startTime,
+    tripType: draft.tripType === "overnight" ? "OVERNIGHT" : "DAY_TRIP",
+    tripPace: draft.pace,
+    preferredCategories: preferredCategories.length > 0
+      ? preferredCategories
+      : current.preferredCategories,
+    includeShopping: draft.requestedCategories.includes("shopping"),
+    desiredStopCount: draft.requestedStopCount,
+    planningMode: "stop_count",
+    roundTrip: draft.roundTrip,
+    departure: draft.origin ? {
+      label: draft.origin.name,
+      source: draft.origin.source,
+      coordinates: {
+        latitude: draft.origin.latitude,
+        longitude: draft.origin.longitude,
+      },
+    } : current.departure,
+  };
+}
 
 const speciesLabels: Record<PetSpecies, string> = {
   DOG: "강아지",
@@ -239,26 +301,66 @@ export function UnifiedPlannerForm({
   const [selectedItinerary, setSelectedItinerary] =
     useState<SelectedItinerarySnapshot | null>(null);
   const [selectionError, setSelectionError] = useState("");
+  const [includeVerificationRequired, setIncludeVerificationRequired] =
+    useState(false);
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const selectedMode = mode === "selected";
+  const preferenceRegion = getRegionConfigByService2LegalDongCode(
+    preferences.regionCode,
+  );
+  const activeRegion = selectedItinerary
+    ? getRegionConfig(selectedItinerary.regionId)
+    : preferenceRegion?.routeCapabilities.fullyAutomaticRecommendation
+      ? preferenceRegion
+      : AUTOMATIC_REGIONS[0] ?? REGION_CONFIGS[0];
+  const activeDistricts = activeRegion.districts;
+  const automaticFillSupported = activeRegion.routeCapabilities.automaticFill;
 
   useEffect(() => {
-    if (!selectedMode) return;
     let active = true;
     queueMicrotask(() => {
       if (!active) return;
-      const stored = loadSelectedItinerary();
+      const draft = loadPlanDraft();
+      const stored = selectedMode ? loadSelectedItinerary() : null;
+      if (draft) {
+        setIncludeVerificationRequired(draft.includeVerificationRequired);
+        if (draft.petProfile) {
+          setProfile({ ...draft.petProfile });
+          setSpecies(draft.petProfile.species);
+          setSize(draft.petProfile.size);
+        }
+        if (
+          selectedMode ||
+          getRegionConfig(draft.regionId).routeCapabilities.fullyAutomaticRecommendation
+        ) {
+          setPreferences((current) => preferencesFromDraft(draft, current));
+        }
+      }
+      if (!selectedMode) return;
       setSelectedItinerary(stored);
       if (!stored || stored.places.length === 0) {
         setSelectionError(
           "일정에 담은 장소가 없습니다. 장소 찾기에서 먼저 방문지를 골라 주세요.",
         );
+        return;
       }
+      const selectedRegion = getRegionConfig(stored.regionId);
+      setPreferences((current) => ({
+        ...current,
+        regionCode: selectedRegion.providerCodes.korPetTourService2.legalDongRegionCode,
+        regionName: selectedRegion.displayName,
+        districtCode: draft?.regionId === stored.regionId
+          ? draft.districtId ?? undefined
+          : undefined,
+        districtName: draft?.regionId === stored.regionId && draft.districtId
+          ? getRegionDistrict(selectedRegion, draft.districtId)?.name
+          : undefined,
+      }));
     });
     return () => {
       active = false;
     };
-  }, [selectedMode]);
+  }, [selectedMode, setPreferences, setProfile]);
 
   useEffect(() => {
     const focusId = pendingFocusRef.current;
@@ -338,9 +440,6 @@ export function UnifiedPlannerForm({
       if (selectedMode && selectedPlaces.length === 0) {
         nextErrors.selection =
           "일정에 담은 장소가 없습니다. 장소를 한 곳 이상 골라 주세요.";
-      } else if (selectedMode && !autoFill && selectedPlaces.length < 2) {
-        nextErrors.selection =
-          "자동 채우기를 끄려면 장소를 두 곳 이상 골라 주세요.";
       } else if (selectedMode && unacknowledgedVerificationPlaces.length > 0) {
         nextErrors.selection =
           "확인이 필요한 선택 장소의 동반·운영 조건을 직접 확인한다는 항목에 동의해 주세요.";
@@ -550,21 +649,39 @@ export function UnifiedPlannerForm({
         setErrors({});
         setSelectionError("");
 
-        const confirmedPreferences = selectedMode
-          ? {
-              ...preferences,
-              districtCode: undefined,
-              districtName: undefined,
-            }
-          : preferences;
+        const confirmedPreferences = preferences;
+        let draft = loadPlanDraft() ?? createPlanDraft(activeRegion.id);
+        if (selectedMode && selectedItinerary) {
+          draft = updatePlanDraftSelection(draft, {
+            ...selectedItinerary,
+            districtId: confirmedPreferences.districtCode ?? null,
+          });
+        }
+        draft = updatePlanDraftFromPlanner(draft, {
+          petProfile: confirmedProfile,
+          preferences: confirmedPreferences,
+        });
+        draft = {
+          ...draft,
+          includeVerificationRequired: selectedMode
+            ? selectedItinerary?.includeVerificationRequired ?? false
+            : includeVerificationRequired,
+        };
+        if (!savePlanDraft(draft)) {
+          submittingRef.current = false;
+          setSubmitting(false);
+          setSelectionError("여행 계획을 이 브라우저에 저장하지 못했습니다.");
+          return;
+        }
         confirmPlannerAndRequestGeneration(
           confirmedProfile,
           confirmedPreferences,
         );
+        const resultRegion = activeRegion.id;
         router.push(
           selectedMode
-            ? "/results?tab=recommendations&region=busan&mode=selected"
-            : "/results?tab=recommendations&region=busan",
+            ? `/results?tab=recommendations&region=${resultRegion}&mode=selected`
+            : `/results?tab=recommendations&region=${resultRegion}`,
         );
       }}
     >
@@ -824,6 +941,8 @@ export function UnifiedPlannerForm({
                 ) : null}
               </div>
               <DepartureMapPicker
+                key={activeRegion.id}
+                regionId={activeRegion.id}
                 value={preferences.departure}
                 onChange={(departure) => {
                   updatePreferences("departure", departure);
@@ -842,8 +961,32 @@ export function UnifiedPlannerForm({
             >
               <div className="planner-field">
                 <label htmlFor="region">여행 지역</label>
-                <select id="region" value={BUSAN_REGION.code} disabled>
-                  <option value={BUSAN_REGION.code}>{BUSAN_REGION.name}</option>
+                <select
+                  id="region"
+                  value={activeRegion.providerCodes.korPetTourService2.legalDongRegionCode}
+                  disabled={selectedMode || AUTOMATIC_REGIONS.length <= 1}
+                  onChange={(event) => {
+                    const region = AUTOMATIC_REGIONS.find(({ providerCodes }) =>
+                      providerCodes.korPetTourService2.legalDongRegionCode === event.target.value);
+                    if (!region) return;
+                    setPreferences((current) => ({
+                      ...current,
+                      regionCode: region.providerCodes.korPetTourService2.legalDongRegionCode,
+                      regionName: region.displayName,
+                      districtCode: undefined,
+                      districtName: undefined,
+                      departure: undefined,
+                    }));
+                  }}
+                >
+                  {(selectedMode ? [activeRegion] : AUTOMATIC_REGIONS).map((region) => (
+                    <option
+                      key={region.id}
+                      value={region.providerCodes.korPetTourService2.legalDongRegionCode}
+                    >
+                      {region.displayName}
+                    </option>
+                  ))}
                 </select>
               </div>
               {!selectedMode ? (
@@ -853,21 +996,25 @@ export function UnifiedPlannerForm({
                     id="district"
                     value={preferences.districtCode ?? "all"}
                     onChange={(event) => {
-                      const district = BUSAN_DISTRICTS.find(
-                        ({ code }) => code === event.target.value,
+                      const district = activeDistricts.find(
+                        ({ legalDongDistrictCode }) =>
+                          legalDongDistrictCode === event.target.value,
                       );
                       setPreferences((current) => ({
                         ...current,
-                        regionCode: BUSAN_REGION.code,
-                        regionName: BUSAN_REGION.name,
-                        districtCode: district?.code,
+                        regionCode: activeRegion.providerCodes.korPetTourService2.legalDongRegionCode,
+                        regionName: activeRegion.displayName,
+                        districtCode: district?.legalDongDistrictCode,
                         districtName: district?.name,
                       }));
                     }}
                   >
-                    <option value="all">부산 전체</option>
-                    {BUSAN_DISTRICTS.map((district) => (
-                      <option key={district.code} value={district.code}>
+                    <option value="all">{activeRegion.displayName} 전체</option>
+                    {activeDistricts.map((district) => (
+                      <option
+                        key={district.legalDongDistrictCode}
+                        value={district.legalDongDistrictCode}
+                      >
                         {district.name}
                       </option>
                     ))}
@@ -988,7 +1135,7 @@ export function UnifiedPlannerForm({
                   <h3 id="selected-itinerary-summary-heading">
                     선택한 장소 {selectedItinerary?.places.length ?? 0}곳
                   </h3>
-                  <Link href="/results?tab=catalog&region=busan&mode=select">
+                  <Link href={`/results?tab=catalog&region=${activeRegion.id}&mode=select`}>
                     장소 다시 선택
                   </Link>
                 </div>
@@ -1009,6 +1156,11 @@ export function UnifiedPlannerForm({
                           <em>
                             {place.sourceLabel} · {place.publicLabel}
                           </em>
+                          {selectedItineraryNeedsWarning(place) ? (
+                            <em className="planner-selected-summary__warning">
+                              동반 가능 여부 확인 필요 · 사용자가 선택한 장소이며 공식 확인 전입니다
+                            </em>
+                          ) : null}
                         </span>
                       </li>
                     ))}
@@ -1022,12 +1174,12 @@ export function UnifiedPlannerForm({
                   <input
                     type="checkbox"
                     checked={selectedItinerary?.autoFill ?? true}
-                    disabled={!selectedItinerary}
+                    disabled={!selectedItinerary || !automaticFillSupported}
                     onChange={(event) => {
                       if (!selectedItinerary) return;
                       const next = {
                         ...selectedItinerary,
-                        autoFill: event.target.checked,
+                        autoFill: automaticFillSupported && event.target.checked,
                       };
                       setSelectedItinerary(next);
                       setSelectionError("");
@@ -1040,8 +1192,34 @@ export function UnifiedPlannerForm({
                     }}
                   />
                   <span>
-                    선택한 장소 사이를 WEEKENDOG가 자동으로 채우기
+                    부족한 장소는 WEEKENDOG가 추천
                   </span>
+                </label>
+                {!automaticFillSupported ? (
+                  <p className="planner-notice" role="status">
+                    {activeRegion.displayName}에서는 직접 고른 장소의 순서와 실제 이동 경로를 만들 수 있으며, 자동 채우기는 아직 지원하지 않습니다.
+                  </p>
+                ) : null}
+                <label className="planner-inline-check">
+                  <input
+                    type="checkbox"
+                    checked={selectedItinerary?.includeVerificationRequired ?? false}
+                    disabled={!selectedItinerary || !automaticFillSupported}
+                    onChange={(event) => {
+                      if (!selectedItinerary) return;
+                      const next = {
+                        ...selectedItinerary,
+                        includeVerificationRequired: event.target.checked,
+                      };
+                      setSelectedItinerary(next);
+                      if (!saveSelectedItinerary(next)) {
+                        setSelectionError("후보 확인 범위 설정을 저장하지 못했습니다.");
+                      } else {
+                        setSelectionError("");
+                      }
+                    }}
+                  />
+                  <span>확인 필요한 장소도 후보에 포함</span>
                 </label>
                 {selectedItinerary?.places.some(selectedItineraryNeedsWarning) ? (
                   <label className="planner-inline-check">
@@ -1080,6 +1258,18 @@ export function UnifiedPlannerForm({
                   </p>
                 ) : null}
               </section>
+            ) : null}
+
+            {!selectedMode ? (
+              <label className="planner-inline-check planner-block">
+                <input
+                  type="checkbox"
+                  checked={includeVerificationRequired}
+                  onChange={(event) =>
+                    setIncludeVerificationRequired(event.target.checked)}
+                />
+                <span>확인 필요한 장소도 후보에 포함</span>
+              </label>
             ) : null}
 
             <fieldset

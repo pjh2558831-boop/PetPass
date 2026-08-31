@@ -13,6 +13,7 @@ import {
   type SelectedItinerarySnapshot,
 } from "@/lib/storage/selected-itinerary-storage";
 import type { StorageLike } from "@/lib/storage/versioned-storage";
+import { getRegionConfig } from "@/lib/regions/config";
 import type { RegionId } from "@/types/region";
 
 export type SelectedItineraryMoveDirection = "forward" | "backward";
@@ -32,6 +33,8 @@ export type SelectedItinerarySelectionState = {
   toggle: (place: SelectedItineraryPlace) => SelectedItineraryToggleResult;
   remove: (placeId: string) => void;
   move: (placeId: string, direction: SelectedItineraryMoveDirection) => boolean;
+  setAutoFill: (enabled: boolean) => void;
+  setIncludeVerificationRequired: (enabled: boolean) => void;
   resetRegion: (
     regionId: RegionId,
     options?: { preserveAutoFill?: boolean; message?: string },
@@ -85,7 +88,9 @@ export function useSelectedItinerarySelection({
     queueMicrotask(() => {
       if (!active) return;
       const stored = loadSelectedItinerary(storage);
-      setSnapshot(stored ?? createSelectedItinerarySnapshot(regionId));
+      setSnapshot(stored && (stored.regionId === regionId || stored.places.length > 0)
+        ? stored
+        : createSelectedItinerarySnapshot(regionId));
       setHydrated(true);
     });
     return () => {
@@ -164,14 +169,33 @@ export function useSelectedItinerarySelection({
     return true;
   }, [persist, snapshot]);
 
+  const setAutoFill = useCallback((enabled: boolean) => {
+    const supported = getRegionConfig(snapshot.regionId).routeCapabilities.automaticFill;
+    persist(
+      { ...snapshot, autoFill: supported && enabled },
+      supported && enabled
+        ? "부족한 장소를 WEEKENDOG가 추천하도록 설정했습니다."
+        : "선택한 장소만으로 일정을 만듭니다.",
+    );
+  }, [persist, snapshot]);
+
+  const setIncludeVerificationRequired = useCallback((enabled: boolean) => {
+    persist(
+      { ...snapshot, includeVerificationRequired: enabled },
+      enabled
+        ? "확인이 필요한 자동 후보도 포함합니다."
+        : "확인된 자동 후보만 사용합니다.",
+    );
+  }, [persist, snapshot]);
+
   const resetRegion = useCallback((
     nextRegionId: RegionId,
     options?: { preserveAutoFill?: boolean; message?: string },
   ) => {
-    const nextSnapshot = {
-      ...createSelectedItinerarySnapshot(nextRegionId),
-      autoFill: options?.preserveAutoFill ? snapshot.autoFill : true,
-    };
+    const nextSnapshot = createSelectedItinerarySnapshot(nextRegionId);
+    if (options?.preserveAutoFill) {
+      nextSnapshot.autoFill = nextSnapshot.autoFill && snapshot.autoFill;
+    }
     persist(nextSnapshot, options?.message ?? "");
   }, [persist, snapshot.autoFill]);
 
@@ -182,6 +206,8 @@ export function useSelectedItinerarySelection({
     toggle,
     remove,
     move,
+    setAutoFill,
+    setIncludeVerificationRequired,
     resetRegion,
-  }), [hydrated, message, move, remove, resetRegion, snapshot, toggle]);
+  }), [hydrated, message, move, remove, resetRegion, setAutoFill, setIncludeVerificationRequired, snapshot, toggle]);
 }

@@ -13,7 +13,7 @@ export function WeekendoogHero() {
           <h1 id="weekendoog-hero-heading" tabIndex={-1}>
             반려견과 함께,
             <br />
-            부산 여행을 계획해보세요
+            전국 여행을 계획해보세요
           </h1>
           <p>
             공식 반려동물 동반 정보를 확인하고 실제 이동시간을 고려해
