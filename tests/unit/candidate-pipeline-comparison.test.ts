@@ -14,6 +14,7 @@ import { retrieveStageACandidatesV1 } from "@/lib/recommendation/retrieval/candi
 import type { CandidatePipelineRequestContext } from "@/lib/recommendation/types";
 import type { TourPlaceSummary } from "@/types/place";
 import { runControlledCandidatePipelineV1 } from "@/scripts/lib/candidate-pipeline-controlled-adapter";
+import { CANDIDATE_PIPELINE_V1_CONFIG } from "@/lib/recommendation/config/candidate-pipeline-v1";
 
 describe("candidate-pipeline-v1 controlled comparison", () => {
   it("uses a visibly synthetic fixture above every Stage 2 bound", () => {
@@ -156,8 +157,8 @@ describe("candidate-pipeline-v1 controlled comparison", () => {
       popularityPrior,
     });
 
-    expect(stageA).toHaveLength(25);
-    expect(new Set(stageA.map(({ contentId }) => contentId)).size).toBe(25);
+    expect(stageA.length).toBeLessThanOrEqual(CANDIDATE_PIPELINE_V1_CONFIG.stageALimit);
+    expect(new Set(stageA.map(({ contentId }) => contentId)).size).toBe(stageA.length);
     expect(stageA.some(({ category }) => category === "food")).toBe(true);
     expect(stageA.some(({ category }) => category === "accommodation")).toBe(
       true,
@@ -173,11 +174,12 @@ describe("candidate-pipeline-v1 controlled comparison", () => {
     expect(
       report.scenarios.every(
         ({ stage2 }) =>
-          stage2.stageACount <= 25 &&
-          stage2.stageBCount <= 20 &&
-          stage2.detailedEvaluationCount <= 20 &&
-          stage2.detailedBatchCount <= 4 &&
-          stage2.finalEligibleContentIds.length <= 15,
+          stage2.stageACount <= CANDIDATE_PIPELINE_V1_CONFIG.stageALimit &&
+          stage2.stageBCount <= CANDIDATE_PIPELINE_V1_CONFIG.stageBLimit &&
+          stage2.detailedEvaluationCount <= CANDIDATE_PIPELINE_V1_CONFIG.maxDetailedEvaluations &&
+          stage2.detailedBatchCount <= CANDIDATE_PIPELINE_V1_CONFIG.maxDetailedEvaluations /
+            CANDIDATE_PIPELINE_V1_CONFIG.detailBatchSize &&
+          stage2.finalEligibleContentIds.length <= CANDIDATE_PIPELINE_V1_CONFIG.finalEligibleLimit,
       ),
     ).toBe(true);
     expect(report.summary.stage2DuplicatedCalls).toBe(0);

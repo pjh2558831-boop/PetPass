@@ -445,7 +445,7 @@ test("keeps the existing demo detail and provider validation boundaries", async 
   page,
   request,
 }) => {
-  await page.goto("/places/demo-busan-terrace-table");
+  await page.goto("/places/demo-busan-terrace-table?contentTypeId=39&region=busan");
   await expect(page.getByRole("heading", { name: "마린 테라스 식탁" })).toBeVisible();
   await expect(page.locator("blockquote")).toBeVisible();
   await expect(page.getByLabel("로컬 데모 데이터")).toBeVisible();

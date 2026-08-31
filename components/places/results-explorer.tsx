@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   List,
   Map as MapIcon,
   MapPin,
@@ -14,7 +16,9 @@ import {
   RotateCcw,
   Route,
   Rows3,
+  Search,
   SlidersHorizontal,
+  X,
 } from "lucide-react";
 import { PlannerProgress } from "@/components/layout/planner-progress";
 import { MapPanel } from "@/components/map/map-panel";
@@ -49,6 +53,7 @@ import {
   isInsideExplorerBounds,
   type ExplorerSort,
 } from "@/lib/map-places/explorer-collections";
+import { filterCatalogPlacesByQuery } from "@/lib/map-places/catalog-search";
 import {
   DEFAULT_PLACE_CATEGORIES,
   PLACE_CATEGORIES,
@@ -102,7 +107,7 @@ type ExplorerTab = "catalog" | "recommendations";
 type ProviderState = "loading" | "ready" | "error";
 type ExplorerPresentationState = "loading" | "partial" | "ready" | "empty" | "error";
 type MobileExplorerMode = "map" | "list";
-type FilterAnchor = "toolbar";
+type FilterAnchor = "map";
 
 const RecommendationPlanner = dynamic(
   () => import("@/components/itinerary/recommendation-planner").then((module) => module.RecommendationPlanner),
@@ -341,9 +346,9 @@ async function requestMapPlaceCardDetails(
 }
 
 function getVisiblePageNumbers(currentPage: number, totalPages: number): number[] {
-  if (totalPages <= 5) return Array.from({ length: totalPages }, (_, index) => index + 1);
-  const start = Math.min(Math.max(1, currentPage - 2), totalPages - 4);
-  return Array.from({ length: 5 }, (_, index) => start + index);
+  if (totalPages <= 3) return Array.from({ length: totalPages }, (_, index) => index + 1);
+  const start = Math.min(Math.max(1, currentPage - 1), totalPages - 2);
+  return Array.from({ length: 3 }, (_, index) => start + index);
 }
 
 function ExplorerResultsSkeleton() {
@@ -398,6 +403,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const filterOpen = filterAnchor !== null;
   const [page, setPage] = useState(initialCatalogState.page);
   const [sort, setSort] = useState<ExplorerSort>(initialCatalogState.sort);
+  const [searchQuery, setSearchQuery] = useState("");
   const [mobileMode, setMobileMode] = useState<MobileExplorerMode>("list");
   const [tourPlaces, setTourPlaces] = useState<PublicCatalogMarker[]>([]);
   const [kakaoPlaces, setKakaoPlaces] = useState<PublicCatalogMarker[]>([]);
@@ -429,7 +435,6 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     remove: removeSelection,
     move: moveSelection,
     setAutoFill,
-    setIncludeVerificationRequired,
     resetRegion: resetSelectionRegion,
   } = useSelectedItinerarySelection({
     regionId: region,
@@ -443,7 +448,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const viewportBaselineRef = useRef<KakaoCurrentMapSearch["rectangle"] | null>(null);
   const activeBoundsRef = useRef<KakaoCurrentMapSearch["rectangle"] | null>(null);
   const filterDropdownRef = useRef<HTMLElement>(null);
-  const toolbarFilterButtonRef = useRef<HTMLButtonElement>(null);
+  const mapFilterButtonRef = useRef<HTMLButtonElement>(null);
   const hasSynchronizedUrlRef = useRef(false);
   const applyingBrowserHistoryRef = useRef(false);
   const requestStartedAtRef = useRef<number | null>(null);
@@ -495,14 +500,14 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       if (!(event.target instanceof Node)) return;
       if (
         filterDropdownRef.current?.contains(event.target) ||
-        toolbarFilterButtonRef.current?.contains(event.target)
+        mapFilterButtonRef.current?.contains(event.target)
       ) return;
       setFilterAnchor(null);
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setFilterAnchor(null);
-      requestAnimationFrame(() => toolbarFilterButtonRef.current?.focus());
+      requestAnimationFrame(() => mapFilterButtonRef.current?.focus());
     };
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
@@ -696,18 +701,22 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     }
     return [...unique.values()];
   }, [kakaoPlaces, optionalKakaoPlaces, optionalLoadedFor, optionalScopeKey, optionalTourPlaces, region, tourPlaces]);
+  const searchedPlaces = useMemo(
+    () => filterCatalogPlacesByQuery(allPlaces, searchQuery),
+    [allPlaces, searchQuery],
+  );
 
   const rankingCenter = useMemo(() => activeBounds ? ({
     latitude: (activeBounds.south + activeBounds.north) / 2,
     longitude: (activeBounds.west + activeBounds.east) / 2,
   }) : null, [activeBounds]);
   const categoryCounts = useMemo(() => getExplorerCategoryCounts({
-    places: allPlaces,
+    places: searchedPlaces,
     regionId: region,
     district,
     layers: [...PUBLIC_CATALOG_LAYERS],
     activeBounds,
-  }), [activeBounds, allPlaces, district, region]);
+  }), [activeBounds, district, region, searchedPlaces]);
   const displayedCategoryCounts = useMemo(() => Object.fromEntries(
     PLACE_CATEGORIES.map((category) => [
       category,
@@ -724,7 +733,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       : []),
   ], [regionConfig]);
   const filteredCollections = useMemo(() => getExplorerCollections({
-    places: allPlaces,
+    places: searchedPlaces,
     regionId: region,
     district,
     categories,
@@ -734,7 +743,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     sort,
     rankingAsOf,
     rankingCenter,
-  }), [activeBounds, allPlaces, categories, district, layers, rankingAsOf, rankingCenter, region, sort, visibleLayers]);
+  }), [activeBounds, categories, district, layers, rankingAsOf, rankingCenter, region, searchedPlaces, sort, visibleLayers]);
   const { filteredPlaces, mapPlaces, totalPages } = filteredCollections;
   const currentPage = Math.min(Math.max(1, page), totalPages);
   const pagedMarkers = useMemo(() => {
@@ -927,6 +936,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
         : []),
     ]);
     setPage(1);
+    setSearchQuery("");
     setSelectedId(null);
     setTourPlaces([]);
     setKakaoPlaces([]);
@@ -1167,20 +1177,6 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
             ))}
           </datalist>
         </label>
-        <p className="full-map-explorer__scope"><span>{regionConfig.mapCatalog.sourceDescription}</span></p>
-        <div className="explorer-toolbar-filter">
-          <button
-            ref={toolbarFilterButtonRef}
-            type="button"
-            className="explorer-filter-trigger"
-            aria-expanded={filterAnchor === "toolbar"}
-            aria-controls="explorer-filter-dropdown"
-            onClick={() => toggleFilters("toolbar")}
-          >
-            <SlidersHorizontal size={17} aria-hidden="true" />필터
-          </button>
-          {renderFilterDropdown("toolbar")}
-        </div>
         <label className="explorer-sort-control" htmlFor="explorer-sort">
           <span>정렬</span>
           <select id="explorer-sort" value={sort} onChange={(event) => { setSort(event.target.value as ExplorerSort); setPage(1); }}>
@@ -1202,6 +1198,19 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
 
       <div className="full-map-explorer__main" data-mobile-mode={mobileMode}>
         <section className="full-map-explorer__map" aria-label={`${districtName} 전체 장소 지도`}>
+          <div className="explorer-map-filter">
+            <button
+              ref={mapFilterButtonRef}
+              type="button"
+              className="explorer-filter-trigger"
+              aria-expanded={filterAnchor === "map"}
+              aria-controls="explorer-filter-dropdown"
+              onClick={() => toggleFilters("map")}
+            >
+              <SlidersHorizontal size={17} aria-hidden="true" />필터
+            </button>
+            {renderFilterDropdown("map")}
+          </div>
           <div className="explorer-source-legend" role="group" aria-label="장소 출처 범례">
             {visibleLayers.map((layer) => (
               <button
@@ -1250,7 +1259,6 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
               onContinue={continueSelectedItinerary}
               onAutomaticStart={startAutomaticItinerary}
               onAutoFillChange={setAutoFill}
-              onIncludeVerificationRequiredChange={setIncludeVerificationRequired}
               automaticFillSupported={regionConfig.routeCapabilities.automaticFill}
               automaticRecommendationSupported={regionConfig.routeCapabilities.fullyAutomaticRecommendation}
               regionName={regionConfig.displayName}
@@ -1277,6 +1285,34 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
                       : "카드는 페이지당 12개 · 지도는 현재 필터의 전체 결과"}
               </p>
             </div>
+            <label className="explorer-place-search">
+              <span className="sr-only">장소 검색</span>
+              <Search size={17} aria-hidden="true" />
+              <input
+                type="search"
+                value={searchQuery}
+                placeholder="이름·주소·카테고리 검색"
+                aria-label="장소 검색"
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setPage(1);
+                  setSelectedId(null);
+                }}
+              />
+              {searchQuery ? (
+                <button
+                  type="button"
+                  aria-label="장소 검색어 지우기"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setPage(1);
+                    setSelectedId(null);
+                  }}
+                >
+                  <X size={16} aria-hidden="true" />
+                </button>
+              ) : null}
+            </label>
           </header>
           {activeBounds ? <p className="explorer-active-bounds">지도 범위 적용 중</p> : null}
           {sort === "popularity" && allPopularityInsufficient ? <p className="explorer-popularity-notice" role="status">이용 데이터가 쌓이는 동안 추천순을 함께 반영합니다.</p> : null}
@@ -1332,11 +1368,11 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
             ))}
           </div>
           {hasUsableResults ? <nav className="explorer-pagination" aria-label="장소 목록 페이지">
+            <button type="button" disabled={currentPage === 1} onClick={() => { setPage(1); setSelectedId(null); }} aria-label="첫 페이지"><ChevronsLeft size={17} aria-hidden="true" /></button>
             <button type="button" disabled={currentPage === 1} onClick={() => { setPage(currentPage - 1); setSelectedId(null); }} aria-label="이전 페이지"><ChevronLeft size={17} aria-hidden="true" /></button>
             {visiblePages.map((pageNumber) => <button key={pageNumber} type="button" aria-current={pageNumber === currentPage ? "page" : undefined} onClick={() => { setPage(pageNumber); setSelectedId(null); }}>{pageNumber}</button>)}
-            {totalPages > 5 && currentPage < totalPages - 2 ? <span aria-hidden="true">…</span> : null}
-            {totalPages > 5 && !visiblePages.includes(totalPages) ? <button type="button" onClick={() => { setPage(totalPages); setSelectedId(null); }}>{totalPages}</button> : null}
             <button type="button" disabled={currentPage === totalPages} onClick={() => { setPage(currentPage + 1); setSelectedId(null); }} aria-label="다음 페이지"><ChevronRight size={17} aria-hidden="true" /></button>
+            <button type="button" disabled={currentPage === totalPages} onClick={() => { setPage(totalPages); setSelectedId(null); }} aria-label="마지막 페이지"><ChevronsRight size={17} aria-hidden="true" /></button>
           </nav> : null}
         </aside>
       </div>
@@ -1349,7 +1385,6 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
           onContinue={continueSelectedItinerary}
           onAutomaticStart={startAutomaticItinerary}
           onAutoFillChange={setAutoFill}
-          onIncludeVerificationRequiredChange={setIncludeVerificationRequired}
           automaticFillSupported={regionConfig.routeCapabilities.automaticFill}
           automaticRecommendationSupported={regionConfig.routeCapabilities.fullyAutomaticRecommendation}
           regionName={regionConfig.displayName}

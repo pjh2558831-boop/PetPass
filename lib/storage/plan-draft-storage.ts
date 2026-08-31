@@ -238,7 +238,7 @@ export function updatePlanDraftSelection(
       ? selectedCategories
       : draft.requestedCategories,
     autoFill: capabilities.automaticFill && selection.autoFill,
-    includeVerificationRequired: selection.includeVerificationRequired ?? draft.includeVerificationRequired,
+    includeVerificationRequired: false,
   };
 }
 
@@ -259,6 +259,7 @@ export function updatePlanDraftScope(
     regionId,
     districtId,
     autoFill: region.routeCapabilities.automaticFill && draft.autoFill,
+    includeVerificationRequired: false,
   };
 }
 
@@ -358,17 +359,21 @@ export function plannerInputFromPlanDraft(
 }
 
 export function loadPlanDraft(storage?: StorageLike | null): PlanDraft | null {
-  return readVersionedValue(PLAN_DRAFT_STORAGE_KEY, planDraftSchema, {
+  const draft = readVersionedValue(PLAN_DRAFT_STORAGE_KEY, planDraftSchema, {
     version: PLAN_DRAFT_SCHEMA_VERSION,
     storage,
   });
+  return draft ? { ...draft, includeVerificationRequired: false } : null;
 }
 
 export function savePlanDraft(
   draft: PlanDraft,
   storage?: StorageLike | null,
 ): boolean {
-  return writeVersionedValue(PLAN_DRAFT_STORAGE_KEY, draft, planDraftSchema, {
+  return writeVersionedValue(PLAN_DRAFT_STORAGE_KEY, {
+    ...draft,
+    includeVerificationRequired: false,
+  }, planDraftSchema, {
     version: PLAN_DRAFT_SCHEMA_VERSION,
     storage,
   });

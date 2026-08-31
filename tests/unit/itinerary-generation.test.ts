@@ -982,7 +982,7 @@ describe("bounded request-driven itinerary generation", () => {
     });
   });
 
-  it("enforces the 25/20 caps and stops adaptive evaluation after complete five-item batches", async () => {
+  it("enforces the configured caps and stops adaptive evaluation after complete five-item batches", async () => {
     const places = Array.from({ length: 100 }, (_, index) =>
       makeSummary(`p${String(index).padStart(3, "0")}`),
     );
@@ -996,22 +996,22 @@ describe("bounded request-driven itinerary generation", () => {
       ITINERARY_GENERATION_LIMITS.maxCatalogCandidates,
     );
     expect(ITINERARY_GENERATION_LIMITS).toMatchObject({
-      maxCatalogCandidates: 25,
-      maxDetailCalls: 20,
+      maxCatalogCandidates: 45,
+      maxDetailCalls: 30,
       detailConcurrency: 3,
     });
-    expect(result.candidatePipeline.eligiblePoolTarget).toBe(7);
+    expect(result.candidatePipeline.eligiblePoolTarget).toBe(12);
     expect(result.candidatePipeline.diagnostics).toMatchObject({
-      stageACount: 25,
-      stageBCount: 20,
-      detailedEvaluationCount: 10,
-      detailedBatchCount: 2,
-      eligibleCount: 10,
-      finalEligibleCount: 10,
+      stageACount: 45,
+      stageBCount: 30,
+      detailedEvaluationCount: 15,
+      detailedBatchCount: 3,
+      eligibleCount: 15,
+      finalEligibleCount: 15,
     });
-    expect(result.shortlistedCandidates).toBe(10);
-    expect(result.providerCalls.detail).toBe(10);
-    expect(service.detailIds).toHaveLength(10);
+    expect(result.shortlistedCandidates).toBe(15);
+    expect(result.providerCalls.detail).toBe(15);
+    expect(service.detailIds).toHaveLength(15);
     expect(result.providerCalls.detail).toBeLessThan(
       ITINERARY_GENERATION_LIMITS.maxDetailCalls,
     );
@@ -1021,7 +1021,7 @@ describe("bounded request-driven itinerary generation", () => {
     expect(result.exclusionCounts.candidate_limit).toBeGreaterThan(0);
   });
 
-  it("ranks the complete matching catalog before the 25/20 caps and adaptive early stop", async () => {
+  it("ranks the complete matching catalog before the configured caps and adaptive early stop", async () => {
     const farPlaces = Array.from({ length: 99 }, (_, index) =>
       makeSummary(`far-${String(index).padStart(3, "0")}`, "12", {
         latitude: 35.3 + index / 100_000,
@@ -1045,14 +1045,14 @@ describe("bounded request-driven itinerary generation", () => {
     expect(result.candidateFunnel).toMatchObject({
       matchingCatalogCandidates: 100,
       afterBasicFilters: 100,
-      preliminaryRankedCandidates: 25,
-      detailedAssessmentCandidates: 10,
+      preliminaryRankedCandidates: 45,
+      detailedAssessmentCandidates: 15,
     });
     expect(result.candidatePipeline.diagnostics).toMatchObject({
-      stageACount: 25,
-      stageBCount: 20,
-      detailedEvaluationCount: 10,
-      detailedBatchCount: 2,
+      stageACount: 45,
+      stageBCount: 30,
+      detailedEvaluationCount: 15,
+      detailedBatchCount: 3,
     });
     expect(service.detailIds[0]).toBe("zz-nearest");
     expect(result.itineraries[0]?.stops[0].contentId).toBe("zz-nearest");
@@ -1302,11 +1302,11 @@ describe("bounded request-driven itinerary generation", () => {
     );
     expect(result.itineraries).toEqual([]);
     expect(result.exclusionCounts.indoor_requirement).toBe(2);
-    expect(result.candidatePipeline.reasonCounts.mandatory_condition_unsatisfied).toBeUndefined();
+    expect(result.candidatePipeline.reasonCounts.mandatory_condition_unsatisfied).toBe(2);
     expect(result.candidatePipeline.diagnostics).toMatchObject({
       detailedEvaluationCount: 2,
-      eligibleCount: 2,
-      finalEligibleCount: 2,
+      eligibleCount: 0,
+      finalEligibleCount: 0,
     });
   });
 });

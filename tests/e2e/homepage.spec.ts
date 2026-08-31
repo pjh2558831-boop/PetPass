@@ -349,7 +349,7 @@ test("aborts an abandoned homepage snapshot request on navigation", async ({ pag
     page.waitForURL(/\/planner\/pet/u),
     page
       .getByRole("form", { name: "여행 만들기 빠른 시작" })
-      .getByRole("button", { name: "여행 만들기" })
+      .getByRole("button", { name: "장소 없이 알아서 추천받기" })
       .click(),
   ]);
   await page.waitForURL(/\/planner\/pet/u);
@@ -395,7 +395,7 @@ test("aborts and ignores late enrichment after navigation", async ({ page }, tes
   await expect.poll(() => enrichmentRequested).toBe(true);
   await page
     .getByRole("form", { name: "여행 만들기 빠른 시작" })
-    .getByRole("button", { name: "여행 만들기" })
+    .getByRole("button", { name: "장소 없이 알아서 추천받기" })
     .click();
   await expect(page).toHaveURL(/\/planner\/pet/u);
   await expect.poll(() => page.evaluate(
@@ -440,9 +440,9 @@ test("uses compact hero copy and three local official partner marks", async ({ p
   await expect(hero.getByText("공식 데이터 기반 반려동물 여행", { exact: true })).toHaveCount(0);
 
   const launcher = page.getByRole("form", { name: "여행 만들기 빠른 시작" });
-  await expect(launcher.getByText("여행 지역", { exact: true })).toBeVisible();
-  await expect(launcher.getByLabel("부산 여행 지역")).toHaveValue("all");
-  await expect(launcher.getByRole("button", { name: "여행 만들기" })).toBeVisible();
+  await expect(launcher.locator(".hero-planner-label").getByText("여행 지역", { exact: true })).toBeVisible();
+  await expect(launcher.getByRole("combobox", { name: "여행 지역" })).toHaveValue("busan");
+  await expect(launcher.getByRole("button", { name: "장소 찾아 일정 만들기" })).toBeVisible();
   await expect(launcher.getByText("빠른 지역 선택", { exact: true })).toHaveCount(0);
   await expect(launcher.getByText("언제 갈까요?", { exact: true })).toHaveCount(0);
   await expect(launcher.getByText("누구와 함께?", { exact: true })).toHaveCount(0);
@@ -757,7 +757,7 @@ test("keeps official data working when the stored Kakao catalog is unavailable",
   await expect(page.getByText("0곳", { exact: true })).toHaveCount(0);
 });
 
-test("moves card focus and prefills the planner without itinerary generation", async ({ page }) => {
+test("moves card focus and opens selection without itinerary generation", async ({ page }) => {
   const generationRequests: string[] = [];
   page.on("request", (request) => {
     if (new URL(request.url()).pathname === GENERATE_API_PATH) generationRequests.push(request.url());
@@ -773,10 +773,10 @@ test("moves card focus and prefills the planner without itinerary generation", a
   await expect(links.first()).toBeFocused();
 
   const launcher = page.getByRole("form", { name: "여행 만들기 빠른 시작" });
-  await launcher.getByLabel("부산 여행 지역").selectOption("350");
-  await launcher.getByRole("button", { name: "여행 만들기" }).click();
-  await expect(page).toHaveURL(/\/planner\/pet$/u);
-  await expect(page.getByLabel("세부 지역")).toHaveValue("350");
+  await launcher.getByRole("combobox", { name: "여행 지역" }).selectOption("busan");
+  await launcher.getByRole("button", { name: "장소 찾아 일정 만들기" }).click();
+  await expect(page).toHaveURL(/\/results\?tab=catalog&region=busan&mode=select/u);
+  await expect(page.getByText("0 / 5곳 담음", { exact: true })).toHaveCount(2);
   expect(generationRequests).toEqual([]);
 });
 
@@ -798,6 +798,8 @@ test("searches loaded places and transfers an ordered three-place selection to t
   await page.goto("/");
   await enrichmentReady;
   await expect(page.locator(".homepage-live-ready")).toBeVisible();
+  await expect(page.locator(".homepage-workbench-row").first().locator("[data-image-kind]")).toBeVisible();
+  await expect(page.locator(".homepage-workbench-row").first().getByText("제공된 이미지가 없어요", { exact: true })).toHaveCount(0);
   const requestsAfterReady = homepageApiRequests;
 
   const modes = page.getByRole("tablist", { name: "홈 장소 탐색 모드" });
@@ -845,10 +847,10 @@ test("searches loaded places and transfers an ordered three-place selection to t
   await expect(page).toHaveURL(/\/planner\/pet\?mode=selected$/u);
   await expect(page.getByText("직접 고른 장소 2곳", { exact: true })).toBeVisible();
   const selectedNames = await page.evaluate(() => {
-    const raw = localStorage.getItem("weekendog:selected-itinerary");
+    const raw = localStorage.getItem("weekendog:plan-draft");
     if (!raw) return [];
-    const value = JSON.parse(raw) as { data?: { places?: Array<{ name?: string }> } };
-    return value.data?.places?.map(({ name }) => name) ?? [];
+    const value = JSON.parse(raw) as { data?: { selectedPlaces?: Array<{ name?: string }> } };
+    return value.data?.selectedPlaces?.map(({ name }) => name) ?? [];
   });
   expect(selectedNames).toEqual(["광안리 바다 전망 카페", "해운대 달맞이 산책로"]);
 
@@ -866,6 +868,20 @@ test("searches loaded places and transfers an ordered three-place selection to t
     selectedPlaceIds: ["tour:1103", "tour:1101"],
     autoFill: true,
   });
+});
+
+test("keeps homepage filter actions reachable inside the viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 1_937, height: 1_272 });
+  await mockHomepage(page);
+  await page.goto("/");
+  await expect(page.locator(".homepage-live-ready")).toBeVisible();
+  await page.getByRole("button", { name: "필터", exact: true }).click();
+  const panel = page.getByRole("region", { name: "지도 장소 필터" });
+  const apply = panel.getByRole("button", { name: /적용하기/u });
+  await expect(apply).toBeVisible();
+  const applyBox = await apply.boundingBox();
+  expect(applyBox).not.toBeNull();
+  expect((applyBox?.y ?? 0) + (applyBox?.height ?? 0)).toBeLessThanOrEqual(1_272);
 });
 
 test("paginates a dense home list with complete tab semantics and 44px mobile targets", async ({ page }) => {

@@ -23,7 +23,6 @@ function SelectionTrayContents({
   onContinue,
   onAutomaticStart,
   onAutoFillChange,
-  onIncludeVerificationRequiredChange,
   automaticFillSupported,
   automaticRecommendationSupported,
   regionName,
@@ -35,7 +34,6 @@ function SelectionTrayContents({
   onContinue: () => void;
   onAutomaticStart: () => void;
   onAutoFillChange: (enabled: boolean) => void;
-  onIncludeVerificationRequiredChange: (enabled: boolean) => void;
   automaticFillSupported: boolean;
   automaticRecommendationSupported: boolean;
   regionName: string;
@@ -71,10 +69,6 @@ function SelectionTrayContents({
         <span>부족한 장소는 WEEKENDOG가 추천</span>
       </label>
       {!automaticFillSupported ? <p className="selected-itinerary-tray__hint">{regionName}에서는 선택 장소 경로만 지원하며 자동 채우기는 아직 제공하지 않습니다.</p> : null}
-      <label className="selected-itinerary-tray__option">
-        <input type="checkbox" checked={snapshot.includeVerificationRequired} disabled={!automaticFillSupported} onChange={(event) => onIncludeVerificationRequiredChange(event.target.checked)} />
-        <span>확인 필요한 장소도 후보에 포함</span>
-      </label>
       <button
         type="button"
         className="selected-itinerary-tray__continue"
@@ -96,7 +90,6 @@ export function SelectedItineraryTray({
   onContinue,
   onAutomaticStart,
   onAutoFillChange,
-  onIncludeVerificationRequiredChange,
   automaticFillSupported,
   automaticRecommendationSupported,
   regionName,
@@ -108,7 +101,6 @@ export function SelectedItineraryTray({
   onContinue: () => void;
   onAutomaticStart: () => void;
   onAutoFillChange: (enabled: boolean) => void;
-  onIncludeVerificationRequiredChange: (enabled: boolean) => void;
   automaticFillSupported: boolean;
   automaticRecommendationSupported: boolean;
   regionName: string;
@@ -144,7 +136,6 @@ export function SelectedItineraryTray({
               onContinue={onContinue}
               onAutomaticStart={onAutomaticStart}
               onAutoFillChange={onAutoFillChange}
-              onIncludeVerificationRequiredChange={onIncludeVerificationRequiredChange}
               automaticFillSupported={automaticFillSupported}
               automaticRecommendationSupported={automaticRecommendationSupported}
               regionName={regionName}
@@ -177,7 +168,6 @@ export function SelectedItineraryTray({
             onContinue={onContinue}
             onAutomaticStart={onAutomaticStart}
             onAutoFillChange={onAutoFillChange}
-            onIncludeVerificationRequiredChange={onIncludeVerificationRequiredChange}
             automaticFillSupported={automaticFillSupported}
             automaticRecommendationSupported={automaticRecommendationSupported}
             regionName={regionName}

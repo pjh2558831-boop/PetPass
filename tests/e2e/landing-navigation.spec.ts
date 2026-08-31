@@ -24,7 +24,7 @@ test.beforeEach(async ({ page }) => {
   await mockUnavailableHomepageData(page);
 });
 
-test("renders the landing page and reaches the existing planner entry", async ({
+test("renders the landing page and reaches the existing selected-place entry", async ({
   page,
 }) => {
   await page.goto("/");
@@ -48,19 +48,17 @@ test("renders the landing page and reaches the existing planner entry", async ({
   await expect(
     main.getByRole("heading", {
       level: 1,
-      name: /반려견과 함께,[\s\S]*부산 여행을 계획해보세요/u,
+      name: /반려견과 함께,[\s\S]*전국 여행을 계획해보세요/u,
     }),
   ).toBeVisible();
 
   const primaryCta = main
     .getByRole("form", { name: "여행 만들기 빠른 시작" })
-    .getByRole("button", { name: "여행 만들기" });
+    .getByRole("button", { name: "장소 찾아 일정 만들기" });
   await primaryCta.click();
 
-  await expect(page).toHaveURL(/\/planner\/pet$/u);
-  await expect(
-    page.getByRole("heading", { name: "여행 정보 입력" }),
-  ).toBeVisible();
+  await expect(page).toHaveURL(/\/results\?tab=catalog&region=busan&page=1&mode=select$/u);
+  await expect(page.getByText("0 / 5곳 담음", { exact: true })).toHaveCount(2);
 });
 
 test("keeps real desktop navigation routable and hides community publicly", async ({

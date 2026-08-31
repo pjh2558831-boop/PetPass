@@ -174,4 +174,16 @@ describe("selected itinerary storage", () => {
       places: [{ id: "kakao:9001" }],
     });
   });
+
+  it("normalizes legacy verification-required candidate inclusion to false", () => {
+    const storage = new MemoryStorage();
+    const snapshot = {
+      ...createSelectedItinerarySnapshot("busan"),
+      includeVerificationRequired: true,
+      places: [place("kakao:9001")],
+    };
+
+    expect(saveSelectedItinerary(snapshot, storage)).toBe(true);
+    expect(loadSelectedItinerary(storage)?.includeVerificationRequired).toBe(false);
+  });
 });

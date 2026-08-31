@@ -206,14 +206,16 @@ export function LivePlaceDetail({
         </div>
       ) : null}
 
-      <div className="mt-5 grid gap-7 lg:grid-cols-[1.08fr_.92fr]">
+      <div className="place-detail-intro mt-5 grid gap-7 lg:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)] lg:items-start">
         <div>
           <PlaceImage
             imageUrl={detail.summary.imageUrl ?? detail.summary.thumbnailUrl}
             title={title}
             priority
           />
-          <div className="mt-6 flex flex-wrap items-center gap-2">
+        </div>
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-extrabold text-[#68776f]">
               {TOUR_CATEGORY_LABELS[detail.summary.category]}
             </span>
@@ -250,19 +252,22 @@ export function LivePlaceDetail({
             ))}
           </div>
         </div>
+      </div>
 
-        <div className="space-y-5">
-          <SourceTrustPanel sourceRecords={detail.sourceRecords} trust={detail.trust} />
+      <div className="place-detail-assessment mt-7">
           <PetAccessAssessmentPanel
             assessment={detail.petAccessAssessment}
             regionId={regionId}
           />
+      </div>
+
+      <div className="place-detail-support mt-7 grid gap-5 lg:grid-cols-3 lg:items-start">
+          <SourceTrustPanel sourceRecords={detail.sourceRecords} trust={detail.trust} />
           <LicenseInformationPanel licensing={detail.licensing} />
           <InformationReportDraftPanel
             placeName={title}
             providerIds={detail.sourceRecords.flatMap(({ providerIds }) => providerIds)}
           />
-        </div>
       </div>
 
       {coordinates ? (
@@ -270,6 +275,7 @@ export function LivePlaceDetail({
           <MapPanel
             regionId={regionId}
             compact
+            initialLevel={4}
             title={`${title} 위치`}
             locationLabel={regionLabel}
             locations={[

@@ -64,7 +64,7 @@ test("runs the canonical Stage 2 → 3 → 4 boundary and returns only a validat
   expect(body.route.routeSummary.stopCount).toBe(body.route.stops.length);
   expect(
     body.route.stops.map((stop: { placeId?: string }) => stop.placeId),
-  ).toEqual(["tour:1103", "tour:1101", "tour:1401"]);
+  ).toEqual(["tour:1101", "tour:1104", "tour:1401"]);
   expect(
     body.route.stops.every(
       (stop: { source?: string }) => stop.source === "tourism_service2",

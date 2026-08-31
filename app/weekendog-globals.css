@@ -2192,6 +2192,150 @@ select {
   }
 }
 
+/* Place discovery and detail polish */
+.explorer-map-filter {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 40;
+}
+
+.explorer-filter-dropdown--map {
+  top: calc(100% + 8px);
+  right: auto;
+  left: 0;
+  width: min(380px, calc(100vw - 48px));
+}
+
+.explorer-place-search {
+  display: flex;
+  min-width: 0;
+  min-height: 42px;
+  flex: 1 1 210px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  padding: 0 8px 0 11px;
+  color: var(--text-muted);
+}
+
+.explorer-place-search:focus-within {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(11, 80, 58, 0.08);
+}
+
+.explorer-place-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 750;
+  outline: 0;
+}
+
+.explorer-place-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.explorer-place-search button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+}
+
+.explorer-place-search button:hover {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.homepage-map-filter-dropdown,
+.homepage-map-filter-dropdown > form {
+  min-height: 0;
+  max-height: inherit;
+}
+
+.homepage-map-filter-dropdown[data-placement="above"] {
+  top: auto;
+  bottom: 50px;
+}
+
+.homepage-map-filter-dropdown .explorer-filter-dropdown__body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.homepage-map-filter-dropdown .explorer-filter-dropdown__actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+}
+
+.place-detail-intro,
+.place-detail-assessment,
+.place-detail-support {
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .explorer-map-filter {
+    top: 10px;
+    left: 10px;
+  }
+
+  .explorer-filter-dropdown--map {
+    left: 0;
+    right: auto;
+    width: min(380px, calc(100vw - 36px));
+  }
+
+  .explorer-results-header {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .explorer-results-header > div {
+    width: 100%;
+  }
+
+  .explorer-place-search {
+    width: 100%;
+    flex: 0 0 100%;
+  }
+
+  .explorer-pagination {
+    gap: 3px;
+    padding-inline: 5px;
+  }
+
+  .explorer-pagination button {
+    min-width: 34px;
+    min-height: 38px;
+  }
+}
+
+@media (max-width: 360px) {
+  .explorer-pagination button {
+    min-width: 31px;
+  }
+
+  .homepage-map-filter-dropdown .explorer-filter-dropdown__actions {
+    gap: 8px;
+    padding-inline: 12px;
+  }
+
+  .homepage-map-filter-dropdown .explorer-filter-dropdown__apply {
+    min-width: 132px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* User motion preferences must override component transition utilities. */
   *,

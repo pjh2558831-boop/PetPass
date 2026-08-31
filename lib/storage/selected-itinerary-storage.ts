@@ -197,7 +197,7 @@ export function loadSelectedItinerary(
     return selectedItinerarySnapshotSchema.parse({
       regionId: draft.regionId,
       autoFill: draft.autoFill,
-      includeVerificationRequired: draft.includeVerificationRequired,
+      includeVerificationRequired: false,
       places: draft.selectedPlaces.map((place) => ({
         id: place.id,
         regionId: place.regionId,
@@ -214,7 +214,7 @@ export function loadSelectedItinerary(
         draft.acknowledgedVerificationRequiredPlaceIds,
     });
   }
-  return readVersionedValue(STORAGE_KEY, selectedItinerarySnapshotSchema, {
+  const snapshot = readVersionedValue(STORAGE_KEY, selectedItinerarySnapshotSchema, {
     version: STORAGE_VERSION,
     migrations: {
       1: (value) => value && typeof value === "object"
@@ -226,16 +226,20 @@ export function loadSelectedItinerary(
     },
     storage,
   });
+  return snapshot ? { ...snapshot, includeVerificationRequired: false } : null;
 }
 
 export function saveSelectedItinerary(
   snapshot: SelectedItinerarySnapshot,
   storage?: StorageLike | null,
 ): boolean {
-  const parsed = selectedItinerarySnapshotSchema.safeParse(snapshot);
+  const parsed = selectedItinerarySnapshotSchema.safeParse({
+    ...snapshot,
+    includeVerificationRequired: false,
+  });
   if (!parsed.success) return false;
-  const currentDraft = loadPlanDraft(storage) ?? createPlanDraft(snapshot.regionId);
-  return savePlanDraft(updatePlanDraftSelection(currentDraft, snapshot), storage);
+  const currentDraft = loadPlanDraft(storage) ?? createPlanDraft(parsed.data.regionId);
+  return savePlanDraft(updatePlanDraftSelection(currentDraft, parsed.data), storage);
 }
 
 export function selectedItineraryVerdictLabel(

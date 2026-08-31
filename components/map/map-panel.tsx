@@ -58,6 +58,7 @@ export interface MapPanelProps {
   emptyMessage?: string;
   isDataLoading?: boolean;
   showEmptyMessage?: boolean;
+  initialLevel?: number;
 }
 
 const EMPTY_ROUTE_COORDINATES: Coordinates[] = [];
@@ -94,8 +95,10 @@ export function MapPanel({
   emptyMessage = "표시할 장소가 없습니다.",
   isDataLoading = false,
   showEmptyMessage = true,
+  initialLevel,
 }: MapPanelProps) {
   const region = getRegionConfig(regionId);
+  const resolvedInitialLevel = initialLevel ?? region.defaultMapLevel;
   const resolvedTitle = title ?? `${region.displayName} 장소 지도`;
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<KakaoMapController | null>(null);
@@ -113,7 +116,7 @@ export function MapPanel({
     isDataLoading,
     regionId,
     defaultCenter: region.defaultMapCenter,
-    defaultLevel: region.defaultMapLevel,
+    defaultLevel: resolvedInitialLevel,
     defaultBounds: region.mapBounds,
   });
   const selectRef = useRef(onLocationSelect);
@@ -132,7 +135,7 @@ export function MapPanel({
       isDataLoading,
       regionId,
       defaultCenter: region.defaultMapCenter,
-      defaultLevel: region.defaultMapLevel,
+      defaultLevel: resolvedInitialLevel,
       defaultBounds: region.mapBounds,
     };
     selectRef.current = onLocationSelect;
@@ -141,7 +144,7 @@ export function MapPanel({
     currentSearchRef.current = onCurrentMapSearch;
     currentViewportKeyRef.current = viewportKey;
     showSelectionInfoRef.current = showSelectionInfo;
-  }, [isDataLoading, locations, onCurrentMapSearch, onDataUpdate, onLocationSelect, onViewportIdle, region.defaultMapCenter, region.defaultMapLevel, region.mapBounds, regionId, routeCoordinates, selectedLocationId, showSelectionInfo, viewportKey]);
+  }, [isDataLoading, locations, onCurrentMapSearch, onDataUpdate, onLocationSelect, onViewportIdle, region.defaultMapCenter, region.mapBounds, regionId, resolvedInitialLevel, routeCoordinates, selectedLocationId, showSelectionInfo, viewportKey]);
 
   const initializeMap = useCallback(() => {
     const container = mapContainerRef.current;
@@ -257,7 +260,7 @@ export function MapPanel({
 
   return (
     <section className="relative" aria-label={resolvedTitle}>
-      <div className={`map-canvas kakao-map-canvas ${compact ? "!min-h-[300px]" : ""}`} data-location-count={validLocationCount} data-map-version={mapVersion} data-route-point-count={routeCoordinates.length}>
+      <div className={`map-canvas kakao-map-canvas ${compact ? "!min-h-[300px]" : ""}`} data-location-count={validLocationCount} data-map-version={mapVersion} data-route-point-count={routeCoordinates.length} data-initial-level={resolvedInitialLevel}>
         <div ref={mapContainerRef} className="absolute inset-0" role="group" aria-label="지도 장소 마커" />
         {showLoadingMessage ? <p role="status" aria-live="polite" className="absolute inset-x-4 top-20 z-10 rounded-2xl bg-white/95 p-4 text-center text-sm font-bold">지도를 불러오는 중입니다…</p> : null}
         {loadError ? <p role="alert" data-map-error-category="sdk" className="map-public-error absolute inset-x-4 top-20 z-10"><strong>지도를 일시적으로 불러오지 못했습니다.</strong><span>장소 목록은 계속 확인할 수 있어요.</span></p> : null}

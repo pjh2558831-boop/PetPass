@@ -166,6 +166,7 @@ export default async function PlaceDetailPage({
             <MapPanel
               regionId={regionId}
               compact
+              initialLevel={4}
               title={`${place.name} 주변 데모 지도`}
               locations={[
                 {

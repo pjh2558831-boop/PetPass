@@ -7,6 +7,7 @@ import {
   type ControlledComparisonScenario,
 } from "@/fixtures/candidate-pipeline-v1-controlled";
 import { haversineKm } from "@/lib/itinerary/optimizer";
+import { CANDIDATE_PIPELINE_V1_CONFIG } from "@/lib/recommendation/config/candidate-pipeline-v1";
 
 export const CONTROLLED_COMPARISON_VERSION =
   "candidate-pipeline-controlled-comparison-v1" as const;
@@ -278,12 +279,12 @@ export function assertStage2ControlledResult(
     ["duplicated_detail_calls", result.duplicatedDetailCalls],
   ];
   for (const [label, value] of counts) assertNonNegativeInteger(value, label);
-  if (result.stageACount > 25) throw new Error("CONTROLLED_STAGE_A_LIMIT_EXCEEDED");
-  if (result.stageBCount > 20) throw new Error("CONTROLLED_STAGE_B_LIMIT_EXCEEDED");
-  if (result.detailedEvaluationCount > 20) {
+  if (result.stageACount > CANDIDATE_PIPELINE_V1_CONFIG.stageALimit) throw new Error("CONTROLLED_STAGE_A_LIMIT_EXCEEDED");
+  if (result.stageBCount > CANDIDATE_PIPELINE_V1_CONFIG.stageBLimit) throw new Error("CONTROLLED_STAGE_B_LIMIT_EXCEEDED");
+  if (result.detailedEvaluationCount > CANDIDATE_PIPELINE_V1_CONFIG.maxDetailedEvaluations) {
     throw new Error("CONTROLLED_DETAIL_LIMIT_EXCEEDED");
   }
-  if (result.finalEligibleContentIds.length > 15) {
+  if (result.finalEligibleContentIds.length > CANDIDATE_PIPELINE_V1_CONFIG.finalEligibleLimit) {
     throw new Error("CONTROLLED_FINAL_ELIGIBLE_LIMIT_EXCEEDED");
   }
   if (new Set(result.eligibleContentIds).size !== result.eligibleContentIds.length) {

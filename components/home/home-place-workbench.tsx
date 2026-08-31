@@ -19,7 +19,8 @@ import {
   type ReactNode,
 } from "react";
 import { MapPanel } from "@/components/map/map-panel";
-import { PlaceImage } from "@/components/places/place-image";
+import { PlaceCardMedia } from "@/components/places/place-card-media";
+import { resolveHomepageCardImage } from "@/lib/homepage/homepage-card-image";
 import { createHomepageMapLocations } from "@/lib/homepage/homepage-map-locations";
 import { PLACE_CATEGORY_LABELS } from "@/lib/map-places/place-categories";
 import {
@@ -219,6 +220,7 @@ export function HomePlaceWorkbench({
   completionState,
   onRetryCompletion,
   providerUnavailable,
+  staticMapEnabled,
 }: {
   regionId: RegionId;
   regionLabel: string;
@@ -233,6 +235,7 @@ export function HomePlaceWorkbench({
   completionState: "initial" | "loading" | "complete" | "partial";
   onRetryCompletion: () => void;
   providerUnavailable: boolean;
+  staticMapEnabled: boolean;
 }) {
   const [mode, setMode] = useState<WorkbenchMode>("browse");
   const [query, setQuery] = useState("");
@@ -449,9 +452,9 @@ export function HomePlaceWorkbench({
                     <span className="homepage-workbench-row__check-spacer" aria-hidden="true" />
                   )}
                   {marker.layer === "official" ? (
-                    <PlaceImage
-                      imageUrl={marker.imageUrl}
-                      title={marker.name}
+                    <PlaceCardMedia
+                      image={resolveHomepageCardImage(marker, { regionId, staticMapEnabled })}
+                      fallbackCategory={marker.category}
                       className="homepage-workbench-row__image"
                       sizes="80px"
                     />

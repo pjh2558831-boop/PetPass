@@ -68,7 +68,7 @@ export function PetAccessAssessmentPanel({
   const VerdictIcon = VERDICT_ICONS[assessment.verdict];
 
   return (
-    <section className="surface-card p-5 sm:p-6" aria-labelledby="pet-access-heading">
+    <section className="place-detail-assessment__panel surface-card p-5 sm:p-6" aria-labelledby="pet-access-heading">
       <p className="eyebrow">PET ACCESS ASSESSMENT</p>
       <h2 id="pet-access-heading" className="mt-2 text-xl font-black tracking-[-0.03em]">
         반려동물 동반 안내
@@ -103,7 +103,7 @@ export function PetAccessAssessmentPanel({
       {assessment.conditions.length > 0 ? (
         <div className="mt-5">
           <h3 className="text-sm font-black text-[#344a40]">동반 조건</h3>
-          <ul className="mt-3 space-y-3">
+          <ul className="mt-3 grid gap-3 lg:grid-cols-2">
             {assessment.conditions.map((condition) => (
               <li key={`${condition.type}:${condition.evidenceIds.join(":")}`} className="rounded-2xl border border-[#dce6df] bg-white p-4">
                 <p className="text-sm font-extrabold text-[#315b48]">{condition.label}</p>
@@ -164,7 +164,7 @@ export function PetAccessAssessmentPanel({
       {assessment.evidence.length > 0 ? (
         <div className="mt-5">
           <h3 className="text-sm font-black text-[#344a40]">한국관광공사 제공 근거</h3>
-          <dl className="mt-3 space-y-3">
+          <dl className="mt-3 grid gap-3 lg:grid-cols-2">
             {assessment.evidence.map((evidence) => (
               <div key={evidence.id} className="rounded-2xl border border-[#dce6df] bg-white p-4">
                 <dt className="text-xs font-extrabold text-[#607269]">

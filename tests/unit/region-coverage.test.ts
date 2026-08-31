@@ -145,7 +145,7 @@ describe("region configuration and bounded Kakao search", () => {
   it("keeps Service2 legal-dong codes separate from legacy tourism area codes", () => {
     expect(BUSAN_REGION_CONFIG.providerCodes.korPetTourService2.legalDongRegionCode).toBe("26");
     expect(JEJU_REGION_CONFIG.providerCodes).toEqual({
-      korPetTourService2: { legalDongRegionCode: "50" },
+      korPetTourService2: { areaCode: "39", legalDongRegionCode: "50" },
       legacyTourismAreaCode: "39",
     });
     expect(JEJU_REGION_CONFIG.districts.map(({ legalDongDistrictCode, name }) => ({

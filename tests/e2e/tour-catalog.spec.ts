@@ -61,9 +61,12 @@ async function showListMode(page: Page) {
 }
 
 async function openCatalogFilters(page: Page) {
-  await showListMode(page);
+  const mapMode = page
+    .getByRole("group", { name: "지도 또는 목록 보기" })
+    .getByRole("button", { name: "지도", exact: true });
+  if (await mapMode.isVisible()) await mapMode.click();
   const trigger = page
-    .locator(".full-map-explorer__toolbar")
+    .locator(".full-map-explorer__map")
     .getByRole("button", { name: "필터", exact: true });
   if (await trigger.getAttribute("aria-expanded") !== "true") await trigger.click();
   const dropdown = page.getByRole("region", { name: "장소 필터" });
@@ -80,7 +83,7 @@ test.beforeEach(async ({ page }, testInfo) => {
 });
 
 test("starts category-first and keeps optional facility records available", async ({ page }) => {
-  await page.goto("/results");
+  await page.goto("/results?tab=catalog&region=busan&page=1");
   const district = page.getByRole("combobox", { name: "부산 세부 지역 검색" });
   await expect(district).toHaveValue("부산 전체");
   await expect(page.locator("#district-options-busan option")).toHaveCount(17);
@@ -99,12 +102,12 @@ test("starts category-first and keeps optional facility records available", asyn
   await showListMode(page);
   await expect(page.getByText("광안 동물병원", { exact: true })).toBeVisible();
   await expect(page.getByText("광안 펫샵", { exact: true })).toBeVisible();
-  await expect(page.getByText("반려동물 편의시설", { exact: true })).toHaveCount(2);
+  await expect(page.getByText("반려동물 편의시설", { exact: true })).toHaveCount(0);
   await expect(page.getByText("동반 가능", { exact: true })).toHaveCount(0);
 });
 
 test("keeps all providers visible while the category dropdown is open", async ({ page }) => {
-  await page.goto("/results");
+  await page.goto("/results?tab=catalog&region=busan&page=1");
   const dropdown = await openCatalogFilters(page);
   await expect(dropdown.getByText("출처", { exact: true })).toHaveCount(0);
   await expect(dropdown.getByRole("button", { name: /^한국관광공사/u })).toHaveCount(0);
@@ -126,7 +129,7 @@ test("filters both authoritative providers by district locally without Kakao dis
       (url.pathname === "/api/tour/places" && url.searchParams.get("view") === "markers")
     ) baseCatalogRequests.push(request.url());
   });
-  await page.goto("/results");
+  await page.goto("/results?tab=catalog&region=busan&page=1");
   await showListMode(page);
   await expect(page.getByRole("heading", { name: /총 \d+곳/u })).toBeVisible();
   await expect.poll(() => baseCatalogRequests.length).toBe(3);
@@ -141,7 +144,7 @@ test("filters both authoritative providers by district locally without Kakao dis
 });
 
 test("paginates cards by 12 while keeping all filtered places on the map", async ({ page }) => {
-  await page.goto("/results");
+  await page.goto("/results?tab=catalog&region=busan&page=1");
   await showListMode(page);
   await expect(page.locator('[id^="place-card-"]')).toHaveCount(12);
   const mapCount = await page.locator(".map-canvas").getAttribute("data-location-count");
@@ -156,6 +159,7 @@ test("paginates cards by 12 while keeping all filtered places on the map", async
   await filterMenu.getByRole("button", { name: /^식당/ }).click();
   await filterMenu.getByRole("button", { name: /^숙소/ }).click();
   await filterMenu.getByRole("button", { name: "적용하기" }).click();
+  await showListMode(page);
   await expect(page).toHaveURL(/categories=cafe/u);
   await expect(page.getByRole("heading", { name: /총 \d+곳/ })).toBeVisible();
   await expect(page.getByText("광안 반려 카페", { exact: true })).toBeVisible();
@@ -163,15 +167,17 @@ test("paginates cards by 12 while keeping all filtered places on the map", async
   filterMenu = await openCatalogFilters(page);
   await filterMenu.getByRole("button", { name: /^동물병원/ }).click();
   await filterMenu.getByRole("button", { name: "적용하기" }).click();
+  await showListMode(page);
   await expect(page.getByText("광안 동물병원")).toBeVisible();
   filterMenu = await openCatalogFilters(page);
   await filterMenu.getByRole("button", { name: /^펫샵·용품점/ }).click();
   await filterMenu.getByRole("button", { name: "적용하기" }).click();
+  await showListMode(page);
   await expect(page.getByText("광안 펫샵")).toBeVisible();
 });
 
 test("supports all, default reset, recommendation, and popularity fallback", async ({ page }) => {
-  await page.goto("/results");
+  await page.goto("/results?tab=catalog&region=busan&page=1");
   let panel = await openCatalogFilters(page);
   for (const label of ["쇼핑", "동물병원", "펫샵·용품점"]) {
     await panel.getByRole("button", { name: new RegExp(`^${label}`) }).click();
@@ -191,7 +197,7 @@ test("supports all, default reset, recommendation, and popularity fallback", asy
 });
 
 test("labels a non-Haeundae live detail from its address", async ({ page }) => {
-  await page.goto("/places/1106?contentTypeId=12");
+  await page.goto("/places/1106?contentTypeId=12&region=busan");
   await expect(page.getByRole("heading", { name: "광안 해변길" })).toBeVisible();
   await expect(page.getByText("부산 · 수영구", { exact: true })).toBeVisible();
 });

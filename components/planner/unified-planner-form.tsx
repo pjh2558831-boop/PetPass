@@ -301,8 +301,6 @@ export function UnifiedPlannerForm({
   const [selectedItinerary, setSelectedItinerary] =
     useState<SelectedItinerarySnapshot | null>(null);
   const [selectionError, setSelectionError] = useState("");
-  const [includeVerificationRequired, setIncludeVerificationRequired] =
-    useState(false);
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const selectedMode = mode === "selected";
   const preferenceRegion = getRegionConfigByService2LegalDongCode(
@@ -323,7 +321,6 @@ export function UnifiedPlannerForm({
       const draft = loadPlanDraft();
       const stored = selectedMode ? loadSelectedItinerary() : null;
       if (draft) {
-        setIncludeVerificationRequired(draft.includeVerificationRequired);
         if (draft.petProfile) {
           setProfile({ ...draft.petProfile });
           setSpecies(draft.petProfile.species);
@@ -663,9 +660,7 @@ export function UnifiedPlannerForm({
         });
         draft = {
           ...draft,
-          includeVerificationRequired: selectedMode
-            ? selectedItinerary?.includeVerificationRequired ?? false
-            : includeVerificationRequired,
+          includeVerificationRequired: false,
         };
         if (!savePlanDraft(draft)) {
           submittingRef.current = false;
@@ -1200,27 +1195,6 @@ export function UnifiedPlannerForm({
                     {activeRegion.displayName}에서는 직접 고른 장소의 순서와 실제 이동 경로를 만들 수 있으며, 자동 채우기는 아직 지원하지 않습니다.
                   </p>
                 ) : null}
-                <label className="planner-inline-check">
-                  <input
-                    type="checkbox"
-                    checked={selectedItinerary?.includeVerificationRequired ?? false}
-                    disabled={!selectedItinerary || !automaticFillSupported}
-                    onChange={(event) => {
-                      if (!selectedItinerary) return;
-                      const next = {
-                        ...selectedItinerary,
-                        includeVerificationRequired: event.target.checked,
-                      };
-                      setSelectedItinerary(next);
-                      if (!saveSelectedItinerary(next)) {
-                        setSelectionError("후보 확인 범위 설정을 저장하지 못했습니다.");
-                      } else {
-                        setSelectionError("");
-                      }
-                    }}
-                  />
-                  <span>확인 필요한 장소도 후보에 포함</span>
-                </label>
                 {selectedItinerary?.places.some(selectedItineraryNeedsWarning) ? (
                   <label className="planner-inline-check">
                     <input
@@ -1258,18 +1232,6 @@ export function UnifiedPlannerForm({
                   </p>
                 ) : null}
               </section>
-            ) : null}
-
-            {!selectedMode ? (
-              <label className="planner-inline-check planner-block">
-                <input
-                  type="checkbox"
-                  checked={includeVerificationRequired}
-                  onChange={(event) =>
-                    setIncludeVerificationRequired(event.target.checked)}
-                />
-                <span>확인 필요한 장소도 후보에 포함</span>
-              </label>
             ) : null}
 
             <fieldset

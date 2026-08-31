@@ -283,7 +283,7 @@ async function generate(page: Page, testInfo: TestInfo, response = READY) {
 test("shows a deliberate empty recommendation state without a request", async ({ page }) => {
   const requests: string[] = [];
   page.on("request", (request) => { if (new URL(request.url()).pathname === GENERATE_PATH) requests.push(request.url()); });
-  await page.goto("/results?tab=recommendations");
+  await page.goto("/results?tab=recommendations&region=busan");
   await expect(page.getByRole("heading", { name: "여행 조건이 아직 확정되지 않았어요." })).toBeVisible();
   expect(requests).toEqual([]);
 });

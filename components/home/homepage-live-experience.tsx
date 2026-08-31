@@ -346,6 +346,10 @@ export function HomepageLiveExperience({
   const [activeCategories, setActiveCategories] = useState<PlaceCategory[]>([...DEFAULT_PLACE_CATEGORIES]);
   const [draftCategories, setDraftCategories] = useState<PlaceCategory[]>([...DEFAULT_PLACE_CATEGORIES]);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [filterPlacement, setFilterPlacement] = useState<{
+    side: "above" | "below";
+    maxHeight: number;
+  }>({ side: "below", maxHeight: 520 });
   const [completionState, setCompletionState] = useState<"initial" | "loading" | "complete" | "partial">("initial");
   const [completionRetryToken, setCompletionRetryToken] = useState(0);
   const [optionalLoadState, setOptionalLoadState] = useState<HomepageOptionalLoadState>(EMPTY_OPTIONAL_LOAD_STATE);
@@ -412,6 +416,26 @@ export function HomepageLiveExperience({
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [filterOpen]);
+
+  useEffect(() => {
+    if (!filterOpen) return;
+    const updatePlacement = () => {
+      const rect = filterButtonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const below = window.innerHeight - rect.bottom - 12;
+      const above = rect.top - 12;
+      const side = below >= 360 || below >= above ? "below" : "above";
+      const available = side === "below" ? below : above;
+      setFilterPlacement({ side, maxHeight: Math.max(240, Math.min(520, available)) });
+    };
+    updatePlacement();
+    window.addEventListener("resize", updatePlacement);
+    window.addEventListener("scroll", updatePlacement, true);
+    return () => {
+      window.removeEventListener("resize", updatePlacement);
+      window.removeEventListener("scroll", updatePlacement, true);
     };
   }, [filterOpen]);
 
@@ -882,6 +906,8 @@ export function HomepageLiveExperience({
           ref={filterDropdownRef}
           id="homepage-map-filter-dropdown"
           className="explorer-filter-dropdown homepage-map-filter-dropdown"
+          data-placement={filterPlacement.side}
+          style={{ maxHeight: `${filterPlacement.maxHeight}px` }}
           role="region"
           aria-label="지도 장소 필터"
         >
@@ -944,6 +970,7 @@ export function HomepageLiveExperience({
         completionState={completionState}
         onRetryCompletion={retryCompletion}
         providerUnavailable={publicUnavailable}
+        staticMapEnabled={staticMapEnabled}
       />
 
       <HomeSelectedItineraryTray

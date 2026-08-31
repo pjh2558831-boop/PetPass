@@ -34,7 +34,6 @@ export type SelectedItinerarySelectionState = {
   remove: (placeId: string) => void;
   move: (placeId: string, direction: SelectedItineraryMoveDirection) => boolean;
   setAutoFill: (enabled: boolean) => void;
-  setIncludeVerificationRequired: (enabled: boolean) => void;
   resetRegion: (
     regionId: RegionId,
     options?: { preserveAutoFill?: boolean; message?: string },
@@ -179,15 +178,6 @@ export function useSelectedItinerarySelection({
     );
   }, [persist, snapshot]);
 
-  const setIncludeVerificationRequired = useCallback((enabled: boolean) => {
-    persist(
-      { ...snapshot, includeVerificationRequired: enabled },
-      enabled
-        ? "확인이 필요한 자동 후보도 포함합니다."
-        : "확인된 자동 후보만 사용합니다.",
-    );
-  }, [persist, snapshot]);
-
   const resetRegion = useCallback((
     nextRegionId: RegionId,
     options?: { preserveAutoFill?: boolean; message?: string },
@@ -207,7 +197,6 @@ export function useSelectedItinerarySelection({
     remove,
     move,
     setAutoFill,
-    setIncludeVerificationRequired,
     resetRegion,
-  }), [hydrated, message, move, remove, resetRegion, setAutoFill, setIncludeVerificationRequired, snapshot, toggle]);
+  }), [hydrated, message, move, remove, resetRegion, setAutoFill, snapshot, toggle]);
 }

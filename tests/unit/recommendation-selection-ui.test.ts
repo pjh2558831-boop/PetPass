@@ -31,7 +31,6 @@ describe("hybrid recommendation result UI", () => {
       onContinue: vi.fn(),
       onAutomaticStart: vi.fn(),
       onAutoFillChange: vi.fn(),
-      onIncludeVerificationRequiredChange: vi.fn(),
       automaticFillSupported: false,
       automaticRecommendationSupported: false,
       regionName: "서울",
