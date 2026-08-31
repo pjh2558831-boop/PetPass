@@ -21,6 +21,8 @@ export interface TravelMatrixInput {
   priority: "TIME";
   avoid: string[];
   requestedDepartureAt: string | null;
+  /** Directed edges with the highest chance of being needed by hard route constraints. */
+  requiredDirectedEdges?: Array<{ fromId: string; toId: string }>;
 }
 
 export type TravelMatrixEdgeStatus =

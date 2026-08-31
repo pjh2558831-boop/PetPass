@@ -374,17 +374,37 @@ describe("asymmetric travel matrix v1", () => {
     expect(result.edges.origin[far.id].lowerBoundMeters).toBeGreaterThan(10_000);
   });
 
-  it("enforces the global fallback budget and leaves every remaining edge explicit", async () => {
+  it("derives enough pair fallback budget to complete an eleven-node partial batch matrix", async () => {
     const client = new FakeClient();
-    const candidates = Array.from({ length: 6 }, (_, index) =>
+    const request = input(10);
+    for (const candidate of request.candidates.slice(0, 3)) client.missingKeys.add(candidate.id);
+
+    const result = await provider(client).buildMatrix(request);
+
+    expect(result.diagnostics).toMatchObject({
+      nodeCount: 11,
+      expectedDirectedEdges: 110,
+      resolvedEdges: 110,
+      unresolvedEdges: 0,
+      multiDestinationRequests: 11,
+      directionsFallbackRequests: 30,
+      budgetExceeded: false,
+    });
+    expect(result.complete).toBe(true);
+  });
+
+  it("bounds a matrix whose derived provider budget cannot cover every fallback", async () => {
+    const client = new FakeClient();
+    const candidates = Array.from({ length: 15 }, (_, index) =>
       place(index + 1, {
-        latitude: 36 + index * 0.2,
-        longitude: 129,
+        latitude: 37,
+        longitude: 125 + index * 0.2,
       }),
     );
-    const result = await provider(client).buildMatrix(input(6, { candidates }));
-    expect(result.diagnostics.directionsFallbackRequests).toBe(
-      TRAVEL_MATRIX_V1_CONFIG.maxPairFallbackRequestsPerMatrix,
+    const result = await provider(client).buildMatrix(input(15, { candidates }));
+    expect(result.diagnostics.directionsFallbackRequests).toBeGreaterThan(24);
+    expect(result.diagnostics.directionsFallbackRequests).toBeLessThanOrEqual(
+      TRAVEL_MATRIX_V1_CONFIG.maxProviderRequestsPerMatrix,
     );
     expect(result.diagnostics.budgetExceeded).toBe(true);
     expect(result.complete).toBe(false);
@@ -392,12 +412,57 @@ describe("asymmetric travel matrix v1", () => {
     const everyEdge = result.nodeIds.flatMap((from) =>
       result.nodeIds.filter((to) => to !== from).map((to) => result.edges[from][to]),
     );
-    expect(everyEdge).toHaveLength(42);
+    expect(everyEdge).toHaveLength(240);
     expect(
       everyEdge
         .filter((edge) => edge.status !== "resolved")
         .every((edge) => edge.distanceMeters === null && edge.lowerBoundMeters !== null),
     ).toBe(true);
+  });
+
+  it("resolves required directed edges before optional fallback edges", async () => {
+    const client = new FakeClient();
+    const candidates = Array.from({ length: 15 }, (_, index) =>
+      place(index + 1, {
+        latitude: 37,
+        longitude: 125 + index * 0.2,
+      }),
+    );
+    const required = { fromId: "place-15", toId: "origin" };
+    const result = await provider(client).buildMatrix(input(15, {
+      candidates,
+      requiredDirectedEdges: [required],
+    }));
+
+    expect(result.edges[required.fromId][required.toId]).toMatchObject({
+      status: "resolved",
+      source: "kakao_directions_live",
+    });
+    expect(result.diagnostics.budgetExceeded).toBe(true);
+  });
+
+  it("merges identical provider work across concurrent matrix builds", async () => {
+    const client = new FakeClient();
+    const original = client.multiDestination.bind(client);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    client.multiDestination = async (request) => {
+      const response = await original(request);
+      await gate;
+      return response;
+    };
+    const service = provider(client);
+    const first = service.buildMatrix(input(2));
+    const second = service.buildMatrix(input(2));
+    await vi.waitFor(() => expect(client.multiCalls.length).toBeGreaterThan(0));
+    release();
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+
+    expect(firstResult.complete).toBe(true);
+    expect(secondResult.complete).toBe(true);
+    expect(client.multiCalls).toHaveLength(3);
+    expect(firstResult.diagnostics.requestCacheHits + secondResult.diagnostics.requestCacheHits)
+      .toBe(3);
   });
 
   it("surfaces provider timeouts without demo or estimated driving values", async () => {

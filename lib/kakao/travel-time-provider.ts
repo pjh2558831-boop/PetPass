@@ -10,7 +10,10 @@ import {
   type KakaoMultiDestinationInput,
 } from "@/lib/kakao/directions";
 import { getDefaultTravelTimeCache } from "@/lib/travel/cache";
-import { TRAVEL_MATRIX_V1_CONFIG } from "@/lib/travel/config/travel-matrix-v1";
+import {
+  pairFallbackBudgetForMatrixV1,
+  TRAVEL_MATRIX_V1_CONFIG,
+} from "@/lib/travel/config/travel-matrix-v1";
 import type {
   CachedTravelEdge,
   OrderedRouteValidationInput,
@@ -393,6 +396,7 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
   private readonly now: () => Date;
   private readonly monotonicNow: () => number;
   private readonly finalRouteCache = new Map<string, FinalRouteCacheEntry>();
+  private readonly inFlightProviderRequests = new Map<string, Promise<unknown>>();
 
   constructor(options: KakaoTravelTimeProviderOptions = {}) {
     this.client = options.client ?? new KakaoMobilityClient({
@@ -402,6 +406,27 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
     this.cache = options.cache ?? getDefaultTravelTimeCache();
     this.now = options.now ?? (() => new Date());
     this.monotonicNow = options.monotonicNow ?? (() => performance.now());
+  }
+
+  private async mergeInFlight<T>(
+    key: string,
+    onHit: () => void,
+    factory: () => Promise<T>,
+  ): Promise<T> {
+    const existing = this.inFlightProviderRequests.get(key);
+    if (existing) {
+      onHit();
+      return existing as Promise<T>;
+    }
+    const pending = factory();
+    this.inFlightProviderRequests.set(key, pending);
+    try {
+      return await pending;
+    } finally {
+      if (this.inFlightProviderRequests.get(key) === pending) {
+        this.inFlightProviderRequests.delete(key);
+      }
+    }
   }
 
   async buildMatrix(input: TravelMatrixInput): Promise<TravelMatrixResult> {
@@ -430,9 +455,14 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
       deadlineExceeded: false,
     };
     const beforeStats = this.client.stats?.() ?? null;
-    const memo = createRequestPromiseMemo(() => {
-      diagnostics.requestCacheHits += 1;
-    });
+    const memo = <T>(key: string, factory: () => Promise<T>) =>
+      this.mergeInFlight(key, () => {
+        diagnostics.requestCacheHits += 1;
+      }, factory);
+    const requiredEdgeKeys = new Set(
+      (input.requiredDirectedEdges ?? []).map(({ fromId, toId }) => `${fromId}>${toId}`),
+    );
+    const fallbackPending: PendingEdge[] = [];
 
     for (const node of nodes) {
       edges[node.id][node.id] = {
@@ -555,19 +585,24 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
             diagnostics.budgetExceeded = true;
             break;
           }
-          diagnostics.multiDestinationRequests += 1;
-          diagnostics.logicalProviderCalls += 1;
-          const destinationIds = batch.map((edge) => edge.destination.id).sort();
+          const destinations = batch.map((edge) => ({
+            id: edge.destination.id,
+            coordinates: coordinateKey(edge.destination),
+          })).sort((left, right) =>
+            left.id.localeCompare(right.id) ||
+            left.coordinates.localeCompare(right.coordinates));
           const requestKey = JSON.stringify({
             operation: "destinations",
             origin: coordinateKey(origin),
-            destinationIds,
+            destinations,
             avoid,
             radius: TRAVEL_MATRIX_V1_CONFIG.multiDestinationRadiusMeters,
           });
           try {
-            const response = await memo(requestKey, () =>
-              this.client.multiDestination({
+            const response = await memo(requestKey, async () => {
+              diagnostics.multiDestinationRequests += 1;
+              diagnostics.logicalProviderCalls += 1;
+              return this.client.multiDestination({
                 origin: toPoint(origin),
                 destinations: batch.map((edge) => ({
                   ...toPoint(edge.destination),
@@ -576,8 +611,8 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
                 radiusMeters: TRAVEL_MATRIX_V1_CONFIG.multiDestinationRadiusMeters,
                 priority: "TIME",
                 avoid,
-              }),
-            );
+              });
+            });
             const byKey = new Map(response.map((entry) => [entry.key, entry]));
             for (const item of batch) {
               const entry = byKey.get(item.destination.id);
@@ -617,93 +652,101 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
           }
         }
 
-        const fallback = pending
-          .filter((item) => !edges[origin.id][item.destination.id])
-          .sort(
-            (left, right) =>
-              left.lowerBoundMeters - right.lowerBoundMeters ||
-              left.destination.id.localeCompare(right.destination.id),
-          );
-        for (const item of fallback) {
-          if (deadlineReached()) {
-            edges[origin.id][item.destination.id] = failedEdge(item, "unresolved", [
-              "matrix_deadline_exceeded",
-            ]);
-            continue;
-          }
-          if (
-            diagnostics.directionsFallbackRequests >=
-            TRAVEL_MATRIX_V1_CONFIG.maxPairFallbackRequestsPerMatrix
-          ) {
-            diagnostics.budgetExceeded = true;
-            edges[origin.id][item.destination.id] = failedEdge(
-              item,
-              item.outsideRadius ? "outside_batch_radius" : "unresolved",
-              ["pair_fallback_budget_exhausted"],
-            );
-            continue;
-          }
-          diagnostics.directionsFallbackRequests += 1;
-          diagnostics.logicalProviderCalls += 1;
-          const requestKey = JSON.stringify({
-            operation: "directions",
-            origin: coordinateKey(origin),
-            destination: coordinateKey(item.destination),
-            avoid,
+        fallbackPending.push(
+          ...pending.filter((item) => !edges[origin.id][item.destination.id]),
+        );
+      },
+    );
+
+    const pairFallbackBudget = pairFallbackBudgetForMatrixV1(
+      nodes.length,
+      diagnostics.multiDestinationRequests,
+    );
+    fallbackPending.sort((left, right) =>
+      Number(requiredEdgeKeys.has(`${right.origin.id}>${right.destination.id}`)) -
+        Number(requiredEdgeKeys.has(`${left.origin.id}>${left.destination.id}`)) ||
+      left.lowerBoundMeters - right.lowerBoundMeters ||
+      left.origin.id.localeCompare(right.origin.id) ||
+      left.destination.id.localeCompare(right.destination.id));
+    const scheduledFallback = fallbackPending.slice(0, pairFallbackBudget);
+    const skippedFallback = fallbackPending.slice(pairFallbackBudget);
+    if (skippedFallback.length > 0) diagnostics.budgetExceeded = true;
+    await mapWithConcurrency(
+      scheduledFallback,
+      TRAVEL_MATRIX_V1_CONFIG.providerConcurrency,
+      async (item) => {
+        if (deadlineReached()) {
+          edges[item.origin.id][item.destination.id] = failedEdge(item, "unresolved", [
+            "matrix_deadline_exceeded",
+          ]);
+          return;
+        }
+        const requestKey = JSON.stringify({
+          operation: "directions",
+          origin: coordinateKey(item.origin),
+          destination: coordinateKey(item.destination),
+          avoid,
+        });
+        try {
+          const route = await memo(requestKey, async () => {
+            diagnostics.directionsFallbackRequests += 1;
+            diagnostics.logicalProviderCalls += 1;
+            return this.client.pairDirections({
+              origin: toPoint(item.origin),
+              destination: toPoint(item.destination),
+              priority: "TIME",
+              avoid,
+            });
           });
+          const edge = resolvedEdge(
+            item,
+            route.totalDistanceMeters,
+            route.totalDurationSeconds,
+            fetchedAt,
+            "kakao_directions_live",
+          );
+          edges[item.origin.id][item.destination.id] = edge;
           try {
-            const route = await memo(requestKey, () =>
-              this.client.pairDirections({
-                origin: toPoint(origin),
-                destination: toPoint(item.destination),
-                priority: "TIME",
-                avoid,
-              }),
-            );
-            const edge = resolvedEdge(
-              item,
-              route.totalDistanceMeters,
-              route.totalDurationSeconds,
-              fetchedAt,
-              "kakao_directions_live",
-            );
-            edges[origin.id][item.destination.id] = edge;
-            try {
-              await this.cache.setEdge(item.key, cacheValue(edge));
-              await this.cache.setEdge(distanceCacheKey(item.key), {
-                ...cacheValue(edge),
-                durationSeconds: null,
-                durationFetchedAt: null,
-                temporalBasis: "traffic_independent",
-              });
-            } catch {
-              // Cache availability never changes provider truth.
-            }
-          } catch (error) {
-            diagnostics.logicalProviderFailures += 1;
-            if (error instanceof KakaoMobilityProviderError && error.code === "TIMEOUT") {
-              diagnostics.logicalTimeouts += 1;
-            }
-            const reason =
-              error instanceof KakaoMobilityProviderError
-                ? `provider_${error.code.toLowerCase()}`
-                : "provider_unavailable";
-            const failed = failedEdge(item, "provider_unavailable", [reason]);
-            edges[origin.id][item.destination.id] = failed;
-            try {
-              await this.cache.setEdge(item.key, {
-                ...cacheValue(failed),
-                negativeUntil: new Date(
-                  capturedNow.getTime() + TRAVEL_MATRIX_V1_CONFIG.negativeCacheTtlMs,
-                ).toISOString(),
-              });
-            } catch {
-              // Cache availability never changes provider truth.
-            }
+            await this.cache.setEdge(item.key, cacheValue(edge));
+            await this.cache.setEdge(distanceCacheKey(item.key), {
+              ...cacheValue(edge),
+              durationSeconds: null,
+              durationFetchedAt: null,
+              temporalBasis: "traffic_independent",
+            });
+          } catch {
+            // Cache availability never changes provider truth.
+          }
+        } catch (error) {
+          diagnostics.logicalProviderFailures += 1;
+          if (error instanceof KakaoMobilityProviderError && error.code === "TIMEOUT") {
+            diagnostics.logicalTimeouts += 1;
+          }
+          const reason = error instanceof KakaoMobilityProviderError
+            ? `provider_${error.code.toLowerCase()}`
+            : "provider_unavailable";
+          const failed = failedEdge(item, "provider_unavailable", [reason]);
+          edges[item.origin.id][item.destination.id] = failed;
+          try {
+            await this.cache.setEdge(item.key, {
+              ...cacheValue(failed),
+              negativeUntil: new Date(
+                capturedNow.getTime() + TRAVEL_MATRIX_V1_CONFIG.negativeCacheTtlMs,
+              ).toISOString(),
+            });
+          } catch {
+            // Cache availability never changes provider truth.
           }
         }
       },
     );
+    for (const item of skippedFallback) {
+      edges[item.origin.id][item.destination.id] = failedEdge(
+        item,
+        item.outsideRadius ? "outside_batch_radius" : "unresolved",
+        ["pair_fallback_budget_exhausted"],
+      );
+    }
 
     for (const origin of nodes) {
       for (const destination of nodes) {
