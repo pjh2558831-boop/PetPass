@@ -107,7 +107,7 @@ type ExplorerTab = "catalog" | "recommendations";
 type ProviderState = "loading" | "ready" | "error";
 type ExplorerPresentationState = "loading" | "partial" | "ready" | "empty" | "error";
 type MobileExplorerMode = "map" | "list";
-type FilterAnchor = "map";
+type FilterAnchor = "toolbar";
 
 const RecommendationPlanner = dynamic(
   () => import("@/components/itinerary/recommendation-planner").then((module) => module.RecommendationPlanner),
@@ -126,6 +126,15 @@ const LAYER_META: Record<PublicCatalogLayer, {
 };
 
 const STRICT_EFFECT_ABORT_GRACE_MS = 50;
+
+const TECHNICAL_PROVIDER_ERROR =
+  /(?:\bAPI\b|Authorization|Bearer|secret|token|환경\s*변수|개발자\s*콘솔|도메인\s*설정|(?:KAKAO|TOUR|SUPABASE|NEXT_PUBLIC)_[A-Z0-9_]+)/iu;
+
+function publicProviderErrorMessage(message: string, fallback: string): string {
+  const normalized = message.trim();
+  if (!normalized || TECHNICAL_PROVIDER_ERROR.test(normalized)) return fallback;
+  return normalized;
+}
 
 async function fetchAllBusanTourPlaces(
   district: string,
@@ -1026,7 +1035,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     if (!id) return;
     const index = placeIndex.get(id);
     if (index !== undefined) setPage(Math.floor(index / PUBLIC_CATALOG_PAGE_SIZE) + 1);
-    requestAnimationFrame(() => document.getElementById(`place-card-${id.replace(":", "-")}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+    requestAnimationFrame(() => document.getElementById(`place-card-${id.replace(":", "-")}`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
   };
   const toggleItineraryPlace = (place: PublicCatalogPlace) => {
     const result = toggleSelection(selectedItineraryPlaceFromCatalog(place));
@@ -1088,13 +1097,13 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
             variant={itineraryMode === "hybrid" ? "selected" : "automatic"}
           />
         </div>
-        <div className="mb-6 inline-flex rounded-2xl border border-[#d7e0da] bg-white p-1" role="tablist" aria-label="장소 및 추천 보기">
+        <div className="mb-6 inline-flex rounded-lg border border-[#d7e0da] bg-white p-1" role="tablist" aria-label="장소 및 추천 보기">
           {itineraryMode === "hybrid" ? (
-            <Link href={`/results?tab=catalog&region=${region}&mode=select`} role="tab" aria-selected="false" className="inline-flex min-h-11 items-center gap-2 rounded-xl px-5 text-sm font-extrabold text-[#52665b]"><Rows3 size={16} aria-hidden="true" />장소 다시 선택</Link>
+            <Link href={`/results?tab=catalog&region=${region}&mode=select`} role="tab" aria-selected="false" className="inline-flex min-h-11 items-center gap-2 rounded-lg px-5 text-sm font-extrabold text-[#52665b]"><Rows3 size={16} aria-hidden="true" />장소 다시 선택</Link>
           ) : (
-            <button id="catalog-tab" type="button" role="tab" aria-selected="false" onClick={() => setActiveTab("catalog")} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-5 text-sm font-extrabold text-[#52665b]"><Rows3 size={16} aria-hidden="true" />전체 장소</button>
+            <button id="catalog-tab" type="button" role="tab" aria-selected="false" onClick={() => setActiveTab("catalog")} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-5 text-sm font-extrabold text-[#52665b]"><Rows3 size={16} aria-hidden="true" />전체 장소</button>
           )}
-          <button id="recommendations-tab" type="button" role="tab" aria-selected="true" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#236148] px-5 text-sm font-extrabold text-white"><Route size={16} aria-hidden="true" />맞춤 일정</button>
+          <button id="recommendations-tab" type="button" role="tab" aria-selected="true" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#236148] px-5 text-sm font-extrabold text-white"><Route size={16} aria-hidden="true" />맞춤 일정</button>
         </div>
         <div id="recommendations-panel" role="tabpanel" aria-labelledby="recommendations-tab"><RecommendationPlanner autoGenerate={generationRequested} onAutoGenerateStart={consumeGenerationRequest} selectionMode={itineraryMode === "hybrid" ? "hybrid" : "automatic"} /></div>
       </div>
@@ -1138,55 +1147,109 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   return (
     <div className={`full-map-explorer ${itineraryMode === "selection" ? "is-itinerary-selection" : ""}`} id="catalog-panel" role="tabpanel" aria-labelledby="catalog-tab">
       <div className="full-map-explorer__toolbar">
-        {itineraryMode === "selection" ? (
-          <div className="selected-itinerary-mode-label" aria-label="맞춤 일정 장소 선택">
-            <Rows3 size={16} aria-hidden="true" />
-            <span><b>장소 선택</b><small>카드에서 방문지를 담아보세요</small></span>
+        <div className="explorer-toolbar-row explorer-mode-row" role="group" aria-label="탐색 모드">
+          <span className="explorer-toolbar-label">탐색 모드</span>
+          {itineraryMode === "selection" ? (
+            <div className="selected-itinerary-mode-label" aria-label="맞춤 일정 장소 선택">
+              <Rows3 size={16} aria-hidden="true" />
+              <span><b>장소 선택</b><small>카드에서 방문지를 담아보세요</small></span>
+            </div>
+          ) : (
+            <div className="explorer-mode-tabs" role="tablist" aria-label="장소 및 추천 보기">
+              <button id="catalog-tab" type="button" role="tab" aria-selected="true"><Rows3 size={16} aria-hidden="true" />장소 찾기</button>
+              {regionConfig.routeCapabilities.fullyAutomaticRecommendation ? (
+                <Link href="/planner/pet" role="tab" aria-selected="false"><Route size={16} aria-hidden="true" />맞춤 일정</Link>
+              ) : null}
+            </div>
+          )}
+        </div>
+
+        <div className="explorer-toolbar-row explorer-scope-row" role="group" aria-label="탐색 범위">
+          <span className="explorer-toolbar-label">탐색 범위</span>
+          <RegionSelector value={region} onChange={requestRegionChange} />
+          <label className="explorer-district-control">
+            <span className="sr-only">{regionConfig.displayName} 세부 지역</span>
+            <input
+              type="search"
+              list={`district-options-${region}`}
+              value={districtQuery}
+              aria-label={`${regionConfig.displayName} 세부 지역 검색`}
+              autoComplete="off"
+              onChange={(event) => {
+                const value = event.target.value;
+                setDistrictQuery(value);
+                const resolved = resolvePublicCatalogDistrictQuery(region, value);
+                if (resolved !== null) changeDistrict(resolved);
+              }}
+              onBlur={() => setDistrictQuery(getPublicCatalogDistrictName(region, district))}
+            />
+            <datalist id={`district-options-${region}`}>
+              <option value={`${regionConfig.displayName} 전체`} />
+              {regionConfig.districts.map((item) => (
+                <option key={item.legalDongDistrictCode} value={item.name} />
+              ))}
+            </datalist>
+          </label>
+        </div>
+
+        <div className="explorer-toolbar-row explorer-tools-row" role="group" aria-label="결과 도구">
+          <span className="explorer-toolbar-label">결과 도구</span>
+          <label className="explorer-place-search">
+            <span className="sr-only">장소 검색</span>
+            <Search size={17} aria-hidden="true" />
+            <input
+              type="search"
+              value={searchQuery}
+              placeholder="이름·주소·카테고리 검색"
+              aria-label="장소 검색"
+              onChange={(event) => {
+                setSearchQuery(event.target.value);
+                setPage(1);
+                setSelectedId(null);
+              }}
+            />
+            {searchQuery ? (
+              <button type="button" aria-label="장소 검색어 지우기" onClick={() => { setSearchQuery(""); setPage(1); setSelectedId(null); }}>
+                <X size={16} aria-hidden="true" />
+              </button>
+            ) : null}
+          </label>
+          <div className="explorer-toolbar-filter">
+            <button
+              ref={mapFilterButtonRef}
+              type="button"
+              className="explorer-filter-trigger"
+              aria-expanded={filterAnchor === "toolbar"}
+              aria-controls="explorer-filter-dropdown"
+              onClick={() => toggleFilters("toolbar")}
+            >
+              <SlidersHorizontal size={17} aria-hidden="true" />필터
+            </button>
+            {renderFilterDropdown("toolbar")}
           </div>
-        ) : (
-          <div className="inline-flex rounded-xl border border-[#d7e0da] bg-white p-1" role="tablist" aria-label="장소 및 추천 보기">
-            <button id="catalog-tab" type="button" role="tab" aria-selected="true" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#236148] px-4 text-sm font-extrabold text-white"><Rows3 size={16} aria-hidden="true" />장소 찾기</button>
-            {regionConfig.routeCapabilities.fullyAutomaticRecommendation ? (
-              <Link href="/planner/pet" role="tab" aria-selected="false" className="inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-extrabold text-[#52665b]"><Route size={16} aria-hidden="true" />맞춤 일정</Link>
-            ) : (
-              <button id="recommendations-tab" type="button" role="tab" aria-selected="false" aria-disabled="true" disabled className="inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-extrabold text-[#7a8780]"><Route size={16} aria-hidden="true" />{regionConfig.displayName} 경로 추천은 준비 중입니다.</button>
-            )}
+          <label className="explorer-sort-control" htmlFor="explorer-sort">
+            <span>정렬</span>
+            <select id="explorer-sort" value={sort} onChange={(event) => { setSort(event.target.value as ExplorerSort); setPage(1); }}>
+              <option value="recommendation">추천순</option>
+              <option value="popularity">인기도순</option>
+            </select>
+          </label>
+          <div className="full-map-explorer__mobile-switch" role="group" aria-label="지도 또는 목록 보기">
+            <button type="button" aria-pressed={mobileMode === "list"} onClick={() => setMobileMode("list")}><List size={17} aria-hidden="true" />목록</button>
+            <button type="button" aria-pressed={mobileMode === "map"} onClick={() => setMobileMode("map")}><MapIcon size={17} aria-hidden="true" />지도</button>
           </div>
-        )}
-        <RegionSelector value={region} onChange={requestRegionChange} />
-        <label className="explorer-district-control">
-          <span className="sr-only">{regionConfig.displayName} 세부 지역</span>
-          <input
-            type="search"
-            list={`district-options-${region}`}
-            value={districtQuery}
-            aria-label={`${regionConfig.displayName} 세부 지역 검색`}
-            autoComplete="off"
-            onChange={(event) => {
-              const value = event.target.value;
-              setDistrictQuery(value);
-              const resolved = resolvePublicCatalogDistrictQuery(region, value);
-              if (resolved !== null) changeDistrict(resolved);
-            }}
-            onBlur={() => setDistrictQuery(getPublicCatalogDistrictName(region, district))}
-          />
-          <datalist id={`district-options-${region}`}>
-            <option value={`${regionConfig.displayName} 전체`} />
-            {regionConfig.districts.map((item) => (
-              <option key={item.legalDongDistrictCode} value={item.name} />
+        </div>
+
+        <div className="explorer-toolbar-row explorer-source-row" role="group" aria-label="장소 출처 범례">
+          <span className="explorer-toolbar-label">출처</span>
+          <div className="explorer-source-controls">
+            {visibleLayers.map((layer) => (
+              <button key={layer} type="button" aria-pressed={layers.includes(layer)} onClick={() => toggleLayer(layer)}>
+                <i data-color={LAYER_META[layer].color} aria-hidden="true" />
+                <span>{LAYER_META[layer].label}</span>
+              </button>
             ))}
-          </datalist>
-        </label>
-        <label className="explorer-sort-control" htmlFor="explorer-sort">
-          <span>정렬</span>
-          <select id="explorer-sort" value={sort} onChange={(event) => { setSort(event.target.value as ExplorerSort); setPage(1); }}>
-            <option value="recommendation">추천순</option>
-            <option value="popularity">인기도순</option>
-          </select>
-        </label>
-        <div className="full-map-explorer__mobile-switch" role="group" aria-label="지도 또는 목록 보기">
-          <button type="button" aria-pressed={mobileMode === "list"} onClick={() => setMobileMode("list")}><List size={17} aria-hidden="true" />목록</button>
-          <button type="button" aria-pressed={mobileMode === "map"} onClick={() => setMobileMode("map")}><MapIcon size={17} aria-hidden="true" />지도</button>
+          </div>
         </div>
       </div>
 
@@ -1198,31 +1261,6 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
 
       <div className="full-map-explorer__main" data-mobile-mode={mobileMode}>
         <section className="full-map-explorer__map" aria-label={`${districtName} 전체 장소 지도`}>
-          <div className="explorer-map-filter">
-            <button
-              ref={mapFilterButtonRef}
-              type="button"
-              className="explorer-filter-trigger"
-              aria-expanded={filterAnchor === "map"}
-              aria-controls="explorer-filter-dropdown"
-              onClick={() => toggleFilters("map")}
-            >
-              <SlidersHorizontal size={17} aria-hidden="true" />필터
-            </button>
-            {renderFilterDropdown("map")}
-          </div>
-          <div className="explorer-source-legend" role="group" aria-label="장소 출처 범례">
-            {visibleLayers.map((layer) => (
-              <button
-                key={layer}
-                type="button"
-                aria-pressed={layers.includes(layer)}
-                onClick={() => toggleLayer(layer)}
-              >
-                <i data-color={LAYER_META[layer].color} aria-hidden="true" />{LAYER_META[layer].label}
-              </button>
-            ))}
-          </div>
           <MapPanel
             regionId={region}
             locations={mapLocations}
@@ -1245,6 +1283,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
             emptyMessage="선택한 조건에 표시할 장소가 없습니다."
             isDataLoading={mapDataPending}
             showEmptyMessage={presentationState === "empty"}
+            loadingPresentation="visual-only"
           />
           <p className="sr-only" aria-live="polite">{viewportDirty ? "지도 범위가 변경되었습니다. 이 지역 검색 다시하기를 선택하면 결과에 반영됩니다." : ""}</p>
         </section>
@@ -1275,55 +1314,25 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
                       ? "장소 정보를 확인하지 못했어요"
                       : `총 ${filteredPlaces.length.toLocaleString("ko-KR")}곳`}
               </h1>
-              <p>
+              {presentationState !== "loading" ? <p>
                 {presentationState === "partial"
                   ? "현재 확인된 장소를 먼저 보여드리며 추가 장소를 확인하고 있어요."
                   : presentationState === "error" && hasUsableResults
                     ? "일부 제공처를 확인하지 못했지만 현재 장소는 계속 볼 수 있어요."
-                    : presentationState === "loading"
-                      ? "공식 장소와 공개된 지역 후보를 함께 확인하는 중입니다."
-                      : "카드는 페이지당 12개 · 지도는 현재 필터의 전체 결과"}
-              </p>
+                    : "카드는 페이지당 12개 · 지도는 현재 필터의 전체 결과"}
+              </p> : null}
             </div>
-            <label className="explorer-place-search">
-              <span className="sr-only">장소 검색</span>
-              <Search size={17} aria-hidden="true" />
-              <input
-                type="search"
-                value={searchQuery}
-                placeholder="이름·주소·카테고리 검색"
-                aria-label="장소 검색"
-                onChange={(event) => {
-                  setSearchQuery(event.target.value);
-                  setPage(1);
-                  setSelectedId(null);
-                }}
-              />
-              {searchQuery ? (
-                <button
-                  type="button"
-                  aria-label="장소 검색어 지우기"
-                  onClick={() => {
-                    setSearchQuery("");
-                    setPage(1);
-                    setSelectedId(null);
-                  }}
-                >
-                  <X size={16} aria-hidden="true" />
-                </button>
-              ) : null}
-            </label>
           </header>
           {activeBounds ? <p className="explorer-active-bounds">지도 범위 적용 중</p> : null}
           {sort === "popularity" && allPopularityInsufficient ? <p className="explorer-popularity-notice" role="status">이용 데이터가 쌓이는 동안 추천순을 함께 반영합니다.</p> : null}
           <div className="explorer-results-status">
             {isFilterPending ? <p role="status">필터 결과를 반영하는 중입니다…</p> : null}
-            {tourState === "error" ? <div role="alert"><b>관광공사 장소를 불러오지 못했습니다.</b> {tourError}</div> : null}
-            {regionConfig.kakaoDiscoveryEnabled && kakaoState === "error" ? <div role="alert"><b>Kakao 장소를 불러오지 못했습니다.</b> {kakaoError}</div> : null}
-            {needsOptionalPlaces && optionalTourState === "error" ? <div role="alert"><b>쇼핑 장소를 불러오지 못했습니다.</b> {optionalTourError} <button type="button" onClick={() => { setOptionalTourState("loading"); setOptionalRetry((value) => value + 1); }}><RefreshCw size={15} aria-hidden="true" />쇼핑 다시 시도</button></div> : null}
+            {tourState === "error" ? <div role="alert"><b>관광공사 장소를 불러오지 못했습니다.</b> {publicProviderErrorMessage(tourError, "공식 장소 제공처 연결을 확인하지 못했습니다.")}</div> : null}
+            {regionConfig.kakaoDiscoveryEnabled && kakaoState === "error" ? <div role="alert"><b>카카오맵 장소를 불러오지 못했습니다.</b> {publicProviderErrorMessage(kakaoError, "장소 제공처 연결을 확인하지 못했습니다.")}</div> : null}
+            {needsOptionalPlaces && optionalTourState === "error" ? <div role="alert"><b>쇼핑 장소를 불러오지 못했습니다.</b> {publicProviderErrorMessage(optionalTourError, "쇼핑 장소 제공처 연결을 확인하지 못했습니다.")} <button type="button" onClick={() => { setOptionalTourState("loading"); setOptionalRetry((value) => value + 1); }}><RefreshCw size={15} aria-hidden="true" />쇼핑 다시 시도</button></div> : null}
             {catalogFreshness === "stale" ? <div role="status"><b>저장된 장소 데이터를 표시하고 있습니다.</b> 최신 데이터 확인이 지연되고 있어요.</div> : null}
             {catalogFreshness === "fallback" ? <div role="status"><b>호환 조회로 장소를 표시하고 있습니다.</b> 지역 스냅샷을 확인하지 못했어요.</div> : null}
-            {cardDetailsError ? <div role="alert"><b>카드 상세 정보를 불러오지 못했습니다.</b> {cardDetailsError} <button type="button" onClick={() => setCardDetailsRetry((value) => value + 1)}><RefreshCw size={15} aria-hidden="true" />카드 다시 시도</button></div> : null}
+            {cardDetailsError ? <div role="alert"><b>카드 상세 정보를 불러오지 못했습니다.</b> {publicProviderErrorMessage(cardDetailsError, "상세 정보 제공처 연결을 확인하지 못했습니다.")} <button type="button" onClick={() => setCardDetailsRetry((value) => value + 1)}><RefreshCw size={15} aria-hidden="true" />카드 다시 시도</button></div> : null}
             {presentationState === "partial" ? <p role="status">추가 장소를 불러오는 중입니다…</p> : null}
             {shoppingSupported && !needsOptionalPlaces && !shoppingLoaded ? <p role="status">쇼핑은 필터에서 선택하면 불러옵니다.</p> : null}
             {needsOptionalPlaces && optionalTourState === "loading" ? <p role="status">쇼핑 장소를 불러오는 중입니다…</p> : null}

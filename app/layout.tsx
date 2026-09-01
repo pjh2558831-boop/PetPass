@@ -56,7 +56,7 @@ export default function RootLayout({
       <body>
         <SiteHeader />
         <PlannerStateProvider>
-          <main>{children}</main>
+          <main id="main-content" tabIndex={-1}>{children}</main>
         </PlannerStateProvider>
         <SiteFooter />
       </body>

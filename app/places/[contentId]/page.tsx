@@ -14,9 +14,7 @@ import { MapPanel } from "@/components/map/map-panel";
 import { LivePlaceDetail } from "@/components/places/live-place-detail";
 import { AssessmentPanel } from "@/components/pet-access/assessment-panel";
 import { StatusBadge } from "@/components/pet-access/status-badge";
-import { ButtonLink } from "@/components/ui/button";
 import { DemoBadge } from "@/components/ui/demo-badge";
-import { MissingImage } from "@/components/ui/missing-image";
 import { demoPlaces, getDemoPlace } from "@/fixtures/demo-data";
 import { CATEGORY_LABELS } from "@/lib/shared/format";
 import { REGION_CONFIGS, getRegionConfig } from "@/lib/regions/config";
@@ -75,16 +73,15 @@ export default async function PlaceDetailPage({
     <div className="page-shell py-8 sm:py-12">
       <Link
         href={`/results?tab=catalog&region=${regionId}`}
-        className="inline-flex min-h-10 items-center gap-2 rounded-full text-sm font-bold text-[#52665b] hover:text-[#236148]"
+        className="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-bold text-[#52665b] hover:text-[#236148]"
       >
         <ArrowLeft size={17} aria-hidden="true" />
-        추천 결과로
+        장소 목록으로
       </Link>
 
-      <div className="mt-5 grid gap-7 lg:grid-cols-[1.08fr_.92fr]">
-        <div>
-          <MissingImage label={place.name} />
-          <div className="mt-6 flex flex-wrap items-center gap-2">
+      <article className="demo-place-document mt-5">
+        <header>
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-extrabold text-[#68776f]">
               {CATEGORY_LABELS[place.category]}
             </span>
@@ -97,46 +94,28 @@ export default async function PlaceDetailPage({
           <p className="mt-3 max-w-2xl text-base leading-8 text-[#627169]">
             {place.summary}
           </p>
-          <div className="mt-6 grid gap-3 text-sm sm:grid-cols-2">
-            <div className="flex items-start gap-3 rounded-2xl bg-[#fffdf8] p-4">
-              <MapPin size={18} className="mt-0.5 shrink-0 text-[#3d8b68]" aria-hidden="true" />
-              <div>
-                <p className="text-xs font-extrabold text-[#748078]">주소</p>
-                <p className="mt-1 font-semibold leading-6">{place.address}</p>
-              </div>
+          <dl className="place-detail-facts mt-6 text-sm">
+            <div>
+              <dt><MapPin size={18} className="shrink-0 text-[#3d8b68]" aria-hidden="true" />주소</dt><dd>{place.address}</dd>
             </div>
-            <div className="flex items-start gap-3 rounded-2xl bg-[#fffdf8] p-4">
-              <Phone size={18} className="mt-0.5 shrink-0 text-[#3d8b68]" aria-hidden="true" />
-              <div>
-                <p className="text-xs font-extrabold text-[#748078]">전화</p>
-                <p className="mt-1 font-semibold">{place.phone ?? "정보 없음"}</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 rounded-2xl bg-[#fffdf8] p-4">
-              <Clock3 size={18} className="mt-0.5 shrink-0 text-[#3d8b68]" aria-hidden="true" />
-              <div>
-                <p className="text-xs font-extrabold text-[#748078]">운영시간</p>
-                <p className="mt-1 font-semibold leading-6">
-                  {place.openingHours ?? "정보 미확인"}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 rounded-2xl bg-[#fffdf8] p-4">
-              <CalendarX2 size={18} className="mt-0.5 shrink-0 text-[#3d8b68]" aria-hidden="true" />
-              <div>
-                <p className="text-xs font-extrabold text-[#748078]">휴무일</p>
-                <p className="mt-1 font-semibold">{place.closedDays ?? "정보 미확인"}</p>
-              </div>
-            </div>
-          </div>
-        </div>
+            {place.phone ? <div>
+              <dt><Phone size={18} className="shrink-0 text-[#3d8b68]" aria-hidden="true" />전화</dt><dd>{place.phone}</dd>
+            </div> : null}
+            {place.openingHours ? <div>
+              <dt><Clock3 size={18} className="shrink-0 text-[#3d8b68]" aria-hidden="true" />운영시간</dt><dd>{place.openingHours}</dd>
+            </div> : null}
+            {place.closedDays ? <div>
+              <dt><CalendarX2 size={18} className="shrink-0 text-[#3d8b68]" aria-hidden="true" />휴무일</dt><dd>{place.closedDays}</dd>
+            </div> : null}
+          </dl>
+        </header>
 
-        <div className="space-y-5">
+        <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,1.3fr)_minmax(280px,.7fr)]">
           <AssessmentPanel assessment={place.accessAssessment} />
-          <div className="surface-card p-5">
+          <section className="demo-license-document" aria-labelledby="demo-license-heading">
             <div className="flex items-center gap-2">
               <Building2 size={18} className="text-[#3d8b68]" aria-hidden="true" />
-              <h2 className="font-black">영업 인허가 확인</h2>
+              <h2 id="demo-license-heading" className="font-black">영업 인허가 확인</h2>
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-[#eef3ef] px-2.5 py-1 text-xs font-extrabold text-[#53675c]">
@@ -149,12 +128,9 @@ export default async function PlaceDetailPage({
             <p className="mt-3 text-sm leading-6 text-[#637169]">
               {place.licenseVerification.reason}
             </p>
-          </div>
-          <ButtonLink href="/itinerary" className="w-full">
-            이 장소가 담긴 일정 보기
-          </ButtonLink>
+          </section>
         </div>
-      </div>
+      </article>
 
       <div className="mt-12 grid gap-7 lg:grid-cols-2">
         <div>
@@ -167,7 +143,7 @@ export default async function PlaceDetailPage({
               regionId={regionId}
               compact
               initialLevel={4}
-              title={`${place.name} 주변 데모 지도`}
+              title={`${place.name} 위치`}
               locations={[
                 {
                   id: place.contentId,
@@ -193,7 +169,7 @@ export default async function PlaceDetailPage({
                 <Link
                   key={alternative.contentId}
                   href={`/places/${alternative.contentId}?region=${regionId}`}
-                  className="surface-card block p-5 transition hover:border-[#9bb8a8]"
+                  className="block border-t border-[var(--line)] py-5 transition-colors hover:text-[var(--brand)]"
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge status={alternative.accessAssessment.status} />
@@ -207,10 +183,10 @@ export default async function PlaceDetailPage({
               ))}
             </div>
           ) : (
-            <div className="surface-card mt-4 p-7 text-center">
+            <div className="mt-4 border-t border-[var(--line)] py-6">
               <p className="font-black">등록된 같은 유형의 대체 데모가 없어요.</p>
               <p className="mt-2 text-sm text-[#6a7971]">
-                실제 연결 단계에서는 주변 좌표로 다시 검색합니다.
+                현재 표시할 수 있는 같은 유형의 장소가 없습니다.
               </p>
             </div>
           )}

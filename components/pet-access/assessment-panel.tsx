@@ -8,7 +8,7 @@ export function AssessmentPanel({
   assessment: PetAccessAssessment;
 }) {
   return (
-    <section className="surface-card p-5 sm:p-6" aria-labelledby="access-heading">
+    <section className="demo-access-document" aria-labelledby="access-heading">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="eyebrow">내 조건과 비교한 결과</p>
@@ -22,8 +22,8 @@ export function AssessmentPanel({
         {assessment.reason}
       </p>
 
-      <div className="mt-5 grid gap-4 sm:grid-cols-2">
-        <div className="rounded-2xl bg-[#f1f7f3] p-4">
+      <div className="demo-access-document__facts mt-5 grid gap-6 sm:grid-cols-2">
+        <div>
           <p className="text-xs font-extrabold text-[#4d6559]">준비물</p>
           <ul className="mt-2 space-y-2 text-sm font-semibold">
             {assessment.requiredItems.length > 0 ? (
@@ -38,7 +38,7 @@ export function AssessmentPanel({
             )}
           </ul>
         </div>
-        <div className="rounded-2xl bg-[#faf5ed] p-4">
+        <div>
           <p className="text-xs font-extrabold text-[#725a43]">이용 제한</p>
           <ul className="mt-2 space-y-2 text-sm font-semibold">
             {assessment.restrictions.length > 0 ? (
@@ -50,7 +50,7 @@ export function AssessmentPanel({
         </div>
       </div>
 
-      <blockquote className="mt-5 rounded-2xl border border-[#dce6df] bg-white p-4">
+      <blockquote className="mt-5 border-l-2 border-[#9eb9aa] pl-4">
         <div className="flex items-center gap-2 text-xs font-extrabold text-[#607269]">
           <Quote size={15} aria-hidden="true" />
           원문 근거 · {assessment.sourceName}
@@ -61,7 +61,7 @@ export function AssessmentPanel({
       </blockquote>
 
       {assessment.contactAction ? (
-        <div className="mt-5 rounded-2xl border border-[#e8d2bd] bg-[#fff8f1] p-4">
+        <div className="mt-5 rounded-lg border border-[#e8d2bd] bg-[#fff8f1] p-4">
           <p className="text-sm font-extrabold text-[#6f4429]">전화할 때 이렇게 물어보세요</p>
           <p className="mt-2 text-sm leading-6 text-[#6a5547]">
             {assessment.contactAction.suggestedQuestion}
@@ -69,7 +69,7 @@ export function AssessmentPanel({
           {assessment.contactAction.href ? (
             <a
               href={assessment.contactAction.href}
-              className="mt-3 inline-flex items-center gap-2 text-sm font-extrabold text-[#9b4b24]"
+              className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-extrabold text-[#9b4b24]"
             >
               <Phone size={16} aria-hidden="true" />
               {assessment.contactAction.label}

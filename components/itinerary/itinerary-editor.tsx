@@ -8,7 +8,6 @@ import {
   Clock3,
   MapPinned,
   PencilLine,
-  Route,
   ShieldAlert,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -21,6 +20,7 @@ import {
 import { MapPanel } from "@/components/map/map-panel";
 import { usePlannerState } from "@/components/planner/planner-state";
 import { Button } from "@/components/ui/button";
+import { ProductState } from "@/components/ui/product-state";
 import {
   createItineraryPresentation,
   formatKoreanDurationMinutes,
@@ -43,43 +43,33 @@ import {
 
 function ItineraryEmptyState() {
   return (
-    <section
-      className="surface-panel mx-auto max-w-3xl p-7 text-center sm:p-10"
-      aria-labelledby="itinerary-empty-heading"
+    <ProductState
+      title="아직 저장된 일정이 없습니다."
+      description="여행 조건을 입력해 맞춤 일정을 만든 뒤 이 브라우저에 저장하면 여기에서 다시 볼 수 있어요."
+      headingProps={{
+        id: "itinerary-empty-heading",
+        tabIndex: -1,
+      }}
     >
-      <span className="mx-auto grid size-12 place-items-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]">
-        <Route size={23} aria-hidden="true" />
-      </span>
-      <p className="eyebrow mt-4">상세 일정</p>
-      <h1
-        id="itinerary-empty-heading"
-        className="mt-2 text-2xl font-black tracking-[-0.04em] sm:text-3xl"
-      >
-        선택된 추천 경로가 없습니다.
-      </h1>
-      <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-[var(--muted)]">
-        상세 일정은 이 브라우저 탭에서 선택한 경로만 보여드립니다. 새로고침하거나 주소로 바로 들어온 경우 여행 조건부터 다시 확인해 주세요.
-      </p>
       <Link
         href="/planner/pet"
-        className="mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--brand)] px-5 text-sm font-extrabold text-white shadow-[var(--shadow-button)] hover:bg-[var(--brand-deep)]"
+        className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-5 text-sm font-extrabold text-white hover:bg-[var(--brand-deep)]"
       >
         <ArrowLeft size={17} aria-hidden="true" />
         여행 정보 입력하기
       </Link>
-    </section>
+    </ProductState>
   );
 }
 
 function ItineraryRestoreLoadingState() {
   return (
-    <section className="surface-panel mx-auto max-w-3xl p-7 text-center sm:p-10" aria-live="polite" aria-busy="true">
-      <span className="mx-auto grid size-12 place-items-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]">
-        <Route size={23} aria-hidden="true" />
-      </span>
-      <p className="eyebrow mt-4">상세 일정</p>
-      <h1 className="mt-2 text-2xl font-black tracking-[-0.04em] sm:text-3xl">저장된 일정을 확인하고 있어요.</h1>
-    </section>
+    <ProductState
+      status="status"
+      title="저장된 일정을 확인하고 있어요."
+      description="이 브라우저에 저장된 최근 일정을 불러오는 중입니다."
+      headingProps={{ id: "itinerary-restore-loading-heading" }}
+    />
   );
 }
 
@@ -171,6 +161,16 @@ export function ItineraryEditor() {
       : null,
   );
 
+  useEffect(() => {
+    if (restoration.source === "in_memory") return;
+    const frame = window.requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLElement>("[data-itinerary-restored-heading], #itinerary-empty-heading")
+        ?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [restoration.source, storedRestoration?.source]);
+
   if (restoration.source === "saved_recommendation") {
     return <SavedRecommendationView snapshot={restoration.snapshot} />;
   }
@@ -199,7 +199,7 @@ export function ItineraryEditor() {
           <h1
             ref={headingRef}
             tabIndex={-1}
-            className="balance mt-2 break-words text-3xl font-black tracking-[-0.045em] outline-none [overflow-wrap:anywhere] sm:text-4xl lg:text-[42px]"
+            className="balance mt-2 break-words text-3xl font-black tracking-[-0.045em] [overflow-wrap:anywhere] sm:text-4xl lg:text-[42px]"
           >
             {profile.name}와 함께하는 {currentItinerary.title}
           </h1>
@@ -217,7 +217,7 @@ export function ItineraryEditor() {
       <ConfirmedTripSummary profile={profile} preferences={preferences} />
 
       {presentation.blockedByPetAccess ? (
-        <div className="rounded-[var(--radius-card)] border border-[#e5bdb7] bg-[#fff1ef] p-4 text-[#823f36]" role="alert">
+        <div className="rounded-lg border border-[#e5bdb7] bg-[#fff1ef] p-4 text-[#823f36]" role="alert">
           <p className="flex items-center gap-2 font-black"><ShieldAlert size={18} aria-hidden="true" /> 동반 불가 판정이 포함된 경로입니다.</p>
           <p className="mt-1 text-sm leading-6">이 결과를 완전히 이용 가능한 일정으로 표시하지 않습니다. 비교 화면에서 다른 전략을 선택해 주세요.</p>
         </div>
@@ -256,16 +256,16 @@ export function ItineraryEditor() {
         </section>
 
         <aside className="min-w-0 lg:sticky lg:top-24 lg:self-start" aria-label="일정 요약과 지도">
-          <section className="surface-card p-4 sm:p-5" aria-labelledby="route-summary-heading">
+          <section className="itinerary-summary-document" aria-labelledby="route-summary-heading">
             <p className="eyebrow">경로 요약</p>
             <h2 id="route-summary-heading" className="mt-1 break-words text-xl font-black tracking-[-0.03em] [overflow-wrap:anywhere]">
               {currentItinerary.title}
             </h2>
-            <dl className="mt-4 grid grid-cols-2 gap-2">
-              <div className="rounded-xl bg-[#f3f6f2] p-3"><dt className="text-[11px] font-bold text-[var(--muted)]">총 이동 거리</dt><dd className="mt-1 font-black">{formatRouteDistance(presentation.metrics.totalDistanceMeters)}</dd></div>
-              <div className="rounded-xl bg-[#f3f6f2] p-3"><dt className="text-[11px] font-bold text-[var(--muted)]">차량 이동</dt><dd className="mt-1 font-black">{formatRouteDuration(presentation.metrics.totalDurationSeconds)}</dd></div>
-              <div className="rounded-xl bg-[#f3f6f2] p-3"><dt className="text-[11px] font-bold text-[var(--muted)]">방문 장소</dt><dd className="mt-1 font-black">{presentation.metrics.stopCount}곳</dd></div>
-              <div className="rounded-xl bg-[#f3f6f2] p-3"><dt className="text-[11px] font-bold text-[var(--muted)]">전체 일정</dt><dd className="mt-1 font-black">{formatKoreanDurationMinutes(presentation.metrics.estimatedElapsedDurationMinutes) ?? "미제공"}</dd></div>
+            <dl className="itinerary-summary-document__facts mt-4">
+              <div><dt>총 이동 거리</dt><dd>{formatRouteDistance(presentation.metrics.totalDistanceMeters)}</dd></div>
+              <div><dt>차량 이동</dt><dd>{formatRouteDuration(presentation.metrics.totalDurationSeconds)}</dd></div>
+              <div><dt>방문 장소</dt><dd>{presentation.metrics.stopCount}곳</dd></div>
+              <div><dt>전체 일정</dt><dd>{formatKoreanDurationMinutes(presentation.metrics.estimatedElapsedDurationMinutes) ?? "미제공"}</dd></div>
             </dl>
             <div className="mt-4 border-t border-[var(--line)] pt-4">
               <h3 className="text-xs font-black text-[#344a40]">동반 판정 분포</h3>
@@ -296,10 +296,10 @@ export function ItineraryEditor() {
               emptyMessage="유효한 장소 좌표가 없습니다. 왼쪽의 텍스트 일정을 이용해 주세요."
             />
           </div>
-          <p className="mt-3 rounded-xl bg-[#f4f7f4] p-3 text-xs font-semibold leading-5 text-[var(--muted)]">
+          <p className="mt-3 border-l-2 border-[#b8c9bf] pl-3 text-xs font-semibold leading-5 text-[var(--muted)]">
             {presentation.geometry.length >= 2
-              ? "실제 Kakao 경로 geometry만 선으로 표시합니다. 번호는 일정 순서와 같습니다."
-              : "실제 경로 geometry가 없어 장소 위치만 표시하며 임의의 선은 그리지 않습니다."}
+              ? "확인된 이동 경로를 선으로 표시합니다. 번호는 방문 순서와 같습니다."
+              : "확인된 이동 경로가 없으면 장소 위치만 표시합니다."}
           </p>
 
           <div className="mt-4 grid gap-2">
@@ -308,7 +308,7 @@ export function ItineraryEditor() {
             </Button>
             <Link
               href="/planner/pet"
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[#c9d7ce] bg-white px-5 text-sm font-extrabold text-[#23483a] hover:bg-[var(--brand-soft)]"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-[#c9d7ce] bg-white px-5 text-sm font-extrabold text-[#23483a] hover:bg-[var(--brand-soft)]"
             >
               <PencilLine size={17} aria-hidden="true" /> 여행 정보 수정
             </Link>

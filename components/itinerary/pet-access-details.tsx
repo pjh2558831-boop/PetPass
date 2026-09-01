@@ -243,7 +243,7 @@ export function PetAccessDetails({
         </div>
       ) : (
         <details className="pet-access-details-disclosure">
-          <summary className="flex min-h-9 cursor-pointer items-center gap-2 py-1 text-xs font-extrabold text-[#315b48]">
+          <summary className="flex min-h-11 cursor-pointer items-center gap-2 py-1 text-xs font-extrabold text-[#315b48]">
             <ShieldCheck size={15} aria-hidden="true" />
             동반 조건·근거·확인 항목 보기
           </summary>

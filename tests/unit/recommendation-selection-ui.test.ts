@@ -7,7 +7,7 @@ import { getRecommendationStopEditCopy } from "@/lib/recommendation/recommendati
 import { createSelectedItinerarySnapshot } from "@/lib/storage/selected-itinerary-storage";
 
 describe("hybrid recommendation result UI", () => {
-  it("keeps an unknown selected place locked and explains unsupported automatic fill", () => {
+  it("keeps an unknown selected place locked without exposing unsupported automatic actions", () => {
     const snapshot = {
       ...createSelectedItinerarySnapshot("seoul"),
       places: [{
@@ -39,10 +39,11 @@ describe("hybrid recommendation result UI", () => {
     expect(html).toContain("동반 가능 여부 확인 필요");
     expect(html).toContain("사용자가 선택한 미확인 장소");
     expect(html).toContain("일정에 고정");
-    expect(html).toContain("부족한 장소는 WEEKENDOG가 추천");
-    expect(html).toContain("서울에서는 선택 장소 경로만 지원");
+    expect(html).not.toContain("부족한 장소는 WEEKENDOG가 추천");
+    expect(html).not.toContain("선택 장소 경로만 지원");
     expect(html).toContain("선택한 장소로 일정 만들기");
-    expect(html).toContain("장소 없이 알아서 추천받기");
+    expect(html).not.toContain("장소 없이 알아서 추천받기");
+    expect(html).not.toContain("준비 중");
   });
 
   it("labels a locked selected place and preserves its verification warning", () => {

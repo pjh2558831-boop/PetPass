@@ -541,6 +541,13 @@ export async function installFakeMap(page: Page) {
 export async function installHomepageImageFixture(page: Page) {
   await page.route("**/_next/image?**", (route) => {
     const source = new URL(route.request().url()).searchParams.get("url");
+    if (source?.startsWith("/api/places/") && source.includes("/location-thumbnail")) {
+      return route.fulfill({
+        status: 200,
+        contentType: "image/png",
+        path: "public/images/home/hero/01-corgi-tulips.png",
+      });
+    }
     if (source?.startsWith("/")) return route.continue();
     return route.fulfill({
       status: 200,

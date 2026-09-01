@@ -74,6 +74,10 @@ export function selectedCatalogCandidateV2(
         ? "conditional"
         : "unknown",
     catalogPetVerdict: marker.petAccessVerdict,
+    petConditions: marker.layer === "kakao" ? marker.petConditions?.trim() || null : null,
+    verificationRequired: marker.layer === "kakao"
+      ? marker.verificationRequired ?? Boolean(marker.petConditions?.trim())
+      : false,
     evidenceStatus: tier,
     eligibilityTier: tier,
     scheduleStatus: "unknown",
@@ -122,6 +126,8 @@ export function selectedShoppingCandidateV2(
     environment: "unknown",
     petVerdict: "unknown",
     catalogPetVerdict: "unknown",
+    petConditions: null,
+    verificationRequired: true,
     evidenceStatus: "unverified",
     eligibilityTier: "unverified",
     scheduleStatus: "unknown",

@@ -596,6 +596,36 @@ export function UnifiedPlannerForm({
   const selectedCategorySummary = preferences.preferredCategories
     .map((category) => categoryLabels[category])
     .concat(includeShopping ? ["쇼핑"] : []);
+  const completedSummaryItems = [
+    profile.name.trim() && species && size
+      ? `${profile.name.trim()} · ${speciesLabels[species]} · ${sizeLabels[size]}`
+      : null,
+    preferences.departure
+      ? [
+          `${preferences.departure.label} 출발`,
+          isValidIsoDate(preferences.tripDate) ? preferences.tripDate : null,
+          /^(?:[01]\d|2[0-3]):[0-5]\d$/u.test(preferences.startTime)
+            ? preferences.startTime
+            : null,
+        ].filter(Boolean).join(" · ")
+      : null,
+    currentStep === 3
+      ? [
+          preferences.tripType === "DAY_TRIP" ? "당일치기" : "1박 여행",
+          preferences.roundTrip ? "왕복" : null,
+          TRIP_PACE_OPTIONS.find(({ id }) => id === preferences.tripPace)?.label,
+        ].filter(Boolean).join(" · ")
+      : null,
+    currentStep === 3
+      ? selectedMode
+        ? selectedItinerary?.places.length
+          ? `직접 고른 장소 ${selectedItinerary.places.length}곳`
+          : null
+        : selectedCategorySummary.length > 0
+          ? selectedCategorySummary.join(" · ")
+          : null
+      : null,
+  ].filter((item): item is string => Boolean(item));
 
   return (
     <form
@@ -682,8 +712,14 @@ export function UnifiedPlannerForm({
     >
       <PlannerFormProgress current={currentStep} />
 
+      {selectedMode && selectedItinerary?.places.length ? (
+        <p className="planner-selected-mode-status" role="status">
+          직접 고른 장소 {selectedItinerary.places.length}곳
+        </p>
+      ) : null}
+
       <div className="planner-workspace">
-        <main className="planner-step-column">
+        <div className="planner-step-column">
           <section
             className="planner-step"
             hidden={currentStep !== 1}
@@ -772,6 +808,7 @@ export function UnifiedPlannerForm({
 
               <fieldset
                 className="planner-field"
+                aria-invalid={Boolean(errors.species)}
                 aria-describedby={
                   errors.species ? "pet-species-error" : undefined
                 }
@@ -812,6 +849,7 @@ export function UnifiedPlannerForm({
 
               <fieldset
                 className="planner-field"
+                aria-invalid={Boolean(errors.size)}
                 aria-describedby={errors.size ? "pet-size-error" : undefined}
               >
                 <legend>크기</legend>
@@ -1457,65 +1495,22 @@ export function UnifiedPlannerForm({
               )}
             </div>
           </div>
-        </main>
+        </div>
 
         <aside className="planner-live-summary" aria-labelledby="planner-summary-heading">
           <h2 id="planner-summary-heading">입력한 여행 조건</h2>
-          <dl>
-            <div>
-              <dt>반려동물</dt>
-              <dd>
-                {profile.name.trim() || "이름 입력 전"}
-                {species ? ` · ${speciesLabels[species]}` : ""}
-                {size ? ` · ${sizeLabels[size]}` : ""}
-              </dd>
-            </div>
-            <div>
-              <dt>출발·시간</dt>
-              <dd>
-                {preferences.departure?.label ?? "출발지 선택 전"}
-                {preferences.tripDate
-                  ? ` · ${preferences.tripDate}`
-                  : ""}
-                {preferences.startTime
-                  ? ` ${preferences.startTime}`
-                  : ""}
-              </dd>
-            </div>
-            <div>
-              <dt>여행 형태</dt>
-              <dd>
-                {preferences.tripType === "DAY_TRIP"
-                  ? "당일치기"
-                  : "1박 여행"}
-                {preferences.roundTrip ? " · 왕복" : ""}
-              </dd>
-            </div>
-            <div>
-              <dt>일정 기준</dt>
-              <dd>
-                {planningMode === "duration"
-                  ? `전체 ${desiredDurationMinutes}분`
-                  : `방문 ${desiredStopCount}곳`}
-                {" · "}
-                {
-                  TRIP_PACE_OPTIONS.find(
-                    ({ id }) => id === preferences.tripPace,
-                  )?.label
-                }
-              </dd>
-            </div>
-            <div>
-              <dt>장소 유형</dt>
-              <dd>
-                {selectedMode
-                  ? `직접 고른 장소 ${selectedItinerary?.places.length ?? 0}곳`
-                  : selectedCategorySummary.length > 0
-                    ? selectedCategorySummary.join(" · ")
-                    : "선택 전"}
-              </dd>
-            </div>
-          </dl>
+          {completedSummaryItems.length > 0 ? (
+            <ul>
+              {completedSummaryItems.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="planner-live-summary__empty">
+              <strong>입력을 시작하면</strong>
+              선택한 여행 조건이 여기에 정리됩니다.
+            </p>
+          )}
         </aside>
       </div>
     </form>

@@ -28,6 +28,8 @@ const publicPlace: PublicMapPlaceDTO = {
   placeUrl: "https://place.map.kakao.com/123",
   source: "kakao_search_candidate",
   petAccessVerdict: "unknown",
+  petConditions: null,
+  verificationRequired: false,
   reviewStatus: "unreviewed",
   publicLabel: "동반 여부 확인 필요",
   categoryGroupCode: null,
@@ -69,6 +71,7 @@ describe("public Kakao map catalog route", () => {
       "reviewStatus", "source", "categoryGroupCode", "lastSeenAt",
       "matchedQueryCount", "categoryQueryAgreementCount",
       "provider", "imageUrl", "contentTypeId", "petAccessVerdict",
+      "petConditions", "verificationRequired",
     ].sort());
     expect(query).toHaveBeenCalledWith({
       regionId: "busan",
@@ -428,6 +431,61 @@ describe("public Kakao map catalog route", () => {
         { ...row, id: 75, total_count: 2 },
       ]) },
     )).rejects.toThrow(/regional contract/iu);
+  });
+
+  it("normalizes a conditional Kakao note through the allowlisted DTO without exposing evidence", async () => {
+    const queryPage = vi.fn(async () => [{
+      id: 11,
+      provider: "kakao" as const,
+      provider_place_id: "conditional-11",
+      name: "조건부 동반 카페",
+      candidate_kind: "pet_travel_candidate" as const,
+      normalized_category: "cafe" as const,
+      content_type_id: null,
+      district_code: "500",
+      district_name: "수영구",
+      address: "부산광역시 수영구 광안해변로 11",
+      latitude: 35.1456,
+      longitude: 129.1131,
+      phone: null,
+      image_url: null,
+      place_url: "https://place.map.kakao.com/conditional-11",
+      review_status: "confirmed" as const,
+      public_label: "동반 조건 확인 필요",
+      source: "kakao_search_candidate" as const,
+      pet_access_verdict: "conditional" as const,
+      pet_evidence_status: "search_candidate",
+      pet_conditions: "  테라스만 가능 · 이동가방 필수  ",
+      verification_required: true,
+      category_group_code: "CE7",
+      last_seen_at: "2026-08-31T00:00:00.000Z",
+      matched_query_count: 1,
+      category_query_agreement_count: 1,
+      total_count: 1,
+      has_more: false,
+    }]);
+
+    const result = await queryPublicMapCatalog(
+      { regionId: "busan", page: 1, pageSize: 200 },
+      { queryPage },
+    );
+
+    expect(result.items[0]).toMatchObject({
+      providerPlaceId: "conditional-11",
+      petAccessVerdict: "conditional",
+      petConditions: "테라스만 가능 · 이동가방 필수",
+      verificationRequired: true,
+    });
+    expect(result.items[0]).not.toHaveProperty("pet_notes");
+    expect(result.items[0]).not.toHaveProperty("verification_evidence");
+  });
+
+  it("normalizes empty condition text to no condition for a plain O place", async () => {
+    expect(publicMapPlaceSchema.parse({
+      ...publicPlace,
+      petConditions: "   ",
+      verificationRequired: false,
+    })).toMatchObject({ petConditions: null, verificationRequired: false });
   });
 
   it("keeps an unfamiliar KTO content type visible as verification-required 기타", async () => {

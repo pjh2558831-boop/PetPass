@@ -4,10 +4,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { Menu, UserRound, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
+import { SiteNavigationLink, type SiteNavigationIntent } from "@/components/layout/site-navigation-link";
 
-export type NavigationItem =
-  | { kind: "link"; href: string; label: string; avatarUrl?: string | null }
-  | { kind: "future"; label: string };
+export type NavigationItem = {
+  kind: "link";
+  href: string;
+  label: string;
+  avatarUrl?: string | null;
+  intent?: SiteNavigationIntent;
+};
 
 export function MobileNavigation({
   items,
@@ -61,36 +66,21 @@ export function MobileNavigation({
           className="site-mobile-menu"
         >
           <div className="site-mobile-menu-list">
-            {items.map((item) =>
-              item.kind === "link" ? (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setOpen(false)}
-                  className="site-mobile-menu-link"
-                >
-                  {item.label}
-                </Link>
-              ) : (
-                <button
-                  key={item.label}
-                  type="button"
-                  aria-disabled="true"
-                  title={`${item.label} 준비 중`}
-                  className="site-mobile-menu-future"
-                >
-                  <span>{item.label}</span>
-                  <span className="site-mobile-menu-future-label">
-                    준비 중
-                  </span>
-                </button>
-              ),
-            )}
+            {items.map((item) => (
+              <SiteNavigationLink
+                key={item.href}
+                href={item.href}
+                intent={item.intent}
+                onClick={() => setOpen(false)}
+                className="site-mobile-menu-link"
+              >
+                {item.label}
+              </SiteNavigationLink>
+            ))}
           </div>
           {accountItems.length > 0 ? (
             <div className="site-mobile-account-list">
-              {accountItems.map((item) =>
-                item.kind === "link" ? (
+              {accountItems.map((item) => (
                   <Link
                     key={`${item.href}-${item.label}`}
                     href={item.href}
@@ -108,19 +98,7 @@ export function MobileNavigation({
                     ) : null}
                     {item.label}
                   </Link>
-                ) : (
-                  <button
-                    key={item.label}
-                    type="button"
-                    aria-disabled="true"
-                    title={`${item.label} 준비 중`}
-                    className="site-mobile-account-future"
-                  >
-                    <span>{item.label}</span>
-                    <span className="site-mobile-account-future-label">준비 중</span>
-                  </button>
-                ),
-              )}
+              ))}
             </div>
           ) : null}
         </nav>

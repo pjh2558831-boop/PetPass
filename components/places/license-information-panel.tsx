@@ -22,7 +22,7 @@ const DATASET_LABELS: Record<LocalDataDataset, string> = {
 function RecordDetails({ record }: { record: LocalDataLicenseRecord }) {
   const address = record.roadAddress ?? record.parcelAddress;
   return (
-    <div className="mt-4 rounded-2xl border border-[#dce6df] bg-[#fbfdfb] p-4">
+    <div className="mt-4 border-t border-[#dce6df] pt-4">
       <p className="text-sm font-black text-[#315b48]">
         {DATASET_LABELS[record.dataset]}
       </p>
@@ -45,7 +45,7 @@ function RecordDetails({ record }: { record: LocalDataLicenseRecord }) {
           value ? (
             <div
               key={label}
-              className="rounded-2xl border border-[#dce6df] bg-white p-4"
+              className="min-w-0 border-t border-[#dce6df] py-3"
             >
               <dt className="text-xs font-extrabold text-[#607269]">{label}</dt>
               <dd className="mt-2 whitespace-pre-line font-semibold leading-6 text-[#344a40]">
@@ -65,7 +65,7 @@ function AccommodationAlternative({
   candidate: AccommodationEntityCandidate;
 }) {
   return (
-    <li className="rounded-2xl border border-[#dce6df] bg-white p-4 text-sm">
+    <li className="border-t border-[#dce6df] py-3 text-sm">
       <p className="font-extrabold">
         {candidate.identity.businessName ?? "업소명 미제공"}
       </p>
@@ -105,17 +105,17 @@ export function LicenseInformationPanel({
 
   return (
     <section
-      className="surface-card p-5 sm:p-6"
+      className="place-detail-support-document p-5 sm:p-6"
       aria-labelledby="license-heading"
     >
-      <p className="eyebrow">PUBLIC LICENSE DATA</p>
+      <p className="eyebrow">공공 인허가 자료</p>
       <h2
         id="license-heading"
         className="mt-2 text-xl font-black tracking-[-0.03em]"
       >
         인허가 정보
       </h2>
-      <p className="mt-3 rounded-2xl bg-[#f3f8f4] p-4 text-sm font-extrabold leading-6 text-[#315b48]">
+      <p className="mt-3 border-l-2 border-[#8caf9d] py-1 pl-3 text-sm font-extrabold leading-6 text-[#315b48]">
         {label}
       </p>
 
@@ -134,7 +134,7 @@ export function LicenseInformationPanel({
       ) : null}
 
       {accommodation && selectedRecords.length > 1 ? (
-        <p className="mt-4 rounded-2xl bg-[#eef7ff] p-4 text-sm font-extrabold leading-6 text-[#31546b]">
+        <p className="mt-4 border-l-2 border-[#8aaec4] py-1 pl-3 text-sm font-extrabold leading-6 text-[#31546b]">
           동일 시설에 대한 복수 인허가 기록이 확인되었습니다
         </p>
       ) : null}
@@ -147,13 +147,13 @@ export function LicenseInformationPanel({
       ))}
 
       {accommodation && licensing.operatingStateDiscrepancy ? (
-        <p className="mt-4 rounded-2xl bg-[#fff3e8] p-4 text-sm font-extrabold leading-6 text-[#765138]">
+        <p className="mt-4 border-l-2 border-[#d0aa62] py-1 pl-3 text-sm font-extrabold leading-6 text-[#765138]">
           데이터별 영업상태가 달라 현재 상태 확인이 필요합니다
         </p>
       ) : null}
 
       {hasHistoricalState ? (
-        <p className="mt-4 rounded-2xl bg-[#fff8f1] p-4 text-sm font-semibold leading-6 text-[#6a5547]">
+        <p className="mt-4 border-l-2 border-[#d0aa62] py-1 pl-3 text-sm font-semibold leading-6 text-[#6a5547]">
           공공데이터에는 폐업 또는 영업 중단 상태로 기록되어 있습니다. 과거 기록일 수 있으므로 현재 영업 정보는 별도 확인이 필요합니다.
         </p>
       ) : null}
@@ -174,7 +174,7 @@ export function LicenseInformationPanel({
               : licensing.alternatives.map((candidate) => (
                   <li
                     key={`${candidate.record.dataset}:${candidate.record.sourceEvidence.managementNumber ?? candidate.record.businessName}`}
-                    className="rounded-2xl border border-[#dce6df] bg-white p-4 text-sm"
+                    className="border-t border-[#dce6df] py-3 text-sm"
                   >
                     <p className="font-extrabold">
                       {candidate.record.businessName ?? "업소명 미제공"}

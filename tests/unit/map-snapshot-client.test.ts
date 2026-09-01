@@ -168,6 +168,46 @@ describe("map snapshot browser fallback", () => {
     expect(request).toHaveBeenCalledTimes(1);
   });
 
+  it("reconstructs a conditional Kakao marker from the compact snapshot payload", async () => {
+    const wireMarker = {
+      id: "kakao:condition-1",
+      name: "조건부 동반 카페",
+      layer: "kakao",
+      category: "cafe",
+      districtCode: "500",
+      coordinates: { latitude: 35.1456, longitude: 129.1131 },
+      petAccessVerdict: "conditional",
+      petConditions: "테라스만 가능 · 이동가방 필수",
+      verificationRequired: true,
+      publicLabel: "동반 조건 확인 필요",
+    };
+    const request = vi.fn(async () => Response.json({
+      ok: true,
+      data: {
+        ...seoulSnapshot,
+        region: "busan",
+        dataset: "core",
+        providerCounts: { tour: 0, kakao: 1 },
+        categoryCounts: { cafe: 1 },
+        items: [wireMarker],
+      },
+    }));
+
+    const snapshot = await requestMapPlacesSnapshot(
+      "busan",
+      "core",
+      new AbortController().signal,
+      request as typeof fetch,
+    );
+
+    expect(snapshot.items[0]).toMatchObject({
+      id: "kakao:condition-1",
+      providerPlaceId: "condition-1",
+      petConditions: "테라스만 가능 · 이동가방 필수",
+      verificationRequired: true,
+    });
+  });
+
   it("revalidates a regional dataset after the bounded browser cache expires", async () => {
     let now = 1_000;
     const request = vi.fn(async () => Response.json({ ok: true, data: seoulSnapshot }));

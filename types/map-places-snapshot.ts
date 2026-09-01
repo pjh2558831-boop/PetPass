@@ -38,6 +38,8 @@ export interface MapPlacesSnapshotMarker {
   imageUrl?: string | null;
   placeUrl?: string | null;
   petAccessVerdict: PublicMapPetAccessVerdict;
+  petConditions?: string | null;
+  verificationRequired?: boolean;
   publicLabel: string;
   sourceLabel: "한국관광공사" | "카카오 검색 후보";
 }
@@ -88,6 +90,12 @@ function isOptionalPlaceUrl(value: unknown): boolean {
   );
 }
 
+function isOptionalPetConditions(value: unknown): boolean {
+  return value === undefined || value === null || (
+    typeof value === "string" && value.length > 0 && value.trim() === value
+  );
+}
+
 function isSnapshotMarker(value: unknown, region: RegionId): value is MapPlacesSnapshotMarker {
   if (!isRecord(value)) return false;
   const coordinates = value.coordinates;
@@ -123,6 +131,8 @@ function isSnapshotMarker(value: unknown, region: RegionId): value is MapPlacesS
     isOptionalHttpUrl(value.imageUrl) &&
     isOptionalPlaceUrl(value.placeUrl) &&
     ["allowed", "conditional", "not_allowed", "unknown"].includes(String(value.petAccessVerdict)) &&
+    isOptionalPetConditions(value.petConditions) &&
+    (value.verificationRequired === undefined || typeof value.verificationRequired === "boolean") &&
     typeof value.publicLabel === "string" && value.publicLabel.length > 0 &&
     layerAndSourceMatch;
 }

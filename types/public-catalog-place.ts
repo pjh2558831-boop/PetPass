@@ -33,6 +33,8 @@ export interface PublicCatalogMarker {
   placeUrl?: string | null;
   contentTypeId?: string | null;
   petAccessVerdict?: PublicMapPetAccessVerdict;
+  petConditions?: string | null;
+  verificationRequired?: boolean;
   publicLabel: string;
   sourceLabel: "한국관광공사" | "카카오 검색 후보" | "동물병원" | "펫샵·용품점";
 }
@@ -90,6 +92,8 @@ export function normalizeTourCatalogMarker(place: TourPlaceSummary): PublicCatal
     placeUrl: normalized.placeUrl,
     contentTypeId: place.contentTypeId,
     petAccessVerdict: normalized.petAccessVerdict,
+    petConditions: normalized.petConditions,
+    verificationRequired: normalized.verificationRequired,
     publicLabel: normalized.publicLabel,
     sourceLabel: normalized.sourceLabel,
   };
@@ -129,6 +133,8 @@ export function normalizePublicMapCatalogMarker(
     placeUrl: normalized.placeUrl,
     contentTypeId: normalized.contentTypeId,
     petAccessVerdict: normalized.petAccessVerdict,
+    petConditions: normalized.petConditions,
+    verificationRequired: normalized.verificationRequired,
     publicLabel: normalized.publicLabel,
     sourceLabel: normalized.sourceLabel,
   };
@@ -196,6 +202,8 @@ export function normalizeTourCatalogPlace(place: TourPlaceSummary): PublicCatalo
     ]),
     publicLabel: "동반 정보 확인 필요",
     petAccessVerdict: "unknown",
+    petConditions: null,
+    verificationRequired: false,
     sourceLabel: "한국관광공사",
     warning: null,
     tourPlace: place,
@@ -246,6 +254,8 @@ export function normalizePublicMapCatalogPlace(
       ? place.publicLabel
       : place.kind === "pet_travel_candidate" ? "동반 여부 확인 필요" : "반려동물 편의시설",
     petAccessVerdict: place.petAccessVerdict ?? "unknown",
+    petConditions: place.petConditions?.trim() || null,
+    verificationRequired: place.verificationRequired ?? false,
     sourceLabel: isTour
       ? "한국관광공사"
       : place.kind === "pet_travel_candidate"

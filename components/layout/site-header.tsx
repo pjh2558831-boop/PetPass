@@ -3,20 +3,22 @@ import { Suspense } from "react";
 import { PawPrint } from "lucide-react";
 import { HomepageSkipLink } from "@/components/home/homepage-skip-link";
 import { type NavigationItem } from "@/components/layout/mobile-navigation";
+import { SiteNavigationLink } from "@/components/layout/site-navigation-link";
 import {
   SiteHeaderAccount,
   SiteHeaderAccountAsync,
 } from "@/components/layout/site-header-account";
 
 const navigationItems = [
-  { kind: "link", href: "/results?tab=catalog&mode=select", label: "일정 만들기" },
-  { kind: "link", href: "/results?tab=catalog", label: "장소 찾기" },
+  { kind: "link", href: "/results?tab=catalog&mode=select", label: "일정 만들기", intent: "create" },
+  { kind: "link", href: "/results?tab=catalog", label: "장소 찾기", intent: "catalog" },
   {
     kind: "link",
     href: "/planner/pet",
     label: "맞춤 일정",
+    intent: "recommendation",
   },
-  { kind: "link", href: "/account", label: "마이페이지" },
+  { kind: "link", href: "/account", label: "마이페이지", intent: "account" },
 ] as const satisfies readonly NavigationItem[];
 
 export function SiteHeader() {
@@ -38,30 +40,13 @@ export function SiteHeader() {
           aria-label="주요 메뉴"
           className="site-header-navigation"
         >
-          {navigationItems.map((item) =>
-            item.kind === "link" ? (
-              <Link
-                key={item.href}
-                className="site-header-link"
-                href={item.href}
-              >
+          {navigationItems.map((item) => (
+            <Suspense key={item.href} fallback={<Link className="site-header-link" href={item.href}>{item.label}</Link>}>
+              <SiteNavigationLink className="site-header-link" href={item.href} intent={item.intent}>
                 {item.label}
-              </Link>
-            ) : (
-              <button
-                key={item.label}
-                type="button"
-                aria-disabled="true"
-                title={`${item.label} 준비 중`}
-                className="site-header-future"
-              >
-                <span>{item.label}</span>
-                <span className="site-header-future-label">
-                  준비 중
-                </span>
-              </button>
-            ),
-          )}
+              </SiteNavigationLink>
+            </Suspense>
+          ))}
         </nav>
         <div className="site-header-account-slot">
           <Suspense fallback={<SiteHeaderAccount navigationItems={navigationItems} />}>

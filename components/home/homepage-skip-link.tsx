@@ -4,9 +4,9 @@ export function HomepageSkipLink() {
   return (
     <a
       className="weekendoog-skip-link"
-      href="#weekendoog-hero-heading"
+      href="#main-content"
       onClick={(event) => {
-        const target = document.getElementById("weekendoog-hero-heading");
+        const target = document.getElementById("main-content");
         if (!target) return;
         event.preventDefault();
         target.focus({ preventScroll: true });

@@ -130,6 +130,30 @@ describe("recommendation candidate fusion V2", () => {
     expect(result.diagnostics.crossProviderDuplicatesMerged).toBe(1);
   });
 
+  it("keeps KTO evidence authoritative when a matched Kakao row carries workbook conditions", () => {
+    const result = fuseRecommendationCandidatesV2({
+      regionId: "busan",
+      selectedCategories: ["attraction"],
+      ktoCandidates: [ktoCandidate()],
+      catalogCandidates: [kakaoCandidate({
+        petAccessVerdict: "conditional",
+        petConditions: "테라스만 가능",
+        verificationRequired: true,
+      })],
+      explicitlyExcludedPlaceIds: [],
+    });
+
+    expect(result.candidates).toEqual([
+      expect.objectContaining({
+        canonicalId: "tour:1001",
+        source: "tourism_service2",
+        petVerdict: "allowed",
+        petConditions: null,
+        verificationRequired: false,
+      }),
+    ]);
+  });
+
   it("does not merge on name similarity alone", () => {
     const result = fuseRecommendationCandidatesV2({
       regionId: "busan",

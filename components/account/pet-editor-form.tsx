@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { SavedPetProfile } from "@/lib/auth/pet-profile";
+import { FormErrorMessage } from "@/components/ui/form-error-message";
 
 type PetEditorFormProps = {
   action: (formData: FormData) => void | Promise<void>;
@@ -23,7 +24,7 @@ type PetEditorFormProps = {
 };
 
 const optionClass =
-  "flex min-h-12 items-center gap-2.5 rounded-xl border border-[var(--line)] bg-white px-4 text-sm font-bold has-[:checked]:border-[var(--brand)] has-[:checked]:bg-[var(--brand-soft)]";
+  "flex min-h-12 items-center gap-2.5 rounded-lg border border-[var(--line)] bg-white px-4 text-sm font-bold has-[:checked]:border-[var(--brand)] has-[:checked]:bg-[var(--brand-soft)]";
 
 type ChoiceOption = {
   value: string;
@@ -46,7 +47,7 @@ const sizeOptions: readonly ChoiceOption[] = [
 
 export function PetEditorForm({ action, pet, imageUrl, error, submitLabel }: PetEditorFormProps) {
   return (
-    <form action={action} className="surface-panel mx-auto max-w-2xl p-6 sm:p-8">
+    <form action={action} className="account-form-document mx-auto max-w-2xl">
       <label className="block text-sm font-extrabold">
         이름
         <input
@@ -54,7 +55,7 @@ export function PetEditorForm({ action, pet, imageUrl, error, submitLabel }: Pet
           name="name"
           defaultValue={pet?.name ?? ""}
           maxLength={30}
-          className="mt-2 min-h-12 w-full rounded-xl border border-[var(--line)] bg-white px-4"
+          className="mt-2 min-h-12 w-full rounded-lg border border-[var(--line)] bg-white px-4"
         />
       </label>
 
@@ -107,22 +108,16 @@ export function PetEditorForm({ action, pet, imageUrl, error, submitLabel }: Pet
       <div className="mt-6">
         <p className="text-sm font-extrabold">반려동물 사진</p>
         <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center">
-          <div className="grid size-28 shrink-0 place-items-center overflow-hidden rounded-2xl bg-[var(--surface-sage)] text-sm font-bold text-[var(--muted)]">
-            {imageUrl ? (
-              <Image src={imageUrl} alt={`${pet?.name ?? "반려동물"} 사진`} width={112} height={112} unoptimized className="size-full object-cover" />
-            ) : (
-              "사진 없음"
-            )}
-          </div>
+          {imageUrl ? <Image src={imageUrl} alt={`${pet?.name ?? "반려동물"} 사진`} width={80} height={80} unoptimized className="size-20 shrink-0 rounded-lg object-cover" /> : null}
           <div>
-            <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)] transition-colors hover:bg-[var(--brand-soft)]">
+            <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)] transition-colors hover:bg-[var(--brand-soft)]">
               <Upload size={17} aria-hidden="true" />
               사진 추가
               <input name="image" type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" />
             </label>
             <p className="mt-2 text-xs leading-5 text-[var(--muted)]">PNG, JPEG, WebP · 최대 2MB</p>
             {imageUrl ? (
-              <label className="mt-2 flex items-center gap-2 text-sm font-bold text-[#5d6963]">
+              <label className="mt-2 flex min-h-11 items-center gap-2 text-sm font-bold text-[#5d6963]">
                 <input type="checkbox" name="removeImage" /> 기존 사진 삭제
               </label>
             ) : null}
@@ -130,12 +125,12 @@ export function PetEditorForm({ action, pet, imageUrl, error, submitLabel }: Pet
         </div>
       </div>
 
-      {error ? <p role="alert" className="mt-5 text-sm font-bold text-red-700">{error}</p> : null}
+      {error ? <FormErrorMessage id="pet-editor-form-error" className="mt-5 text-sm font-bold text-red-700">{error}</FormErrorMessage> : null}
       <div className="mt-7 flex flex-wrap gap-3">
-        <button type="submit" className="min-h-12 rounded-xl bg-[var(--brand)] px-5 text-sm font-extrabold text-white">
+        <button type="submit" className="min-h-12 rounded-lg bg-[var(--brand)] px-5 text-sm font-extrabold text-white">
           {submitLabel}
         </button>
-        <Link href="/account" className="inline-flex min-h-12 items-center rounded-xl border border-[var(--line)] bg-white px-5 text-sm font-extrabold">
+        <Link href="/account" className="inline-flex min-h-12 items-center rounded-lg border border-[var(--line)] bg-white px-5 text-sm font-extrabold">
           취소
         </Link>
       </div>

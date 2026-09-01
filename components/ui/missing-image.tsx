@@ -12,7 +12,7 @@ export function MissingImage({
   const loadError = mode === "load-error";
   return (
     <div
-      className={`flex min-h-40 items-center justify-center rounded-2xl border border-dashed border-[#cbd8d0] bg-[#eef3ef] text-[#6d7d74] ${className}`}
+      className={`flex min-h-24 items-center justify-center rounded-lg border border-dashed border-[#cbd8d0] bg-[#eef3ef] text-[#6d7d74] ${className}`}
       role="img"
       aria-label={`${label} 이미지 ${loadError ? "불러오기 실패" : "없음"}`}
     >

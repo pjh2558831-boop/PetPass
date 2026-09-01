@@ -829,6 +829,48 @@ export type Database = {
           total_count: number
         }[]
       }
+      get_public_map_catalog_by_region_v4: {
+        Args: {
+          p_after_id?: number
+          p_candidate_kinds?: string[]
+          p_catalog_dataset: string
+          p_district_codes?: string[]
+          p_normalized_categories?: string[]
+          p_providers: string[]
+          p_region_id: string
+          p_result_limit?: number
+        }
+        Returns: {
+          address: string
+          candidate_kind: string
+          category_group_code: string | null
+          category_query_agreement_count: number
+          content_type_id: number | null
+          district_code: string
+          district_name: string
+          has_more: boolean
+          id: number
+          image_url: string | null
+          last_seen_at: string
+          latitude: number
+          longitude: number
+          matched_query_count: number
+          name: string
+          normalized_category: string
+          pet_access_verdict: string
+          pet_conditions: string | null
+          pet_evidence_status: string
+          phone: string | null
+          place_url: string | null
+          provider: string
+          provider_place_id: string
+          public_label: string
+          review_status: string
+          source: string
+          total_count: number
+          verification_required: boolean
+        }[]
+      }
       get_public_map_place_location_v1: {
         Args: { p_provider_place_id: string }
         Returns: {

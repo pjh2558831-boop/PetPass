@@ -27,7 +27,7 @@ export default async function EditPetPage({ params, searchParams }: { params: Pr
     <section className="site-shell py-12 sm:py-16">
       <div className="mx-auto mb-6 max-w-2xl">
         <p className="eyebrow">나의 반려동물</p>
-        <h1 className="mt-2 text-3xl font-black">{pet.name} 정보 수정</h1>
+        <h1 className="mt-2 break-words text-3xl font-black [overflow-wrap:anywhere]">{pet.name} 정보 수정</h1>
       </div>
       <PetEditorForm action={updatePet.bind(null, petId)} pet={pet} imageUrl={imageUrl} error={error} submitLabel="변경사항 저장" />
       <DeletePetForm action={deletePet.bind(null, petId)} petName={pet.name} />

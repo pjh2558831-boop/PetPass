@@ -66,12 +66,12 @@ export function InformationReportDraftPanel({
   };
 
   return (
-    <details className="surface-card p-5 sm:p-6">
+    <details className="place-detail-support-document p-5 sm:p-6">
       <summary className="flex cursor-pointer list-none items-center gap-2 text-base font-black text-[#344a40]">
         <FileWarning size={18} aria-hidden="true" /> 정보 오류 제보문 만들기
       </summary>
-      <p className="mt-3 rounded-xl bg-[#fff8f1] p-3 text-xs font-semibold leading-5 text-[#6a5547]">
-        현재 WEEKENDOG에는 승인된 Supabase 접수·관리자 인증 경계가 없습니다. 아래 기능은 검토용 제보문만 만들며 서버에 접수됐다고 표시하지 않습니다.
+      <p className="mt-3 rounded-lg bg-[#fff8f1] p-3 text-xs font-semibold leading-5 text-[#6a5547]">
+        아래 기능은 검토용 제보문만 만듭니다. 전송하거나 접수 완료로 표시하지 않으므로 복사한 뒤 운영진의 안내된 채널로 전달해 주세요.
       </p>
       <div className="mt-4 grid gap-3">
         <label className="text-xs font-extrabold text-[#52665b]">
@@ -79,7 +79,7 @@ export function InformationReportDraftPanel({
           <select
             value={reportType}
             onChange={(event) => setReportType(event.target.value as PlaceInformationReportType)}
-            className="mt-1 min-h-11 w-full rounded-xl border border-[#cfd9d3] bg-white px-3 text-sm"
+            className="mt-1 min-h-11 w-full rounded-lg border border-[#cfd9d3] bg-white px-3 text-sm"
           >
             {Object.entries(REPORT_TYPE_LABELS).map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
@@ -92,7 +92,7 @@ export function InformationReportDraftPanel({
             type="date"
             value={observedAt}
             onChange={(event) => setObservedAt(event.target.value)}
-            className="mt-1 min-h-11 w-full rounded-xl border border-[#cfd9d3] bg-white px-3 text-sm"
+            className="mt-1 min-h-11 w-full rounded-lg border border-[#cfd9d3] bg-white px-3 text-sm"
           />
         </label>
         <label className="text-xs font-extrabold text-[#52665b]">
@@ -102,14 +102,14 @@ export function InformationReportDraftPanel({
             onChange={(event) => setDetails(event.target.value)}
             rows={4}
             maxLength={2_000}
-            className="mt-1 w-full rounded-xl border border-[#cfd9d3] bg-white p-3 text-sm leading-6"
+            className="mt-1 w-full rounded-lg border border-[#cfd9d3] bg-white p-3 text-sm leading-6"
           />
         </label>
         <button
           type="button"
           disabled={!observedAt || details.trim().length < 20}
           onClick={createDraft}
-          className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#236148] px-4 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-45"
+          className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[#236148] px-4 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-45"
         >
           검토용 제보문 만들기
         </button>
@@ -122,12 +122,12 @@ export function InformationReportDraftPanel({
             value={draftText}
             rows={9}
             aria-label="생성된 검토용 제보문"
-            className="w-full rounded-xl border border-[#cfd9d3] bg-[#f7f8f7] p-3 text-xs leading-5"
+            className="w-full rounded-lg border border-[#cfd9d3] bg-[#f7f8f7] p-3 text-xs leading-5"
           />
           <button
             type="button"
             onClick={copyDraft}
-            className="mt-2 inline-flex min-h-10 items-center gap-2 text-xs font-extrabold text-[#236148]"
+            className="mt-2 inline-flex min-h-11 items-center gap-2 text-xs font-extrabold text-[#236148]"
           >
             <ClipboardCheck size={15} aria-hidden="true" /> 제보문 복사
           </button>

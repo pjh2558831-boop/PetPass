@@ -74,6 +74,9 @@ function productStopV2(
       `Final V2 route stop failed canonical pet-condition validation: ${candidate.canonicalId}`,
     );
   }
+  const kakaoConditionWarning = candidate.source === "kakao_catalog" && candidate.petConditions
+    ? `반려견 동반 조건: ${candidate.petConditions} · 방문 전 업체에 최신 동반 조건을 확인해 주세요.`
+    : null;
   const verificationWarning = conditionPolicy.decision === "confirmation_required"
     ? candidate.conditionEligibility.warnings[0]?.message ??
       "반려동물 동반 조건을 확인하고 동의해 주세요."
@@ -81,7 +84,7 @@ function productStopV2(
       ? candidate.category === "shopping"
       ? "selected_shopping_requires_confirmation"
       : candidate.source === "kakao_catalog"
-        ? "selected_kakao_requires_confirmation"
+        ? kakaoConditionWarning ?? "selected_kakao_requires_confirmation"
         : candidate.evidenceStatus === "unverified" || candidate.petVerdict === "unknown"
           ? "selected_pet_policy_requires_confirmation"
           : null

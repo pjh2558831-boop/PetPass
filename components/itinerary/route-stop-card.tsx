@@ -103,7 +103,7 @@ export function RouteStopCard({
                 onClick={onSelect}
                 aria-pressed={selected}
                 aria-label={`${stop.title} ${selected ? "지도에서 선택됨" : "지도에서 보기"}`}
-                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-[#c9d7ce] bg-white px-3 text-xs font-extrabold text-[var(--brand)] hover:bg-[var(--brand-soft)]"
+                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#c9d7ce] bg-white px-3 text-xs font-extrabold text-[var(--brand)] hover:bg-[var(--brand-soft)]"
               >
                 <MapPin size={15} aria-hidden="true" />
                 <span className="hidden sm:inline">{selected ? "지도에서 선택됨" : "지도에서 보기"}</span>

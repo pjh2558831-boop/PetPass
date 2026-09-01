@@ -7,6 +7,19 @@ import type { ResolvedDeparture } from "@/types/pet";
 
 type SearchStatus = "idle" | "loading" | "ready" | "empty" | "error";
 
+class PublicDepartureSearchError extends Error {}
+
+function publicDepartureSearchErrorMessage(error: Record<string, unknown> | undefined): string {
+  switch (error?.code) {
+    case "UPSTREAM_TIMEOUT":
+      return "출발지 검색 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.";
+    case "RATE_LIMITED":
+      return "요청이 많아 출발지를 잠시 검색하지 못했습니다.";
+    default:
+      return "출발지 검색 제공처 연결을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+  }
+}
+
 function parseDepartureResults(value: unknown): KakaoDepartureSearchResult[] | null {
   if (!Array.isArray(value)) return null;
   const results: KakaoDepartureSearchResult[] = [];
@@ -95,20 +108,16 @@ export function DepartureSearch({
           return;
         }
         if (!body || typeof body !== "object") {
-          throw new Error("출발지 검색 응답 형식을 확인할 수 없습니다.");
+          throw new PublicDepartureSearchError("출발지 검색 결과를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.");
         }
         const apiResult = body as Record<string, unknown>;
         if (!response.ok || apiResult.ok !== true) {
           const error = apiResult.error as Record<string, unknown> | undefined;
-          throw new Error(
-            typeof error?.message === "string"
-              ? error.message
-              : "출발지를 검색하지 못했습니다.",
-          );
+          throw new PublicDepartureSearchError(publicDepartureSearchErrorMessage(error));
         }
         const parsedResults = parseDepartureResults(apiResult.data);
         if (!parsedResults) {
-          throw new Error("출발지 검색 응답 형식을 확인할 수 없습니다.");
+          throw new PublicDepartureSearchError("출발지 검색 결과를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.");
         }
         setResults(parsedResults);
         setStatus(parsedResults.length > 0 ? "ready" : "empty");
@@ -126,7 +135,7 @@ export function DepartureSearch({
         setResults([]);
         setStatus("error");
         setMessage(
-          error instanceof Error
+          error instanceof PublicDepartureSearchError
             ? error.message
             : "출발지를 검색하지 못했습니다. 잠시 후 다시 시도해 주세요.",
         );
@@ -307,7 +316,7 @@ export function DepartureSearch({
 
       {value ? (
         <div
-          className="mt-3 flex items-start gap-3 rounded-[var(--radius-card)] border border-[var(--mint-500)] bg-[var(--brand-soft)] p-4"
+          className="mt-3 flex items-start gap-3 rounded-lg border border-[var(--mint-500)] bg-[var(--brand-soft)] p-4"
           role="status"
         >
           <CheckCircle2 className="mt-0.5 shrink-0 text-[var(--brand)]" size={19} aria-hidden="true" />
@@ -319,7 +328,7 @@ export function DepartureSearch({
           <button
             type="button"
             onClick={clearSelection}
-            className="min-h-11 shrink-0 rounded-full px-3 text-xs font-extrabold text-[var(--brand)] hover:bg-white/70"
+            className="min-h-11 shrink-0 rounded-lg px-3 text-xs font-extrabold text-[var(--brand)] hover:bg-white/70"
           >
             변경
           </button>

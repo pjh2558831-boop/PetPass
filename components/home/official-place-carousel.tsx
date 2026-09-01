@@ -8,7 +8,7 @@ import {
   Phone,
   ShieldCheck,
 } from "lucide-react";
-import { useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useRef, type KeyboardEvent } from "react";
 import { PlaceCardMedia } from "@/components/places/place-card-media";
 import { resolveHomepageCardImage } from "@/lib/homepage/homepage-card-image";
 import type {
@@ -18,44 +18,20 @@ import type {
 } from "@/types/homepage-places";
 import type { HomepageFeaturedState } from "@/types/homepage";
 
-type CarouselFilter = "all" | HomepagePlaceLayer;
-
-const FILTERS: Array<{ id: CarouselFilter; label: string }> = [
-  { id: "all", label: "전체" },
-  { id: "official", label: "공식 장소" },
-  { id: "kakao_candidate", label: "카카오 후보" },
-  { id: "veterinary", label: "동물병원" },
-  { id: "pet_shop", label: "펫샵" },
-];
-
-function visibleForFilter(place: HomepagePlaceCard, filter: CarouselFilter) {
-  if (filter === "all") {
-    return place.layer === "official" || place.layer === "kakao_candidate";
-  }
-  return place.layer === filter;
-}
-
 export function HomepagePlaceCarousel({
   places,
   layers,
   featuredState,
   staticMapEnabled,
-  onOptionalLayerRequest,
 }: {
   places: HomepagePlaceCard[];
   layers: Record<HomepagePlaceLayer, HomepageLayerSnapshot>;
   featuredState: HomepageFeaturedState;
   staticMapEnabled: boolean;
-  onOptionalLayerRequest?: (layer: "veterinary" | "pet_shop") => void;
 }) {
-  const [activeFilter, setActiveFilter] = useState<CarouselFilter>("all");
   const scrollerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef(new Map<string, HTMLElement>());
-
-  const visiblePlaces = useMemo(
-    () => places.filter((place) => visibleForFilter(place, activeFilter)),
-    [activeFilter, places],
-  );
+  const visiblePlaces = places;
 
   const moveCarousel = (direction: -1 | 1) => {
     const scroller = scrollerRef.current;
@@ -95,7 +71,6 @@ export function HomepagePlaceCarousel({
     });
   };
 
-  const activeLayer = activeFilter === "all" ? null : layers[activeFilter];
   const publicCatalogUnavailable =
     layers.kakao_candidate.state === "unavailable" ||
     layers.veterinary.state === "unavailable" ||
@@ -143,40 +118,12 @@ export function HomepagePlaceCarousel({
         </div>
       </div>
 
-      <div className="homepage-filter-chips" role="group" aria-label="장소 출처 필터">
-        {FILTERS.map((filter) => (
-          <button
-            key={filter.id}
-            type="button"
-            aria-pressed={activeFilter === filter.id}
-            onClick={() => {
-              setActiveFilter(filter.id);
-              if (filter.id === "veterinary" || filter.id === "pet_shop") {
-                onOptionalLayerRequest?.(filter.id);
-              }
-            }}
-          >
-            {filter.label}
-          </button>
-        ))}
-      </div>
-
-      {officialStatus && (activeFilter === "all" || activeFilter === "official") ? (
+      {officialStatus ? (
         <p className="homepage-inline-status" role="status">{officialStatus}</p>
       ) : null}
-      {publicCatalogUnavailable && activeFilter === "all" ? (
+      {publicCatalogUnavailable ? (
         <p className="homepage-inline-status homepage-inline-status--warning" role="status">
-          카카오 장소 데이터 준비 중 · 공식 장소는 계속 확인할 수 있어요.
-        </p>
-      ) : null}
-      {activeLayer?.state === "unavailable" ? (
-        <p className="homepage-inline-status homepage-inline-status--warning" role="status">
-          카카오 장소 데이터 준비 중
-        </p>
-      ) : null}
-      {activeLayer?.state === "deferred" ? (
-        <p className="homepage-inline-status" role="status">
-          카카오 장소 데이터를 불러오고 있어요.
+          일부 지역 장소 후보를 지금 불러올 수 없어요. 공식 장소는 계속 확인할 수 있습니다.
         </p>
       ) : null}
 
@@ -193,27 +140,35 @@ export function HomepagePlaceCarousel({
               regionId: "busan",
               staticMapEnabled,
             });
+            const hasImage = image.kind === "provider_photo" || image.kind === "approved_upload";
             const cardContent = (
               <>
-                <PlaceCardMedia
-                  image={image}
-                  fallbackCategory={place.category}
-                  className="homepage-place-image"
-                  sizes="(max-width: 767px) 82vw, (max-width: 1023px) 31vw, 230px"
-                />
+                {hasImage ? (
+                  <PlaceCardMedia
+                    image={image}
+                    fallbackCategory={place.category}
+                    className="homepage-place-image"
+                    sizes="(max-width: 767px) 96px, (max-width: 1179px) 104px, 112px"
+                  />
+                ) : null}
                 <div className="homepage-place-card-body">
                   <div className="homepage-card-meta">
                     <span>{place.categoryLabel}</span>
+                  </div>
+                  <div className="homepage-place-card__labels">
                     {place.isAllowed ? (
-                      <span className="homepage-allowed-badge">
+                      <span className="homepage-place-card__label homepage-allowed-badge">
                         <ShieldCheck size={13} aria-hidden="true" />
                         동반 가능
                       </span>
                     ) : (
-                      <span className={`homepage-source-badge homepage-source-badge--${place.layer}`}>
+                      <span className={`homepage-place-card__label homepage-source-badge homepage-source-badge--${place.layer}`}>
                         {place.statusLabel}
                       </span>
                     )}
+                    <span className={`homepage-place-card__label homepage-place-source homepage-place-source--${place.layer}`}>
+                      {place.sourceLabel}
+                    </span>
                   </div>
                   <h3>{place.name}</h3>
                   <p className="homepage-place-region">
@@ -226,9 +181,6 @@ export function HomepagePlaceCarousel({
                       {place.phone}
                     </p>
                   ) : null}
-                  <p className={`homepage-place-source homepage-place-source--${place.layer}`}>
-                    {place.sourceLabel}
-                  </p>
                   {place.warning && place.layer !== "kakao_candidate" ? (
                     <p className="homepage-place-warning">{place.warning}</p>
                   ) : null}
@@ -237,7 +189,7 @@ export function HomepagePlaceCarousel({
             );
 
             return (
-              <article key={place.id} className={`homepage-place-card homepage-place-card--${place.layer}`}>
+              <article key={place.id} className={`homepage-place-card homepage-place-card--${place.layer} ${hasImage ? "homepage-place-card--with-image" : "homepage-place-card--text-only"}`}>
                 {place.href ? (
                   place.external ? (
                     <a
@@ -282,21 +234,7 @@ export function HomepagePlaceCarousel({
             );
           })}
         </div>
-      ) : (
-        <div className="homepage-empty-card" role="status">
-          <ShieldCheck size={24} aria-hidden="true" />
-          <strong>
-            {activeLayer?.state === "unavailable"
-              ? "카카오 장소 데이터 준비 중"
-              : activeLayer?.state === "deferred"
-                ? "카카오 장소 데이터를 불러오고 있어요"
-              : "현재 이 분류에서 보여드릴 장소가 없어요"}
-          </strong>
-          <p>
-            확인되지 않은 장소나 수치를 임의로 추가하지 않습니다.
-          </p>
-        </div>
-      )}
+      ) : null}
     </section>
   );
 }
