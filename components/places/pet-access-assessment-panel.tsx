@@ -4,9 +4,8 @@ import {
   CircleCheckBig,
   CircleHelp,
 } from "lucide-react";
-import {
-  TOUR_PET_ACCESS_SCOPE_LABELS,
-} from "@/lib/pet-access/tourism/constants";
+import { Disclosure } from "@/components/ui/disclosure";
+import { TOUR_PET_ACCESS_SCOPE_LABELS } from "@/lib/pet-access/tourism/constants";
 import { tourPetAccessVerdictLabel } from "@/lib/pet-access/tourism/verdict-label";
 import type {
   TourPetAccessAssessment,
@@ -54,11 +53,11 @@ const ASSERTION_LABELS: Record<TourPetAccessAssertion, string> = {
 function sourceDate(value: string | null): string | null {
   if (!value) return null;
   return /^\d{8,14}$/.test(value)
-    ? `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}`
+    ? value.slice(0, 4) + "-" + value.slice(4, 6) + "-" + value.slice(6, 8)
     : value.slice(0, 10);
 }
 
-export function PetAccessAssessmentPanel({
+export function PetAccessDecisionSummary({
   assessment,
   regionId,
 }: {
@@ -66,15 +65,23 @@ export function PetAccessAssessmentPanel({
   regionId: RegionId;
 }) {
   const VerdictIcon = VERDICT_ICONS[assessment.verdict];
+  const visibleConditions = assessment.conditions.slice(0, 3);
+  const remainingConditionCount = assessment.conditions.length - visibleConditions.length;
 
   return (
-    <section className="place-detail-assessment__panel surface-card p-5 sm:p-6" aria-labelledby="pet-access-heading">
-      <p className="eyebrow">PET ACCESS ASSESSMENT</p>
-      <h2 id="pet-access-heading" className="mt-2 text-xl font-black tracking-[-0.03em]">
+    <section
+      className="place-detail-decision mt-5"
+      aria-labelledby="pet-access-decision-heading"
+    >
+      <h2
+        id="pet-access-decision-heading"
+        className="text-base font-black tracking-[-0.025em] text-[#263c32]"
+      >
         반려동물 동반 안내
       </h2>
-
-      <div className={`mt-4 rounded-2xl border p-4 ${VERDICT_STYLES[assessment.verdict]}`}>
+      <div
+        className={"place-detail-decision__summary mt-3 border p-4 " + VERDICT_STYLES[assessment.verdict]}
+      >
         <p className="flex items-center gap-2 text-base font-black">
           <VerdictIcon
             aria-hidden="true"
@@ -91,8 +98,52 @@ export function PetAccessAssessmentPanel({
         </p>
       </div>
 
+      {visibleConditions.length > 0 ? (
+        <div className="place-detail-decision__conditions mt-3">
+          <p className="text-xs font-extrabold text-[#68776f]">먼저 확인할 조건</p>
+          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm font-bold text-[#315b48]">
+            {visibleConditions.map((condition) => (
+              <li key={condition.type + ":" + condition.evidenceIds.join(":")}>
+                조건: {condition.label}
+              </li>
+            ))}
+            {remainingConditionCount > 0 ? <li>외 {remainingConditionCount}개 조건</li> : null}
+          </ul>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+export function PetAccessAssessmentPanel({
+  assessment,
+}: {
+  assessment: TourPetAccessAssessment;
+}) {
+  return (
+    <section
+      className="place-detail-pet-evidence"
+      aria-labelledby="pet-access-evidence-heading"
+    >
+      <div className="place-detail-section-heading">
+        <div>
+          <h2
+            id="pet-access-evidence-heading"
+            className="text-xl font-black tracking-[-0.03em]"
+          >
+            동반 근거와 확인 사항
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-[#617168]">
+            한국관광공사가 제공한 원문과 방문 전 확인할 조건을 함께 보여드립니다.
+          </p>
+        </div>
+        <p className="text-xs font-extrabold text-[#607269]">
+          원문 근거 {assessment.evidence.length}개
+        </p>
+      </div>
+
       {assessment.warnings.length > 0 ? (
-        <div className="mt-4 rounded-2xl border border-[#e8d2bd] bg-[#fff8f1] p-4 text-sm leading-6 text-[#6a5547]" role="status">
+        <div className="place-detail-callout mt-5" role="status">
           <p className="font-extrabold">자료 상태 안내</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             {assessment.warnings.map((warning) => <li key={warning}>{warning}</li>)}
@@ -101,42 +152,44 @@ export function PetAccessAssessmentPanel({
       ) : null}
 
       {assessment.conditions.length > 0 ? (
-        <div className="mt-5">
-          <h3 className="text-sm font-black text-[#344a40]">동반 조건</h3>
-          <ul className="mt-3 grid gap-3 lg:grid-cols-2">
+        <div className="place-detail-evidence-group">
+          <h3>동반 조건</h3>
+          <dl className="place-detail-definition-grid">
             {assessment.conditions.map((condition) => (
-              <li key={`${condition.type}:${condition.evidenceIds.join(":")}`} className="rounded-2xl border border-[#dce6df] bg-white p-4">
-                <p className="text-sm font-extrabold text-[#315b48]">{condition.label}</p>
-                <p className="mt-1 text-xs font-bold text-[#607269]">
-                  적용 범위: {TOUR_PET_ACCESS_SCOPE_LABELS[condition.scope]}
-                </p>
-                <p className="mt-1 whitespace-pre-line text-sm leading-6 text-[#52665b]">
-                  {condition.sourceText}
-                </p>
+              <div key={condition.type + ":" + condition.evidenceIds.join(":")}>
+                <dt>{condition.label}</dt>
+                <dd>적용 범위: {TOUR_PET_ACCESS_SCOPE_LABELS[condition.scope]}</dd>
+                <dd className="whitespace-pre-line">{condition.sourceText}</dd>
                 {condition.manualConfirmationRecommended ? (
-                  <p className="mt-2 text-xs font-bold text-[#765138]">방문 전 세부 조건 확인 권장</p>
+                  <dd className="place-detail-definition-grid__notice">
+                    방문 전 세부 조건 확인 권장
+                  </dd>
                 ) : null}
-              </li>
+              </div>
             ))}
-          </ul>
+          </dl>
         </div>
       ) : null}
 
       {assessment.permittedScopes.length > 0 || assessment.restrictedScopes.length > 0 ? (
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <div className="place-detail-scope-grid">
           {assessment.permittedScopes.length > 0 ? (
-            <div className="rounded-2xl bg-[#edf8f2] p-4">
-              <h3 className="text-sm font-black text-[#236148]">동반 가능 범위</h3>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm font-semibold text-[#315b48]">
-                {assessment.permittedScopes.map((scope) => <li key={scope}>{TOUR_PET_ACCESS_SCOPE_LABELS[scope]}</li>)}
+            <div data-tone="positive">
+              <h3>동반 가능 범위</h3>
+              <ul>
+                {assessment.permittedScopes.map((scope) => (
+                  <li key={scope}>{TOUR_PET_ACCESS_SCOPE_LABELS[scope]}</li>
+                ))}
               </ul>
             </div>
           ) : null}
           {assessment.restrictedScopes.length > 0 ? (
-            <div className="rounded-2xl bg-[#fff1ef] p-4">
-              <h3 className="text-sm font-black text-[#823f36]">동반 제한 범위</h3>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm font-semibold text-[#704b45]">
-                {assessment.restrictedScopes.map((scope) => <li key={scope}>{TOUR_PET_ACCESS_SCOPE_LABELS[scope]}</li>)}
+            <div data-tone="negative">
+              <h3>동반 제한 범위</h3>
+              <ul>
+                {assessment.restrictedScopes.map((scope) => (
+                  <li key={scope}>{TOUR_PET_ACCESS_SCOPE_LABELS[scope]}</li>
+                ))}
               </ul>
             </div>
           ) : null}
@@ -144,66 +197,80 @@ export function PetAccessAssessmentPanel({
       ) : null}
 
       {assessment.conflicts.length > 0 ? (
-        <div className="mt-5 rounded-2xl border border-[#e5bdb7] bg-[#fff1ef] p-4 text-sm leading-6 text-[#704b45]" role="alert">
+        <div className="place-detail-conflict mt-6" role="alert">
           <p className="font-extrabold">상충하는 원문 안내</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
-            {assessment.conflicts.map((conflict) => <li key={conflict.id}>{conflict.summary}</li>)}
+            {assessment.conflicts.map((conflict) => (
+              <li key={conflict.id}>{conflict.summary}</li>
+            ))}
           </ul>
         </div>
       ) : null}
 
       {assessment.verificationItems.length > 0 ? (
-        <div className="mt-5">
-          <h3 className="text-sm font-black text-[#344a40]">방문 전 확인할 내용</h3>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-[#52665b]">
-            {assessment.verificationItems.map((item) => <li key={item.code}>{item.label}</li>)}
+        <div className="place-detail-evidence-group">
+          <h3>방문 전 확인할 내용</h3>
+          <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 text-[#52665b]">
+            {assessment.verificationItems.map((item) => (
+              <li key={item.code}>{item.label}</li>
+            ))}
           </ul>
         </div>
       ) : null}
 
-      {assessment.evidence.length > 0 ? (
-        <div className="mt-5">
-          <h3 className="text-sm font-black text-[#344a40]">한국관광공사 제공 근거</h3>
-          <dl className="mt-3 grid gap-3 lg:grid-cols-2">
+      <div className="place-detail-evidence-group">
+        <h3>한국관광공사 제공 근거</h3>
+        {assessment.evidence.length > 0 ? (
+          <dl className="place-detail-source-rows">
             {assessment.evidence.map((evidence) => (
-              <div key={evidence.id} className="rounded-2xl border border-[#dce6df] bg-white p-4">
-                <dt className="text-xs font-extrabold text-[#607269]">
+              <div key={evidence.id}>
+                <dt>
                   {evidence.fieldLabel} · {ASSERTION_LABELS[evidence.assertion]}
                 </dt>
-                <dd className="mt-2 whitespace-pre-line text-sm leading-6 text-[#344a40]">
-                  {evidence.originalText}
-                </dd>
+                <dd className="whitespace-pre-line">{evidence.originalText}</dd>
               </div>
             ))}
           </dl>
-        </div>
-      ) : (
-        <p className="mt-5 rounded-2xl bg-[#f3f5f3] p-4 text-sm font-semibold leading-6 text-[#68776f]">
-          판단에 사용할 수 있는 명시적인 반려동물 동반 원문이 없습니다.
-        </p>
-      )}
+        ) : (
+          <p className="mt-3 text-sm font-semibold leading-6 text-[#68776f]">
+            판단에 사용할 수 있는 명시적인 반려동물 동반 원문이 없습니다.
+          </p>
+        )}
+      </div>
 
-      <div className="mt-5 border-t border-[#dce6df] pt-4 text-xs leading-6 text-[#6b7972]">
+      <p className="place-detail-policy-note mt-6">
+        한국관광공사 제공 정보를 바탕으로 한 안내이며, 시설 운영 정책은 변경될 수 있으니 방문 전 해당 시설에 확인해 주세요.
+      </p>
+    </section>
+  );
+}
+
+export function PetAccessTechnicalDisclosure({
+  assessment,
+}: {
+  assessment: TourPetAccessAssessment;
+}) {
+  return (
+    <Disclosure label="동반 평가 기술 정보" idPrefix="pet-access-technical">
+      <div className="place-detail-technical-copy">
         <p>제공처: Korea Tourism Organization</p>
         {assessment.sources.map((source) => (
           <p key={source.operation}>
             {source.operation}: {source.status}
             {sourceDate(source.retrievedAt)
-              ? ` · 조회 ${sourceDate(source.retrievedAt)}`
+              ? " · 조회 " + sourceDate(source.retrievedAt)
               : ""}
-            {sourceDate(source.providerModifiedTime) ? ` · 제공처 수정 ${sourceDate(source.providerModifiedTime)}` : ""}
+            {sourceDate(source.providerModifiedTime)
+              ? " · 제공처 수정 " + sourceDate(source.providerModifiedTime)
+              : ""}
           </p>
         ))}
-        <details className="mt-2">
-          <summary className="cursor-pointer font-bold">평가 정보</summary>
-          <p className="mt-1">규칙 버전: {assessment.rulesetVersion}</p>
-          <p>평가 시각: {assessment.evaluatedAt}</p>
-        </details>
+        <p className="mt-2">규칙 버전: {assessment.rulesetVersion}</p>
+        <p>평가 시각: {assessment.evaluatedAt}</p>
+        <p>
+          {CONFIDENCE_LABELS[assessment.confidence]} · {STATE_LABELS[assessment.evaluationState]}
+        </p>
       </div>
-
-      <p className="mt-5 rounded-2xl bg-[#fff8f1] p-4 text-sm font-semibold leading-6 text-[#6a5547]">
-        한국관광공사 제공 정보를 바탕으로 한 안내이며, 시설 운영 정책은 변경될 수 있으니 방문 전 해당 시설에 확인해 주세요.
-      </p>
-    </section>
+    </Disclosure>
   );
 }

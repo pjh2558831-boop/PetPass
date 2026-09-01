@@ -15,8 +15,15 @@ import {
 import { MapPanel } from "@/components/map/map-panel";
 import { PlaceImage } from "@/components/places/place-image";
 import { LicenseInformationPanel } from "@/components/places/license-information-panel";
-import { PetAccessAssessmentPanel } from "@/components/places/pet-access-assessment-panel";
-import { SourceTrustPanel } from "@/components/places/source-trust-panel";
+import {
+  PetAccessAssessmentPanel,
+  PetAccessDecisionSummary,
+  PetAccessTechnicalDisclosure,
+} from "@/components/places/pet-access-assessment-panel";
+import {
+  SourceTrustPanel,
+  SourceTrustTechnicalDisclosure,
+} from "@/components/places/source-trust-panel";
 import { InformationReportDraftPanel } from "@/components/places/information-report-draft-panel";
 import { TOUR_CATEGORY_LABELS } from "@/lib/shared/format";
 import { deriveRegionLabel } from "@/lib/regions/label";
@@ -196,7 +203,7 @@ export function LivePlaceDetail({
       </Link>
 
       {unavailableSections.length > 0 ? (
-        <div className="mt-5 rounded-2xl border border-[#e8d2bd] bg-[#fff8f1] p-4 text-sm text-[#6a5547]" role="status">
+        <div className="mt-5 rounded-[8px] border border-[#e8d2bd] bg-[#fff8f1] p-4 text-sm text-[#6a5547]" role="status">
           <p className="font-extrabold">일부 상세 정보를 불러오지 못했습니다.</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             {unavailableSections.map((section) => (
@@ -206,7 +213,7 @@ export function LivePlaceDetail({
         </div>
       ) : null}
 
-      <div className="place-detail-intro mt-5 grid gap-7 lg:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)] lg:items-start">
+      <div className="place-detail-intro mt-5 grid gap-7 lg:grid-cols-[minmax(320px,.72fr)_minmax(0,1.28fr)] lg:items-start">
         <div>
           <PlaceImage
             imageUrl={detail.summary.imageUrl ?? detail.summary.thumbnailUrl}
@@ -226,43 +233,76 @@ export function LivePlaceDetail({
           <h1 className="mt-4 text-3xl font-black tracking-[-0.045em] sm:text-4xl">
             {title}
           </h1>
-          <p className="mt-3 max-w-2xl whitespace-pre-line text-base leading-8 text-[#627169]">
-            {detail.overview ?? "제공된 소개 정보가 없습니다."}
-          </p>
+          <PetAccessDecisionSummary
+            assessment={detail.petAccessAssessment}
+            regionId={regionId}
+          />
+
+          <dl className="place-detail-facts mt-6 text-sm">
+            {informationCards.map(({ icon: Icon, label, value }) => (
+              <div key={label}>
+                <dt className="flex items-center gap-3 text-xs font-extrabold text-[#748078]">
+                  <Icon size={18} className="shrink-0 text-[#3d8b68]" aria-hidden="true" />
+                  {label}
+                </dt>
+                <dd className="mt-1 whitespace-pre-line pl-[30px] font-semibold leading-6">{value}</dd>
+              </div>
+            ))}
+          </dl>
           {detail.homepageUrl ? (
             <a
               href={detail.homepageUrl}
               target="_blank"
               rel="noreferrer"
-              className="mt-4 inline-flex items-center gap-2 text-sm font-extrabold text-[#236148]"
+              className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-extrabold text-[#236148] underline decoration-[#9cc4b0] underline-offset-4"
             >
               제공 홈페이지 열기 <ExternalLink size={14} aria-hidden="true" />
             </a>
           ) : null}
-
-          <div className="mt-6 grid gap-3 text-sm sm:grid-cols-2">
-            {informationCards.map(({ icon: Icon, label, value }) => (
-              <div key={label} className="flex items-start gap-3 rounded-2xl bg-[#fffdf8] p-4">
-                <Icon size={18} className="mt-0.5 shrink-0 text-[#3d8b68]" aria-hidden="true" />
-                <div>
-                  <p className="text-xs font-extrabold text-[#748078]">{label}</p>
-                  <p className="mt-1 whitespace-pre-line font-semibold leading-6">{value}</p>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
 
-      <div className="place-detail-assessment mt-7">
+      <section className="place-detail-overview mt-10" aria-labelledby="place-overview-heading">
+        <h2 id="place-overview-heading" className="text-xl font-black tracking-[-0.03em]">
+          장소 소개
+        </h2>
+        <p className="mt-3 max-w-4xl whitespace-pre-line text-base leading-8 text-[#627169]">
+          {detail.overview ?? "제공된 소개 정보가 없습니다."}
+        </p>
+      </section>
+
+      <div className="place-detail-evidence-layer mt-10">
+        <div className="place-detail-assessment">
           <PetAccessAssessmentPanel
             assessment={detail.petAccessAssessment}
-            regionId={regionId}
           />
+        </div>
+
+        <div className="place-detail-source mt-10">
+          <SourceTrustPanel sourceRecords={detail.sourceRecords} trust={detail.trust} />
+        </div>
+
+        <section
+          className="place-detail-technical-layer mt-10"
+          aria-labelledby="place-technical-heading"
+        >
+          <h2
+            id="place-technical-heading"
+            className="text-base font-black tracking-[-0.025em] text-[#344a40]"
+          >
+            기술 정보
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-[#617168]">
+            평가 규칙과 계산 시각은 필요할 때 펼쳐 확인할 수 있습니다.
+          </p>
+          <div className="place-detail-technical-layer__disclosures mt-4">
+            <PetAccessTechnicalDisclosure assessment={detail.petAccessAssessment} />
+            <SourceTrustTechnicalDisclosure trust={detail.trust} />
+          </div>
+        </section>
       </div>
 
-      <div className="place-detail-support mt-7 grid gap-5 lg:grid-cols-3 lg:items-start">
-          <SourceTrustPanel sourceRecords={detail.sourceRecords} trust={detail.trust} />
+      <div className="place-detail-support mt-10 grid gap-6 lg:grid-cols-2 lg:items-start">
           <LicenseInformationPanel licensing={detail.licensing} />
           <InformationReportDraftPanel
             placeName={title}

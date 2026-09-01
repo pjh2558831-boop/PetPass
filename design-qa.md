@@ -1,3 +1,116 @@
+# WEEKENDOG `ui_ver2` remaining UI Prompt 3 — final design QA
+
+This is the current authoritative assessment for the three-prompt remaining-UI pass. Older assessments below are retained as history and do not override this result.
+
+## Reference and final evidence
+
+- Detail reference image: Browser Comment 2 supplied in this conversation, showing the former narrow `PET ACCESS ASSESSMENT` panel and its long unused left column. No standalone reference PNG is stored in this repository.
+- Cross-page comparison baseline: the approved Prompt 1/2 implementation and its final captures in this evidence set; Prompt 3 does not reinterpret or restyle the approved homepage upper section.
+- Final evidence directory: `verification-evidence/weekendog-ui-ver2/remaining-ui/final/`.
+- Place detail: `place-detail-1440x1000.png`, `place-detail-1024x900.png`, `place-detail-390x844.png`, `place-detail-320x720.png`.
+- Cross-page normal states: `homepage-948x1660.png`, `catalog-1440x1000.png`, `catalog-390x844.png`, `planner-1440x1000.png`, `planner-390x844.png`.
+- Recommendation states: `direct-entry-1440x1000.png`, `direct-entry-390x844.png`, `generating-1440x1000.png`, `generating-390x844.png`, `result-1440x1000.png`, `result-390x844.png`.
+- Static audit report: `premium-audit.json` (`strict`, 0 findings).
+
+## Adopted and omitted reference elements
+
+| Reference or target element | Decision | Final treatment |
+| --- | --- | --- |
+| Strong first-view visit decision | Adopted | Verdict, one concise explanation, at most three key conditions, and essential visit facts form the only emphasized summary. |
+| Wide detail composition | Adopted | Image and decision/facts share the upper two-column region; introduction and evidence use the full content width below it. |
+| Editorial rows and dividers | Adopted | Pet evidence, official source text, source identity, licensing, and report support use flat rows and separators. |
+| Korean task headings | Adopted | `반려동물 동반 안내`, `동반 근거와 확인 사항`, `출처와 정보 신뢰도`, and `기술 정보` replace console-like English labels. |
+| Technical transparency | Adopted, de-emphasized | Trust score, rule versions, calculation/evaluation time, sub-scores, and provider metadata remain available in two accessible disclosures. |
+| Side-by-side mega-cards | Omitted | The former `PET ACCESS ASSESSMENT` and `SOURCE & TRUST` dashboard surfaces are removed. |
+| Nested score/source cards and progress styling | Omitted | No nested card grid, score mini-card, progress meter, or ordinary content shadow remains in the changed detail flow. |
+| Invented metrics or reference copy | Omitted | No count, score, time, date, distance, condition, or source record was fabricated to fill the layout. |
+
+## Three-layer information architecture
+
+1. **Visit decision:** pet-access verdict, concise explanation, key conditions, address/contact/hours/closing/parking/reservation facts.
+2. **Evidence:** place overview, preserved pet-access conditions and scopes, Korean Tourism Organization evidence, limitations/conflicts, source count, provider identity, preserved source URL, licensing and report support.
+3. **Technical transparency:** evaluator/provider state, ruleset versions, evaluated/computed timestamps, trust score and all detailed factors in collapsed disclosure regions.
+
+The rendered order is decision → overview → pet evidence → source/trust evidence → technical disclosure. A sole licensing/report support panel spans the full available width, and licensing field groups are flattened to divider rows.
+
+## State matrix
+
+| Surface | Verified states |
+| --- | --- |
+| Place detail | allowed, conditional, not allowed, insufficient evidence, inquiry-only, conflicting evidence, provider unavailable, partial fallback, legacy fail-closed, spoofed content type, malicious text rendered inert, licensing match/no-match/ambiguous/partial/unavailable, image failure fallback. |
+| Homepage | normal populated, search, ordered selection, loading, partial failure, total failure, Kakao map failure with usable list, retry, pagination, mobile list/map. |
+| Catalog | loading, normal, search/clear/zero, category and source filters, sorting, pagination, list/map, marker-row selection, map/provider failure fallback. |
+| Planner | neutral entry, step validation, back/next persistence, departure search, map-picked and current-location departure, stale/failed search protection, final submit. |
+| Recommendation | direct entry, request-backed generating, provider result, recoverable failure, reroll, stale-request protection, manual edit/revalidate/restore, save/refresh restoration. |
+
+## Responsive matrix
+
+| Width | Result |
+| ---: | --- |
+| 1440 × 1000 | Wide image/decision split, full-width evidence sequence, no blank support column, no horizontal overflow. |
+| 1024 × 900 | Stable tablet two-column upper region and readable evidence transition. |
+| 948 × 1660 | Approved homepage upper hierarchy remains unchanged; normal lower workbench evidence is preserved. |
+| 768 px | Existing home/catalog/planner transformations retain their actions and scroll ownership. |
+| 390 × 844 | Single-column detail, reachable 44 px disclosure triggers, list/map controls, no document overflow. |
+| 320 × 720 | Long Korean copy wraps, facts and source rows collapse to one column, disclosure labels remain usable, no document overflow. |
+
+## Accessibility and interaction
+
+- Disclosure triggers are native buttons with `aria-expanded`, stable `aria-controls`, textual `펼치기`/`접기` state, visible `:focus-visible`, Enter/Space behavior, and focus retention after activation.
+- Collapsed technical panels use the native hidden contract; content becomes visible and available when expanded.
+- Disclosure icon rotation is removed under `prefers-reduced-motion: reduce`.
+- The upper facts use valid `dl` → grouping `div` → `dt`/`dd` semantics. Headings and regions expose the visual hierarchy to assistive technology.
+- External source links retain descriptive Korean labels, open in a new tab with `rel="noreferrer"`, and no icon is the sole carrier of meaning.
+- Browser measurement reported 0 px horizontal document overflow at 390 and 320 px. Automated keyboard and narrow-viewport assertions pass in both configured browser projects.
+
+## Data truthfulness and immutable contracts
+
+- Pet-access verdicts, evidence text, conditions, allowed/denied scopes, conflicts, warnings, provider records, source URLs, timestamps, rule versions, trust score, and trust factors are passed through unchanged.
+- Trust score remains explicitly labeled as evidence confidence rather than a probability or access verdict.
+- No API, schema, shared domain type, provider normalization, source-preservation, trust-calculation, pet-access evaluation, recommendation, route, or map owner changed.
+- Existing provider failure and missing-image states remain truthful; fixtures are used only by deterministic tests and captures.
+
+## Cross-page anti-template gate
+
+- Approved homepage upper section: unchanged by Prompt 3; static hero and one primary CTA remain intact.
+- Changed detail flow: no generic English eyebrow, automatic carousel, ordinary shadow, nested card, score grid, repeated round-icon feature grid, fake metric, or duplicate progress system.
+- Homepage lower, catalog, planner, direct-entry, generating, result, and detail screenshots were reviewed together. No new P0–P2 visual or interaction issue was found.
+- Direct-entry is neutral rather than endlessly loading; generating is request-backed; zero-selection and missing-image states stay bounded; user-facing Kakao failures retain usable content.
+
+## Findings and baseline policy
+
+### Prompt 3 changes
+
+- P0: none.
+- P1: none. The former console-like side-by-side mega-card hierarchy and large unused column are resolved.
+- P2: none. Technical data order, disclosure semantics, sole-support-panel width, nested licensing rows, and description-list semantics were corrected before final capture.
+- P3: long evidence sets still require normal document scrolling; this is truthful content density and not iterated into tabs or truncation.
+
+### Proven pre-existing observations outside Prompt 3 scope
+
+- P2: recommendation and itinerary map explanations expose the developer term `geometry` (`components/itinerary/recommendation-planner.tsx`, `components/itinerary/itinerary-editor.tsx`). These lines predate Prompt 3.
+- P2: an unsupported-region catalog tab exposes a disabled public `준비 중` action (`components/places/results-explorer.tsx`), introduced by the already-completed Prompt 2 commit.
+- P2: the planner programmatic heading focus style removes its outline without a replacement (`app/weekendog-globals.css`), predating the remaining-UI commits.
+- P2: the shared header's skip link is visually enabled only on the homepage, and legacy global surface tokens can still permit softer/larger-radius content outside the verified target flows. Neither was introduced or expanded by this refactor.
+
+These baseline observations do not fail the changed place-detail scope or any automated gate, but they prevent an unqualified repository-wide design PASS under the supplied baseline policy.
+
+## Verification result
+
+- Typecheck: passed.
+- Lint: passed.
+- Unit: 136 files, 1,309 tests passed.
+- Production build: passed; 25 static pages generated and all routes compiled.
+- Focused place-detail regression: 82 passed with one worker after isolating a transient parallel test-server provider response.
+- Relevant cross-page Playwright: 216 passed, 26 intentional project/evidence skips.
+- Complete default Playwright: 242 passed, 38 intentional project/evidence skips, 0 failed.
+- In-app Browser: detail requests returned 200, console warning/error count 0, disclosures default-collapsed, and 390 px overflow 0.
+- Frontend premium strict audit: 0 findings.
+
+final result: passed with baseline blocker
+
+---
+
 # WEEKENDOG `ui_ver2` homepage feature completion — design QA
 
 ## Ground truth and evidence
