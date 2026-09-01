@@ -1,3 +1,5 @@
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
 import { expect, test, type Page, type Route } from "@playwright/test";
 import type { HomepagePlacesSnapshot } from "@/types/homepage-places";
 import type { HomepageOptionalDatasetId } from "@/types/homepage-optional";
@@ -30,7 +32,7 @@ import {
 } from "./homepage-test-helpers";
 
 async function showHomepageMapMode(page: Page) {
-  if ((page.viewportSize()?.width ?? 1_024) > 768) return;
+  if ((page.viewportSize()?.width ?? 1_024) >= 1_180) return;
   await page
     .getByRole("group", { name: "홈 장소 지도 또는 목록 보기" })
     .getByRole("button", { name: "지도", exact: true })
@@ -39,7 +41,7 @@ async function showHomepageMapMode(page: Page) {
 }
 
 async function showHomepageListMode(page: Page) {
-  if ((page.viewportSize()?.width ?? 1_024) > 768) return;
+  if ((page.viewportSize()?.width ?? 1_024) >= 1_180) return;
   await page
     .getByRole("group", { name: "홈 장소 지도 또는 목록 보기" })
     .getByRole("button", { name: "목록", exact: true })
@@ -709,7 +711,7 @@ test("renders mixed source markers, dynamic counts, truthful selection, and faci
   await expect(page.locator('.homepage-workbench-row[data-map-focused="true"]')).toHaveCount(1);
 });
 
-test("filters truthful official, candidate, veterinary, and shop cards with safe links", async ({ page }) => {
+test("keeps supporting discovery truthful without a duplicate filter system or large placeholders", async ({ page }) => {
   await mockHomepage(page);
   await page.goto("/");
   const carousel = page.getByRole("region", { name: "부산 장소 카드" });
@@ -722,16 +724,26 @@ test("filters truthful official, candidate, veterinary, and shop cards with safe
     { exact: true },
   )).toHaveCount(0);
   await expect(carousel.getByRole("link", { name: /광안리 반려견 검색 후보 카카오 장소 정보/u })).toHaveAttribute("href", "https://place.map.kakao.com/101");
-  await expect(carousel.locator(".homepage-allowed-badge")).toHaveCount(3);
-
-  const filters = page.getByRole("group", { name: "장소 출처 필터" });
-  await filters.getByRole("button", { name: "동물병원" }).click();
-  await expect(carousel.locator(".homepage-place-card")).toHaveCount(1);
-  await expect(carousel).toContainText("051-123-4567");
-  await expect(carousel).not.toContainText("동반 가능");
-  await filters.getByRole("button", { name: "펫샵" }).click();
-  await expect(carousel).toContainText("펫샵·용품점");
+  await expect(page.getByRole("group", { name: "장소 출처 필터" })).toHaveCount(0);
+  await expect(carousel.locator(".homepage-place-card--text-only")).toHaveCount(4);
+  await expect(carousel.locator(".catalog-card-placeholder")).toHaveCount(0);
+  const cards = carousel.locator(".homepage-place-card");
+  for (let index = 0; index < await cards.count(); index += 1) {
+    expect(await cards.nth(index).locator(".homepage-place-card__label").count()).toBeLessThanOrEqual(2);
+  }
   await expect(page.locator(".weekendoog-home")).not.toContainText(/평점|별점|리뷰|후기|인기 순위|24시간/u);
+});
+
+test("collapses the selected-place area until the first real selection", async ({ page }) => {
+  await mockHomepage(page);
+  await page.goto("/");
+  await expect(page.locator(".home-selected-itinerary")).toHaveCount(0);
+  await expect(page.getByText("장소를 선택하면 이곳에서 일정 순서를 정할 수 있습니다.", { exact: true })).toBeVisible();
+
+  await page.getByRole("checkbox", { name: "해운대 달맞이 산책로 일정에 담기" }).check();
+  await expect(page.getByText("장소를 선택하면 이곳에서 일정 순서를 정할 수 있습니다.", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".home-selected-itinerary")).toBeVisible();
+  await expect(page.getByText("선택한 장소 1곳", { exact: true })).toBeVisible();
 });
 
 test("keeps official data working when the stored Kakao catalog is unavailable", async ({ page }) => {
@@ -992,6 +1004,13 @@ test("preserves mobile order, map width, card snap width, and page overflow", as
   await expect(page.locator(".homepage-workbench__map")).not.toBeVisible();
   await workbenchSwitch.getByRole("button", { name: "지도" }).click();
   await expect(page.locator(".homepage-workbench__map")).toBeVisible();
+  await workbenchSwitch.getByRole("button", { name: "목록" }).click();
+  const selectedCheckbox = page.getByRole("checkbox", { name: "해운대 달맞이 산책로 일정에 담기" });
+  await selectedCheckbox.check();
+  await workbenchSwitch.getByRole("button", { name: "지도" }).click();
+  await workbenchSwitch.getByRole("button", { name: "목록" }).click();
+  await expect(selectedCheckbox).toBeChecked();
+  await workbenchSwitch.getByRole("button", { name: "지도" }).click();
   const mapBox = await page.locator(".homepage-map-canvas-wrap .map-canvas").boundingBox();
   expect(mapBox).not.toBeNull();
   expect(mapBox!.width).toBeLessThanOrEqual(390);
@@ -1005,17 +1024,20 @@ test("preserves mobile order, map width, card snap width, and page overflow", as
   await page.keyboard.press("Escape");
   const cardBox = await page.locator(".homepage-place-card").first().boundingBox();
   expect(cardBox).not.toBeNull();
-  expect(cardBox!.width).toBeGreaterThan(300);
-  expect(cardBox!.width).toBeLessThan(330);
+  expect(cardBox!.width).toBeGreaterThanOrEqual(220);
+  expect(cardBox!.width).toBeLessThanOrEqual(290);
   await expect.poll(() => page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
 });
 
 test("keeps the live homepage inside all required viewport boundaries", async ({ page }) => {
   const viewports = [
     { width: 1_440, height: 1_000 },
+    { width: 1_180, height: 900 },
+    { width: 1_024, height: 900 },
+    { width: 948, height: 1_660 },
     { width: 768, height: 1_024 },
     { width: 390, height: 844 },
-    { width: 320, height: 844 },
+    { width: 320, height: 720 },
   ];
   await page.setViewportSize(viewports[0]);
   await mockHomepage(page);
@@ -1024,7 +1046,14 @@ test("keeps the live homepage inside all required viewport boundaries", async ({
 
   for (const viewport of viewports) {
     await page.setViewportSize(viewport);
-    if (viewport.width <= 768) {
+    if (viewport.width < 1_180) {
+      const switcher = page.getByRole("group", { name: "홈 장소 지도 또는 목록 보기" });
+      await expect(switcher).toBeVisible();
+      const listButton = switcher.getByRole("button", { name: "목록" });
+      if (await listButton.getAttribute("aria-pressed") !== "true") await listButton.click();
+      await expect(listButton).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator(".homepage-workbench__list")).toBeVisible();
+      await expect(page.locator(".homepage-workbench__map")).not.toBeVisible();
       await page.getByRole("group", { name: "홈 장소 지도 또는 목록 보기" })
         .getByRole("button", { name: "지도" })
         .click();
@@ -1038,5 +1067,52 @@ test("keeps the live homepage inside all required viewport boundaries", async ({
     expect(mapBox).not.toBeNull();
     expect(mapBox!.x).toBeGreaterThanOrEqual(0);
     expect(mapBox!.x + mapBox!.width).toBeLessThanOrEqual(viewport.width);
+  }
+});
+
+test("captures the phase-b homepage lower-section evidence", async ({ page, isMobile }) => {
+  test.skip(
+    process.env.CAPTURE_PHASE_B_EVIDENCE !== "1" || Boolean(isMobile),
+    "Set CAPTURE_PHASE_B_EVIDENCE=1 to write the Phase B review images once in desktop Chromium.",
+  );
+  test.setTimeout(90_000);
+
+  const evidenceDirectory = path.resolve(
+    "verification-evidence/weekendog-ui-ver2/remaining-ui/phase-b/final",
+  );
+  const viewports = [
+    { width: 1_440, height: 1_000 },
+    { width: 1_180, height: 900 },
+    { width: 1_024, height: 900 },
+    { width: 948, height: 1_660 },
+    { width: 768, height: 1_024 },
+    { width: 390, height: 844 },
+    { width: 320, height: 720 },
+  ];
+
+  await mkdir(evidenceDirectory, { recursive: true });
+  await page.setViewportSize(viewports[0]);
+  await mockHomepage(page);
+  await page.goto("/");
+  await expect(page.locator(".homepage-live-ready")).toBeVisible();
+
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    const switcher = page.getByRole("group", { name: "홈 장소 지도 또는 목록 보기" });
+    if (viewport.width < 1_180) {
+      const listButton = switcher.getByRole("button", { name: "목록", exact: true });
+      if (await listButton.getAttribute("aria-pressed") !== "true") await listButton.click();
+    }
+    await page.locator(".homepage-map-section").scrollIntoViewIfNeeded();
+    await expect.poll(() => page.evaluate(() =>
+      Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) -
+        document.documentElement.clientWidth,
+    )).toBeLessThanOrEqual(1);
+    await page.screenshot({
+      path: path.join(evidenceDirectory, `homepage-lower-${viewport.width}x${viewport.height}.png`),
+      animations: "disabled",
+      caret: "hide",
+      fullPage: false,
+    });
   }
 });

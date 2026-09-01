@@ -54,19 +54,15 @@ async function mockKakaoCatalog(page: Page) {
 }
 
 async function showListMode(page: Page) {
-  if ((page.viewportSize()?.width ?? 1_024) >= 1_024) return;
+  if ((page.viewportSize()?.width ?? 1_024) > 1_024) return;
   const listMode = page.getByRole("button", { name: "목록", exact: true });
   await expect(listMode).toBeVisible();
   await listMode.click();
 }
 
 async function openCatalogFilters(page: Page) {
-  const mapMode = page
-    .getByRole("group", { name: "지도 또는 목록 보기" })
-    .getByRole("button", { name: "지도", exact: true });
-  if (await mapMode.isVisible()) await mapMode.click();
   const trigger = page
-    .locator(".full-map-explorer__map")
+    .locator(".explorer-toolbar-filter")
     .getByRole("button", { name: "필터", exact: true });
   if (await trigger.getAttribute("aria-expanded") !== "true") await trigger.click();
   const dropdown = page.getByRole("region", { name: "장소 필터" });

@@ -59,6 +59,7 @@ export interface MapPanelProps {
   isDataLoading?: boolean;
   showEmptyMessage?: boolean;
   initialLevel?: number;
+  loadingPresentation?: "status" | "visual-only";
 }
 
 const EMPTY_ROUTE_COORDINATES: Coordinates[] = [];
@@ -96,6 +97,7 @@ export function MapPanel({
   isDataLoading = false,
   showEmptyMessage = true,
   initialLevel,
+  loadingPresentation = "status",
 }: MapPanelProps) {
   const region = getRegionConfig(regionId);
   const resolvedInitialLevel = initialLevel ?? region.defaultMapLevel;
@@ -260,9 +262,10 @@ export function MapPanel({
 
   return (
     <section className="relative" aria-label={resolvedTitle}>
-      <div className={`map-canvas kakao-map-canvas ${compact ? "!min-h-[300px]" : ""}`} data-location-count={validLocationCount} data-map-version={mapVersion} data-route-point-count={routeCoordinates.length} data-initial-level={resolvedInitialLevel}>
+      <div className={`map-canvas kakao-map-canvas ${compact ? "!min-h-[300px]" : ""}`} aria-busy={showLoadingMessage} data-location-count={validLocationCount} data-map-version={mapVersion} data-route-point-count={routeCoordinates.length} data-initial-level={resolvedInitialLevel}>
         <div ref={mapContainerRef} className="absolute inset-0" role="group" aria-label="지도 장소 마커" />
-        {showLoadingMessage ? <p role="status" aria-live="polite" className="absolute inset-x-4 top-20 z-10 rounded-2xl bg-white/95 p-4 text-center text-sm font-bold">지도를 불러오는 중입니다…</p> : null}
+        {showLoadingMessage && loadingPresentation === "status" ? <p role="status" aria-live="polite" className="absolute inset-x-4 top-20 z-10 rounded-2xl bg-white/95 p-4 text-center text-sm font-bold">지도를 불러오는 중입니다…</p> : null}
+        {showLoadingMessage && loadingPresentation === "visual-only" ? <span className="map-loading-indicator" aria-hidden="true" /> : null}
         {loadError ? <p role="alert" data-map-error-category="sdk" className="map-public-error absolute inset-x-4 top-20 z-10"><strong>지도를 일시적으로 불러오지 못했습니다.</strong><span>장소 목록은 계속 확인할 수 있어요.</span></p> : null}
         {showEmptyMessage && loadState === "ready" && !isDataLoading && validLocationCount === 0 ? <p role="status" className="absolute inset-x-4 top-20 z-10 rounded-lg bg-white/95 p-4 text-center text-sm font-bold">{emptyMessage}</p> : null}
         {missingCoordinateCount > 0 ? <p className="absolute inset-x-4 bottom-16 z-10 rounded-xl bg-[#fff8f1]/95 p-3 text-xs font-bold text-[#7a4b2f]">좌표를 확인할 수 없는 장소 {missingCoordinateCount}곳은 지도에서 제외했습니다.</p> : null}

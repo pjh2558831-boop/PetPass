@@ -973,14 +973,20 @@ export function HomepageLiveExperience({
         staticMapEnabled={staticMapEnabled}
       />
 
-      <HomeSelectedItineraryTray
-        snapshot={itinerarySelection.snapshot}
-        message={itinerarySelection.message}
-        catalogHref={`/results?tab=catalog&region=${encodeURIComponent(regionId)}&mode=select`}
-        onRemove={itinerarySelection.remove}
-        onMove={itinerarySelection.move}
-        onContinue={() => router.push("/planner/pet?mode=selected")}
-      />
+      {itinerarySelection.snapshot.places.length > 0 ? (
+        <HomeSelectedItineraryTray
+          snapshot={itinerarySelection.snapshot}
+          message={itinerarySelection.message}
+          catalogHref={`/results?tab=catalog&region=${encodeURIComponent(regionId)}&mode=select`}
+          onRemove={itinerarySelection.remove}
+          onMove={itinerarySelection.move}
+          onContinue={() => router.push("/planner/pet?mode=selected")}
+        />
+      ) : (
+        <p className="home-selected-itinerary-guidance">
+          장소를 선택하면 이곳에서 일정 순서를 정할 수 있습니다.
+        </p>
+      )}
 
       <HomepagePlaceCarousel
         key={regionId}
@@ -988,7 +994,6 @@ export function HomepageLiveExperience({
         layers={snapshot.layers}
         featuredState={snapshot.official.featuredState}
         staticMapEnabled={staticMapEnabled}
-        onOptionalLayerRequest={(layer) => loadOptionalPlaces([layer])}
       />
     </div>
   );

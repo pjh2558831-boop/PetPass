@@ -41,7 +41,7 @@ export function PlaceCategoryToggleGroup({
 }) {
   return (
     <fieldset className="explorer-category-group">
-      <legend className="sr-only">{title}</legend>
+      <legend className="explorer-category-group__title">{title}</legend>
       <div>
         {categories.map((category) => {
           const selected = active.includes(category);
