@@ -123,7 +123,7 @@ export function HomepagePlaceCarousel({
       ) : null}
       {publicCatalogUnavailable ? (
         <p className="homepage-inline-status homepage-inline-status--warning" role="status">
-          카카오 장소 데이터 준비 중 · 공식 장소는 계속 확인할 수 있어요.
+          일부 지역 장소 후보를 지금 불러올 수 없어요. 공식 장소는 계속 확인할 수 있습니다.
         </p>
       ) : null}
 

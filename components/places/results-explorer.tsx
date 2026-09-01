@@ -127,6 +127,15 @@ const LAYER_META: Record<PublicCatalogLayer, {
 
 const STRICT_EFFECT_ABORT_GRACE_MS = 50;
 
+const TECHNICAL_PROVIDER_ERROR =
+  /(?:\bAPI\b|Authorization|Bearer|secret|token|환경\s*변수|개발자\s*콘솔|도메인\s*설정|(?:KAKAO|TOUR|SUPABASE|NEXT_PUBLIC)_[A-Z0-9_]+)/iu;
+
+function publicProviderErrorMessage(message: string, fallback: string): string {
+  const normalized = message.trim();
+  if (!normalized || TECHNICAL_PROVIDER_ERROR.test(normalized)) return fallback;
+  return normalized;
+}
+
 async function fetchAllBusanTourPlaces(
   district: string,
   signal: AbortSignal,
@@ -1088,13 +1097,13 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
             variant={itineraryMode === "hybrid" ? "selected" : "automatic"}
           />
         </div>
-        <div className="mb-6 inline-flex rounded-2xl border border-[#d7e0da] bg-white p-1" role="tablist" aria-label="장소 및 추천 보기">
+        <div className="mb-6 inline-flex rounded-lg border border-[#d7e0da] bg-white p-1" role="tablist" aria-label="장소 및 추천 보기">
           {itineraryMode === "hybrid" ? (
-            <Link href={`/results?tab=catalog&region=${region}&mode=select`} role="tab" aria-selected="false" className="inline-flex min-h-11 items-center gap-2 rounded-xl px-5 text-sm font-extrabold text-[#52665b]"><Rows3 size={16} aria-hidden="true" />장소 다시 선택</Link>
+            <Link href={`/results?tab=catalog&region=${region}&mode=select`} role="tab" aria-selected="false" className="inline-flex min-h-11 items-center gap-2 rounded-lg px-5 text-sm font-extrabold text-[#52665b]"><Rows3 size={16} aria-hidden="true" />장소 다시 선택</Link>
           ) : (
-            <button id="catalog-tab" type="button" role="tab" aria-selected="false" onClick={() => setActiveTab("catalog")} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-5 text-sm font-extrabold text-[#52665b]"><Rows3 size={16} aria-hidden="true" />전체 장소</button>
+            <button id="catalog-tab" type="button" role="tab" aria-selected="false" onClick={() => setActiveTab("catalog")} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-5 text-sm font-extrabold text-[#52665b]"><Rows3 size={16} aria-hidden="true" />전체 장소</button>
           )}
-          <button id="recommendations-tab" type="button" role="tab" aria-selected="true" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#236148] px-5 text-sm font-extrabold text-white"><Route size={16} aria-hidden="true" />맞춤 일정</button>
+          <button id="recommendations-tab" type="button" role="tab" aria-selected="true" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#236148] px-5 text-sm font-extrabold text-white"><Route size={16} aria-hidden="true" />맞춤 일정</button>
         </div>
         <div id="recommendations-panel" role="tabpanel" aria-labelledby="recommendations-tab"><RecommendationPlanner autoGenerate={generationRequested} onAutoGenerateStart={consumeGenerationRequest} selectionMode={itineraryMode === "hybrid" ? "hybrid" : "automatic"} /></div>
       </div>
@@ -1150,9 +1159,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
               <button id="catalog-tab" type="button" role="tab" aria-selected="true"><Rows3 size={16} aria-hidden="true" />장소 찾기</button>
               {regionConfig.routeCapabilities.fullyAutomaticRecommendation ? (
                 <Link href="/planner/pet" role="tab" aria-selected="false"><Route size={16} aria-hidden="true" />맞춤 일정</Link>
-              ) : (
-                <button id="recommendations-tab" type="button" role="tab" aria-selected="false" aria-disabled="true" disabled><Route size={16} aria-hidden="true" />{regionConfig.displayName} 경로 추천은 준비 중입니다.</button>
-              )}
+              ) : null}
             </div>
           )}
         </div>
@@ -1320,12 +1327,12 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
           {sort === "popularity" && allPopularityInsufficient ? <p className="explorer-popularity-notice" role="status">이용 데이터가 쌓이는 동안 추천순을 함께 반영합니다.</p> : null}
           <div className="explorer-results-status">
             {isFilterPending ? <p role="status">필터 결과를 반영하는 중입니다…</p> : null}
-            {tourState === "error" ? <div role="alert"><b>관광공사 장소를 불러오지 못했습니다.</b> {tourError}</div> : null}
-            {regionConfig.kakaoDiscoveryEnabled && kakaoState === "error" ? <div role="alert"><b>Kakao 장소를 불러오지 못했습니다.</b> {kakaoError}</div> : null}
-            {needsOptionalPlaces && optionalTourState === "error" ? <div role="alert"><b>쇼핑 장소를 불러오지 못했습니다.</b> {optionalTourError} <button type="button" onClick={() => { setOptionalTourState("loading"); setOptionalRetry((value) => value + 1); }}><RefreshCw size={15} aria-hidden="true" />쇼핑 다시 시도</button></div> : null}
+            {tourState === "error" ? <div role="alert"><b>관광공사 장소를 불러오지 못했습니다.</b> {publicProviderErrorMessage(tourError, "공식 장소 제공처 연결을 확인하지 못했습니다.")}</div> : null}
+            {regionConfig.kakaoDiscoveryEnabled && kakaoState === "error" ? <div role="alert"><b>카카오맵 장소를 불러오지 못했습니다.</b> {publicProviderErrorMessage(kakaoError, "장소 제공처 연결을 확인하지 못했습니다.")}</div> : null}
+            {needsOptionalPlaces && optionalTourState === "error" ? <div role="alert"><b>쇼핑 장소를 불러오지 못했습니다.</b> {publicProviderErrorMessage(optionalTourError, "쇼핑 장소 제공처 연결을 확인하지 못했습니다.")} <button type="button" onClick={() => { setOptionalTourState("loading"); setOptionalRetry((value) => value + 1); }}><RefreshCw size={15} aria-hidden="true" />쇼핑 다시 시도</button></div> : null}
             {catalogFreshness === "stale" ? <div role="status"><b>저장된 장소 데이터를 표시하고 있습니다.</b> 최신 데이터 확인이 지연되고 있어요.</div> : null}
             {catalogFreshness === "fallback" ? <div role="status"><b>호환 조회로 장소를 표시하고 있습니다.</b> 지역 스냅샷을 확인하지 못했어요.</div> : null}
-            {cardDetailsError ? <div role="alert"><b>카드 상세 정보를 불러오지 못했습니다.</b> {cardDetailsError} <button type="button" onClick={() => setCardDetailsRetry((value) => value + 1)}><RefreshCw size={15} aria-hidden="true" />카드 다시 시도</button></div> : null}
+            {cardDetailsError ? <div role="alert"><b>카드 상세 정보를 불러오지 못했습니다.</b> {publicProviderErrorMessage(cardDetailsError, "상세 정보 제공처 연결을 확인하지 못했습니다.")} <button type="button" onClick={() => setCardDetailsRetry((value) => value + 1)}><RefreshCw size={15} aria-hidden="true" />카드 다시 시도</button></div> : null}
             {presentationState === "partial" ? <p role="status">추가 장소를 불러오는 중입니다…</p> : null}
             {shoppingSupported && !needsOptionalPlaces && !shoppingLoaded ? <p role="status">쇼핑은 필터에서 선택하면 불러옵니다.</p> : null}
             {needsOptionalPlaces && optionalTourState === "loading" ? <p role="status">쇼핑 장소를 불러오는 중입니다…</p> : null}

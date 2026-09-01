@@ -1,10 +1,180 @@
-# WEEKENDOG `ui_ver2` remaining UI Prompt 3 — final design QA
+# WEEKENDOG `ui_ver2` Prompt 4 — all-routes design QA
 
-This is the current authoritative assessment for the three-prompt remaining-UI pass. Older assessments below are retained as history and do not override this result.
+> Current result: **PASS — every verifiable Prompt 4 product, browser, visual, build, and test gate passed.**
+>
+> This assessment supersedes every historical result below. Reference: `.codex-reference/weekendog-ui-reference.png`. Prompt 4 evidence root: `verification-evidence/weekendog-ui-ver2/remaining-ui/all-routes/`.
+
+## 1. Route inventory summary
+
+Source inventory covers 12 page files, the redirect-only OAuth callback, 20 API Route Handlers, and global loading/error/not-found surfaces. No route groups, intercepting routes, modal routes, or standalone legal/help/contact/password-reset/email-confirmation pages exist. Signup is `/login?mode=signup`; saved itinerary restoration and editing live under `/itinerary`.
+
+| Route or state | Exposure | Auth state | Archetype | Prompt 4 result |
+| --- | --- | --- | --- | --- |
+| `/` | `ACTIVE_PUBLIC` | Public | Editorial + workbench | Approved upper frozen; lower states retained |
+| `/results?tab=catalog` | `ACTIVE_PUBLIC` | Public | Workbench | Connected catalog workbench preserved |
+| `/results?...&mode=select` | `ACTIVE_PUBLIC` | Public | Selection workbench | Catalog-first selection; dead actions omitted |
+| `/results?tab=recommendations` and `mode=selected` | `ACTIVE_PUBLIC` | Public | Itinerary/result | Direct entry, generating, result/editor preserved |
+| `/planner/pet` and `?mode=selected` | `ACTIVE_PUBLIC` | Anonymous allowed | Decision flow | One three-step flow preserved |
+| `/planner/trip` | `REDIRECT_ONLY` | Public | None | Redirect to `/planner/pet` preserved |
+| `/itinerary` | `ACTIVE_PUBLIC` | Browser storage | Itinerary | Flat restoration/empty/saved document states |
+| `/places/[contentId]` | `ACTIVE_PUBLIC` | Public | Information document | Decision → evidence → technical disclosure |
+| `/login` and `?mode=signup` | `CONDITIONAL_PUBLIC` | Logged-out page | Authentication | Focused login/signup document |
+| `/onboarding` | `AUTH_REQUIRED` | Unauthenticated → `/login` | Authentication/account completion | Logged-out redirect verified; signed-in form not safely verifiable |
+| `/account` | `AUTH_REQUIRED` | Unauthenticated → `/login` | Account/settings | Logged-out redirect verified; signed-in page source/unit verified |
+| `/account/profile` | `AUTH_REQUIRED` | Unauthenticated → `/login` | Account/settings | Logged-out redirect verified; signed-in form not safely verifiable |
+| `/account/pets/new` | `AUTH_REQUIRED` | Unauthenticated → `/login` | Account/settings | Logged-out redirect verified; signed-in form not safely verifiable |
+| `/account/pets/[petId]/edit` | `AUTH_REQUIRED` | Ownership required | Account/settings | Logged-out redirect verified; owned-pet form not safely verifiable |
+| `/auth/callback` | `REDIRECT_ONLY` | OAuth exchange | None | Existing redirects preserved |
+| Global loading/error/not-found | `CONDITIONAL_PUBLIC` | Any | Product state | Compact recovery language |
+| `app/api/**` | `API` | Contract-dependent | None | Excluded and unchanged |
+
+`mode=select` forces the catalog even if `tab=recommendations`; `mode=selected` selects the hybrid recommendation state. Invalid public place IDs enter the live-detail failure path and do not necessarily render the global 404.
+
+## 2. Page archetype system
+
+| Archetype | Routes/surfaces | Grammar |
+| --- | --- | --- |
+| Editorial | Approved homepage upper | Open composition, strong Korean typography, purposeful media, dividers |
+| Workbench | Homepage lower, catalog, selection, itinerary maps | One connected frame, toolbar, compact rows, stable map/list geometry |
+| Decision flow | Planner automatic/selected | One step system, native controls, inline errors, one next action |
+| Itinerary/result | Recommendation states and `/itinerary` | Time/place/dwell/movement/evidence/action rows |
+| Information document | Place detail | Decision, evidence, then technical disclosure |
+| Account/settings | Account/profile/pet management | Headings, labeled rows, dividers, separate destructive zone |
+| Authentication | Login/signup/onboarding | Focused 420–520px form, one primary action, quiet alternatives |
+| Product state | Loading, empty, error, not-found | Concise heading, explanation, recovery action |
+
+Redirect-only and API surfaces receive no page archetype.
+
+## 3. Shared visual contract
+
+- Deep green, warm cream, dark Korean body text, quiet neutral lines, and the existing font stack remain the shared language.
+- Ordinary controls/surfaces use 6–12px radii and no ordinary content shadow.
+- Pills remain only for avatar/account identity, status/provenance, compact selected state, progress markers, and functional map controls.
+- Rows, definition lists, and dividers replace universal cards and nested panels.
+- Interactive targets are approximately 44px, with visible focus and native semantics.
+- `ProductState` owns compact route states, `FormErrorMessage` owns focused form alerts, and query-aware `SiteNavigationLink` owns `aria-current`.
+- Unavailable actions and large missing-image placeholders are omitted.
+- Transitions remain restrained and reduced-motion-safe.
+- Provider configuration, environment-variable names, internal `geometry` terminology, and fabricated values are not exposed.
+
+## 4. Before/after route matrix
+
+| Route family | Before | Prompt 4 treatment |
+| --- | --- | --- |
+| Global chrome/home | Homepage-only skip target; future/dead navigation; no query-aware current state | Global `#main-content`, live links only, `aria-current`; protected hero/process/course unchanged |
+| Catalog/selection | Disabled unsupported-region actions remained visible | Unsupported actions omitted; workbench behavior preserved |
+| Planner | Residual radius/focus inconsistency | Existing decision flow retained; controls and focus normalized |
+| Recommendation | Surface panels and developer-facing Kakao/`geometry` copy | Compact product states, user language, focusable result heading, separate map-selection controls |
+| Saved itinerary | Duplicate progress and card summaries | One itinerary hierarchy with timeline and definition rows |
+| Place detail | Live/detail fallback and missing-image branches inconsistent | Document rows, low radii, compact provider states, absent images omitted |
+| Login/signup/onboarding | Giant centered surfaces and unavailable provider entry | Open focused auth documents; unavailable Kakao entry omitted |
+| Account/pets | Dashboard panels, equal pet cards, large no-image areas | Account document, compact pet rows, shared forms, explicit destructive zone |
+| Global states | Generic surface cards and technical copy | Compact `ProductState` loading/error/not-found language |
+
+The `site-header.tsx` exception changes navigation semantics and removes dead public branches only. The homepage hero, hero image, launcher, process, and example-course source files have no Prompt 4 diff.
+
+## 5. Adopted/omitted reference principles
+
+| Principle | Decision |
+| --- | --- |
+| Deep-green/cream balance, thin dividers, confident Korean hierarchy | Adopted across archetypes |
+| Connected map/list workbench | Adopted for exploration and selection |
+| Flat schedule and account rows | Adopted |
+| Compact truthful loading/error/empty language | Adopted |
+| Homepage hero composition on inner pages | Omitted |
+| Universal card foundation and nested trust cards | Omitted |
+| Dashboard statistic grids and decorative placeholders | Omitted |
+| Fake counts/progress and public disabled future actions | Omitted |
+| Multiple strong auth CTAs or marketing sidebars | Omitted |
+
+The reference and production-mode `home-1440x1000.png` were reviewed together. The implementation preserves the hierarchy without copying reference data or adding unsupported product claims.
+
+## 6. Accessibility matrix
+
+| Surface | Evidence | Result |
+| --- | --- | --- |
+| Landmark/skip link | One `main#main-content`; global link targets it; Playwright keyboard contract | Passed in source/unit and browser suite |
+| Desktop/mobile navigation | Query-aware `aria-current`; Escape closes menu and restores trigger focus | Passed in production-mode in-app browser |
+| Auth/forms | Visible labels; focused `role="alert"` form error | Passed in unit/focused E2E |
+| Delete dialog | Native trigger, Escape/cancel focus restoration, existing form action | Passed in unit/E2E |
+| Planner | Native controls and programmatic step focus with visible outline | Passed in focused E2E |
+| Result/itinerary | Text schedule independent of map; explicit `aria-pressed` map actions | Passed in E2E |
+| Product states | Correct `status`/`alert`, labelled heading and description | Passed in unit/E2E |
+| Narrow view | 320px/390px control access and no document overflow | Passed in production-mode browser |
+
+## 7. Responsive matrix
+
+| Viewport | Coverage | Result |
+| --- | --- | --- |
+| 1440 × 1000 | Every active/logged-out route, production-mode screenshots | Passed |
+| 1180 × 900 | 17 public/logged-out routes, measured | Passed |
+| 1024 × 900 | 10 critical routes, production-mode screenshots | Passed |
+| 768 × 1024 | 17 public/logged-out routes, measured | Passed |
+| 390 × 844 | Every active/logged-out route, production-mode screenshots | Passed |
+| 320 × 720 | 10 critical routes, production-mode screenshots | Passed |
+
+The 68 screenshot measurements and 34 additional responsive measurements found zero horizontal-overflow, failed-image, technical-copy, console-error, or landmark-count failures. See `verification-evidence/weekendog-ui-ver2/remaining-ui/all-routes/final/screenshot-index.md`.
+
+## 8. Data-truthfulness audit
+
+- No scoring, route order, travel time, pet-access verdict, provider record, trust factor, persistence, or account mutation contract changed.
+- Missing photos are omitted rather than filled with fake assets. Unavailable regional actions are omitted rather than presented as dead controls.
+- Provider errors are mapped to stable public copy while timeout, rate-limit, not-found, and partial-result semantics remain distinct.
+- Account success notices are allowlisted by actual action; arbitrary query text is not rendered as success.
+- The route watermark says route only for at least two route coordinates; otherwise it identifies actual places.
+- Production-mode browser verification exposed no provider key or environment-variable name. The local provider failure remained visible and usable; it was not hidden or replaced with fixture data.
+
+## 9. Immutable-boundary audit
+
+- `git diff --name-only -- app/api lib supabase types` returns no files.
+- No API, provider, domain, storage, schema, Supabase, shared-type, recommendation, itinerary, or map-owner contract changed.
+- The changed set is limited to presentation components, CSS, route presentation, tests, and this QA document.
+- Protected homepage hero/photo/launcher/process/example-course files are unchanged.
+- Repeat this audit after the final QA document edit and before staging.
+
+## 10. Remaining `surface-panel`/radius/shadow/pill exceptions
+
+| Pattern | Owner | Classification |
+| --- | --- | --- |
+| `.surface-card` / `.surface-panel` CSS aliases | Compatibility declarations; now 10px/no shadow | Retained compatibility |
+| `surface-panel` JSX | Unimported legacy `PetProfileForm` | `DEAD_OR_UNREACHABLE` |
+| Larger radius/shadow grammar | Unreferenced `TripPreferencesForm` and `EmotionalCtaCard` | P3 dead-code cleanup |
+| Legacy radius/shadow variables | Older/protected selector families | Retained compatibility; live exceptions audited |
+| Circular/pill treatments | Avatars, status/provenance badges, progress markers | Functionally justified |
+| Floating shadows/pills | Map controls/markers, menu/dropdown/dialog, selected-place overlay | Functional overlay exception |
+| Homepage hero/media/launcher | Approved protected upper | Frozen reference exception |
+
+## 11. P0/P1/P2/P3 findings
+
+- P0: none.
+- P1: none. The earlier provider-key artifact is not present in the fresh build or production-mode browser captures.
+- P2: none in the verified public/logged-out surface. Signed-in account/profile/pet/onboarding UI is `NOT_VERIFIABLE — no existing safe authenticated fixture/session`, not asserted as browser-verified.
+- P3: unreferenced legacy planner/home components and larger compatibility tokens remain optional cleanup. Sparse desktop auth/error documents are deliberate utility-state composition, not a broken hierarchy.
+- Evidence limitation: populated catalog/map and the initial successful recommendation result are deterministic Playwright states. The in-app browser truthfully captured direct entry, request-backed generating, recoverable provider failure, and a previously saved result/editor without replacing provider behavior with fixtures.
+
+## 12. Pre-existing baseline blockers
+
+| Prior Prompt 3 observation | Prompt 4 status |
+| --- | --- |
+| User-visible `geometry`/Kakao engineering prose | Resolved and browser-tested |
+| Public unsupported-region `준비 중` actions | Resolved by omitting unavailable actions |
+| Planner focused heading removed its outline | Resolved and E2E-tested |
+| Skip link worked only on homepage | Resolved with global `#main-content` target |
+| Large legacy surface/radius tokens could affect unverified flows | Classified as unreachable, compatibility, functional overlay, or P3 cleanup |
+
+Current verification gates: typecheck passed; lint passed; 139 unit files / 1,328 tests passed; production build passed with 25 generated static pages; the complete default Playwright suite passed with 259 passed / 39 intentional skips / 0 failed. A second no-reuse run started its own fresh development server and completed the same 298 entries with 259 passed / 39 skipped / 0 failed. On Windows, that runner hung only while shutting down its already-completed web server and was terminated after the last test; port 3000 was then confirmed free. This is test-harness teardown behavior, not a product or test failure.
+
+final result: passed
+
+---
+
+# Historical: WEEKENDOG `ui_ver2` remaining UI Prompt 3 — final design QA
+
+This section is historical and does not override the Prompt 4 assessment above.
 
 ## Reference and final evidence
 
-- Detail reference image: Browser Comment 2 supplied in this conversation, showing the former narrow `PET ACCESS ASSESSMENT` panel and its long unused left column. No standalone reference PNG is stored in this repository.
+- Historical detail reference: Browser Comment 2 supplied in this conversation, showing the former narrow `PET ACCESS ASSESSMENT` panel and its long unused left column. The maintained repository now also contains `.codex-reference/weekendog-ui-reference.png`.
 - Cross-page comparison baseline: the approved Prompt 1/2 implementation and its final captures in this evidence set; Prompt 3 does not reinterpret or restyle the approved homepage upper section.
 - Final evidence directory: `verification-evidence/weekendog-ui-ver2/remaining-ui/final/`.
 - Place detail: `place-detail-1440x1000.png`, `place-detail-1024x900.png`, `place-detail-390x844.png`, `place-detail-320x720.png`.

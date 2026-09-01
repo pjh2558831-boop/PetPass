@@ -38,6 +38,22 @@ describe("account pet and profile management UI", () => {
     expect(deletion).not.toContain(">반려동물 삭제</button>");
   });
 
+  it("uses open account layouts and keeps saved pets text-first without a large missing-photo panel", () => {
+    const account = source("app", "account", "page.tsx");
+    const profile = source("app", "account", "profile", "page.tsx");
+    const editor = source("components", "account", "pet-editor-form.tsx");
+
+    for (const routeSource of [account, profile, editor]) {
+      expect(routeSource).not.toContain("surface-card");
+      expect(routeSource).not.toContain("surface-panel");
+    }
+    expect(account).not.toContain("aspect-[16/10]");
+    expect(account).not.toMatch(/등록된 사진 없음[\s\S]{0,180}size-full/u);
+    expect(account).toContain("pets.map");
+    expect(account).toContain("<h3");
+    expect(account).toContain("개별 정보 수정");
+  });
+
   it("gives desktop header navigation and the signed-in account control more room", () => {
     const header = source("components", "layout", "site-header.tsx");
     const account = source("components", "layout", "site-header-account.tsx");
@@ -55,6 +71,16 @@ describe("account pet and profile management UI", () => {
     const mobileNavigation = source("components", "layout", "mobile-navigation.tsx");
 
     expect(mobileNavigation).toContain("key={`${item.href}-${item.label}`}");
+  });
+
+  it("only announces account saves for status values emitted by real mutations", () => {
+    const account = source("app", "account", "page.tsx");
+
+    expect(account).toContain('status.pet === "saved"');
+    expect(account).toContain('status.pet === "updated"');
+    expect(account).toContain('status.pet === "deleted"');
+    expect(account).toContain('status.profile === "updated"');
+    expect(account).not.toContain("status.pet || status.profile");
   });
 
   it("rechecks ownership in every pet mutation", () => {

@@ -25,6 +25,7 @@ import { MapPanel } from "@/components/map/map-panel";
 import { RecommendationStopProvenance } from "@/components/itinerary/recommendation-stop-provenance";
 import { usePlannerState } from "@/components/planner/planner-state";
 import { Button } from "@/components/ui/button";
+import { ProductState } from "@/components/ui/product-state";
 import {
   REGION_CONFIGS,
   getRegionConfigByService2LegalDongCode,
@@ -266,20 +267,19 @@ function FailureResult({
   regionId: string;
 }) {
   return (
-    <section className="surface-panel p-6" role="alert" aria-labelledby="route-error-heading">
-      <AlertTriangle className="text-[#a44537]" aria-hidden="true" />
-      <h1 id="route-error-heading" className="mt-3 text-2xl font-black">일정을 표시할 수 없어요.</h1>
-      <p className="mt-2 text-sm leading-7 text-[var(--muted)]">{response.userMessage}</p>
+    <ProductState status="alert" title="일정을 표시할 수 없어요." description={response.userMessage} headingProps={{ id: "route-error-heading" }}>
+      <div className="text-left">
       <ul className="mt-4 list-disc space-y-1 pl-5 text-sm font-semibold text-[#52665b]">
         {recommendationActions(response.status).map((action) => <li key={action}>{action}</li>)}
       </ul>
       <div className="mt-5 flex flex-wrap gap-2">
         {response.retryable ? <Button type="button" variant="brand" onClick={onRetry}><RefreshCw size={16} aria-hidden="true" /> 다시 시도</Button> : null}
-        <Link href={selectionMode === "hybrid" ? "/planner/pet?mode=selected" : "/planner/pet"} className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">여행 조건 수정</Link>
-        <Link href={selectionMode === "hybrid" ? `/results?tab=catalog&region=${regionId}&mode=select` : `/results?tab=catalog&region=${regionId}`} className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">{selectionMode === "hybrid" ? "장소 다시 선택" : "방문 가능한 장소 보기"}</Link>
-        {selectionMode === "hybrid" ? <Link href="/planner/pet" className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">전체 자동 추천</Link> : null}
+        <Link href={selectionMode === "hybrid" ? "/planner/pet?mode=selected" : "/planner/pet"} className="inline-flex min-h-11 items-center rounded-lg border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">여행 조건 수정</Link>
+        <Link href={selectionMode === "hybrid" ? `/results?tab=catalog&region=${regionId}&mode=select` : `/results?tab=catalog&region=${regionId}`} className="inline-flex min-h-11 items-center rounded-lg border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">{selectionMode === "hybrid" ? "장소 다시 선택" : "방문 가능한 장소 보기"}</Link>
+        {selectionMode === "hybrid" ? <Link href="/planner/pet" className="inline-flex min-h-11 items-center rounded-lg border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">전체 자동 추천</Link> : null}
       </div>
-    </section>
+      </div>
+    </ProductState>
   );
 }
 
@@ -325,19 +325,27 @@ function Timeline({
             className="route-result-stop"
             data-selected={selectedPlaceId === stop.placeId || undefined}
           >
-            <button type="button" onClick={() => onSelect(stop.placeId)} className="route-result-stop__select">
-              <span className="route-result-stop__time">
-                <span>{stop.sequence}</span>
-                <b>{validated ? `${koreaTime(stop.arrivalAt)} 도착` : "경로 재계산 전"}</b>
-              </span>
-              <h3>{stop.title}</h3>
-              <p className="route-result-stop__category">{CATEGORY_LABEL[stop.category]} · {stop.sourceLabel}</p>
-              <dl className="route-result-stop__facts">
-                <div><dt>체류</dt><dd>{stop.dwellMinutes}분{validated ? ` · ${koreaTime(stop.departureAt)} 출발` : ""}</dd></div>
-                <div><dt>이동</dt><dd>{validated && stop.driveSecondsFromPrevious > 0 ? `이전 지점에서 ${formatDistance(stop.distanceMetersFromPrevious)} · 약 ${formatDuration(stop.driveSecondsFromPrevious)}` : validated ? "첫 방문지" : "경로 재계산 필요"}</dd></div>
-                <div><dt>반려동물</dt><dd><span>{petStatusLabel(stop.petAssessment)}</span> · <span>{evidenceStatusLabel(stop.evidenceStatus)}</span></dd></div>
-                <div><dt>근거</dt><dd>정보 신뢰도 {trustLabel(stop.informationTrust)} · {stop.sourceLabel}{stop.retrievedAt ? ` · 확인 ${new Date(stop.retrievedAt).toLocaleDateString("ko-KR")}` : ""}</dd></div>
-              </dl>
+            <span className="route-result-stop__time">
+              <span>{stop.sequence}</span>
+              <b>{validated ? `${koreaTime(stop.arrivalAt)} 도착` : "경로 재계산 전"}</b>
+            </span>
+            <h3 className="route-result-stop__title">{stop.title}</h3>
+            <p className="route-result-stop__category">{CATEGORY_LABEL[stop.category]} · {stop.sourceLabel}</p>
+            <dl className="route-result-stop__facts">
+              <div><dt>체류</dt><dd>{stop.dwellMinutes}분{validated ? ` · ${koreaTime(stop.departureAt)} 출발` : ""}</dd></div>
+              <div><dt>이동</dt><dd>{validated && stop.driveSecondsFromPrevious > 0 ? `이전 지점에서 ${formatDistance(stop.distanceMetersFromPrevious)} · 약 ${formatDuration(stop.driveSecondsFromPrevious)}` : validated ? "첫 방문지" : "경로 재계산 필요"}</dd></div>
+              <div><dt>반려동물</dt><dd><span>{petStatusLabel(stop.petAssessment)}</span> · <span>{evidenceStatusLabel(stop.evidenceStatus)}</span></dd></div>
+              <div><dt>근거</dt><dd>정보 신뢰도 {trustLabel(stop.informationTrust)} · {stop.sourceLabel}{stop.retrievedAt ? ` · 확인 ${new Date(stop.retrievedAt).toLocaleDateString("ko-KR")}` : ""}</dd></div>
+            </dl>
+            <button
+              type="button"
+              onClick={() => onSelect(stop.placeId)}
+              className="route-result-stop__select"
+              aria-label={`${stop.title} 지도에서 보기`}
+              aria-pressed={selectedPlaceId === stop.placeId}
+            >
+              <MapPinned size={16} aria-hidden="true" />
+              지도에서 보기
             </button>
             <RecommendationStopProvenance
               stop={stop}
@@ -400,6 +408,8 @@ export function RecommendationPlanner({
   const recentCandidateIdsRef = useRef<string[]>([]);
   const historyContextKeyRef = useRef<string | null>(null);
   const errorRef = useRef<HTMLDivElement>(null);
+  const resultHeadingRef = useRef<HTMLHeadingElement>(null);
+  const focusedReadyResponseRef = useRef<RouteRecommendationResponseV1 | null>(null);
   const [hybridSelection, setHybridSelection] = useState(() =>
     selectionMode === "hybrid" ? loadSelectedItinerary() : null);
 
@@ -559,6 +569,11 @@ export function RecommendationPlanner({
         : null,
     [activeRoute, editDirty, editableStops],
   );
+  useEffect(() => {
+    if (!ready || !displayedRoute || focusedReadyResponseRef.current === ready) return;
+    focusedReadyResponseRef.current = ready;
+    resultHeadingRef.current?.focus();
+  }, [displayedRoute, ready]);
   const submittedConditions = [
     profile.name.trim()
       ? `${profile.name.trim()} · ${PET_SPECIES_LABEL[profile.species]} · ${PET_SIZE_LABEL[profile.size]}`
@@ -701,7 +716,7 @@ export function RecommendationPlanner({
     return <div ref={errorRef} tabIndex={-1}><FailureResult response={response} onRetry={() => void runRecommendation()} selectionMode={selectionMode} regionId={plannerRegion.id} /></div>;
   }
   if (presentationState === "ready_to_generate" || !ready || !displayedRoute) {
-    return <section className="surface-panel p-8 text-center"><h1 className="text-2xl font-black">추천 일정을 만들어 볼까요?</h1><Button type="button" variant="brand" className="mt-5" onClick={() => void runRecommendation()}>추천 일정 만들기</Button></section>;
+    return <ProductState title="추천 일정을 만들어 볼까요?" description="확정한 여행 조건을 바탕으로 방문 순서와 이동 시간을 확인합니다."><Button type="button" variant="brand" onClick={() => void runRecommendation()}>추천 일정 만들기</Button></ProductState>;
   }
 
   const summary = displayedRoute.routeSummary;
@@ -721,16 +736,16 @@ export function RecommendationPlanner({
     <div className="space-y-6">
       <header className="route-result-header">
         <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
-          <div>
+          <div className="min-w-0">
             <p className="eyebrow">{editDirty ? "수정 중인 일정" : displayedRoute.kind === "manual" ? "직접 수정한 일정" : "WEEKENDOG 추천 일정"}</p>
-            <h1 className="mt-2 text-3xl font-black tracking-[-0.045em]">{ready.requestSummary.departureLabel}에서 시작하는 {summary.stopCount}곳 일정</h1>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--muted)]">{editDirty ? "방문 순서를 수정했습니다. 실제 거리와 운영시간을 다시 확인해야 확정됩니다." : displayedRoute.kind === "manual" ? "직접 정한 방문 순서를 Kakao 경로로 다시 확인한 결과입니다." : reducedCopy ?? (exact ? "현재 후보와 확인된 이동 정보 안에서 가장 적합한 일정을 찾았습니다." : "제한 시간 안에서 확인한 일정 중 가장 적합한 결과입니다.")}</p>
+            <h1 ref={resultHeadingRef} tabIndex={-1} className="mt-2 text-3xl font-black tracking-[-0.045em] [overflow-wrap:anywhere]">{ready.requestSummary.departureLabel}에서 시작하는 {summary.stopCount}곳 일정</h1>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--muted)]">{editDirty ? "방문 순서를 수정했습니다. 실제 거리와 운영시간을 다시 확인해야 확정됩니다." : displayedRoute.kind === "manual" ? "직접 정한 방문 순서의 이동 경로를 다시 확인한 결과입니다." : reducedCopy ?? (exact ? "현재 후보와 확인된 이동 정보 안에서 가장 적합한 일정을 찾았습니다." : "제한 시간 안에서 확인한 일정 중 가장 적합한 결과입니다.")}</p>
             {!editDirty && displayedRoute.kind !== "manual" && reducedCopy && !exact ? <p className="mt-2 text-xs font-semibold text-[var(--muted)]">제한 시간 안에서 확인한 일정 중 가장 적합한 결과입니다.</p> : null}
-            {!editDirty && displayedRoute.temporalBasis.searchMatrix !== displayedRoute.temporalBasis.finalRoute ? <p className="mt-2 text-xs font-bold text-[#76542f]">장소 순서는 확인된 이동 정보로 비교하고, 표시된 시간과 경로는 Kakao의 최종 길찾기 결과를 반영했습니다.</p> : null}
+            {!editDirty && displayedRoute.temporalBasis.searchMatrix !== displayedRoute.temporalBasis.finalRoute ? <p className="mt-2 text-xs font-bold text-[#76542f]">장소 순서는 확인된 이동 정보로 비교하고, 표시된 시간과 경로는 최종 길찾기 결과를 반영했습니다.</p> : null}
           </div>
           <div className="flex flex-wrap gap-2">
             {selectionMode === "hybrid" ? (
-              <Link href={`/results?tab=catalog&region=${plannerRegion.id}&mode=select`} className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">
+              <Link href={`/results?tab=catalog&region=${plannerRegion.id}&mode=select`} className="inline-flex min-h-11 items-center rounded-lg border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">
                 지도에서 장소 추가
               </Link>
             ) : null}
@@ -750,7 +765,7 @@ export function RecommendationPlanner({
       </header>
 
       {rerollUi.showRecoveryActions ? (
-        <section className="rounded-[var(--radius-card)] border border-[#eed8ae] bg-[#fff8ec] p-4" aria-labelledby="reroll-recovery-heading">
+        <section className="rounded-lg border border-[#eed8ae] bg-[#fff8ec] p-4" aria-labelledby="reroll-recovery-heading">
           <h2 id="reroll-recovery-heading" className="text-sm font-black text-[#76542f]">새 장소 선택 폭을 넓히는 방법</h2>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm font-semibold leading-6 text-[#76542f]">
             {REROLL_RECOVERY_ACTIONS.map((action) => <li key={action}>{action}</li>)}
@@ -760,7 +775,7 @@ export function RecommendationPlanner({
       ) : null}
 
       {ready.selectionIssues && ready.selectionIssues.length > 0 ? (
-        <section className="rounded-[var(--radius-card)] border border-[#eed8ae] bg-[#fff8ec] p-4" aria-labelledby="selection-issues-heading">
+        <section className="rounded-lg border border-[#eed8ae] bg-[#fff8ec] p-4" aria-labelledby="selection-issues-heading">
           <h2 id="selection-issues-heading" className="flex items-center gap-2 text-sm font-black text-[#76542f]"><AlertTriangle size={17} aria-hidden="true" /> 선택 장소 확인사항</h2>
           <ul className="mt-2 space-y-1 text-sm font-semibold leading-6 text-[#76542f]">
             {ready.selectionIssues.map((issue) => <li key={`${issue.placeId}:${issue.code}`}>· {SELECTION_ISSUE_COPY[issue.code] ?? "선택한 장소에 추가 확인이 필요합니다."}</li>)}
@@ -792,7 +807,7 @@ export function RecommendationPlanner({
                     setSelectedPlaceId(route.stops[0]?.placeId ?? null);
                     setManualError("");
                   }}
-                  className={`grid min-h-11 min-w-[220px] gap-1 rounded-2xl border px-4 py-3 text-left text-sm ${activeRoute?.id === route.id ? "border-[var(--mint-500)] bg-[var(--brand-soft)] text-[var(--brand)]" : "border-[var(--line)] bg-white text-[#607168]"}`}
+                  className={`grid min-h-11 min-w-[220px] gap-1 rounded-lg border px-4 py-3 text-left text-sm ${activeRoute?.id === route.id ? "border-[var(--mint-500)] bg-[var(--brand-soft)] text-[var(--brand)]" : "border-[var(--line)] bg-white text-[#607168]"}`}
                 >
                   <strong className="font-black">{route.label}</strong>
                   <span className="text-xs font-bold">{route.routeSummary.stopCount}곳 · 이동 {formatDuration(route.routeSummary.totalDrivingSeconds)} · 대기 {formatDuration(route.routeSummary.totalWaitSeconds)}</span>
@@ -818,8 +833,8 @@ export function RecommendationPlanner({
         </section>
 
         <aside className="min-w-0 lg:sticky lg:top-24 lg:self-start" aria-label="추천 일정 지도">
-          <MapPanel regionId={plannerRegion.id} compact locations={routeLocations} routeCoordinates={editDirty ? [] : displayedRoute.geometry} selectedLocationId={selectedPlaceId} onLocationSelect={selectPlace} viewportKey={`route:${displayedRoute.id}:${editDirty ? "draft" : "validated"}`} title="추천 일정의 Kakao 실제 이동 경로" locationLabel={`${summary.stopCount}곳 방문 일정`} emptyMessage={editDirty ? "수정한 순서를 재계산하면 실제 경로를 표시합니다." : "검증된 경로 geometry가 없습니다."} />
-          <p className="route-result-map-note"><MapPinned className="mr-1 inline" size={14} aria-hidden="true" /> {editDirty ? "번호는 수정한 방문 순서입니다. 경로 재계산 전에는 선을 표시하지 않습니다." : "번호는 방문 순서이며 선은 최종 Kakao 길찾기가 반환한 geometry입니다."}</p>
+          <MapPanel regionId={plannerRegion.id} compact locations={routeLocations} routeCoordinates={editDirty ? [] : displayedRoute.geometry} selectedLocationId={selectedPlaceId} onLocationSelect={selectPlace} viewportKey={`route:${displayedRoute.id}:${editDirty ? "draft" : "validated"}`} title="추천 일정 이동 경로" locationLabel={`${summary.stopCount}곳 방문 일정`} emptyMessage={editDirty ? "수정한 순서를 재계산하면 이동 경로를 표시합니다." : "확인된 이동 경로가 없습니다."} />
+          <p className="route-result-map-note"><MapPinned className="mr-1 inline" size={14} aria-hidden="true" /> {editDirty ? "번호는 수정한 방문 순서입니다. 경로 재계산 전에는 선을 표시하지 않습니다." : "번호는 방문 순서이며 선은 확인된 최종 이동 경로입니다."}</p>
           <section className="route-result-reliability" aria-labelledby="route-reliability-heading"><h2 id="route-reliability-heading" className="flex items-center gap-2 text-sm font-black"><ShieldCheck size={17} className="text-[var(--brand)]" aria-hidden="true" /> 정보 안내</h2><p className="mt-2 text-xs leading-6 text-[var(--muted)]">한국관광공사 근거 장소와 저장된 카카오 후보를 출처·근거 상태와 함께 표시합니다. 미확인 정보는 동반 가능으로 단정하지 않으며 방문 전 확인할 수 있어요.</p></section>
           {displayedRoute.kind === "manual" ? <Button type="button" variant="brandSecondary" className="mt-4 w-full" onClick={() => { setActiveRoute(ready.route); setEditableIds(ready.route.stops.map(({ placeId }) => placeId)); setEditDirty(false); setSelectedPlaceId(ready.route.stops[0]?.placeId ?? null); }}><RotateCcw size={16} aria-hidden="true" /> 원래 추천 일정 복원</Button> : null}
         </aside>

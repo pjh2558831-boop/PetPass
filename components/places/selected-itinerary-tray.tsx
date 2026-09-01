@@ -25,7 +25,6 @@ function SelectionTrayContents({
   onAutoFillChange,
   automaticFillSupported,
   automaticRecommendationSupported,
-  regionName,
 }: {
   snapshot: SelectedItinerarySnapshot;
   canContinue: boolean;
@@ -36,7 +35,6 @@ function SelectionTrayContents({
   onAutoFillChange: (enabled: boolean) => void;
   automaticFillSupported: boolean;
   automaticRecommendationSupported: boolean;
-  regionName: string;
 }) {
   return (
     <>
@@ -64,11 +62,12 @@ function SelectionTrayContents({
         </ul>
       )}
       <p className="selected-itinerary-tray__range">추천 범위 1–{MAX_SELECTED_ITINERARY_PLACES}곳</p>
-      <label className="selected-itinerary-tray__option">
-        <input type="checkbox" checked={snapshot.autoFill} disabled={!automaticFillSupported} onChange={(event) => onAutoFillChange(event.target.checked)} />
-        <span>부족한 장소는 WEEKENDOG가 추천</span>
-      </label>
-      {!automaticFillSupported ? <p className="selected-itinerary-tray__hint">{regionName}에서는 선택 장소 경로만 지원하며 자동 채우기는 아직 제공하지 않습니다.</p> : null}
+      {automaticFillSupported ? (
+        <label className="selected-itinerary-tray__option">
+          <input type="checkbox" checked={snapshot.autoFill} onChange={(event) => onAutoFillChange(event.target.checked)} />
+          <span>부족한 장소는 WEEKENDOG가 추천</span>
+        </label>
+      ) : null}
       <button
         type="button"
         className="selected-itinerary-tray__continue"
@@ -77,8 +76,7 @@ function SelectionTrayContents({
       >
         <Route size={16} aria-hidden="true" /> 선택한 장소로 일정 만들기
       </button>
-      <button type="button" className="selected-itinerary-tray__automatic" disabled={!automaticRecommendationSupported} onClick={onAutomaticStart}>장소 없이 알아서 추천받기</button>
-      {!automaticRecommendationSupported ? <p className="selected-itinerary-tray__hint">{regionName}의 전체 자동 추천은 준비 중입니다.</p> : null}
+      {automaticRecommendationSupported ? <button type="button" className="selected-itinerary-tray__automatic" onClick={onAutomaticStart}>장소 없이 알아서 추천받기</button> : null}
     </>
   );
 }
@@ -92,7 +90,6 @@ export function SelectedItineraryTray({
   onAutoFillChange,
   automaticFillSupported,
   automaticRecommendationSupported,
-  regionName,
   variant,
 }: {
   snapshot: SelectedItinerarySnapshot;
@@ -138,7 +135,6 @@ export function SelectedItineraryTray({
               onAutoFillChange={onAutoFillChange}
               automaticFillSupported={automaticFillSupported}
               automaticRecommendationSupported={automaticRecommendationSupported}
-              regionName={regionName}
             />
           </div>
         </AppDialog>
@@ -170,7 +166,6 @@ export function SelectedItineraryTray({
             onAutoFillChange={onAutoFillChange}
             automaticFillSupported={automaticFillSupported}
             automaticRecommendationSupported={automaticRecommendationSupported}
-            regionName={regionName}
           />
         </div>
       ) : null}

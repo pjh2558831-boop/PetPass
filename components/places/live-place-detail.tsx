@@ -25,14 +25,33 @@ import {
   SourceTrustTechnicalDisclosure,
 } from "@/components/places/source-trust-panel";
 import { InformationReportDraftPanel } from "@/components/places/information-report-draft-panel";
+import { Button } from "@/components/ui/button";
+import { ProductState } from "@/components/ui/product-state";
 import { TOUR_CATEGORY_LABELS } from "@/lib/shared/format";
 import { deriveRegionLabel } from "@/lib/regions/label";
 import { getRegionConfig } from "@/lib/regions/config";
-import type { ApiResult } from "@/types/api";
+import type { ApiError, ApiResult } from "@/types/api";
 import type { TourPlaceDetailResponse } from "@/types/place";
 import type { RegionId } from "@/types/region";
 
 type DetailState = "loading" | "ready" | "error";
+
+class PublicDetailLoadError extends Error {}
+
+function publicDetailErrorMessage(code: ApiError["code"]): string {
+  switch (code) {
+    case "NOT_FOUND":
+      return "해당 장소 정보를 찾지 못했습니다.";
+    case "UPSTREAM_TIMEOUT":
+      return "상세 정보 요청 시간이 초과되었습니다.";
+    case "RATE_LIMITED":
+      return "요청이 많아 장소 정보를 잠시 불러오지 못했습니다.";
+    case "INVALID_REQUEST":
+      return "장소 요청 정보를 확인하지 못했습니다.";
+    default:
+      return "장소 제공처 연결을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+  }
+}
 
 export function LivePlaceDetail({
   contentId,
@@ -63,13 +82,10 @@ export function LivePlaceDetail({
         );
         const body = (await response.json()) as ApiResult<TourPlaceDetailResponse>;
         if (!response.ok || !body.ok) {
-          const timeout = !body.ok && body.error.code === "UPSTREAM_TIMEOUT";
-          throw new Error(
-            timeout
-              ? "상세 정보 요청 시간이 초과되었습니다."
-              : !body.ok
-                ? body.error.message
-                : "상세 정보를 불러오지 못했습니다.",
+          throw new PublicDetailLoadError(
+            !body.ok
+              ? publicDetailErrorMessage(body.error.code)
+              : "장소 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
           );
         }
         const requestedRegion = getRegionConfig(regionId);
@@ -77,7 +93,7 @@ export function LivePlaceDetail({
           body.data.summary.legalRegionCode &&
           body.data.summary.legalRegionCode !== requestedRegion.providerCodes.korPetTourService2.legalDongRegionCode
         ) {
-          throw new Error("요청한 지역과 상세 장소의 행정 코드가 일치하지 않습니다.");
+          throw new PublicDetailLoadError("선택한 지역에서 이 장소를 확인할 수 없습니다.");
         }
         setDetail(body.data);
         setError("");
@@ -85,9 +101,9 @@ export function LivePlaceDetail({
       } catch (loadError) {
         if (controller.signal.aborted) return;
         setError(
-          loadError instanceof Error
+          loadError instanceof PublicDetailLoadError
             ? loadError.message
-            : "상세 정보를 불러오지 못했습니다.",
+            : "장소 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
         );
         setState("error");
       }
@@ -98,35 +114,32 @@ export function LivePlaceDetail({
 
   if (state === "loading") {
     return (
-      <div className="page-shell py-12">
-        <p className="surface-card p-8 text-center font-extrabold" role="status">
-          한국관광공사 상세 정보를 불러오는 중입니다.
-        </p>
+      <div className="page-shell py-12 sm:py-16">
+        <ProductState status="status" title="장소 정보를 불러오고 있어요." description="공식 장소 정보와 반려동물 동반 근거를 확인하는 중입니다." headingProps={{ id: "place-detail-loading-heading" }} />
       </div>
     );
   }
 
   if (state === "error" || !detail) {
     return (
-      <div className="page-shell py-12">
-        <div className="surface-card p-8 text-center" role="alert">
-          <p className="font-extrabold">{error || "상세 정보를 불러오지 못했습니다."}</p>
-          <button
+      <div className="page-shell py-12 sm:py-16">
+        <ProductState status="alert" title="장소 정보를 불러오지 못했어요." description={error || "잠시 후 다시 시도해 주세요."} headingProps={{ id: "place-detail-error-heading" }}>
+          <Button
             type="button"
             onClick={() => {
               setState("loading");
               setRetryCount((value) => value + 1);
             }}
-            className="mt-4 inline-flex items-center gap-2 text-sm font-extrabold text-[#236148]"
           >
             <RefreshCw size={15} aria-hidden="true" /> 다시 시도
-          </button>
-        </div>
+          </Button>
+        </ProductState>
       </div>
     );
   }
 
   const title = detail.summary.title ?? "이름 미확인";
+  const detailImageUrl = detail.summary.imageUrl ?? detail.summary.thumbnailUrl;
   const address = [detail.summary.address, detail.summary.detailAddress]
     .filter(Boolean)
     .join(" ");
@@ -197,9 +210,9 @@ export function LivePlaceDetail({
     <div className="page-shell py-8 sm:py-12">
       <Link
         href={`/results?tab=catalog&region=${regionId}`}
-        className="inline-flex min-h-10 items-center gap-2 rounded-full text-sm font-bold text-[#52665b] hover:text-[#236148]"
+        className="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-bold text-[#52665b] hover:text-[#236148]"
       >
-        <ArrowLeft size={17} aria-hidden="true" /> 추천 결과로
+        <ArrowLeft size={17} aria-hidden="true" /> 장소 목록으로
       </Link>
 
       {unavailableSections.length > 0 ? (
@@ -213,14 +226,14 @@ export function LivePlaceDetail({
         </div>
       ) : null}
 
-      <div className="place-detail-intro mt-5 grid gap-7 lg:grid-cols-[minmax(320px,.72fr)_minmax(0,1.28fr)] lg:items-start">
-        <div>
+      <div className={`place-detail-intro mt-5 ${detailImageUrl ? "grid gap-7 lg:grid-cols-[minmax(320px,.72fr)_minmax(0,1.28fr)] lg:items-start" : "max-w-4xl"}`}>
+        {detailImageUrl ? <div>
           <PlaceImage
-            imageUrl={detail.summary.imageUrl ?? detail.summary.thumbnailUrl}
+            imageUrl={detailImageUrl}
             title={title}
             priority
           />
-        </div>
+        </div> : null}
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-extrabold text-[#68776f]">

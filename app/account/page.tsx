@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { PawPrint, Plus, UserRound } from "lucide-react";
+import { Plus, UserRound } from "lucide-react";
 import { redirect } from "next/navigation";
 import { signOut } from "@/app/account/actions";
 import { PET_IMAGE_BUCKET } from "@/lib/auth/pet-image";
@@ -53,66 +53,73 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     }));
   }
   const status = await searchParams;
+  const statusMessage =
+    status.pet === "saved"
+      ? "반려동물 정보를 저장했습니다."
+      : status.pet === "updated"
+        ? "반려동물 정보를 수정했습니다."
+        : status.pet === "deleted"
+          ? "반려동물 정보를 삭제했습니다."
+          : status.profile === "updated"
+            ? "프로필 정보를 수정했습니다."
+            : null;
 
   return (
     <section className="site-shell py-12 sm:py-16">
-      <div className="mx-auto max-w-4xl space-y-5">
-        <header className="surface-panel p-6 sm:p-8">
+      <div className="account-document mx-auto max-w-4xl">
+        <header className="account-document__header">
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="eyebrow">WEEKENDOG 계정</p>
+            <div className="min-w-0">
+              <p className="eyebrow">마이페이지</p>
               <div className="mt-4 flex items-center gap-4">
                 <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--brand-soft)] font-black text-[var(--brand)]">
                   {profile.avatar_url ? <Image src={profile.avatar_url} alt="커뮤니티 프로필 이미지" width={64} height={64} unoptimized className="size-full object-cover" /> : <UserRound size={32} strokeWidth={1.8} aria-hidden="true" />}
                 </div>
-                <div>
-                  <h1 className="text-2xl font-black">{profile.display_name}</h1>
+                <div className="min-w-0">
+                  <h1 className="break-words text-2xl font-black [overflow-wrap:anywhere]">{profile.display_name}</h1>
                   <p className="mt-1 text-sm text-[var(--muted)]">커뮤니티와 헤더에 이 이름과 이미지가 표시됩니다.</p>
                 </div>
               </div>
             </div>
-            {!isLegacyPetSchema ? <Link href="/account/profile" className="inline-flex min-h-11 items-center rounded-xl border border-[var(--line)] bg-white px-4 text-sm font-extrabold">내 프로필 수정</Link> : null}
+            {!isLegacyPetSchema ? <Link href="/account/profile" className="inline-flex min-h-11 items-center rounded-lg border border-[var(--line)] bg-white px-4 text-sm font-extrabold">내 프로필 수정</Link> : null}
           </div>
         </header>
 
-        <section className="surface-panel p-6 sm:p-8" aria-labelledby="saved-pet-heading">
+        <section className="account-document__section" aria-labelledby="saved-pet-heading">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="eyebrow">나의 반려동물</p>
               <h2 id="saved-pet-heading" className="mt-2 text-2xl font-black">등록한 반려동물</h2>
               <p className="mt-2 text-sm leading-6 text-[var(--muted)]">여행 계획 입력과 별도로 마이페이지에서 여러 마리를 관리할 수 있습니다.</p>
             </div>
-            {!isLegacyPetSchema ? <Link href="/account/pets/new" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--brand)] px-4 text-sm font-extrabold text-white"><Plus size={17} aria-hidden="true" />반려동물 정보 추가하기</Link> : null}
+            {!isLegacyPetSchema ? <Link href="/account/pets/new" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-extrabold text-white"><Plus size={17} aria-hidden="true" />반려동물 정보 추가하기</Link> : null}
           </div>
 
-          {isLegacyPetSchema ? <p role="status" className="mt-5 rounded-xl bg-[#fff8dc] p-3 text-sm font-bold text-[#755b00]">기존 반려동물 정보는 안전하게 표시하고 있습니다. 여러 마리 등록과 사진 관리는 계정 기능 업데이트 후 사용할 수 있습니다.</p> : null}
-          {status.pet || status.profile ? <p role="status" className="mt-5 rounded-xl bg-[var(--brand-soft)] p-3 text-sm font-bold text-[var(--brand)]">변경사항을 저장했습니다.</p> : null}
+          {isLegacyPetSchema ? <p role="note" className="account-document__notice mt-5">이전에 저장한 반려동물 정보는 현재 읽기 전용으로 표시됩니다.</p> : null}
+          {statusMessage ? <p role="status" className="account-document__status mt-5">{statusMessage}</p> : null}
           {pets.length > 0 ? (
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div className="account-pet-list mt-6">
               {pets.map(({ pet, imageUrl }) => (
-                <article key={pet.id} className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--line)] bg-white">
-                  <div className="aspect-[16/10] bg-[var(--surface-sage)]">
-                    {imageUrl ? <Image src={imageUrl} alt={`${pet.name} 사진`} width={640} height={400} unoptimized className="size-full object-cover" /> : <div className="grid size-full place-items-center text-[var(--brand)]"><PawPrint size={42} strokeWidth={1.6} aria-hidden="true" /><span className="sr-only">등록된 사진 없음</span></div>}
-                  </div>
-                  <div className="p-5">
-                    <h3 className="text-xl font-black">{pet.name}</h3>
+                <article key={pet.id} className="account-pet-row">
+                  {imageUrl ? <Image src={imageUrl} alt={`${pet.name} 사진`} width={64} height={64} unoptimized className="size-16 shrink-0 rounded-lg object-cover" /> : null}
+                  <div className="min-w-0 flex-1">
+                    <h3 className="break-words text-xl font-black [overflow-wrap:anywhere]">{pet.name}</h3>
                     <p className="mt-1 text-sm font-semibold text-[var(--muted)]">{speciesLabels[pet.species]} · {sizeLabels[pet.size]}</p>
-                    {!isLegacyPetSchema ? <Link href={`/account/pets/${pet.id}/edit`} className="mt-4 inline-flex min-h-11 items-center rounded-xl border border-[var(--line)] px-4 text-sm font-extrabold">개별 정보 수정</Link> : <p className="mt-4 text-sm font-bold text-[var(--muted)]">현재 읽기 전용</p>}
                   </div>
+                  {!isLegacyPetSchema ? <Link href={`/account/pets/${pet.id}/edit`} aria-label={`${pet.name} 정보 수정`} className="inline-flex min-h-11 shrink-0 items-center rounded-lg border border-[var(--line)] px-4 text-sm font-extrabold">개별 정보 수정</Link> : <p className="shrink-0 text-sm font-bold text-[var(--muted)]">읽기 전용</p>}
                 </article>
               ))}
             </div>
           ) : (
-            <div className="mt-6 rounded-[var(--radius-card)] bg-[var(--surface-sage)] p-6 text-center">
-              <PawPrint className="mx-auto text-[var(--brand)]" size={36} aria-hidden="true" />
-              <p className="mt-3 font-extrabold">아직 등록한 반려동물이 없습니다.</p>
+            <div className="mt-6 border-t border-[var(--line)] py-6">
+              <p className="font-extrabold">아직 등록한 반려동물이 없습니다.</p>
               <p className="mt-1 text-sm text-[var(--muted)]">사진과 기본 정보를 등록해 보세요.</p>
             </div>
           )}
         </section>
 
-        <form action={signOut} noValidate className="flex justify-end">
-          <button type="submit" className="inline-flex min-h-11 items-center rounded-xl border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[#52645b]">로그아웃</button>
+        <form action={signOut} noValidate className="account-document__footer flex justify-end">
+          <button type="submit" className="inline-flex min-h-11 items-center rounded-lg border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[#52645b]">로그아웃</button>
         </form>
       </div>
     </section>

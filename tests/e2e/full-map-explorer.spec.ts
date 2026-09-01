@@ -644,7 +644,9 @@ test("synchronizes the selected-place tray with list and map selection", async (
   await page.goto("/results?tab=catalog&region=busan&mode=select&page=1");
 
   const card = page.locator('[id^="place-card-"]').first();
-  const placeName = await card.getByRole("heading").innerText();
+  const cardHeading = card.getByRole("heading");
+  await expect(cardHeading).toHaveText(/\S/u);
+  const placeName = await cardHeading.innerText();
   const escapedPlaceName = placeName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const addButton = card.getByRole("button", { name: "일정에 담기", exact: true });
   const tray = page.locator(".selected-itinerary-tray");
@@ -988,7 +990,7 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
   );
   expect(fittedBounds?.east).toBeLessThan(128);
 
-  await expect(page.getByRole("tab", { name: "제주 경로 추천은 준비 중입니다." })).toBeDisabled();
+  await expect(page.getByRole("tab", { name: "제주 경로 추천은 준비 중입니다." })).toHaveCount(0);
   await expect(page.getByText("카카오 검색 후보", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^동물병원/u })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^펫샵·용품점/u })).toHaveCount(0);
@@ -1010,7 +1012,7 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
   await expect(page.getByText("한국관광공사 원문", { exact: true })).toBeVisible();
   await expect(page.getByText("동반 조건 확인 필요", { exact: true })).toBeVisible();
   await expect(page.getByText("연락처", { exact: true })).toHaveCount(0);
-  await page.getByRole("link", { name: "추천 결과로" }).click();
+  await page.getByRole("link", { name: "장소 목록으로" }).click();
   await expect(page).toHaveURL(/\/results\?tab=catalog&region=jeju/u);
   await expect(page.getByRole("heading", { name: "총 54곳" })).toBeVisible();
 
@@ -1269,7 +1271,7 @@ test("loads Seoul core once and fetches the complete shopping dataset only on fi
   await expect(mapRoot).toHaveAttribute("data-active-marker-count", "76");
   await expect(mapRoot).toHaveAttribute("data-clusterer-instance-count", "1");
   await expect(page.locator(".fake-kakao-native-marker")).toHaveCount(76);
-  await expect(page.getByRole("tab", { name: "서울 경로 추천은 준비 중입니다." })).toBeDisabled();
+  await expect(page.getByRole("tab", { name: "서울 경로 추천은 준비 중입니다." })).toHaveCount(0);
   await expect(page.getByText("한국관광공사 공식 장소만 표시합니다.", { exact: true })).toHaveCount(0);
   await expect(page.locator(".explorer-region-picker__trigger"))
     .toHaveAccessibleName("여행 지역 선택, 현재 서울");
@@ -1418,7 +1420,7 @@ test("loads Seoul core once and fetches the complete shopping dataset only on fi
   await expect(page.getByRole("heading", { name: "서울 UI 검증 상세 장소" })).toBeVisible();
   await expect(page.getByText("한국관광공사 원문", { exact: true })).toBeVisible();
   await expect(page.getByText("연락처", { exact: true })).toHaveCount(0);
-  await page.getByRole("link", { name: "추천 결과로" }).click();
+  await page.getByRole("link", { name: "장소 목록으로" }).click();
   await expect(page).toHaveURL(/\/results\?tab=catalog&region=seoul/u);
   await expect(page.getByRole("heading", { name: "총 76곳" })).toBeVisible();
 
@@ -1584,6 +1586,52 @@ test("keeps Seoul core usable when the on-demand shopping dataset fails", async 
     .toHaveLength(1);
 });
 
+test("keeps the catalog usable while reporting the normalized Kakao provider error", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === "mobile-chrome", "The provider partial-failure contract is verified once in desktop Chromium.");
+  let kakaoFailureMessage = "검증용 카카오 장소 오류";
+  await page.route("**/api/map/places/snapshot?**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("region") !== "busan" || url.searchParams.get("dataset") !== "core") {
+      return route.fallback();
+    }
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: false,
+        error: { code: "UPSTREAM_ERROR", message: "지도 장소 스냅샷을 불러오지 못했습니다.", retryable: true },
+      }),
+    });
+  });
+  await page.route("**/api/map/places?**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("region") !== "busan" || url.searchParams.get("providers") !== "kakao") {
+      return route.fallback();
+    }
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: false,
+        error: { code: "UPSTREAM_ERROR", message: kakaoFailureMessage, retryable: true },
+      }),
+    });
+  });
+
+  await page.goto("/results?tab=catalog&region=busan&page=1");
+  await expect(page.getByRole("heading", { name: "총 25곳" })).toBeVisible();
+  const providerAlert = page.locator('.explorer-results-status [role="alert"]').filter({
+    hasText: "카카오맵 장소를 불러오지 못했습니다.",
+  });
+  await expect(providerAlert).toContainText("검증용 카카오 장소 오류");
+  await expect(providerAlert).not.toContainText(/NEXT_PUBLIC|API 키|개발자 콘솔|도메인 설정/u);
+
+  kakaoFailureMessage = "서버 환경변수 KAKAO_REST_API_KEY가 설정되지 않았습니다.";
+  await page.reload();
+  await expect(providerAlert).toContainText("장소 제공처 연결을 확인하지 못했습니다.");
+  await expect(providerAlert).not.toContainText(/KAKAO_REST_API_KEY|환경변수|API 키|개발자 콘솔|도메인 설정/u);
+});
+
 test("marks stale Seoul data and retries without a legacy fallback", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === "mobile-chrome", "Seoul state contracts are measured once in desktop Chromium.");
   await page.route("**/api/map/places/snapshot?**", async (route) => {
@@ -1726,6 +1774,13 @@ test("uses list-first map/list modes without horizontal overflow before the resu
     await expect(page.locator(".full-map-explorer__map")).toBeVisible();
     await page.getByRole("button", { name: "목록", exact: true }).click();
     await expect(page.locator(".full-map-explorer__sidebar")).toBeVisible();
+    const touchTargetsAreLargeEnough = await page
+      .locator('.full-map-explorer__mobile-switch button, .explorer-pagination button')
+      .evaluateAll((nodes) => nodes.every((node) => {
+        const box = node.getBoundingClientRect();
+        return box.width >= 44 && box.height >= 44;
+      }));
+    expect(touchTargetsAreLargeEnough).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   }
 });

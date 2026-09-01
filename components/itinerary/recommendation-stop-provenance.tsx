@@ -39,7 +39,7 @@ export function RecommendationStopProvenance({
               type="button"
               onClick={onReplace}
               aria-label={`${stop.title} 자동 장소 바꾸기`}
-              className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-[var(--brand-border)] bg-white px-3 text-[11px] font-extrabold text-[var(--brand)]"
+              className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[var(--brand-border)] bg-white px-3 text-[11px] font-extrabold text-[var(--brand)]"
             >
               <RefreshCw size={13} aria-hidden="true" /> 자동 장소 바꾸기
             </button>

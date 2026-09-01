@@ -204,6 +204,24 @@ const READY = {
 };
 
 async function installFakeMap(page: Page) {
+  await page.route(`**${DEPARTURE_PATH}?**`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        data: [
+          {
+            id: "address:0:35.179600:129.075600",
+            kind: "address",
+            label: "부산광역시 연제구 중앙대로 1001",
+            address: "부산광역시청 지번 1000",
+            coordinates: { latitude: 35.1796, longitude: 129.0756 },
+          },
+        ],
+      }),
+    });
+  });
   await page.addInitScript(() => {
     type Listener = (...args: unknown[]) => void;
     const listeners = new WeakMap<object, Map<string, Set<Listener>>>();
@@ -304,7 +322,9 @@ test("submits the strict combined contract once and renders the exact provider-b
   await continueToDay(page);
   await page.getByRole("button", { name: "여행 추천 받기" }).evaluate((node) => { (node as HTMLButtonElement).click(); (node as HTMLButtonElement).click(); });
   await expect(page).toHaveURL(/\/results\?tab=recommendations&region=busan$/u);
-  await expect(page.getByRole("heading", { name: /에서 시작하는 2곳 일정/u })).toBeVisible();
+  const resultHeading = page.getByRole("heading", { name: /에서 시작하는 2곳 일정/u });
+  await expect(resultHeading).toBeVisible();
+  await expect(resultHeading).toBeFocused();
   expect(bodies).toHaveLength(1);
   expect(bodies[0]).toMatchObject({
     departure: { label: "부산광역시 연제구 중앙대로 1001", source: "address_search" },
@@ -322,12 +342,22 @@ test("submits the strict combined contract once and renders the exact provider-b
   await expect(page.getByText("선택하신 장소 유형과 잘 맞습니다.").first()).toBeVisible();
   await expect(page.getByText("한국관광공사의 반려동물 동반 근거를 확인했습니다.").first()).toBeVisible();
   await expect(page.getByText(/2830|품질.*%|카카오 검색 후보|인기 장소 중심 일정/u)).toHaveCount(0);
+  await expect(page.getByText(/Kakao.*(?:경로|길찾기)|geometry|최종 Kakao/u)).toHaveCount(0);
   await expect(page.locator("[data-provider-polyline]")).toHaveAttribute("data-provider-polyline", "3");
   await expect(page.locator(".kakao-map-marker--departure")).toContainText("출");
   await expect(page.locator(".kakao-map-marker--itinerary")).toHaveCount(2);
-  const secondMarker = page.locator('.kakao-map-marker[data-location-id="2001"]');
-  await secondMarker.click();
+  const firstMapControl = page.getByRole("button", { name: "해운대 공식 공원 지도에서 보기", exact: true });
+  const secondMapControl = page.getByRole("button", { name: "광안 공식 식당 지도에서 보기", exact: true });
+  await expect(firstMapControl).toHaveAttribute("aria-pressed", "true");
+  await expect(secondMapControl).toHaveAttribute("aria-pressed", "false");
+  expect(await firstMapControl.evaluate((node) => node.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+  await secondMapControl.click();
+  await expect(secondMapControl).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#recommended-stop-2001")).toHaveAttribute("data-selected", "true");
+  const firstMarker = page.locator('.kakao-map-marker[data-location-id="1001"]');
+  await firstMarker.click();
+  await expect(page.locator("#recommended-stop-1001")).toHaveAttribute("data-selected", "true");
+  await expect(firstMapControl).toHaveAttribute("aria-pressed", "true");
 });
 
 test("switches a V2 route style without rerunning providers and updates summary, order, and geometry", async ({ page }, testInfo) => {
@@ -559,9 +589,12 @@ test("restores a saved recommendation directly and after refresh without provide
   await page.goto("/itinerary");
   await expect(page.getByText("저장된 일정", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "균형 추천" })).toBeVisible();
+  await expect(page.locator('[data-itinerary-source="saved-recommendation"] .surface-card')).toHaveCount(0);
   await expect(page.getByRole("list", { name: "저장된 일정 방문 순서" }).locator(":scope > li")).toHaveCount(2);
   await expect(page.getByText("해운대 공식 공원")).toBeVisible();
   await expect(page.getByText("광안 공식 식당")).toBeVisible();
+  await expect(page.getByText("저장된 방문 장소", { exact: true })).toHaveCount(2);
+  await expect(page.getByText("한국관광공사 기반 추천에 저장된 장소", { exact: true })).toHaveCount(0);
   await expect(page.getByText(/9\.6km/u)).toBeVisible();
   await expect(page.getByText(/45분/u)).toBeVisible();
   await expect(page.getByText(/저장 당시 확인된 경로 정보/u)).toBeVisible();
@@ -576,6 +609,7 @@ test("restores a saved recommendation directly and after refresh without provide
   await page.reload();
   await expect(page.getByText("저장된 일정", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "균형 추천" })).toBeVisible();
+  await expect(page.locator('[data-itinerary-source="saved-recommendation"] .surface-card')).toHaveCount(0);
   const refreshMetrics = await page.evaluate(() =>
     (window as unknown as { __savedRouteStorageMetrics: { reads: number; parses: number; parseDurationMs: number } }).__savedRouteStorageMetrics,
   );
@@ -606,7 +640,7 @@ test("clears only a corrupt saved recommendation and keeps the neutral itinerary
     localStorage.setItem("petpass:pet-profile", "unrelated-profile");
   });
   await page.goto("/itinerary");
-  await expect(page.getByRole("heading", { name: "선택된 추천 경로가 없습니다." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "아직 저장된 일정이 없습니다." })).toBeVisible();
   const values = await page.evaluate(() => ({
     saved: localStorage.getItem("petpass:saved-route-recommendation"),
     profile: localStorage.getItem("petpass:pet-profile"),
@@ -652,6 +686,7 @@ test("shows compact request-backed loading without fake pipeline stages", async 
   await expect(loading).toContainText("보리 · 강아지 · 소형");
   await expect(loading).toContainText("부산광역시 연제구 중앙대로 1001 출발");
   await expect(loading).toContainText("2026-08-15 · 10:00");
+  await expect(loading).not.toContainText(/Kakao|geometry/u);
   await expect(loading.locator(".recommendation-loading-stop")).toHaveCount(3);
   await expect(page.getByText("선택 장소 확인")).toHaveCount(0);
   await expect(page.getByText("추천 완료")).toHaveCount(0);
@@ -683,7 +718,11 @@ test("shows time-limited wording and preserves confirmed input across a recovera
 
 test("keeps the Stage 5 result usable at desktop, tablet, and mobile widths", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "The explicit viewport matrix runs once.");
-  await generate(page, testInfo);
+  const longDepartureLabel = "WEEKENDOG".repeat(12);
+  await generate(page, testInfo, {
+    ...READY,
+    requestSummary: { ...READY.requestSummary, departureLabel: longDepartureLabel },
+  });
   for (const viewport of [
     { width: 1440, height: 1000 },
     { width: 768, height: 1024 },
@@ -692,7 +731,9 @@ test("keeps the Stage 5 result usable at desktop, tablet, and mobile widths", as
   ]) {
     await page.setViewportSize(viewport);
     await expectNoHorizontalOverflow(page);
-    await expect(page.getByRole("heading", { name: /에서 시작하는 2곳 일정/u })).toBeVisible();
+    const resultHeading = page.getByRole("heading", { name: /에서 시작하는 2곳 일정/u });
+    await expect(resultHeading).toBeVisible();
+    await expect(resultHeading).toHaveCSS("overflow-wrap", "anywhere");
     await expect(page.getByRole("list", { name: /균형 추천 방문 순서/u })).toBeVisible();
     const map = page.locator(".kakao-map-canvas");
     await expect(map).toBeVisible();

@@ -939,7 +939,7 @@ test("paginates a dense home list with complete tab semantics and 44px mobile ta
   await skipLink.focus();
   await expect(skipLink).toBeVisible();
   await skipLink.press("Enter");
-  await expect(page.locator("#weekendoog-hero-heading")).toBeFocused();
+  await expect(page.locator("#main-content")).toBeFocused();
 
   const browseTab = page.getByRole("tab", { name: "장소 찾기" });
   const searchTab = page.getByRole("tab", { name: "검색", exact: true });

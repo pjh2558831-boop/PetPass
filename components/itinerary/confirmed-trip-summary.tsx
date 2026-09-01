@@ -73,7 +73,7 @@ export function ConfirmedTripSummary({
         {showEditAction ? (
           <Link
             href="/planner/pet"
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[#c9d7ce] bg-white px-4 text-sm font-extrabold text-[#23483a] transition-colors hover:border-[#82aa95] hover:bg-[var(--brand-soft)]"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#c9d7ce] bg-white px-4 text-sm font-extrabold text-[#23483a] transition-colors hover:border-[#82aa95] hover:bg-[var(--brand-soft)]"
           >
             <PencilLine size={16} aria-hidden="true" />
             여행 정보 수정
@@ -84,19 +84,19 @@ export function ConfirmedTripSummary({
       <dl className="confirmed-trip-summary__list">
         <div>
           <dt>반려동물</dt>
-          <dd className="mt-2 text-sm font-black">
+          <dd className="mt-2 break-words text-sm font-black [overflow-wrap:anywhere]">
             {profile.name} · {SPECIES_LABELS[profile.species]} · {SIZE_LABELS[profile.size]}
           </dd>
-          <dd className="mt-1 text-xs leading-5 text-[var(--muted)]">
+          <dd className="mt-1 break-words text-xs leading-5 text-[var(--muted)] [overflow-wrap:anywhere]">
             {equipmentSummary(profile)}
           </dd>
         </div>
         <div>
           <dt>출발·여행 범위</dt>
-          <dd className="mt-2 text-sm font-black">
+          <dd className="mt-2 break-words text-sm font-black [overflow-wrap:anywhere]">
             {preferences.departure?.label ?? "부산역"} → {destination}
           </dd>
-          <dd className="mt-1 text-xs leading-5 text-[var(--muted)]">
+          <dd className="mt-1 break-words text-xs leading-5 text-[var(--muted)] [overflow-wrap:anywhere]">
             {profile.acceptsOutdoorOnly
               ? "야외 활동 익숙함"
               : "공간 제약 없음"}
@@ -104,17 +104,17 @@ export function ConfirmedTripSummary({
         </div>
         <div>
           <dt>날짜·시작</dt>
-          <dd className="mt-2 text-sm font-black">{preferences.tripDate}</dd>
-          <dd className="mt-1 text-xs leading-5 text-[var(--muted)]">
+          <dd className="mt-2 break-words text-sm font-black [overflow-wrap:anywhere]">{preferences.tripDate}</dd>
+          <dd className="mt-1 break-words text-xs leading-5 text-[var(--muted)] [overflow-wrap:anywhere]">
             {preferences.startTime} 출발 · {scheduleSummary(preferences)}
           </dd>
         </div>
         <div>
           <dt>장소 조건</dt>
-          <dd className="mt-2 text-sm font-black">
+          <dd className="mt-2 break-words text-sm font-black [overflow-wrap:anywhere]">
             {categories.length > 0 ? categories.join(" · ") : "선택 카테고리 없음"}
           </dd>
-          <dd className="mt-1 text-xs leading-5 text-[var(--muted)]">
+          <dd className="mt-1 break-words text-xs leading-5 text-[var(--muted)] [overflow-wrap:anywhere]">
             {preferences.includeShopping ? "관광형 쇼핑 포함" : "쇼핑 제외"} · {INDOOR_LABELS[environmentPreference]}
           </dd>
         </div>

@@ -719,7 +719,7 @@ export function UnifiedPlannerForm({
       ) : null}
 
       <div className="planner-workspace">
-        <main className="planner-step-column">
+        <div className="planner-step-column">
           <section
             className="planner-step"
             hidden={currentStep !== 1}
@@ -1495,7 +1495,7 @@ export function UnifiedPlannerForm({
               )}
             </div>
           </div>
-        </main>
+        </div>
 
         <aside className="planner-live-summary" aria-labelledby="planner-summary-heading">
           <h2 id="planner-summary-heading">입력한 여행 조건</h2>

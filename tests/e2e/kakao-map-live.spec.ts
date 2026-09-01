@@ -298,7 +298,7 @@ test("localhost renders current Kakao maps without a fixed demo itinerary", asyn
 
   await page.goto(`http://localhost:3000/itinerary?verify=${Date.now()}`);
   await expect(
-    page.getByRole("heading", { name: "선택된 추천 경로가 없습니다." }),
+    page.getByRole("heading", { name: "아직 저장된 일정이 없습니다." }),
   ).toBeVisible();
 
   expect(withoutRecoverableResourceErrors(browserErrors)).toEqual([]);

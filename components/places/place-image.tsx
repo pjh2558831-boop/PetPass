@@ -18,7 +18,7 @@ export function PlaceImage({
   sizes?: string;
 }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
-  const wrapperClassName = `relative min-h-40 overflow-hidden rounded-2xl bg-[#eef3ef] ${className}`;
+  const wrapperClassName = `relative min-h-24 overflow-hidden rounded-lg bg-[#eef3ef] ${className}`;
   if (!imageUrl) return <MissingImage label={title} className={className} />;
   if (failedUrl === imageUrl) {
     return (

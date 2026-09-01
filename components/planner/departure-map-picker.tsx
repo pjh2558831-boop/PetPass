@@ -211,7 +211,7 @@ export function DepartureMapPicker({
         </div>
         {loadState === "loading" ? (
           <p className="absolute inset-x-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-white/95 p-4 text-center text-sm font-bold text-[var(--muted)]">
-            카카오 지도를 불러오고 있어요.
+            지도를 불러오고 있어요.
           </p>
         ) : null}
         {loadError ? (

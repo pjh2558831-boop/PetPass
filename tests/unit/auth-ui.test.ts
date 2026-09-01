@@ -6,19 +6,17 @@ import { OAuthLoginButtons } from "@/components/auth/oauth-login-buttons";
 import { SiteHeaderAccount } from "@/components/layout/site-header-account";
 
 describe("auth UI", () => {
-  it("makes the unavailable Kakao provider explicit and keeps Google usable", () => {
+  it("omits the unavailable Kakao provider entirely and keeps Google usable", () => {
     const html = renderToStaticMarkup(createElement(OAuthLoginButtons, {
       mode: "login",
       kakaoEnabled: false,
     }));
-    const kakaoIndex = html.indexOf("카카오 로그인 준비 중");
-    const googleIndex = html.indexOf("Google로 계속하기");
 
-    expect(kakaoIndex).toBeGreaterThan(-1);
-    expect(googleIndex).toBeGreaterThan(kakaoIndex);
-    expect(html.match(/<svg/g)).toHaveLength(2);
-    expect(html).toContain("카카오 로그인은 잠시 사용할 수 없어요");
-    expect(html).toMatch(/<button[^>]+disabled[^>]*>[^]*카카오 로그인 준비 중/);
+    expect(html).not.toContain("카카오");
+    expect(html.match(/<svg/g)).toHaveLength(1);
+    expect(html).toContain("Google로 계속하기");
+    expect(html).toMatch(/<button[^>]*>[^]*Google로 계속하기/);
+    expect(html).not.toContain('disabled=""');
   });
 
   it("uses distinct signup copy and a distinct signup URL", () => {

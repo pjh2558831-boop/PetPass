@@ -109,10 +109,34 @@ test("fails closed for a legacy provider record rather than showing a pet denial
   page,
 }) => {
   await page.goto("/places/3013?contentTypeId=38&region=busan");
-  await expect(page.locator(".surface-card[role='alert']")).toBeVisible();
+  await expect(
+    page.getByRole("alert", { name: "장소 정보를 불러오지 못했어요." }),
+  ).toBeVisible();
   await expect(
     page.getByText("반려동물 동반 불가로 안내됨", { exact: true }),
   ).toHaveCount(0);
+});
+
+test("keeps provider configuration diagnostics out of the public detail error", async ({ page }) => {
+  await page.route("**/api/tour/places/3999?**", async (route) => {
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: false,
+        error: {
+          code: "CONFIGURATION_REQUIRED",
+          message: "TOUR_API_SERVICE_KEY 환경변수가 설정되지 않았습니다.",
+          retryable: false,
+        },
+        requestId: "detail-config-test",
+      }),
+    });
+  });
+
+  await page.goto("/places/3999?contentTypeId=38&region=busan");
+  await expect(page.getByText("장소 제공처 연결을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.")).toBeVisible();
+  await expect(page.getByText(/TOUR_API_SERVICE_KEY|환경변수|API 키|HTTP|파서/u)).toHaveCount(0);
 });
 
 test("uses trusted intro fallback with a partial warning", async ({ page }) => {

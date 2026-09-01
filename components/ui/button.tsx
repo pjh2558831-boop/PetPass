@@ -3,15 +3,15 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 const styles = {
   primary:
-    "inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#236148] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#194b38] disabled:cursor-not-allowed disabled:opacity-50",
+    "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#236148] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#194b38] disabled:cursor-not-allowed disabled:opacity-50",
   secondary:
-    "inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[#cbd8d0] bg-white px-5 py-2.5 text-sm font-bold text-[#294b3d] transition hover:border-[#84aa96] hover:bg-[#f4faf6] disabled:cursor-not-allowed disabled:opacity-50",
+    "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#cbd8d0] bg-white px-5 py-2.5 text-sm font-bold text-[#294b3d] transition-colors hover:border-[#84aa96] hover:bg-[#f4faf6] disabled:cursor-not-allowed disabled:opacity-50",
   ghost:
-    "inline-flex min-h-10 items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-bold text-[#486257] transition hover:bg-[#edf6f0] disabled:opacity-50",
+    "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-bold text-[#486257] transition-colors hover:bg-[#edf6f0] disabled:opacity-50",
   brand:
-    "inline-flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--brand)] px-5 py-2.5 text-sm font-extrabold text-white shadow-[var(--shadow-button)] transition-colors hover:bg-[var(--brand-deep)] disabled:cursor-not-allowed disabled:opacity-50",
+    "inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-extrabold text-white transition-colors hover:bg-[var(--brand-deep)] disabled:cursor-not-allowed disabled:opacity-50",
   brandSecondary:
-    "inline-flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[#c9d7ce] bg-white px-5 py-2.5 text-sm font-extrabold text-[#23483a] transition-colors hover:border-[#82aa95] hover:bg-[var(--brand-soft)] disabled:cursor-not-allowed disabled:opacity-50",
+    "inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-[#c9d7ce] bg-white px-5 py-2.5 text-sm font-extrabold text-[#23483a] transition-colors hover:border-[#82aa95] hover:bg-[var(--brand-soft)] disabled:cursor-not-allowed disabled:opacity-50",
 } as const;
 
 type Variant = keyof typeof styles;

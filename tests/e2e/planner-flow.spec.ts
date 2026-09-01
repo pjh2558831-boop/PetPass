@@ -382,7 +382,7 @@ test("never selects a stale or failed departure response", async ({
       contentType: "application/json",
       body: JSON.stringify({
         ok: false,
-        error: { message: "출발지 검색 제공자가 응답하지 않았습니다." },
+        error: { message: "서버 환경변수 KAKAO_REST_API_KEY가 설정되지 않았습니다." },
       }),
     });
   });
@@ -392,7 +392,8 @@ test("never selects a stale or failed departure response", async ({
   await input.fill("부산 느린 장소");
   await page.waitForRequest((request) => new URL(request.url()).searchParams.get("query") === "부산 느린 장소");
   await input.fill("부산 검색 실패");
-  await expect(page.getByText("출발지 검색 제공자가 응답하지 않았습니다.")).toBeVisible();
+  await expect(page.getByText("출발지 검색 제공처 연결을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.")).toBeVisible();
+  await expect(page.getByText(/KAKAO_REST_API_KEY|환경변수|API 키|개발자 콘솔/u)).toHaveCount(0);
   await page.waitForTimeout(800);
   const expectedNetworkError =
     "Failed to load resource: the server responded with a status of 502 (Bad Gateway)";
