@@ -39,6 +39,11 @@ export type PublicMapPlaceCategory = (typeof PUBLIC_MAP_PLACE_CATEGORIES)[number
 export type PublicMapPlaceProvider = (typeof PUBLIC_MAP_PLACE_PROVIDERS)[number];
 export type PublicMapPetAccessVerdict = (typeof PUBLIC_MAP_PET_ACCESS_VERDICTS)[number];
 
+const publicPetConditionsSchema = z.string()
+  .transform((value) => value.trim() || null)
+  .nullable()
+  .default(null);
+
 export const publicMapPlaceSchema = z.object({
   id: z.string().min(1),
   provider: z.enum(PUBLIC_MAP_PLACE_PROVIDERS).default("kakao"),
@@ -58,6 +63,8 @@ export const publicMapPlaceSchema = z.object({
   placeUrl: z.union([z.string().url(), z.string().startsWith("/")]).nullable(),
   source: z.enum(["kakao_search_candidate", "kto_official"]),
   petAccessVerdict: z.enum(PUBLIC_MAP_PET_ACCESS_VERDICTS).default("unknown"),
+  petConditions: publicPetConditionsSchema,
+  verificationRequired: z.boolean().default(false),
   reviewStatus: z.enum(PUBLIC_MAP_REVIEW_STATUSES),
   publicLabel: z.string().min(1),
   categoryGroupCode: z.string().min(1).nullable().default(null),

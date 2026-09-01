@@ -1725,6 +1725,45 @@ select {
   padding: 20px;
 }
 
+.catalog-result-card__condition-summary {
+  display: block !important;
+  max-width: 100%;
+  color: #5f4b22 !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catalog-result-card__condition-disclosure.place-detail-disclosure {
+  margin-top: 6px;
+  border-radius: 8px;
+  background: #fffdf4;
+}
+
+.catalog-result-card__condition-disclosure .place-detail-disclosure__trigger {
+  min-height: 34px;
+  padding: 7px 9px;
+  font-size: 11px;
+}
+
+.catalog-result-card__condition-disclosure .place-detail-disclosure__panel {
+  padding: 9px;
+}
+
+.catalog-result-card__condition-full,
+.catalog-result-card__condition-notice {
+  color: #4f554f;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.catalog-result-card__condition-notice {
+  margin-top: 7px;
+  color: #76542f;
+  font-weight: 750;
+}
+
 .app-dialog-header > div {
   min-width: 0;
 }

@@ -64,6 +64,8 @@ function compactMarker(
     imageUrl: marker.imageUrl ?? null,
     placeUrl: marker.placeUrl ?? null,
     petAccessVerdict: marker.petAccessVerdict ?? "unknown",
+    petConditions: marker.petConditions?.trim() || null,
+    verificationRequired: marker.verificationRequired ?? false,
     publicLabel: marker.publicLabel,
     sourceLabel: marker.sourceLabel === "한국관광공사" ? "한국관광공사" : "카카오 검색 후보",
   };
@@ -81,6 +83,8 @@ export interface MapPlacesSnapshotWireMarker {
   categoryQueryAgreementCount?: number;
   completeness?: number;
   petAccessVerdict: MapPlacesSnapshotMarker["petAccessVerdict"];
+  petConditions?: string;
+  verificationRequired?: boolean;
   publicLabel: string;
 }
 
@@ -101,6 +105,8 @@ function lightweightMarker(
       : {}),
     ...(marker.completeness === undefined ? {} : { completeness: marker.completeness }),
     petAccessVerdict: marker.petAccessVerdict,
+    ...(marker.petConditions ? { petConditions: marker.petConditions } : {}),
+    ...(marker.verificationRequired ? { verificationRequired: true } : {}),
     publicLabel: marker.publicLabel,
   };
 }

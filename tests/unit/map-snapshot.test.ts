@@ -3,6 +3,7 @@ import { createMapPlacesSnapshotHandler } from "@/app/api/map/places/snapshot/ha
 import {
   assembleMapPlacesSnapshot,
   createMapPlacesSnapshotLoader,
+  lightweightMapPlacesSnapshot,
 } from "@/lib/map-places/snapshot";
 import { isMapPlacesSnapshot } from "@/types/map-places-snapshot";
 import type { PublicMapPlaceDTO, PublicMapPlacePage } from "@/types/public-map-place";
@@ -281,6 +282,30 @@ describe("public map snapshot cache", () => {
     await load(request("seoul"));
     expect(assemble).toHaveBeenCalledTimes(3);
     expect(resolvePublicationVersion).toHaveBeenCalledTimes(6);
+  });
+
+  it("carries a Kakao condition in the existing compact snapshot without a detail request", async () => {
+    const conditional = {
+      ...place("kakao", "busan", "condition-1", "cafe"),
+      petAccessVerdict: "conditional" as const,
+      petConditions: "테라스만 가능 · 이동가방 필수",
+      verificationRequired: true,
+    };
+    const query = vi.fn(async () => page("busan", [conditional]));
+
+    const snapshot = await assembleMapPlacesSnapshot(request("busan"), { query });
+    const wire = lightweightMapPlacesSnapshot(snapshot);
+
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(snapshot.items[0]).toMatchObject({
+      petAccessVerdict: "conditional",
+      petConditions: "테라스만 가능 · 이동가방 필수",
+      verificationRequired: true,
+    });
+    expect(wire.items[0]).toMatchObject({
+      petConditions: "테라스만 가능 · 이동가방 필수",
+      verificationRequired: true,
+    });
   });
 
   it("isolates cache entries by publication version and replaces only the changed regional dataset", async () => {

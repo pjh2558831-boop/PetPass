@@ -28,12 +28,17 @@ function parseSnapshotEnvelope(
     if (!isRecord(item) || typeof item.id !== "string") return item;
     const separator = item.id.indexOf(":");
     const providerPlaceId = separator >= 0 ? item.id.slice(separator + 1) : "";
+    const petConditions = typeof item.petConditions === "string"
+      ? item.petConditions.trim() || null
+      : null;
     return {
       ...item,
       regionId: region,
       providerPlaceId,
       dataset,
       sourceLabel: item.layer === "tourism" ? "한국관광공사" : "카카오 검색 후보",
+      ...(petConditions ? { petConditions } : {}),
+      ...(item.verificationRequired === true ? { verificationRequired: true } : {}),
     };
   });
   const data = { ...value.data, items };

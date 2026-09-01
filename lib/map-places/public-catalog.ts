@@ -48,6 +48,11 @@ const publicCatalogRowSchema = z.object({
   source: z.enum(["kakao_search_candidate", "kto_official"]),
   pet_access_verdict: z.enum(["allowed", "conditional", "not_allowed", "unknown"]),
   pet_evidence_status: z.string().min(1),
+  pet_conditions: z.preprocess(
+    (value) => typeof value === "string" ? value.trim() || null : value,
+    z.string().min(1).nullable(),
+  ).default(null),
+  verification_required: z.boolean().default(false),
   category_group_code: z.string().nullable(),
   last_seen_at: z.string().min(1),
   matched_query_count: z.number().int().nonnegative(),
@@ -78,7 +83,7 @@ async function queryRpcPage(
 ) {
   const supabase = createMapServiceSupabaseClient();
   const region = getRegionConfig(input.regionId);
-  const { data, error } = await supabase.rpc("get_public_map_catalog_by_region_v3", {
+  const { data, error } = await supabase.rpc("get_public_map_catalog_by_region_v4", {
     p_region_id: input.regionId,
     p_catalog_dataset: input.dataset ?? "core",
     p_providers: input.providers ?? [...region.mapCatalog.defaultProviders],
@@ -135,6 +140,8 @@ function toDto(
     placeUrl,
     source: row.source,
     petAccessVerdict: row.pet_access_verdict,
+    petConditions: row.pet_conditions,
+    verificationRequired: row.verification_required,
     reviewStatus: provider === "tour" && !supportedKtoType
       ? "needs_review"
       : row.review_status,

@@ -41,6 +41,8 @@ export interface CanonicalRecommendationCandidateV2 {
   environment: "indoor" | "outdoor" | "mixed" | "unknown";
   petVerdict: "allowed" | "conditional" | "unknown";
   catalogPetVerdict: "allowed" | "conditional" | "not_allowed" | "unknown";
+  petConditions: string | null;
+  verificationRequired: boolean;
   evidenceStatus: "verified" | "conditional" | "unverified";
   eligibilityTier: Exclude<RouteEligibilityTier, "explicitly_ineligible">;
   scheduleStatus: "known" | "unknown";
@@ -172,6 +174,8 @@ function fromKto(
     environment,
     petVerdict: verdict,
     catalogPetVerdict: verdict,
+    petConditions: null,
+    verificationRequired: false,
     evidenceStatus: tier === "verified" ? "verified" : tier,
     eligibilityTier: tier,
     scheduleStatus:
@@ -206,8 +210,14 @@ function fromKakao(
     coordinates: candidate.coordinates!,
     category,
     environment: "unknown",
-    petVerdict: "unknown",
+    petVerdict: candidate.petAccessVerdict === "allowed"
+      ? "allowed"
+      : candidate.petAccessVerdict === "conditional"
+        ? "conditional"
+        : "unknown",
     catalogPetVerdict: candidate.petAccessVerdict,
+    petConditions: candidate.petConditions?.trim() || null,
+    verificationRequired: candidate.verificationRequired ?? Boolean(candidate.petConditions?.trim()),
     evidenceStatus: "unverified",
     eligibilityTier: "unverified",
     scheduleStatus: "unknown",

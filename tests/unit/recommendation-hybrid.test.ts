@@ -264,6 +264,8 @@ function marker(
   options: {
     regionId?: "busan" | "jeju";
     verdict?: "allowed" | "conditional" | "not_allowed" | "unknown";
+    petConditions?: string | null;
+    verificationRequired?: boolean;
     category?: MapPlacesSnapshotMarker["category"];
     coordinates?: MapPlacesSnapshotMarker["coordinates"];
   } = {},
@@ -285,6 +287,8 @@ function marker(
     lastSeenAt: "2026-08-15T00:00:00.000Z",
     completeness: 0.7,
     petAccessVerdict: options.verdict ?? "unknown",
+    petConditions: options.petConditions ?? null,
+    verificationRequired: options.verificationRequired ?? false,
     publicLabel: "반려동물 동반 여부 확인 필요",
     sourceLabel: "카카오 검색 후보",
   };
@@ -668,6 +672,28 @@ describe("selected-place hybrid recommendation", () => {
       locked: true,
       verificationWarning: "selected_kakao_requires_confirmation",
     })]);
+  });
+
+  it("retains the real condition warning for an acknowledged conditional Kakao anchor", async () => {
+    const condition = "테라스만 가능 · 이동가방 필수";
+    const result = await generateRouteRecommendation({
+      ...REQUEST,
+      selectedPlaceIds: ["kakao:201"],
+      acknowledgedVerificationRequiredPlaceIds: ["kakao:201"],
+      autoFill: false,
+    }, dependencies([], [marker("kakao:201", {
+      verdict: "conditional",
+      petConditions: condition,
+      verificationRequired: true,
+    })]));
+
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.route.stops[0]).toMatchObject({
+      placeId: "kakao:201",
+      petAssessment: "conditional",
+      verificationWarning: `반려견 동반 조건: ${condition} · 방문 전 업체에 최신 동반 조건을 확인해 주세요.`,
+    });
   });
 
   it("rejects an explicitly cross-region selected reference instead of discarding it", async () => {
