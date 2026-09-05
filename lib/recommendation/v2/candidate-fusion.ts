@@ -2,11 +2,11 @@ import "server-only";
 
 import { haversineKm } from "@/lib/itinerary/optimizer";
 import {
-  applyCanonicalPetConditionPolicy,
   evaluateCanonicalPetConditions,
   insufficientEvidencePetConditionEligibility,
 } from "@/lib/pet-access/canonical-condition-eligibility";
-import { coordinatesInRegion, getRegionConfig, getRegionDistrict } from "@/lib/regions/config";
+import { coordinatesInRegion, getRegionConfig } from "@/lib/regions/config";
+import type { CatalogEvidenceV1 } from "@/types/recommendation";
 import type {
   DetailedEligibleCandidate,
   UsefulTourCategory,
@@ -27,6 +27,9 @@ export interface CanonicalProviderIdentityV2 {
 }
 
 export interface CanonicalRecommendationCandidateV2 {
+  planningPolicy?: "full_public_catalog_v1";
+  catalogEvidence?: CatalogEvidenceV1[];
+  catalogCategory?: MapPlacesSnapshotMarker["category"];
   canonicalId: string;
   providerIdentities: CanonicalProviderIdentityV2[];
   source: "tourism_service2" | "kakao_catalog";
@@ -39,7 +42,7 @@ export interface CanonicalRecommendationCandidateV2 {
   coordinates: { latitude: number; longitude: number };
   category: UsefulTourCategory;
   environment: "indoor" | "outdoor" | "mixed" | "unknown";
-  petVerdict: "allowed" | "conditional" | "unknown";
+  petVerdict: "allowed" | "conditional" | "not_allowed" | "unknown";
   catalogPetVerdict: "allowed" | "conditional" | "not_allowed" | "unknown";
   petConditions: string | null;
   verificationRequired: boolean;
@@ -57,6 +60,7 @@ export interface CanonicalRecommendationCandidateV2 {
 }
 
 export interface CandidateFusionV2Diagnostics {
+  identities?: Array<{ rawId: string; canonicalId: string | null; outcome: "canonical" | "alias" | "excluded"; reason?: string }>;
   version: typeof CANDIDATE_FUSION_V2_VERSION;
   sourceCounts: { kto: number; kakao: number };
   acceptedSourceCounts: { kto: number; kakao: number };
@@ -110,7 +114,7 @@ function usefulCategory(
     case "shopping":
       return "shopping";
     default:
-      return null;
+      return "unknown";
   }
 }
 
@@ -132,11 +136,7 @@ function fromKto(
   petProfile: AutomaticRoutePetProfile,
 ): CanonicalRecommendationCandidateV2 {
   const tier = ktoTier(candidate);
-  const verdict = candidate.assessment.verdict === "allowed"
-    ? "allowed"
-    : candidate.assessment.verdict === "conditional"
-      ? "conditional"
-      : "unknown";
+  const verdict = candidate.assessment.verdict;
   const scopes = new Set(candidate.assessment.permittedScopes ?? []);
   const environment = scopes.has("indoor") && scopes.has("outdoor")
     ? "mixed"
@@ -148,8 +148,7 @@ function fromKto(
             type === "outdoor_only" || type === "indoor_restricted")
           ? "outdoor"
           : "unknown";
-  const conditionEligibility = candidate.eligibility.conditionEligibility ??
-    evaluateCanonicalPetConditions({
+  const conditionEligibility = evaluateCanonicalPetConditions({
       assessment: candidate.assessment,
       petProfile,
       sizeCompatibility: candidate.sizeCompatibility?.state ?? "unknown",
@@ -199,22 +198,21 @@ function fromKakao(
 ): CanonicalRecommendationCandidateV2 {
   return {
     canonicalId: candidate.id,
-    providerIdentities: [{ provider: "kakao", id: candidate.providerPlaceId }],
-    source: "kakao_catalog",
-    sourceLabel: "카카오 검색 후보",
+    planningPolicy: "full_public_catalog_v1",
+    catalogCategory: candidate.category,
+    catalogEvidence: [{ provider: candidate.layer === "tourism" ? "kto" : "kakao", providerPlaceId: candidate.providerPlaceId, petAssessment: candidate.petAccessVerdict, originalText: candidate.petConditions?.slice(0, 2000) ?? null, retrievedAt: candidate.lastSeenAt ?? null, publicLabel: candidate.publicLabel.slice(0, 200) }],
+    providerIdentities: [{ provider: candidate.layer === "tourism" ? "kto" : "kakao", id: candidate.providerPlaceId }],
+    source: candidate.layer === "tourism" ? "tourism_service2" : "kakao_catalog",
+    sourceLabel: candidate.sourceLabel,
     regionId: candidate.regionId,
     districtCode: candidate.districtCode,
     title: candidate.name,
     address: candidate.address || null,
-    phone: null,
+    phone: candidate.phone ?? null,
     coordinates: candidate.coordinates!,
     category,
     environment: "unknown",
-    petVerdict: candidate.petAccessVerdict === "allowed"
-      ? "allowed"
-      : candidate.petAccessVerdict === "conditional"
-        ? "conditional"
-        : "unknown",
+    petVerdict: candidate.petAccessVerdict,
     catalogPetVerdict: candidate.petAccessVerdict,
     petConditions: candidate.petConditions?.trim() || null,
     verificationRequired: candidate.verificationRequired ?? Boolean(candidate.petConditions?.trim()),
@@ -249,6 +247,10 @@ function mergeCandidates(
 ): CanonicalRecommendationCandidateV2 {
   return {
     ...authoritative,
+    catalogEvidence: [...(authoritative.catalogEvidence ?? []), ...(discovered.catalogEvidence ?? [])],
+    petVerdict: [authoritative.petVerdict, discovered.petVerdict].includes("not_allowed") ? "not_allowed" : authoritative.petVerdict,
+    catalogPetVerdict: [authoritative.catalogPetVerdict, discovered.catalogPetVerdict].includes("not_allowed") ? "not_allowed" : authoritative.catalogPetVerdict,
+    selectionOrigin: authoritative.selectionOrigin === "user_selected" || discovered.selectionOrigin === "user_selected" ? "user_selected" : authoritative.selectionOrigin,
     providerIdentities: [
       ...authoritative.providerIdentities,
       ...discovered.providerIdentities.filter(
@@ -263,11 +265,7 @@ function mergeCandidates(
     phone: authoritative.phone ?? discovered.phone,
     imageUrl: authoritative.imageUrl ?? discovered.imageUrl,
     placeUrl: authoritative.placeUrl ?? discovered.placeUrl,
-    retrievedAt:
-      [authoritative.retrievedAt, discovered.retrievedAt]
-        .filter((value): value is string => Boolean(value))
-        .sort()
-        .at(-1) ?? null,
+    retrievedAt: authoritative.retrievedAt,
     dataCompleteness: Math.max(
       authoritative.dataCompleteness,
       discovered.dataCompleteness,
@@ -284,6 +282,8 @@ export function fuseRecommendationCandidatesV2(input: {
   explicitlyExcludedPlaceIds: readonly string[];
   selectedPlaceIds?: readonly string[];
   includeVerificationRequired?: boolean;
+  completionFirst?: boolean;
+  resolveConditions?: (placeId: string, analysis: CanonicalPetConditionEligibility) => CanonicalPetConditionEligibility;
   acknowledgedVerificationRequiredPlaceIds?: readonly string[];
   petProfile: AutomaticRoutePetProfile;
   selectionOrigin?: "automatic_fill" | "automatic_recommendation";
@@ -292,175 +292,68 @@ export function fuseRecommendationCandidatesV2(input: {
   diagnostics: CandidateFusionV2Diagnostics;
 } {
   const excluded = new Set(input.explicitlyExcludedPlaceIds);
-  const selectedPlaceIds = new Set(input.selectedPlaceIds ?? []);
-  const acknowledgedPlaceIds = new Set(
-    input.acknowledgedVerificationRequiredPlaceIds ?? [],
-  );
-  const selected = new Set(input.selectedCategories);
+  const selected = new Set(input.selectedPlaceIds ?? []);
   const region = getRegionConfig(input.regionId);
-  const requestedDistrict = input.districtId
-    ? getRegionDistrict(region, input.districtId)
-    : null;
-  const acceptedDistrictCodes = new Set([
-    ...(requestedDistrict ? [requestedDistrict.legalDongDistrictCode] : []),
-    ...(requestedDistrict?.collectionLegalDongDistrictCodes ?? []),
-    ...(requestedDistrict?.collectionAreaDistrictCodes ?? []),
-  ]);
-  const defaultOrigin = input.selectionOrigin ?? "automatic_recommendation";
+  const details = new Map(input.ktoCandidates.map(value => [value.contentId, value]));
   const excludedByReason: Record<string, number> = {};
-  const stageCounts = {
-    providerRawCandidates: input.ktoCandidates.length +
-      input.catalogCandidates.filter(({ layer }) => layer === "kakao").length,
-    regionFilteredCandidates: 0,
-    districtFilteredCandidates: 0,
-    requestedCategoryCandidates: 0,
-    petEligibleCandidates: 0,
-    operatingHoursEligibleCandidates: 0,
+  const identities: NonNullable<CandidateFusionV2Diagnostics["identities"]> = [];
+  const canonical: CanonicalRecommendationCandidateV2[] = [];
+  const titleBuckets = new Map<string, number[]>();
+  const rawIds = new Set<string>();
+  const reject = (rawId: string, reason: string) => {
+    increment(excludedByReason, reason);
+    identities.push({ rawId, canonicalId: null, outcome: "excluded", reason });
   };
-  let ktoAccepted = 0;
-  let kakaoAccepted = 0;
-  let crossProviderDuplicatesMerged = 0;
-  const candidates: CanonicalRecommendationCandidateV2[] = [];
-
-  const inRequestedDistrict = (districtCode: string | null) =>
-    !input.districtId || Boolean(districtCode && acceptedDistrictCodes.has(districtCode));
-  const passesPetGate = (candidate: CanonicalRecommendationCandidateV2, userSelected: boolean) => {
-    if (userSelected) return candidate.catalogPetVerdict !== "not_allowed";
-    const policy = applyCanonicalPetConditionPolicy({
-      analysis: candidate.conditionEligibility,
-      flow: defaultOrigin,
-      includeVerificationRequired: input.includeVerificationRequired ?? false,
-      acknowledged: acknowledgedPlaceIds.has(candidate.canonicalId),
-    });
-    return candidate.catalogPetVerdict !== "not_allowed" && policy.decision !== "reject";
-  };
-  const passesHoursGate = (candidate: CanonicalRecommendationCandidateV2, userSelected: boolean) =>
-    userSelected || input.includeVerificationRequired || candidate.scheduleStatus === "known";
-
-  for (const value of input.ktoCandidates) {
-    const canonicalId = `tour:${value.contentId}`;
-    const userSelected = selectedPlaceIds.has(canonicalId);
-    const candidate = fromKto(
-      value,
-      input.regionId,
-      userSelected ? "user_selected" : defaultOrigin,
-      input.petProfile,
-    );
-    if (
-      value.region.regionCode !== region.providerCodes.korPetTourService2.legalDongRegionCode ||
-      !coordinatesInRegion(region, value.coordinates)
-    ) {
-      increment(excludedByReason, "cross_region");
-      continue;
+  // Only published catalog identities can introduce a place. Detail is optional enrichment.
+  for (const value of [...input.catalogCandidates].sort((a, b) => Number(b.layer === "tourism") - Number(a.layer === "tourism") || a.id.localeCompare(b.id))) {
+    if (rawIds.has(value.id)) { reject(value.id, "duplicate_public_identity"); continue; }
+    rawIds.add(value.id);
+    if (value.id !== (value.layer === "tourism" ? "tour:" : "kakao:") + value.providerPlaceId) { reject(value.id, "invalid_provider_identity"); continue; }
+    if (!value.coordinates || !Number.isFinite(value.coordinates.latitude) || !Number.isFinite(value.coordinates.longitude)) { reject(value.id, "missing_or_invalid_coordinates"); continue; }
+    if (value.regionId !== input.regionId || !coordinatesInRegion(region, value.coordinates)) { reject(value.id, "cross_region"); continue; }
+    const origin = selected.has(value.id) ? "user_selected" : input.selectionOrigin ?? "automatic_recommendation";
+    const category = value.layer === "tourism" && value.contentTypeId === "14" ? "culture"
+      : value.layer === "tourism" && value.contentTypeId === "15" ? "festival"
+      : usefulCategory(value.category) ?? "unknown";
+    let candidate = fromKakao(value, category, origin);
+    const detail = value.layer === "tourism" ? details.get(value.providerPlaceId) : undefined;
+    if (detail) {
+      const enriched = fromKto(detail, input.regionId, origin, input.petProfile);
+      candidate = { ...enriched, planningPolicy: "full_public_catalog_v1", coordinates: value.coordinates,
+        catalogEvidence: candidate.catalogEvidence, catalogPetVerdict: value.petAccessVerdict,
+        petConditions: value.petConditions ?? null, placeUrl: value.placeUrl ?? null,
+        petVerdict: value.petAccessVerdict === "not_allowed" ? "not_allowed" : enriched.petVerdict };
     }
-    stageCounts.regionFilteredCandidates += 1;
-    if (!inRequestedDistrict(value.region.districtCode)) {
-      increment(excludedByReason, "district_mismatch");
-      continue;
+    // ponytail: title buckets keep this bounded at city-catalog sizes; spatial index if catalogs reach 100k.
+    const titleKey = normalizeIdentityText(candidate.title);
+    const bucket = titleBuckets.get(titleKey) ?? [];
+    const match = bucket.find(index => safelyMatchesPhysicalPlace(canonical[index]!, candidate)) ?? -1;
+    if (match >= 0) {
+      const previous = canonical[match]!;
+      canonical[match] = mergeCandidates(previous, candidate);
+      identities.push({ rawId: value.id, canonicalId: previous.canonicalId, outcome: "alias" });
+    } else {
+      canonical.push(candidate);
+      titleBuckets.set(titleKey, [...bucket, canonical.length - 1]);
+      identities.push({ rawId: value.id, canonicalId: candidate.canonicalId, outcome: "canonical" });
     }
-    stageCounts.districtFilteredCandidates += 1;
-    if (!selected.has(candidate.category) && !userSelected) {
-      increment(excludedByReason, "category_not_selected");
-      continue;
-    }
-    stageCounts.requestedCategoryCandidates += 1;
-    if (!passesPetGate(candidate, userSelected)) {
-      increment(excludedByReason, candidate.petVerdict === "unknown" || candidate.evidenceStatus === "unverified"
-        ? "pet_evidence_unverified"
-        : "pet_policy_incompatible");
-      continue;
-    }
-    stageCounts.petEligibleCandidates += 1;
-    if (!passesHoursGate(candidate, userSelected)) {
-      increment(excludedByReason, "operating_hours_unknown");
-      continue;
-    }
-    stageCounts.operatingHoursEligibleCandidates += 1;
-    if (excluded.has(candidate.canonicalId) || excluded.has(value.contentId)) {
-      increment(excludedByReason, "explicit_user_exclusion");
-      continue;
-    }
-    candidates.push(candidate);
-    ktoAccepted += 1;
   }
-
-  for (const value of input.catalogCandidates) {
-    if (value.layer !== "kakao") continue;
-    if (value.regionId !== input.regionId || !value.coordinates || !coordinatesInRegion(region, value.coordinates)) {
-      increment(excludedByReason, "cross_region");
-      continue;
-    }
-    stageCounts.regionFilteredCandidates += 1;
-    if (!inRequestedDistrict(value.districtCode)) {
-      increment(excludedByReason, "district_mismatch");
-      continue;
-    }
-    stageCounts.districtFilteredCandidates += 1;
-    const category = usefulCategory(value.category);
-    const userSelected = selectedPlaceIds.has(value.id);
-    if (!category || (!selected.has(category) && !userSelected)) {
-      increment(excludedByReason, "category_not_selected");
-      continue;
-    }
-    stageCounts.requestedCategoryCandidates += 1;
-    if (value.petAccessVerdict === "not_allowed") {
-      increment(excludedByReason, "explicit_not_allowed");
-      continue;
-    }
-    if (excluded.has(value.id) || excluded.has(value.providerPlaceId)) {
+  const candidates = canonical.filter(candidate => {
+    if (!candidate.providerIdentities.some(({ provider, id }) => excluded.has(id) || excluded.has((provider === "kto" ? "tour:" : "kakao:") + id))) return true;
+    for (const identity of identities.filter(item => item.canonicalId === candidate.canonicalId)) {
+      identity.outcome = "excluded"; identity.reason = "explicit_user_exclusion";
       increment(excludedByReason, "explicit_user_exclusion");
-      continue;
     }
-    const candidate = fromKakao(value, category, userSelected ? "user_selected" : defaultOrigin);
-    const duplicateIndex = candidates.findIndex(
-      (existing) =>
-        existing.source === "tourism_service2" &&
-        safelyMatchesPhysicalPlace(existing, candidate),
-    );
-    if (duplicateIndex >= 0) {
-      stageCounts.petEligibleCandidates += 1;
-      stageCounts.operatingHoursEligibleCandidates += 1;
-      candidates[duplicateIndex] = mergeCandidates(
-        candidates[duplicateIndex]!,
-        candidate,
-      );
-      crossProviderDuplicatesMerged += 1;
-      continue;
-    }
-    if (!passesPetGate(candidate, userSelected)) {
-      increment(excludedByReason, "pet_evidence_unverified");
-      continue;
-    }
-    stageCounts.petEligibleCandidates += 1;
-    if (!passesHoursGate(candidate, userSelected)) {
-      increment(excludedByReason, "operating_hours_unknown");
-      continue;
-    }
-    stageCounts.operatingHoursEligibleCandidates += 1;
-    if (candidates.some(({ canonicalId }) => canonicalId === candidate.canonicalId)) {
-      increment(excludedByReason, "duplicate_canonical_id");
-      continue;
-    }
-    candidates.push(candidate);
-    kakaoAccepted += 1;
-  }
-
-  candidates.sort((left, right) => left.canonicalId.localeCompare(right.canonicalId));
-  return {
-    candidates,
-    diagnostics: {
-      version: CANDIDATE_FUSION_V2_VERSION,
-      sourceCounts: {
-        kto: input.ktoCandidates.length,
-        kakao: input.catalogCandidates.filter(({ layer }) => layer === "kakao").length,
-      },
-      acceptedSourceCounts: { kto: ktoAccepted, kakao: kakaoAccepted },
-      crossProviderDuplicatesMerged,
-      excludedByReason: Object.fromEntries(
-        Object.entries(excludedByReason).sort(([left], [right]) => left.localeCompare(right)),
-      ),
-      stageCounts,
-      finalCount: candidates.length,
-    },
-  };
+    return false;
+  }).sort((a, b) => a.canonicalId.localeCompare(b.canonicalId));
+  const sourceCounts = { kto: input.catalogCandidates.filter(item => item.layer === "tourism").length, kakao: input.catalogCandidates.filter(item => item.layer !== "tourism").length };
+  const count = candidates.length;
+  return { candidates, diagnostics: {
+    version: CANDIDATE_FUSION_V2_VERSION, identities, sourceCounts,
+    acceptedSourceCounts: { kto: candidates.filter(item => item.providerIdentities.every(identity => identity.provider === "kto")).length, kakao: candidates.filter(item => item.providerIdentities.every(identity => identity.provider === "kakao")).length },
+    crossProviderDuplicatesMerged: candidates.filter(item => new Set(item.providerIdentities.map(identity => identity.provider)).size > 1).length,
+    excludedByReason,
+    stageCounts: { providerRawCandidates: input.catalogCandidates.length, regionFilteredCandidates: canonical.length, districtFilteredCandidates: canonical.length, requestedCategoryCandidates: canonical.length, petEligibleCandidates: count, operatingHoursEligibleCandidates: count },
+    finalCount: count,
+  } };
 }

@@ -16,6 +16,8 @@ export type RouteFeasibilityReasonCodeV2 =
   | "no_feasible_route";
 
 export interface RouteFeasibilityReadyV2 {
+  bestRouteIds?: string[];
+  minimumWaitSeconds?: number;
   status: "ready";
   requestedStopCount: number;
   maximumFeasibleStopCount: number;
@@ -28,6 +30,7 @@ export interface RouteFeasibilityReadyV2 {
 }
 
 export interface RouteFeasibilityFailureV2 {
+  bestRouteIds?: string[];
   status: "insufficient_feasible_route";
   requestedStopCount: number;
   maximumFeasibleStopCount: 0;
@@ -49,9 +52,9 @@ interface FeasibilityState {
   unknownCount: number;
 }
 
-function countsForCategoryCoverage(candidate: ScheduledRouteVisit["candidate"]): boolean {
+function countsForCategoryCoverage(candidate: ScheduledRouteVisit["candidate"], fullCatalog: boolean): boolean {
   return Boolean(
-    candidate.locked ||
+    fullCatalog || candidate.locked ||
     (candidate.eligibilityTier !== "unverified" && candidate.evidenceStatus !== "unverified"),
   );
 }
@@ -75,7 +78,7 @@ function canFinish(input: RouteOptimizationInput, visits: readonly ScheduledRout
 function accommodationAllowed(input: RouteOptimizationInput, state: FeasibilityState, role: string): boolean {
   if (state.visits.at(-1)?.candidate.visitRole === "accommodation") return false;
   if (role !== "accommodation") return true;
-  if (input.tripRequest.tripType === "day_trip" && !input.tripRequest.selectedCategories.includes("accommodation")) {
+  if (input.tripRequest.planningPolicy !== "full_public_catalog_v1" && input.tripRequest.tripType === "day_trip" && !input.tripRequest.selectedCategories.includes("accommodation")) {
     return false;
   }
   return state.visits.every(({ candidate }) => candidate.visitRole !== "accommodation");
@@ -86,7 +89,20 @@ function accommodationAllowed(input: RouteOptimizationInput, state: FeasibilityS
  * same schedule simulator as optimization, then fixes the honest target before
  * any utility scoring is allowed to choose a route.
  */
-export function analyzeRouteFeasibilityV2(input: RouteOptimizationInput): RouteFeasibilityResultV2 {
+export interface FeasibilityBudget {
+  remainingStates: number;
+  deadline: number;
+  reservedStates?: number;
+  reservedTimeMs?: number;
+}
+
+export function feasibilityBudgetExhausted(budget: FeasibilityBudget): boolean {
+  return budget.remainingStates <= (budget.reservedStates ?? 0) ||
+    performance.now() >= budget.deadline - (budget.reservedTimeMs ?? 0);
+}
+
+export function analyzeRouteFeasibilityV2(input: RouteOptimizationInput, budget?: FeasibilityBudget): RouteFeasibilityResultV2 {
+  const fullCatalog = input.tripRequest.planningPolicy === "full_public_catalog_v1";
   const constraints = getRouteTripConstraints(input.tripRequest);
   const requestedStopCount = Math.min(5, input.tripRequest.desiredStopCount ?? constraints.targetStops);
   const requestedCategories = new Set(input.tripRequest.selectedCategories);
@@ -94,6 +110,8 @@ export function analyzeRouteFeasibilityV2(input: RouteOptimizationInput): RouteF
   const startMs = tripStartMs(input.tripRequest);
   const feasibleCandidateIds = new Set<string>();
   let maximumFeasibleStopCount = 0;
+  let bestRouteIds: string[] = [];
+  let minimumWaitSeconds = Infinity;
   let maximumRequestedCategoryCount = 0;
   let expandedStates = 0;
   let prunedByHours = 0;
@@ -102,14 +120,18 @@ export function analyzeRouteFeasibilityV2(input: RouteOptimizationInput): RouteF
   let prunedByWait = 0;
 
   const visit = (state: FeasibilityState): void => {
+    input.signal?.throwIfAborted();
     if (state.visits.length >= requestedStopCount || expandedStates >= ROUTE_COMPOSITION_V2_CONFIG.feasibility.maxExpandedStates) {
       return;
     }
     for (const candidate of input.candidates) {
+      if (expandedStates >= ROUTE_COMPOSITION_V2_CONFIG.feasibility.maxExpandedStates ||
+        (budget && feasibilityBudgetExhausted(budget))) return;
       if (state.used.has(candidate.node.id) || !accommodationAllowed(input, state, candidate.visitRole)) continue;
-      if (candidate.schedule.mandatoryReservationImpossible) continue;
-      if (candidate.schedule.status === "unknown" && !candidate.locked && state.unknownCount >= 1) continue;
+      if (!fullCatalog && candidate.schedule.mandatoryReservationImpossible) continue;
+      if (!fullCatalog && candidate.schedule.status === "unknown" && !input.tripRequest.scheduleIntent && !candidate.locked && state.unknownCount >= 1) continue;
       expandedStates += 1;
+      if (budget) budget.remainingStates -= 1;
       const edge = input.matrix.edges[state.currentNodeId]?.[candidate.node.id];
       if (!isUsableTravelEdge(edge)) {
         prunedByMissingEdge += 1;
@@ -145,13 +167,16 @@ export function analyzeRouteFeasibilityV2(input: RouteOptimizationInput): RouteF
       if (canFinish(input, visits)) {
         for (const item of visits) feasibleCandidateIds.add(item.candidate.node.id);
         const covered = new Set(visits
-          .filter(({ candidate: item }) => countsForCategoryCoverage(item))
+          .filter(({ candidate: item }) => countsForCategoryCoverage(item, fullCatalog))
           .map(({ candidate: item }) => item.category)
           .filter((category) => requestedCategories.has(category))).size;
         if (visits.length > maximumFeasibleStopCount) {
+          bestRouteIds = visits.map(item => item.candidate.node.id);
+          minimumWaitSeconds = totalWaitSeconds;
           maximumFeasibleStopCount = visits.length;
           maximumRequestedCategoryCount = covered;
         } else if (visits.length === maximumFeasibleStopCount) {
+          minimumWaitSeconds = Math.min(minimumWaitSeconds, totalWaitSeconds);
           maximumRequestedCategoryCount = Math.max(maximumRequestedCategoryCount, covered);
         }
       }
@@ -184,7 +209,7 @@ export function analyzeRouteFeasibilityV2(input: RouteOptimizationInput): RouteF
     };
   }
   return {
-    status: "ready", requestedStopCount,
+    status: "ready", requestedStopCount, minimumWaitSeconds, bestRouteIds,
     maximumFeasibleStopCount, targetStopCount: Math.min(requestedStopCount, maximumFeasibleStopCount),
     maximumRequestedCategoryCount,
     requiredRequestedCategoryCount: maximumRequestedCategoryCount,

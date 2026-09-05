@@ -55,12 +55,6 @@ function blockedSelectionMessage(
   if (status === "limit_reached") {
     return `일정에는 최대 ${MAX_SELECTED_ITINERARY_PLACES}곳까지 담을 수 있습니다.`;
   }
-  if (status === "blocked_not_allowed") {
-    return "동반 불가로 확인된 장소는 일정에 담을 수 없습니다.";
-  }
-  if (status === "blocked_unsupported") {
-    return "동물병원과 펫샵은 여행 일정 방문지로 담을 수 없습니다.";
-  }
   if (status === "already_selected") {
     return "이미 일정에 담은 장소입니다.";
   }

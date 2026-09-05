@@ -1,3 +1,5 @@
+import { getRegionConfig, getRegionDistrict } from "../../lib/regions/config";
+
 type Scenario = {
   title: string;
   address: string;
@@ -842,6 +844,19 @@ function localDataResponse(url: URL): Response {
   return json(items);
 }
 
+function publicCatalogResponse(params: Record<string, unknown>): Response {
+  if (params.p_region_id !== "busan" || params.p_catalog_dataset === "shopping") return Response.json([]);
+  const region = getRegionConfig("busan");
+  const common = { review_status: "unreviewed", pet_evidence_status: "not_fetched", pet_access_verdict: "unknown", public_label: "E2E fixture · 동반 여부 미확인", pet_conditions: null, verification_required: false, phone: null, image_url: null, place_url: null, category_group_code: null, last_seen_at: "2026-08-01T00:00:00.000Z", matched_query_count: 0, category_query_agreement_count: 0 };
+  const rows = [
+    ...catalogScenarios.map((item, index) => ({ ...common, id: index + 1, provider: "tour", provider_place_id: item.contentId, name: item.title, candidate_kind: "tourism_place", normalized_category: item.contentTypeId === "39" ? "food" : item.contentTypeId === "32" ? "accommodation" : item.contentTypeId === "38" ? "shopping" : item.contentTypeId === "28" ? "leisure" : "attraction", content_type_id: Number(item.contentTypeId), district_code: item.districtCode, district_name: getRegionDistrict(region, item.districtCode)!.name, address: item.address, latitude: item.latitude, longitude: item.longitude, source: "kto_official" })),
+    ...[0, 1].map(index => ({ ...common, id: 90001 + index, provider: "kakao", provider_place_id: String(90001 + index), name: index ? "E2E 역앞 카페" : "E2E 역앞 산책공원", candidate_kind: "pet_travel_candidate", normalized_category: index ? "cafe" : "attraction", content_type_id: null, district_code: "170", district_name: getRegionDistrict(region, "170")!.name, address: `부산광역시 동구 중앙대로 E2E ${index + 1}`, latitude: 35.115 + index * 0.001, longitude: 129.04 + index * 0.001, source: "kakao_search_candidate" })),
+  ].filter(row => (!Array.isArray(params.p_providers) || params.p_providers.includes(row.provider)) && (!Array.isArray(params.p_candidate_kinds) || params.p_candidate_kinds.includes(row.candidate_kind)) && (!Array.isArray(params.p_normalized_categories) || params.p_normalized_categories.includes(row.normalized_category)) && (!Array.isArray(params.p_district_codes) || params.p_district_codes.includes(row.district_code)));
+  const after = Number(params.p_after_id ?? 0), limit = Math.min(200, Number(params.p_result_limit ?? 200));
+  const remaining = rows.filter(row => row.id > after);
+  return Response.json(remaining.slice(0, limit).map(row => ({ ...row, total_count: rows.length, has_more: remaining.length > limit })));
+}
+
 export function installE2EUpstreamMock(): void {
   const state = globalThis as typeof globalThis & {
     __petPassOriginalFetch?: typeof fetch;
@@ -852,6 +867,13 @@ export function installE2EUpstreamMock(): void {
     const url = new URL(
       typeof input === "string" || input instanceof URL ? input : input.url,
     );
+    if (url.hostname === "petpass-e2e.invalid") {
+      if (url.pathname === "/rest/v1/map_ingest_runs") return Promise.resolve(Response.json([]));
+      if (url.pathname === "/rest/v1/rpc/get_public_map_catalog_by_region_v4") {
+        const body = typeof init?.body === "string" ? Promise.resolve(init.body) : input instanceof Request ? input.clone().text() : Promise.resolve("{}");
+        return body.then(value => publicCatalogResponse(JSON.parse(value)));
+      }
+    }
     if (url.hostname === "apis.data.go.kr") {
       if (url.pathname.includes("/B551011/KorPetTourService2/")) {
         return Promise.resolve(tourismResponse(url));

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { formatScheduleTime } from "@/lib/recommendation/schedule/schedule-display";
 import {
   appendScheduledVisitTiming,
   tripStartMs,
@@ -85,6 +86,18 @@ function assertTimeline(result: ReturnType<typeof append>) {
   );
   expect(visit.waitSeconds).toBeGreaterThanOrEqual(0);
 }
+
+it("preserves year-boundary offsets and checks the actual next day's known closure", () => {
+  const trip = request({ date: "2026-12-31", startTime: "23:30", scheduleIntent: { date: "2026-12-31", startTime: "23:30" } });
+  const start = tripStartMs(trip);
+  const schedule = { ...knownSchedule(22 * 60, 26 * 60), restDayInformation: "금요일 휴무" };
+  expect(append({ currentTimeMs: start, serviceDayStartMs: start, travelSeconds: 40 * 60, schedule, tripRequest: trip })).toBeNull();
+  const valid = append({ currentTimeMs: start, serviceDayStartMs: start, travelSeconds: 40 * 60, schedule: { ...schedule, restDayInformation: "월요일 휴무" }, tripRequest: trip });
+  expect(valid?.visit.arrivalAtMs).toBe(Date.parse("2027-01-01T00:10:00+09:00"));
+  expect(valid?.visit.departureAtMs).toBe(Date.parse("2027-01-01T00:40:00+09:00"));
+  expect(formatScheduleTime(null, 2400, { requested: { date: null, startTime: "23:30" }, effective: { date: null, startTime: "23:30" }, state: "undated_template", timingBasis: "illustrative_clock", roadValidated: true, timeBudgetValidated: true, calendarValidation: "date_required", operatingAvailability: "requires_confirmation", reasonCodes: [] })).toContain("다음 1일 00:10");
+  expect(append({ currentTimeMs: start, serviceDayStartMs: start, travelSeconds: 40 * 60, schedule, tripRequest: { ...trip, scheduleIntent: { date: null, startTime: "23:30" } } })).not.toBeNull();
+});
 
 describe("schedule simulator exact-time invariants", () => {
   it.each([1, 14, 21, 35, 51, 59])(

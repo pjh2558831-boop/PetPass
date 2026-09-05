@@ -1,4 +1,5 @@
 import "server-only";
+import { seoulDate } from "./schedule-intent";
 
 import {
   assessOperatingHours,
@@ -11,7 +12,7 @@ import type { ScheduleCompatibilityResult } from "@/lib/recommendation/types";
 export interface ScheduleCompatibilityInput {
   detail: TourPlaceScheduleDetail | null;
   providerAvailable: boolean;
-  travelDate: string;
+  travelDate: string | null;
   /** Immutable pipeline snapshot used to reject stale/future schedule text. */
   asOf: string;
   /** Null until a later route stage has established this candidate's window. */
@@ -104,8 +105,12 @@ export function assessScheduleCompatibilityV1(
       warningCodes: ["operating_hours_stale", UNKNOWN_OPERATING_HOURS_WARNING],
     };
   }
+  if (input.travelDate === null) {
+    return { status: "unknown", reasonCodes: [], warningCodes: ["travel_date_not_selected", UNKNOWN_OPERATING_HOURS_WARNING] };
+  }
   if (input.feasibleWindow) {
     const explicitRestDay = assessOperatingHours({
+      sourceDate: seoulDate(new Date(input.detail.source.retrievedAt)),
       travelDate: input.travelDate,
       arrivalMinutes: input.feasibleWindow.earliestArrivalMinutes,
       departureMinutes:
@@ -142,6 +147,7 @@ export function assessScheduleCompatibilityV1(
     input.proposedArrivalMinutes !== null &&
     input.proposedDepartureMinutes !== null;
   const result = assessOperatingHours({
+    sourceDate: seoulDate(new Date(input.detail.source.retrievedAt)),
     travelDate: input.travelDate,
     arrivalMinutes: input.proposedArrivalMinutes ?? 0,
     departureMinutes: input.proposedDepartureMinutes ?? 1,

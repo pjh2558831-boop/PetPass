@@ -9,7 +9,7 @@ import type {
   TourPetPolicyFields,
 } from "@/types/place";
 
-export const PET_ACCESS_RULESET_VERSION = "1" as const;
+export const PET_ACCESS_RULESET_VERSION = "2" as const;
 
 export const PET_ACCESS_LIMITS = {
   sourceFieldCharacters: 2_000,

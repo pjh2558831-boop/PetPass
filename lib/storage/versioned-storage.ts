@@ -14,7 +14,7 @@ interface VersionedEnvelope {
 type Migration = (value: unknown) => unknown;
 
 function getBrowserStorage(): StorageLike | null {
-  return typeof window === "undefined" ? null : window.localStorage;
+  try { return typeof window === "undefined" ? null : window.localStorage; } catch { return null; }
 }
 
 export function readVersionedValue<T>(
@@ -40,7 +40,6 @@ export function readVersionedValue<T>(
       typeof parsed.version !== "number" ||
       !("data" in parsed)
     ) {
-      storage.removeItem(key);
       return null;
     }
 
@@ -50,7 +49,6 @@ export function readVersionedValue<T>(
     while (version < options.version) {
       const migrate = options.migrations?.[version];
       if (!migrate) {
-        storage.removeItem(key);
         return null;
       }
       data = migrate(data);
@@ -58,18 +56,15 @@ export function readVersionedValue<T>(
     }
 
     if (version !== options.version) {
-      storage.removeItem(key);
       return null;
     }
 
     const result = schema.safeParse(data);
     if (!result.success) {
-      storage.removeItem(key);
       return null;
     }
     return result.data;
   } catch {
-    storage.removeItem(key);
     return null;
   }
 }

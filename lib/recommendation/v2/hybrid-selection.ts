@@ -152,11 +152,11 @@ export function inferHybridSupplementCategories(input: {
 }): Set<UsefulTourCategory> {
   const categories = new Set<UsefulTourCategory>(
     input.request.trip.selectedCategories.filter(
-      (category): category is UsefulTourCategory => category !== "shopping",
+      (category) => category !== "shopping",
     ),
   );
   const selectedCategories = new Set(input.selected.map(({ category }) => category));
-  const [hours, minutes] = input.request.trip.startTime.split(":").map(Number);
+  const [hours, minutes] = (input.request.trip.startTime ?? "09:00").split(":").map(Number);
   const start = hours * 60 + minutes;
   const duration = input.request.trip.durationMinutes ??
     ROUTE_SOLVER_V1_CONFIG.pace[input.request.trip.tripPace].maxDurationMinutes;

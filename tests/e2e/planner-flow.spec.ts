@@ -2,6 +2,7 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import {
   DEPARTURE_PATH,
   GENERATE_PATH,
+  futureTripDate,
   chooseConfirmedDeparture,
   continueToDay,
   continueToTrip,
@@ -135,14 +136,21 @@ test("shows only the neutral pet step without sample selections", async ({
   await expect(page.getByRole("textbox", { name: "반려동물 이름" })).toHaveValue("");
   await expect(page.locator('input[name="species"]:checked')).toHaveCount(0);
   await expect(page.locator('input[name="size"]:checked')).toHaveCount(0);
-  await expect(page.getByRole("checkbox", { name: "이동장", exact: true })).not.toBeChecked();
-  await expect(page.getByRole("checkbox", { name: "목줄", exact: true })).not.toBeChecked();
-  await expect(page.getByRole("checkbox", { name: "입마개", exact: true })).not.toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "이동장", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("checkbox", { name: "목줄", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("checkbox", { name: "입마개", exact: true })).toHaveCount(0);
   await expect(page.getByRole("radio", { name: "상관없음" })).toBeChecked();
   await expect(page.getByRole("radio", { name: "실내 우선" })).not.toBeChecked();
   await expect(page.getByRole("radio", { name: "야외 우선" })).not.toBeChecked();
   await expect(page.getByLabel("추천 데이터 안내")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "출발지와 시간 입력" })).toBeVisible();
+
+  await page.getByRole("textbox", { name: "반려동물 이름" }).fill("보리");
+  await page.getByRole("radio", { name: "강아지", exact: true }).check({ force: true });
+  await page.getByRole("radio", { name: /^소형/u }).check({ force: true });
+  await page.getByRole("button", { name: "출발지와 시간 입력" }).click();
+  await expect(page.getByLabel("여행 날짜")).toHaveValue("");
+  await expect(page.getByLabel("시작 시간")).toHaveValue("");
 
   await page.goto("/planner/trip");
   await expect(page).toHaveURL(/\/planner\/pet$/u);
@@ -185,7 +193,7 @@ test("shows only completed values in the planner summary", async ({
   await chooseConfirmedDeparture(page);
   await continueToDay(page);
   await expect(summary).toContainText("부산광역시 연제구 중앙대로 1001 출발");
-  await expect(summary).toContainText("2026-08-15 · 10:00");
+  await expect(summary).toContainText(`${futureTripDate()} · 10:00`);
   await expect(summary).toContainText("당일치기 · 적당히");
   await expect(summary).toContainText("관광지 · 음식점");
 });
@@ -218,8 +226,8 @@ test("preserves entered values when moving back between steps", async ({
   await continueToTrip(page);
   await page.getByRole("button", { name: "이전 단계" }).click();
   await expect(page.getByRole("textbox", { name: "반려동물 이름" })).toHaveValue("보리");
-  await expect(page.getByRole("checkbox", { name: "이동장", exact: true })).toBeChecked();
-  await expect(page.getByRole("checkbox", { name: "목줄", exact: true })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "이동장", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("checkbox", { name: "목줄", exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "반려동물 정보" })).toBeFocused();
 });
 
@@ -273,7 +281,7 @@ test("searches a departure by place name and generates exactly once", async ({
       source: "kakao_place_search",
     },
     trip: {
-      date: "2026-08-15",
+      date: futureTripDate(),
       startTime: "10:00",
       tripPace: "balanced",
       selectedCategories: ["attraction", "food"],
@@ -281,10 +289,10 @@ test("searches a departure by place name and generates exactly once", async ({
     pet: {
       species: "DOG",
       size: "SMALL",
-      acceptsOutdoorOnlyPlaces: false,
-      availableEquipment: { carrier: true, leash: true, muzzle: false },
     },
   });
+  expect(requests[0]?.pet).not.toHaveProperty("availableEquipment");
+  expect(requests[0]?.pet).not.toHaveProperty("acceptsOutdoorOnlyPlaces");
 });
 
 test("uses a map-picked departure coordinate for routing", async ({ page }, testInfo) => {
@@ -450,14 +458,14 @@ test("runs the original full validation on the final action and moves focus to a
       HTMLInputElement.prototype,
       "value",
     )?.set;
-    setter?.call(input, "");
+    setter?.call(input, "2000-01-01");
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.dispatchEvent(new Event("change", { bubbles: true }));
   });
   await page.getByRole("button", { name: "여행 추천 받기" }).click();
   await expect(page.getByRole("heading", { name: "출발지와 시간" })).toBeVisible();
   await expect(page.getByLabel("여행 날짜")).toBeFocused();
-  await expect(page.getByText("여행 날짜를 선택해 주세요.")).toBeVisible();
+  await expect(page.getByText("오늘 이후 날짜를 선택하거나 날짜 미정으로 바꿔 주세요.")).toBeVisible();
   await expect(page).toHaveURL(/\/planner\/pet$/u);
 });
 
@@ -501,4 +509,29 @@ test("keeps the existing demo detail and provider validation boundaries", async 
     ok: false,
     error: { code: "INVALID_REQUEST", retryable: false },
   });
+});
+
+test("disables planner inputs until hydration and preserves the first fast edit", async ({ page }) => {
+  let release!: () => void;
+  const scriptsReady = new Promise<void>((resolve) => { release = resolve; });
+  await page.route(/\/_next\/static\/chunks\/.*\.js(?:\?|$)/u, async (route) => {
+    await scriptsReady;
+    await route.continue().catch(() => undefined);
+  });
+  await page.goto("/planner/pet", { waitUntil: "commit" });
+  const name = page.getByRole("textbox", { name: "반려동물 이름" });
+  try {
+    await expect(name).toBeVisible();
+    await expect(name).toBeDisabled();
+    await expect(page.getByRole("button", { name: "출발지와 시간 입력" })).toBeDisabled();
+  } finally {
+    release();
+  }
+  await expect(name).toBeEnabled();
+  await name.fill("보리");
+  await page.getByRole("radio", { name: "강아지", exact: true }).check({ force: true });
+  await page.getByRole("radio", { name: /^소형/u }).check({ force: true });
+  await expect(name).toHaveValue("보리");
+  await page.getByRole("button", { name: "출발지와 시간 입력" }).click();
+  await expect(page.getByRole("heading", { name: "출발지와 시간" })).toBeVisible();
 });

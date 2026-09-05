@@ -199,7 +199,7 @@ export function TripPreferencesForm() {
         <div className="mt-3 grid grid-cols-2 gap-2">
           {[
             { value: "DAY_TRIP" as const, label: "당일치기", note: "관광지 → 식당 → 카페" },
-            { value: "OVERNIGHT" as const, label: "1박 여행", note: "숙소를 포함한 일정" },
+            { value: "OVERNIGHT" as const, label: "1박 여행", note: "숙소에서 끝나는 첫날 경로" },
           ].map((option) => (
             <label
               key={option.value}
@@ -223,7 +223,7 @@ export function TripPreferencesForm() {
                 className="sr-only"
               />
               <span className="block text-sm font-extrabold">{option.label}</span>
-              <span className="mt-1 block text-xs leading-5 text-[#748078]">
+              <span className="mt-1 block text-xs leading-5 text-[#52635a]">
                 {option.note}
               </span>
             </label>
@@ -233,7 +233,7 @@ export function TripPreferencesForm() {
 
       <fieldset>
         <legend className="text-sm font-extrabold">일정 페이스</legend>
-        <p className="mt-1 text-xs leading-5 text-[#748078]">
+        <p className="mt-1 text-xs leading-5 text-[#52635a]">
           원하는 여행 리듬을 고르면 추천 일정의 방문 장소 수에 반영해요.
         </p>
         <div className="mt-3 grid gap-2 sm:grid-cols-3">
@@ -302,7 +302,7 @@ export function TripPreferencesForm() {
 
       <fieldset>
         <legend className="text-sm font-extrabold">실내·야외 선호</legend>
-        <p className="mt-1 text-xs leading-5 text-[#748078]">
+        <p className="mt-1 text-xs leading-5 text-[#52635a]">
           선호 점수에만 반영하며 선택하지 않은 공간도 후보에서 제외하지 않아요.
         </p>
         <div className="mt-3 grid grid-cols-3 gap-2">

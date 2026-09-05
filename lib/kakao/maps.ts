@@ -164,6 +164,7 @@ export interface KakaoMapController {
   relayout(): void;
   resetRegion(defaultBounds?: KakaoCurrentMapSearch["rectangle"]): void;
   selectLocation(id: string | null, notify?: boolean): void;
+  focusLocation(id: string): void;
   setShowSelectionInfo(show: boolean): void;
   updateData(
     locations: KakaoMapLocation[],
@@ -632,6 +633,20 @@ export function createKakaoMapController(
     container.dataset.activeMarkerCount = "0";
   };
 
+  let pendingCamera: "bounds" | { id: string } | null = null;
+  let layoutWidth = 0;
+  let layoutHeight = 0;
+  const ensureLayout = () => {
+    const { width, height } = container.getBoundingClientRect();
+    if (width <= 0 || height <= 0) { layoutWidth = 0; layoutHeight = 0; return false; }
+    // Focus can run before ResizeObserver after a hidden panel becomes visible.
+    if (width !== layoutWidth || height !== layoutHeight) {
+      map.relayout();
+      layoutWidth = width;
+      layoutHeight = height;
+    }
+    return true;
+  };
   const controller: KakaoMapController = {
     destroy() {
       if (destroyed) return;
@@ -652,6 +667,8 @@ export function createKakaoMapController(
     },
 
     fitBounds() {
+      if (!ensureLayout()) { pendingCamera = "bounds"; return; }
+      pendingCamera = null;
       if (visiblePoints.length === 0) {
         if (!currentDefaultBounds) return;
         const bounds = new maps.LatLngBounds();
@@ -683,11 +700,16 @@ export function createKakaoMapController(
     },
 
     relayout() {
-      map.relayout();
+      if (!ensureLayout()) return;
+      const intent = pendingCamera;
+      pendingCamera = null;
+      if (intent === "bounds") controller.fitBounds();
+      else if (intent) controller.focusLocation(intent.id);
     },
 
     resetRegion(defaultBounds) {
       currentDefaultBounds = defaultBounds;
+      pendingCamera = null;
       clearLayers();
       controller.fitBounds();
     },
@@ -727,9 +749,15 @@ export function createKakaoMapController(
         selected.sourceMarker.marker.setZIndex(9);
       }
       if (shouldShowSelectionInfo) renderSelectionInfo(selected);
+      if (notify) options.onLocationSelect?.(id);
+    },
+
+    focusLocation(id) {
+      const selected = locationPositions.get(id);
+      if (!selected || !ensureLayout()) { pendingCamera = { id }; return; }
+      pendingCamera = null;
       pendingProgrammaticViewport = true;
       map.panTo(selected.position);
-      if (notify) options.onLocationSelect?.(id);
     },
 
     async updateData(locations, routeCoordinates, updateOptions = {}) {
@@ -1029,7 +1057,9 @@ export function createKakaoMapController(
       container.dataset.markerUpdateMs = (performance.now() - updateStartedAt).toFixed(2);
       recordHomepageBrowserTiming("map", "cluster_update", clusterUpdateStartedAt);
       recordHomepageBrowserTiming("map", "marker_update", updateStartedAt);
-      if (updateOptions.fitBounds !== false) controller.fitBounds();
+      if (pendingCamera && pendingCamera !== "bounds" && locationPositions.has(pendingCamera.id)) {
+        controller.focusLocation(pendingCamera.id);
+      } else if (updateOptions.fitBounds !== false) controller.fitBounds();
       if (previousSelection && locationPositions.has(previousSelection)) {
         controller.selectLocation(previousSelection);
       }

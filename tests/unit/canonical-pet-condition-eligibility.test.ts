@@ -29,8 +29,8 @@ function condition(
   };
 }
 
-/** Stable TourAPI-derived fixture; this suite never calls the live provider. */
-function songdoAssessment(): TourPetAccessSemanticAssessment {
+/** Synthetic conditional-policy fixture; this suite never calls the live provider. */
+function restrictedAssessment(): TourPetAccessSemanticAssessment {
   const conditions = [
     condition("leash_required", "목줄 착용 필수", "목줄 착용 필수"),
     condition(
@@ -41,7 +41,7 @@ function songdoAssessment(): TourPetAccessSemanticAssessment {
     condition(
       "dangerous_dog_limit",
       "맹견 동반 제한 확인",
-      "맹견 동반 시 관련 규정을 확인해 주세요.",
+      "맹견 동반은 제한되므로 대상 여부를 확인해 주세요.",
     ),
     condition(
       "sanitation_requirement",
@@ -107,9 +107,9 @@ function petProfile(
 }
 
 describe("canonical pet-condition eligibility", () => {
-  it("returns identical Songdo analysis to selected and automatic policies", () => {
+  it("returns identical synthetic restricted-place analysis to selected and automatic policies", () => {
     const analysis = evaluateCanonicalPetConditions({
-      assessment: songdoAssessment(),
+      assessment: restrictedAssessment(),
       petProfile: petProfile(),
       sizeCompatibility: "compatible",
     });
@@ -130,7 +130,7 @@ describe("canonical pet-condition eligibility", () => {
       automatic.conditionEligibility,
     );
     expect(analysis.state).toBe("eligible_with_confirmation");
-    expect(analysis.satisfiedConditions.map((item) => item.code)).toEqual(
+    expect(analysis.guidanceConditions!.map((item) => item.code)).toEqual(
       expect.arrayContaining(["leash_required", "muzzle_required"]),
     );
     expect(
@@ -138,14 +138,13 @@ describe("canonical pet-condition eligibility", () => {
     ).toEqual(
       expect.arrayContaining([
         "dangerous_dog_restriction",
-        "waste_handling_required",
       ]),
     );
   });
 
-  it("excludes Songdo from strict automatic results", () => {
+  it("excludes synthetic restricted-place from strict automatic results", () => {
     const analysis = evaluateCanonicalPetConditions({
-      assessment: songdoAssessment(),
+      assessment: restrictedAssessment(),
       petProfile: petProfile(),
       sizeCompatibility: "compatible",
     });
@@ -163,9 +162,9 @@ describe("canonical pet-condition eligibility", () => {
     });
   });
 
-  it("allows Songdo only as confirmation_required after automatic opt-in", () => {
+  it("allows synthetic restricted-place only as confirmation_required after automatic opt-in", () => {
     const analysis = evaluateCanonicalPetConditions({
-      assessment: songdoAssessment(),
+      assessment: restrictedAssessment(),
       petProfile: petProfile(),
       sizeCompatibility: "compatible",
     });
@@ -203,17 +202,17 @@ describe("canonical pet-condition eligibility", () => {
     ).toMatchObject({ decision: "allow", routeStatus: "ready" });
   });
 
-  it("rejects a Songdo profile that explicitly conflicts with a condition", () => {
+  it("rejects a synthetic restricted-place profile that explicitly conflicts with a condition", () => {
     const analysis = evaluateCanonicalPetConditions({
-      assessment: songdoAssessment(),
-      petProfile: petProfile({ hasMuzzle: false }),
+      assessment: restrictedAssessment(),
+      petProfile: petProfile({ hasLeash: false }),
       sizeCompatibility: "compatible",
     });
 
     expect(analysis).toMatchObject({ state: "ineligible" });
     expect(analysis.conflictingConditions).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ code: "muzzle_required" }),
+        expect.objectContaining({ code: "leash_required" }),
       ]),
     );
     expect(
@@ -226,9 +225,9 @@ describe("canonical pet-condition eligibility", () => {
     ).toMatchObject({ decision: "reject" });
   });
 
-  it("preserves a non-conflicting selected Songdo place until acknowledgement", () => {
+  it("preserves a non-conflicting selected synthetic restricted-place place until acknowledgement", () => {
     const analysis = evaluateCanonicalPetConditions({
-      assessment: songdoAssessment(),
+      assessment: restrictedAssessment(),
       petProfile: petProfile(),
       sizeCompatibility: "compatible",
     });
@@ -255,7 +254,7 @@ describe("canonical pet-condition eligibility", () => {
   });
 
   it("keeps unknown evidence distinct and out of automatic routes", () => {
-    const assessment = songdoAssessment();
+    const assessment = restrictedAssessment();
     assessment.verdict = "unknown";
     assessment.evaluationState = "insufficient_evidence";
     assessment.conditions = [];
@@ -281,9 +280,9 @@ describe("canonical pet-condition eligibility", () => {
     ).toMatchObject({ decision: "reject" });
   });
 
-  it("never labels an unacknowledged Songdo option as an ordinary ready route", () => {
+  it("never labels an unacknowledged synthetic restricted-place option as an ordinary ready route", () => {
     const analysis = evaluateCanonicalPetConditions({
-      assessment: songdoAssessment(),
+      assessment: restrictedAssessment(),
       petProfile: petProfile(),
       sizeCompatibility: "compatible",
     });

@@ -15,6 +15,9 @@ export interface TravelNode {
 }
 
 export interface TravelMatrixInput {
+  signal?: AbortSignal;
+  /** Reuse the same object for shortlist replenishment; deadline is a monotonic timestamp. */
+  providerCallBudget?: { remaining: number; deadline?: number };
   departure: TravelNode;
   candidates: TravelNode[];
   travelMode: "driving";
@@ -82,6 +85,8 @@ export interface TravelMatrixResult {
 }
 
 export interface OrderedRouteValidationInput {
+  signal?: AbortSignal;
+  providerCallBudget?: { remaining: number };
   departure: TravelNode;
   orderedStops: TravelNode[];
   /** Return to departure after the final stop. Defaults to false. */

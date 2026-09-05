@@ -8,6 +8,7 @@ import type {
 } from "@/types/tour-pet-access";
 
 export interface ExtractedCondition {
+  subject?: "all" | "dangerous_dog" | "unknown";
   type: TourPetAccessConditionType;
   label: string;
   sourceText: string;
@@ -66,7 +67,8 @@ function condition(
 ): ExtractedCondition {
   return {
     type,
-    label: TOUR_PET_ACCESS_CONDITION_LABELS[type],
+    subject: /맹견|위험견/.test(sourceText) ? "dangerous_dog" : "all",
+    label: /맹견|위험견/.test(sourceText) ? sourceText : TOUR_PET_ACCESS_CONDITION_LABELS[type],
     sourceText,
     structuredValue: options.structuredValue,
     manualConfirmationRecommended: options.manualConfirmationRecommended ?? false,
@@ -100,7 +102,8 @@ function extractConditions(clause: NormalizedPolicyClause): ExtractedCondition[]
   }
 
   if (/(?:견종\s*제한|특정\s*견종|대형견\s*불가)/.test(text)) add("breed_limit");
-  if (/(?:맹견|위험견)/.test(text)) add("dangerous_dog_limit");
+  if (/(?:맹견|위험견)/.test(text) && !/입마개/.test(text)) add("dangerous_dog_limit");
+  if (/(?:맹견|위험견).{0,12}(?:동반|입장|출입).{0,5}(?:불가|금지)/.test(text)) add("dangerous_dog_limit");
 
   const petCount = text.match(/(\d+)\s*(?:마리|두)\s*(이하|미만|까지|이상)?/);
   if (petCount) {
@@ -113,9 +116,9 @@ function extractConditions(clause: NormalizedPolicyClause): ExtractedCondition[]
     });
   }
 
-  if (/목줄/.test(text)) add("leash_required");
+  if (/목줄/.test(text) && !/목줄.{0,10}(?:필요\s*없|불필요|착용하지\s*않아도)/.test(text)) add("leash_required");
   if (/(?:하네스|가슴줄)/.test(text)) add("harness_required");
-  if (/입마개/.test(text)) add("muzzle_required");
+  if (/입마개/.test(text) && !/입마개.{0,10}(?:필요\s*없|불필요|착용하지\s*않아도)/.test(text)) add("muzzle_required");
   if (/(?:이동장|케이지|캐리어|반려동물\s*가방)/.test(text)) add("carrier_required");
   if (/(?:반려동물\s*)?유모차/.test(text)) add("stroller_required");
   if (/예방\s*접종/.test(text)) add("vaccination_required");

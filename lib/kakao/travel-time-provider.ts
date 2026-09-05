@@ -45,12 +45,16 @@ const ALLOWED_AVOID = new Set([
 export interface KakaoTravelTimeClient {
   multiDestination(input: KakaoMultiDestinationInput): Promise<KakaoMultiDestinationEntry[]>;
   pairDirections(input: {
+    signal?: AbortSignal;
+    providerCallBudget?: { remaining: number };
     origin: KakaoMobilityPoint;
     destination: KakaoMobilityPoint;
     priority: "RECOMMEND" | "TIME" | "DISTANCE";
     avoid: string[];
   }): Promise<KakaoDetailedRoute>;
   waypointDirections(input: {
+    signal?: AbortSignal;
+    providerCallBudget?: { remaining: number };
     origin: KakaoMobilityPoint;
     destination: KakaoMobilityPoint;
     waypoints: KakaoMobilityPoint[];
@@ -59,6 +63,8 @@ export interface KakaoTravelTimeClient {
     includeGeometry: boolean;
   }): Promise<KakaoDetailedRoute>;
   futureDirections(input: {
+    signal?: AbortSignal;
+    providerCallBudget?: { remaining: number };
     origin: KakaoMobilityPoint;
     destination: KakaoMobilityPoint;
     waypoints: KakaoMobilityPoint[];
@@ -112,6 +118,14 @@ interface FinalRouteCacheEntry {
   result: OrderedRouteValidationResult;
 }
 
+function providerAvailabilityReason(error: unknown): string {
+  if (error instanceof KakaoMobilityProviderError) {
+    if (error.httpStatus === 429) return "kakao_rate_limited";
+    if ([401, 403].includes(error.httpStatus ?? 0)) return "kakao_authentication_failed";
+  }
+  return "route_provider_unavailable";
+}
+
 function validKoreanNode(node: TravelNode): boolean {
   return (
     node.id.trim().length > 0 &&
@@ -134,6 +148,12 @@ function normalizedAvoid(values: string[]): string[] {
 }
 
 function assertMatrixInput(input: TravelMatrixInput): void {
+  const budget = input.providerCallBudget;
+  if (budget && (!Number.isInteger(budget.remaining) || budget.remaining < 0 ||
+    budget.remaining > TRAVEL_MATRIX_V1_CONFIG.maxProviderRequestsPerMatrix ||
+    (budget.deadline !== undefined && !Number.isFinite(budget.deadline)))) {
+    throw new TravelMatrixInputError("Travel matrix request budget is invalid.");
+  }
   if (input.travelMode !== "driving" || input.priority !== "TIME") {
     throw new TravelMatrixInputError("Travel matrix mode and priority are server controlled.");
   }
@@ -430,9 +450,12 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
   }
 
   async buildMatrix(input: TravelMatrixInput): Promise<TravelMatrixResult> {
+    input.signal?.throwIfAborted();
     assertMatrixInput(input);
     const startedAt = this.monotonicNow();
-    const deadlineAt = startedAt + TRAVEL_MATRIX_V1_CONFIG.matrixDeadlineMs;
+    const providerCallBudget: NonNullable<TravelMatrixInput["providerCallBudget"]> = input.providerCallBudget ?? { remaining: TRAVEL_MATRIX_V1_CONFIG.maxProviderRequestsPerMatrix };
+    providerCallBudget.deadline ??= startedAt + TRAVEL_MATRIX_V1_CONFIG.matrixDeadlineMs;
+    const deadlineAt = providerCallBudget.deadline;
     const capturedNow = this.now();
     const fetchedAt = capturedNow.toISOString();
     const avoid = normalizedAvoid(input.avoid);
@@ -455,14 +478,25 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
       deadlineExceeded: false,
     };
     const beforeStats = this.client.stats?.() ?? null;
-    const memo = <T>(key: string, factory: () => Promise<T>) =>
-      this.mergeInFlight(key, () => {
+    // A canceled generation must not cancel another request sharing its road cache.
+    const memo = <T>(key: string, factory: () => Promise<T>) => {
+      const bounded = () => {
+        if (providerCallBudget.remaining <= 0) throw new KakaoMobilityProviderError("BUDGET_EXCEEDED", "Travel matrix request budget exhausted.");
+        const before = providerCallBudget.remaining;
+        const pending = factory();
+        // The real client reserves before fetch; injected one-call clients may leave accounting here.
+        if (providerCallBudget.remaining === before) providerCallBudget.remaining -= 1;
+        return pending;
+      };
+      return input.signal ? bounded() : this.mergeInFlight(key, () => {
         diagnostics.requestCacheHits += 1;
-      }, factory);
+      }, bounded);
+    };
     const requiredEdgeKeys = new Set(
       (input.requiredDirectedEdges ?? []).map(({ fromId, toId }) => `${fromId}>${toId}`),
     );
     const fallbackPending: PendingEdge[] = [];
+    let terminalProviderFailure: string | null = null;
 
     for (const node of nodes) {
       edges[node.id][node.id] = {
@@ -491,8 +525,10 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
       nodes,
       TRAVEL_MATRIX_V1_CONFIG.providerConcurrency,
       async (origin) => {
+        input.signal?.throwIfAborted();
         const pending: PendingEdge[] = [];
         for (const destination of nodes) {
+          input.signal?.throwIfAborted();
           if (destination.id === origin.id) continue;
           const lowerBoundMeters = haversineMeters(origin, destination);
           const key = edgeCacheKey(origin, destination, avoid, capturedNow);
@@ -573,11 +609,20 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
           index < inside.length;
           index += TRAVEL_MATRIX_V1_CONFIG.maxDestinationsPerBatch
         ) {
+          input.signal?.throwIfAborted();
           const batch = inside.slice(
             index,
             index + TRAVEL_MATRIX_V1_CONFIG.maxDestinationsPerBatch,
           );
           if (batch.length === 0 || deadlineReached()) break;
+          if (terminalProviderFailure) {
+            for (const item of batch) edges[origin.id][item.destination.id] = failedEdge(item, "provider_unavailable", [terminalProviderFailure]);
+            continue;
+          }
+          if (providerCallBudget.remaining <= 0) {
+            diagnostics.budgetExceeded = true;
+            break;
+          }
           if (
             diagnostics.multiDestinationRequests >=
             TRAVEL_MATRIX_V1_CONFIG.maxBatchRequestsPerMatrix
@@ -603,6 +648,7 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
               diagnostics.multiDestinationRequests += 1;
               diagnostics.logicalProviderCalls += 1;
               return this.client.multiDestination({
+                signal: input.signal, providerCallBudget,
                 origin: toPoint(origin),
                 destinations: batch.map((edge) => ({
                   ...toPoint(edge.destination),
@@ -645,9 +691,16 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
               }
             }
           } catch (error) {
+            input.signal?.throwIfAborted();
             diagnostics.logicalProviderFailures += 1;
             if (error instanceof KakaoMobilityProviderError && error.code === "TIMEOUT") {
               diagnostics.logicalTimeouts += 1;
+            }
+            if (providerCallBudget.remaining <= 0) diagnostics.budgetExceeded = true;
+            const reason = providerAvailabilityReason(error);
+            if (reason !== "route_provider_unavailable") {
+              terminalProviderFailure = reason;
+              for (const item of batch) edges[origin.id][item.destination.id] = failedEdge(item, "provider_unavailable", [reason]);
             }
           }
         }
@@ -675,6 +728,16 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
       scheduledFallback,
       TRAVEL_MATRIX_V1_CONFIG.providerConcurrency,
       async (item) => {
+        input.signal?.throwIfAborted();
+        if (terminalProviderFailure) {
+          edges[item.origin.id][item.destination.id] = failedEdge(item, "provider_unavailable", [terminalProviderFailure]);
+          return;
+        }
+        if (providerCallBudget.remaining <= 0) {
+          diagnostics.budgetExceeded = true;
+          edges[item.origin.id][item.destination.id] = failedEdge(item, "unresolved", ["provider_budget_exhausted"]);
+          return;
+        }
         if (deadlineReached()) {
           edges[item.origin.id][item.destination.id] = failedEdge(item, "unresolved", [
             "matrix_deadline_exceeded",
@@ -692,6 +755,7 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
             diagnostics.directionsFallbackRequests += 1;
             diagnostics.logicalProviderCalls += 1;
             return this.client.pairDirections({
+              signal: input.signal, providerCallBudget,
               origin: toPoint(item.origin),
               destination: toPoint(item.destination),
               priority: "TIME",
@@ -718,6 +782,7 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
             // Cache availability never changes provider truth.
           }
         } catch (error) {
+          input.signal?.throwIfAborted();
           diagnostics.logicalProviderFailures += 1;
           if (error instanceof KakaoMobilityProviderError && error.code === "TIMEOUT") {
             diagnostics.logicalTimeouts += 1;
@@ -725,7 +790,10 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
           const reason = error instanceof KakaoMobilityProviderError
             ? `provider_${error.code.toLowerCase()}`
             : "provider_unavailable";
-          const failed = failedEdge(item, "provider_unavailable", [reason]);
+          const availabilityReason = providerAvailabilityReason(error);
+          if (availabilityReason !== "route_provider_unavailable") terminalProviderFailure = availabilityReason;
+          if (providerCallBudget.remaining <= 0) diagnostics.budgetExceeded = true;
+          const failed = failedEdge(item, "provider_unavailable", [reason, availabilityReason]);
           edges[item.origin.id][item.destination.id] = failed;
           try {
             await this.cache.setEdge(item.key, {
@@ -740,6 +808,7 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
         }
       },
     );
+    input.signal?.throwIfAborted();
     for (const item of skippedFallback) {
       edges[item.origin.id][item.destination.id] = failedEdge(
         item,
@@ -845,6 +914,7 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
       };
     }
 
+    input.signal?.throwIfAborted();
     const capturedNow = this.now();
     let requestedTime: Date | null = null;
     const reasonCodes: string[] = [];
@@ -922,6 +992,8 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
       return result;
     }
 
+    const budgetBefore = input.providerCallBudget?.remaining;
+    if (budgetBefore !== undefined && budgetBefore <= 0) return { status: "provider_unavailable", temporalBasis: "unknown", totalDistanceMeters: null, totalDurationSeconds: null, sections: [], geometry: [], providerResultCode: null, reasonCodes: ["final_provider_budget_exhausted"], diagnostics: { providerOperation: "none", cacheHit: false, providerCalls: 0, durationMs: 0 } };
     const beforeStats = this.client.stats?.() ?? null;
     const destination = roundTrip
       ? input.departure
@@ -930,6 +1002,7 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
     try {
       const route = future
         ? await this.client.futureDirections({
+            signal: input.signal, providerCallBudget: input.providerCallBudget,
             origin: toPoint(input.departure),
             destination: toPoint(destination),
             waypoints: intermediateStops.map(toPoint),
@@ -939,6 +1012,7 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
             includeGeometry: input.includeGeometry,
           })
         : await this.client.waypointDirections({
+            signal: input.signal, providerCallBudget: input.providerCallBudget,
             origin: toPoint(input.departure),
             destination: toPoint(destination),
             waypoints: intermediateStops.map(toPoint),
@@ -948,6 +1022,7 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
           });
       const afterStats = this.client.stats?.() ?? null;
       const providerCalls = clientDelta(beforeStats, afterStats)?.providerCalls ?? 1;
+      if (input.providerCallBudget && input.providerCallBudget.remaining === budgetBefore) input.providerCallBudget.remaining -= providerCalls;
       const expectedSectionCount = input.orderedStops.length + (roundTrip ? 1 : 0);
       if (route.sections.length !== expectedSectionCount) {
         return {
@@ -1003,8 +1078,14 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
       });
       return result;
     } catch (error) {
+      input.signal?.throwIfAborted();
       const afterStats = this.client.stats?.() ?? null;
       const providerCalls = clientDelta(beforeStats, afterStats)?.providerCalls ?? 1;
+      if (input.providerCallBudget && input.providerCallBudget.remaining === budgetBefore) input.providerCallBudget.remaining -= providerCalls;
+      if (future && error instanceof KakaoMobilityProviderError && error.code === "UNSUPPORTED_FUTURE" && (!input.providerCallBudget || input.providerCallBudget.remaining > 0)) {
+        const fallback = await this.validateOrderedRoute({ ...input, requestedDepartureAt: null });
+        return { ...fallback, reasonCodes: [...fallback.reasonCodes, "future_prediction_unsupported_current_road_estimate_used"], diagnostics: { ...fallback.diagnostics, providerCalls: providerCalls + fallback.diagnostics.providerCalls } };
+      }
       const malformed =
         error instanceof KakaoMobilityProviderError && error.code === "INVALID_RESPONSE";
       return {
@@ -1017,7 +1098,7 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
         providerResultCode: null,
         reasonCodes: [
           ...reasonCodes,
-          malformed ? "malformed_provider_route" : "route_provider_unavailable",
+          malformed ? "malformed_provider_route" : providerAvailabilityReason(error),
         ],
         diagnostics: {
           providerOperation,

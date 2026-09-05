@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { brotliCompressSync, gzipSync } from "node:zlib";
 import { expect, test, type Page } from "@playwright/test";
+import { chooseConfirmedDeparture, continueToTrip } from "./planner-test-helpers";
 import { JEJU_PUBLIC_MAP_UI_FIXTURE } from "@/fixtures/jeju-public-map-ui";
 import { SEOUL_PUBLIC_MAP_UI_FIXTURE } from "../fixtures/seoul-public-map-ui";
 import {
@@ -593,7 +594,7 @@ test("shows 맞춤 일정 progress only inside the active recommendation view", 
   await expect(page.getByRole("navigation", { name: "여행 만들기 단계" })).toHaveCount(0);
 
   await page.goto("/results?tab=recommendations&region=busan");
-  await expect(page.getByRole("tab", { name: "맞춤 일정" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("navigation", { name: "장소 및 추천 보기" }).getByRole("link", { name: "맞춤 일정", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("navigation", { name: "여행 만들기 단계" })).toBeVisible();
 });
 
@@ -605,7 +606,7 @@ async function openExplorerFilters(page: Page) {
   return dropdown;
 }
 
-test("separates mode, scope, result tools, and source controls while keeping map search centered", async ({ page }, testInfo) => {
+test("separates mode, scope, result tools, and source controls while keeping map search centered", async ({ page }) => {
   await page.goto("/results?tab=catalog&region=busan&page=1");
   await expect(page.locator("[data-marker-registry-size]")).toHaveAttribute("data-marker-registry-size", "26");
 
@@ -617,7 +618,7 @@ test("separates mode, scope, result tools, and source controls while keeping map
   await expect(page.getByRole("group", { name: "결과 도구" })).toBeVisible();
   await expect(page.getByRole("group", { name: "장소 출처 범례" })).toBeVisible();
   await expect(page.getByRole("button", { name: "필터", exact: true })).toHaveCount(1);
-  if (testInfo.project.name === "mobile-chrome") {
+  if ((page.viewportSize()?.width ?? 1440) <= 1024) {
     await page.getByRole("group", { name: "지도 또는 목록 보기" })
       .getByRole("button", { name: "지도", exact: true }).click();
   }
@@ -639,8 +640,8 @@ test("separates mode, scope, result tools, and source controls while keeping map
   expect(Math.abs(researchCenter - mapCenter)).toBeLessThanOrEqual(3);
 });
 
-test("synchronizes the selected-place tray with list and map selection", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === "mobile-chrome", "Desktop tray synchronization is verified once; mobile layout has separate responsive coverage.");
+test("synchronizes the selected-place tray with list and map selection", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1440) <= 1024, "Desktop tray synchronization requires the two-pane layout; mobile layout has separate responsive coverage.");
   await page.goto("/results?tab=catalog&region=busan&mode=select&page=1");
 
   const card = page.locator('[id^="place-card-"]').first();
@@ -669,8 +670,8 @@ test("synchronizes the selected-place tray with list and map selection", async (
   await expect(tray).not.toContainText(placeName);
 });
 
-test("keeps the mobile selected-place CTA reachable without covering the map", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-chrome", "Mobile tray geometry is verified in the mobile project only.");
+test("keeps the mobile selected-place CTA reachable without covering the map", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1440) > 1024, "Mobile tray geometry requires the list/map layout.");
   await page.goto("/results?tab=catalog&region=busan&mode=select&page=1");
 
   const card = page.locator('[id^="place-card-"]').first();
@@ -689,8 +690,8 @@ test("keeps the mobile selected-place CTA reachable without covering the map", a
   expect((mapBox?.y ?? 0) + (mapBox?.height ?? 0)).toBeLessThanOrEqual((barBox?.y ?? 0) + 1);
 });
 
-test("keeps one source marker per place across pagination, selection, and viewport commit", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === "mobile-chrome", "Desktop registry flow; responsive behavior has a dedicated cross-viewport test.");
+test("keeps one source marker per place across pagination, selection, and viewport commit", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1440) <= 1024, "Desktop registry flow requires the two-pane layout; responsive behavior has a dedicated cross-viewport test.");
   const startedAt = Date.now();
   const catalogRequests: string[] = [];
   const snapshotRequests: string[] = [];
@@ -852,10 +853,10 @@ test("searches the loaded catalog across list and map without changing the URL c
   await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
 });
 
-test("offers explicit first and last page controls without redundant scope copy or unknown badges", async ({ page }) => {
+test("offers explicit first and last page controls with truthful compact access labels", async ({ page }) => {
   await page.goto("/results?tab=catalog&region=busan&page=1");
   await expect(page.getByText("공식 관광 장소와 공개된 지역 후보를 함께 비교합니다.", { exact: true })).toHaveCount(0);
-  await expect(page.locator(".catalog-result-card__badges").getByText("동반 정보 확인 필요", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".catalog-result-card__badges").getByText("동반 여부 미확인 · 방문 전 확인", { exact: true }).first()).toBeVisible();
 
   const pagination = page.getByRole("navigation", { name: "장소 목록 페이지" });
   await expect(pagination.getByRole("button", { name: "첫 페이지" })).toBeDisabled();
@@ -864,6 +865,34 @@ test("offers explicit first and last page controls without redundant scope copy 
   await expect(pagination.getByRole("button", { name: "마지막 페이지" })).toBeDisabled();
   await pagination.getByRole("button", { name: "첫 페이지" }).click();
   await expect(pagination.locator('[aria-current="page"]')).toHaveText("1");
+});
+
+test("full catalog selection preserves known-negative and unknown places through refresh", async ({ page }) => {
+  await page.route("**/api/map/places/snapshot?**", async (route) => {
+    const snapshot = JSON.parse(snapshotBody("busan"));
+    snapshot.data.items[0].petAccessVerdict = "not_allowed";
+    snapshot.data.items[0].publicLabel = "반려동물 출입 불가";
+    snapshot.data.items[0].petConditions = "반려동물 출입 불가";
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(snapshot) });
+  });
+  await page.goto("/results?tab=catalog&region=busan&mode=select");
+  const negativeCard = page.locator(`#place-card-tour-${tourPlaces[0].contentId}`);
+  await expect(negativeCard.getByText("원문상 동반 불가", { exact: true })).toBeVisible();
+  await negativeCard.getByRole("button", { name: "일정에 담기", exact: true }).click();
+  await page.getByRole("searchbox", { name: "장소 검색" }).fill("광안 여행 후보");
+  const unknownCard = page.locator("#place-card-kakao-9101");
+  await expect(unknownCard.getByText("동반 여부 미확인 · 방문 전 확인", { exact: true })).toBeVisible();
+  await unknownCard.getByRole("button", { name: "일정에 담기", exact: true }).click();
+  await page.reload();
+  const draft = await page.evaluate(() => JSON.parse(localStorage.getItem("weekendog:plan-draft")!).data);
+  expect(draft.selectedPlaces.map((item: { evidence: { verdict: string } }) => item.evidence.verdict)).toEqual(["not_allowed", "unknown"]);
+  expect(draft.acknowledgedVerificationRequiredPlaceIds).toEqual([]);
+  await page.goto("/planner/pet?mode=selected");
+  await continueToTrip(page);
+  await chooseConfirmedDeparture(page);
+  await page.getByRole("button", { name: "원하는 하루 입력" }).click();
+  await expect(page.getByText("원문상 동반 불가 · 사용자가 선택한 장소", { exact: true })).toBeVisible();
+  await expect(page.getByText("동반 여부 미확인 · 방문 전 확인 · 사용자가 선택한 장소", { exact: true })).toBeVisible();
 });
 
 test("removes verification-required candidate inclusion controls from selection UI", async ({ page }) => {
@@ -937,8 +966,8 @@ test("aborts a stale region snapshot and never lets its late response replace Je
   await expect(page.locator("[data-marker-registry-size]")).toHaveAttribute("data-marker-registry-size", "54");
 });
 
-test("hides redundant pet-access caveats from Kakao candidate cards", async ({ page }, testInfo) => {
-  await page.goto("/results?tab=catalog&region=busan&categories=cafe&layers=kakao&page=1");
+test("keeps an unknown Kakao card selectable with its factual access notice", async ({ page }, testInfo) => {
+  await page.goto("/results?tab=catalog&region=busan&categories=cafe&layers=kakao&page=1&mode=select");
   if (testInfo.project.name === "mobile-chrome") {
     await page.getByRole("button", { name: "목록", exact: true }).click();
   }
@@ -949,10 +978,12 @@ test("hides redundant pet-access caveats from Kakao candidate cards", async ({ p
   await expect(kakaoCandidateCard).toContainText("카카오맵");
   await expect(kakaoCandidateCard.getByText("카카오 검색 후보", { exact: true })).toHaveCount(0);
   await expect(kakaoCandidateCard.getByText("동반 여부 확인 필요", { exact: true })).toHaveCount(0);
+  await expect(kakaoCandidateCard.getByText("동반 여부 미확인 · 방문 전 확인", { exact: true })).toBeVisible();
+  await expect(kakaoCandidateCard.getByRole("button", { name: /일정에 담기/u })).toBeEnabled();
   await expect(kakaoCandidateCard.getByText(
     "카카오 검색 후보입니다. 방문 전 반려동물 동반 가능 여부를 확인해 주세요.",
     { exact: true },
-  )).toHaveCount(0);
+  )).toBeVisible();
 });
 
 test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan", async ({ page }, testInfo) => {
@@ -995,7 +1026,7 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
   await expect(page.getByRole("button", { name: /^동물병원/u })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^펫샵·용품점/u })).toHaveCount(0);
   await expect(page.locator(".catalog-result-card").getByText("한국관광공사", { exact: true })).toHaveCount(12);
-  await expect(page.locator(".catalog-result-card").getByText("동반 조건 확인 필요", { exact: true })).toHaveCount(12);
+  await expect(page.locator(".catalog-result-card").getByText("조건부 동반 · 이용 조건 확인", { exact: true })).toHaveCount(12);
   await expect(page.getByText("반려동물 동반 가능", { exact: true })).toHaveCount(0);
   await expect(page.locator('.catalog-result-card a[href^="tel:"]')).toHaveCount(0);
   await expect(page.locator('.catalog-result-card [data-image-kind="provider_photo"]')).toHaveCount(12);
@@ -1765,11 +1796,62 @@ test("keeps Jeju error, retry, and empty states accessible in mobile list mode",
 
 test("uses list-first map/list modes without horizontal overflow before the result pane becomes unreadable", async ({ page }) => {
   await page.goto("/results?tab=catalog&region=busan");
-  for (const viewport of [{ width: 1_024, height: 900 }, { width: 948, height: 1_660 }, { width: 768, height: 1024 }, { width: 390, height: 844 }, { width: 320, height: 720 }]) {
+  for (const viewport of [{ width: 1_024, height: 900 }, { width: 948, height: 1_660 }, { width: 768, height: 1024 }, { width: 641, height: 1024 }, { width: 640, height: 1024 }, { width: 390, height: 844 }, { width: 320, height: 720 }]) {
     await page.setViewportSize(viewport);
+    const toolbarControls = await page.locator('.full-map-explorer__toolbar').evaluate(row =>
+      [...row.querySelectorAll('.explorer-tools-row input, .explorer-tools-row select, .explorer-tools-row button, .explorer-scope-row input, .explorer-scope-row button')].map(control => {
+        const box = control.getBoundingClientRect();
+        return { label: control.getAttribute('aria-label') ?? control.textContent?.trim(), left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height };
+      }).filter(control => control.width > 0 && control.height > 0));
+    if ([640, 641, 768, 1024, 390].includes(viewport.width)) {
+      await page.screenshot({ path: test.info().outputPath(`toolbar-before-scroll-${viewport.width}.png`) });
+    }
+    for (const control of toolbarControls) {
+      expect(control.left, `${control.label} must be reachable without horizontal scrolling`).toBeGreaterThanOrEqual(0);
+      expect(control.right, `${control.label} must fit the viewport`).toBeLessThanOrEqual(viewport.width);
+    }
+    for (let first = 0; first < toolbarControls.length; first += 1) {
+      for (let second = first + 1; second < toolbarControls.length; second += 1) {
+        const a = toolbarControls[first], b = toolbarControls[second];
+        const overlap = Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 &&
+          Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
+        expect(overlap, `${a.label} and ${b.label} must not cover each other`).toBe(false);
+      }
+    }
     await expect(page.getByRole("button", { name: "목록", exact: true })).toHaveAttribute("aria-pressed", "true");
+    const selectedToggleContrast = await page.getByRole("button", { name: "목록", exact: true }).evaluate((button) => {
+      const channels = (color: string) => color.match(/[\d.]+/gu)?.map(Number) ?? [];
+      const foreground = getComputedStyle(button).color;
+      let background = "rgb(255, 255, 255)";
+      for (let node: Element | null = button; node; node = node.parentElement) {
+        const candidate = getComputedStyle(node).backgroundColor;
+        if ((channels(candidate)[3] ?? 1) === 1) { background = candidate; break; }
+      }
+      const luminance = (color: string) => channels(color).slice(0, 3).map(value => {
+        const channel = value / 255;
+        return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+      }).reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
+      const values = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+      return { foreground, background, ratio: (values[0] + 0.05) / (values[1] + 0.05) };
+    });
+    console.log(`EXPLORER_SELECTED_TOGGLE_CONTRAST ${JSON.stringify({ viewport, ...selectedToggleContrast })}`);
+    expect(selectedToggleContrast.ratio).toBeGreaterThanOrEqual(4.5);
     await expect(page.locator(".full-map-explorer__sidebar")).toBeVisible();
     await expect(page.locator(".full-map-explorer__map")).not.toBeVisible();
+    const mapToggle = page.getByRole("button", { name: "지도", exact: true });
+    await mapToggle.scrollIntoViewIfNeeded();
+    const hitTest = await mapToggle.evaluate((button) => {
+      const rect = button.getBoundingClientRect();
+      const point = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+      const hit = document.elementFromPoint(point.x, point.y);
+      const rows = [...document.querySelectorAll('.explorer-toolbar-row, .full-map-explorer__mobile-switch')].map(node => {
+        const box = node.getBoundingClientRect(); const style = getComputedStyle(node);
+        return { className: node.className, x: box.x, y: box.y, width: box.width, height: box.height, display: style.display, columns: style.gridTemplateColumns, rows: style.gridTemplateRows };
+      });
+      return { reachable: hit === button || button.contains(hit), point, hit: hit?.outerHTML.slice(0, 240), rows };
+    });
+    if (!hitTest.reachable) console.log(`EXPLORER_MAP_TOGGLE_HIT_TEST ${JSON.stringify({ viewport, ...hitTest })}`);
+    expect(hitTest.reachable).toBe(true);
     await page.getByRole("button", { name: "지도", exact: true }).click();
     await expect(page.locator(".full-map-explorer__map")).toBeVisible();
     await page.getByRole("button", { name: "목록", exact: true }).click();
@@ -1785,8 +1867,8 @@ test("uses list-first map/list modes without horizontal overflow before the resu
   }
 });
 
-test("keeps deterministic explorer interactions bounded and the live registry stable", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === "mobile-chrome", "Desktop performance flow; mobile mode is verified separately.");
+test("keeps deterministic explorer interactions bounded and the live registry stable", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1440) <= 1024, "Desktop performance flow requires the two-pane layout; mobile mode is verified separately.");
   await page.goto("/results?tab=catalog&region=busan");
   await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
   const mapRoot = page.locator("[data-marker-registry-size]");
@@ -1862,8 +1944,8 @@ test("keeps deterministic explorer interactions bounded and the live registry st
   expect(zoomResponseMs).toBeLessThan(1_000);
 });
 
-test("keeps 1,824 markers complete while the sidebar stays paged by 12", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === "mobile-chrome", "Large marker performance is measured once in desktop Chromium.");
+test("keeps 1,824 markers complete while the sidebar stays paged by 12", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1440) <= 1024, "Large marker performance requires the desktop two-pane layout.");
   test.setTimeout(30_000);
   const largeCatalog = Array.from({ length: 1_824 }, (_, index) => ({
     ...tourPlaces[index % tourPlaces.length],

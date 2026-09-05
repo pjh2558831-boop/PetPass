@@ -14,6 +14,7 @@ export type EnvironmentPreferenceV2 =
   | "outdoor_preferred";
 
 export interface PersonalizationCandidateV2 {
+  planningPolicy?: "full_public_catalog_v1";
   canonicalId: string;
   category: UsefulTourCategory;
   eligibilityTier: "verified" | "conditional" | "unverified";
@@ -84,6 +85,7 @@ function petProfileFit(
   candidate: PersonalizationCandidateV2,
   context: PersonalizationContextV2,
 ): number {
+  if (candidate.planningPolicy === "full_public_catalog_v1") return activityFit(candidate, context);
   const tierFit = PERSONALIZATION_V2_CONFIG.eligibilityTier[candidate.eligibilityTier];
   const multiPetEvidenceFactor = context.petCount <= 1 || candidate.eligibilityTier === "verified"
     ? 1
@@ -148,11 +150,13 @@ function environmentFit(
 
 function weightedTotal(
   components: PersonalizationScoreV2["components"],
+  fullCatalog = false,
 ): number {
   return Math.round(
     Object.entries(PERSONALIZATION_V2_CONFIG.candidateWeights).reduce(
       (sum, [key, weight]) =>
-        sum + components[key as keyof typeof components] * weight,
+        sum + components[key as keyof typeof components] *
+          (fullCatalog && (key === "informationTrust" || key === "scheduleFit") ? 0 : weight),
       0,
     ) * PERSONALIZATION_V2_CONFIG.scale,
   );
@@ -162,6 +166,7 @@ export function scoreCandidatePersonalizationV2(
   candidate: PersonalizationCandidateV2,
   context: PersonalizationContextV2,
 ): PersonalizationScoreV2 {
+  const fullCatalog = candidate.planningPolicy === "full_public_catalog_v1";
   const history = context.history ?? analyzeRecommendationHistoryV2({
     recentRouteSignatures: context.recentRouteSignatures ?? [],
     recentlySelectedCandidateIds: context.recentlySelectedCandidateIds,
@@ -230,8 +235,7 @@ export function scoreCandidatePersonalizationV2(
       components.petProfileCompatibility * 0.3 +
       components.travelEfficiency * 0.2 +
       components.walkingTolerance * 0.17 +
-      components.informationTrust * 0.15 +
-      components.scheduleFit * 0.1 +
+      (fullCatalog ? 0 : components.informationTrust * 0.15 + components.scheduleFit * 0.1) +
       components.environmentPreference * 0.08
     ),
   );
@@ -243,25 +247,24 @@ export function scoreCandidatePersonalizationV2(
       components.crowdPreference * 0.1 +
       components.environmentPreference * 0.1 +
       components.novelty * 0.05 +
-      components.informationTrust * 0.05
+      (fullCatalog ? 0 : components.informationTrust * 0.05)
     ),
   );
   const efficient = Math.round(
     1_000 * (
       components.travelEfficiency * 0.5 +
       components.originAccessibility * 0.25 +
-      components.scheduleFit * 0.15 +
-      components.informationTrust * 0.1
+      (fullCatalog ? 0 : components.scheduleFit * 0.15 + components.informationTrust * 0.1)
     ),
   );
   return {
     version: PERSONALIZATION_V2_CONFIG.version,
-    total: Math.max(0, weightedTotal(components) + noveltyAdjustment),
+    total: Math.max(fullCatalog ? 1 : 0, weightedTotal(components, fullCatalog) + noveltyAdjustment),
     components,
     styleUtilities: {
-      comfort: Math.max(0, comfort + noveltyAdjustment),
-      preference: Math.max(0, preference + noveltyAdjustment),
-      efficient: Math.max(0, efficient + noveltyAdjustment),
+      comfort: Math.max(fullCatalog ? 1 : 0, comfort + noveltyAdjustment),
+      preference: Math.max(fullCatalog ? 1 : 0, preference + noveltyAdjustment),
+      efficient: Math.max(fullCatalog ? 1 : 0, efficient + noveltyAdjustment),
     },
     noveltyAdjustment,
     explanationCodes: [...new Set(explanationCodes)].sort(),

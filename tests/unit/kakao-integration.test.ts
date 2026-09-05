@@ -148,6 +148,7 @@ describe("Kakao integration boundaries", () => {
   });
 
   it("initializes one catalog clusterer, deduplicates markers, and cleans up", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 800, height: 600 } as DOMRect);
     type Listener = (...args: unknown[]) => void;
     const listeners = new WeakMap<object, Map<string, Set<Listener>>>();
     const addListener = vi.fn(
@@ -293,6 +294,8 @@ describe("Kakao integration boundaries", () => {
 
     const onLocationSelect = vi.fn();
     const container = document.createElement("div");
+    let visible = false;
+    vi.spyOn(container, "getBoundingClientRect").mockImplementation(() => ({ width: visible ? 800 : 0, height: visible ? 600 : 0 }) as DOMRect);
     const controller = createKakaoMapController(container, {
       defaultCenter: BUSAN_REGION_CONFIG.defaultMapCenter,
       locations: [
@@ -350,6 +353,24 @@ describe("Kakao integration boundaries", () => {
     });
 
     expect(clusterers).toHaveLength(1);
+    expect(mapInstances[0].setBounds).not.toHaveBeenCalled();
+    controller.selectLocation("route-one");
+    controller.focusLocation("route-one");
+    expect(mapInstances[0].panTo).not.toHaveBeenCalled();
+    visible = true;
+    // React can request focus before ResizeObserver has updated the SDK size.
+    controller.focusLocation("route-one");
+    expect(mapInstances[0].relayout).toHaveBeenCalledTimes(1);
+    expect(mapInstances[0].relayout.mock.invocationCallOrder[0]).toBeLessThan(mapInstances[0].panTo.mock.invocationCallOrder[0]);
+    controller.relayout();
+    expect(mapInstances[0].panTo).toHaveBeenCalledTimes(1);
+    controller.relayout();
+    controller.selectLocation("route-one");
+    expect(mapInstances[0].panTo).toHaveBeenCalledTimes(1);
+    controller.focusLocation("route-one");
+    expect(mapInstances[0].panTo).toHaveBeenCalledTimes(2);
+    controller.selectLocation(null);
+    controller.fitBounds();
     expect(clusterers[0].addMarkers).toHaveBeenCalledTimes(1);
     expect(clusterers[0].markers).toHaveLength(2);
     expect(container.dataset.catalogMarkerCount).toBe("2");

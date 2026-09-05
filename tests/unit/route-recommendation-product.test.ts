@@ -99,6 +99,7 @@ const ROUTE: ProductRouteV1 = {
       ],
     },
   ],
+  segments: [{ fromPlaceId: "departure", toPlaceId: "1001", travelSeconds: 1800, distanceMeters: 12340, temporalBasis: "current_traffic" }],
   geometry: [
     { latitude: 35.115, longitude: 129.04 },
     { latitude: 35.16, longitude: 129.16 },
@@ -184,6 +185,7 @@ describe("Stage 5 recommendation product contract", () => {
       },
     };
     expect(createRouteRecommendationRequest(profile, preferences)).toEqual({
+      requestVersion: 2,
       departure: {
         label: "지도 출발지",
         latitude: 35.1,
@@ -206,8 +208,6 @@ describe("Stage 5 recommendation product contract", () => {
         name: "보리",
         species: "DOG",
         size: "SMALL",
-        availableEquipment: { carrier: true, leash: true, muzzle: false },
-        acceptsOutdoorOnlyPlaces: false,
       },
       selectedPlaceIds: [],
       autoFill: true,
@@ -275,11 +275,11 @@ describe("Stage 5 recommendation product contract", () => {
     expect(routeRecommendationRequestSchema.safeParse({
       ...hybrid,
       autoFill: false,
-    }).success).toBe(false);
+    }).success).toBe(true);
     expect(routeRecommendationRequestSchema.safeParse({
       ...hybrid,
       selectedPlaceIds: [],
-    }).success).toBe(false);
+    }).success).toBe(true);
   });
 
   it.each([
@@ -494,7 +494,7 @@ describe("Stage 5 recommendation product contract", () => {
     expect(serialized).not.toContain("provider.invalid");
   });
 
-  it("accepts only strict Tourism stops and rejects provider payload leakage", () => {
+  it("accepts the typed product response and rejects unknown provider names and payload leakage", () => {
     expect(routeRecommendationReadyResponseSchema.safeParse(READY).success).toBe(true);
     expect(routeRecommendationResponseSchema.safeParse({ ...READY, route: { ...ROUTE, stops: [{ ...ROUTE.stops[0]!, source: "kakao" }] } }).success).toBe(false);
     expect(routeRecommendationResponseSchema.safeParse({ ...READY, rawProviderPayload: { serviceKey: "SECRET" } }).success).toBe(false);
@@ -532,11 +532,113 @@ describe("Stage 5 recommendation product contract", () => {
     const serialized = [...storage.values.values()].join("");
     expect(serialized).not.toContain(READY.editSessionId);
     expect(serialized).not.toContain("serviceKey");
-    expect(serialized).not.toContain("geometry");
-    expect(serialized).not.toContain("35.115");
+    expect(serialized).toContain("geometry");
+    expect(serialized).toContain("35.115");
   });
 
-  it("reads and parses one saved snapshot only once for the same storage hydration", () => {
+  it.each([
+    ["stop count", { routeSummary: { ...ROUTE.routeSummary, stopCount: 2 } }],
+    ["segment distance", { segments: [{ ...ROUTE.segments![0]!, distanceMeters: 1 }] }],
+    ["elapsed time", { routeSummary: { ...ROUTE.routeSummary, totalElapsedSeconds: 1 } }],
+  ])("rejects a route with inconsistent %s without replacing prior bytes", (_label, patch) => {
+    const storage = new MemoryStorage();
+    storage.setItem("petpass:saved-route-recommendation", "prior");
+    const malformed = { ...ROUTE, ...patch } as ProductRouteV1;
+    expect(saveRouteRecommendation(READY, malformed, storage)).toBe(false);
+    expect(storage.values.get("petpass:saved-route-recommendation")).toBe("prior");
+  });
+
+  it("keeps the legacy unresolved-condition save rule for old routes", () => {
+    const storage = new MemoryStorage();
+    const conditionEligibility = {
+      version: "canonical-pet-condition-v2" as const,
+      state: "eligible_with_confirmation" as const,
+      conditionCodes: ["vaccination_required" as const], satisfiedConditions: [], guidanceConditions: [], conflictingConditions: [],
+      confirmationRequiredConditions: [{ code: "vaccination_required" as const, sourceType: "vaccination_required" as const, label: "예방접종 증명", sourceText: "예방접종 증명서 지참", scope: "whole_place" as const, evidenceIds: ["e1"] }],
+      unsupportedConditions: [], evidenceSources: [], warnings: [], reasonCodes: ["manual_confirmation_required" as const],
+    };
+    expect(saveRouteRecommendation(READY, { ...ROUTE, stops: [{ ...ROUTE.stops[0]!, petConditionEligibility: conditionEligibility }] }, storage)).toBe(false);
+    expect(storage.values.size).toBe(0);
+  });
+
+  it.each(["unknown", "conditional", "not_allowed"] as const)("saves a road-valid full-public-catalog %s stop as an honest draft", (petAssessment) => {
+    const storage = new MemoryStorage();
+    const originalText = petAssessment === "not_allowed" ? "동반 불가 · 휴업 안내" : petAssessment === "conditional" ? "접종 증빙 필수 · 휴업 안내" : "휴업 안내 · 반려동물 정책 미기재";
+    const conditionState = petAssessment === "not_allowed" ? "ineligible" : petAssessment === "conditional" ? "eligible_with_confirmation" : "insufficient_evidence";
+    const route: ProductRouteV1 = {
+      ...ROUTE,
+      planningPolicy: "full_public_catalog_v1",
+      venueCompatibility: "unchecked",
+      stops: [{
+        ...ROUTE.stops[0]!,
+        placeId: "kakao:1001", source: "kakao_catalog", sourceLabel: "카카오 검색 후보",
+        petAssessment,
+        evidenceStatus: petAssessment === "conditional" ? "conditional" : "unverified",
+        conditionAcknowledged: false,
+        operatingStatus: "reported_closed",
+        licensingStatus: "confirmed_closed",
+        petConditionEligibility: { version: "canonical-pet-condition-v2", state: conditionState, conditionCodes: [], satisfiedConditions: [], guidanceConditions: [], conflictingConditions: [], confirmationRequiredConditions: [], unsupportedConditions: [], evidenceSources: [], warnings: [], reasonCodes: [] },
+        catalogEvidence: [{ provider: "kakao", providerPlaceId: "1001", petAssessment, originalText, retrievedAt: "2026-08-15T00:00:00Z", publicLabel: "카탈로그 이용 안내" }],
+        evidence: [{ field: "catalogPolicy", label: "보존 원문", originalText }],
+      }],
+      segments: ROUTE.segments!.map(edge => ({ ...edge, toPlaceId: "kakao:1001" })),
+    };
+    expect(saveRouteRecommendation(READY, route, storage)).toBe(true);
+    expect(loadSavedRouteRecommendation(storage)).toMatchObject({
+      saveState: "draft",
+      route: {
+        planningPolicy: "full_public_catalog_v1", venueCompatibility: "unchecked",
+        stops: [{ petAssessment, conditionAcknowledged: false, petConditionEligibility: { state: conditionState }, operatingStatus: "reported_closed", licensingStatus: "confirmed_closed", evidence: [{ originalText }], catalogEvidence: [{ provider: "kakao", providerPlaceId: "1001", petAssessment, originalText, retrievedAt: "2026-08-15T00:00:00Z" }] }],
+      },
+    });
+  });
+
+  it.each(["unknown", "transportation"] as const)("saves and restores a selected %s place without inventing a category preference", (category) => {
+    const route: ProductRouteV1 = {
+      ...ROUTE,
+      planningPolicy: "full_public_catalog_v1",
+      venueCompatibility: "unchecked",
+      stops: [{ ...ROUTE.stops[0]!, category, petAssessment: "unknown", evidence: [], mandatoryConditions: [] }],
+    };
+    const recommendation = { ...READY, route, requestSummary: { ...READY.requestSummary, selectedCategories: [] } };
+    const storage = new MemoryStorage();
+    expect(saveRouteRecommendation(recommendation, route, storage)).toBe(true);
+    expect(loadSavedRouteRecommendation(storage)).toMatchObject({
+      saveState: "draft", requestSummary: { selectedCategories: [] },
+      route: { stops: [{ category, petAssessment: "unknown", evidence: [], mandatoryConditions: [] }] },
+    });
+  });
+
+  it("still rejects full-public-catalog drafts with missing road segments or inconsistent totals", () => {
+    const route: ProductRouteV1 = { ...ROUTE, planningPolicy: "full_public_catalog_v1", venueCompatibility: "unchecked" };
+    expect(saveRouteRecommendation(READY, { ...route, segments: [] }, new MemoryStorage())).toBe(false);
+    expect(saveRouteRecommendation(READY, { ...route, routeSummary: { ...route.routeSummary, totalDrivingSeconds: 1 } }, new MemoryStorage())).toBe(false);
+  });
+
+  it("bounds saved geometry while preserving its endpoints", () => {
+    const storage = new MemoryStorage();
+    const geometry = Array.from({ length: 2_000 }, (_, index) => ({ latitude: 35 + index / 100_000, longitude: 129 + index / 100_000 }));
+    expect(saveRouteRecommendation(READY, { ...ROUTE, geometry }, storage)).toBe(true);
+    const saved = loadSavedRouteRecommendation(storage)!.route.geometry!;
+    expect(saved.length).toBeLessThanOrEqual(512);
+    expect(saved[0]).toEqual(geometry[0]);
+    expect(saved.at(-1)).toEqual(geometry.at(-1));
+  });
+
+  it("reads the actual V1 saved-summary envelope", () => {
+    const storage = new MemoryStorage();
+    const legacy = {
+      engineVersion: READY.engineVersion, objectiveVersion: READY.objectiveVersion, solverVersion: READY.solverVersion,
+      requestSummary: READY.requestSummary,
+      route: { id: ROUTE.id, kind: ROUTE.kind, label: ROUTE.label, routeSummary: ROUTE.routeSummary, temporalBasis: ROUTE.temporalBasis,
+        stops: ROUTE.stops.map(({ placeId, sequence, title, arrivalAt, departureAt }) => ({ placeId, sequence, title, arrivalAt, departureAt })) },
+      selectedProviderContentIds: ["1001"], optimality: READY.optimality, warningCodes: [], manuallyModified: false, savedAt: "2026-08-15T00:00:00.000Z",
+    };
+    storage.setItem("petpass:saved-route-recommendation", JSON.stringify({ version: 1, data: legacy }));
+    expect(loadSavedRouteRecommendation(storage)).toMatchObject({ saveState: "legacy_summary", route: { id: ROUTE.id } });
+  });
+
+  it("reuses the parsed snapshot while checking for external storage changes", () => {
     const seed = new MemoryStorage();
     expect(saveRouteRecommendation(READY, READY.route, seed)).toBe(true);
     const storage = new MemoryStorage();
@@ -547,7 +649,7 @@ describe("Stage 5 recommendation product contract", () => {
 
     expect(loadSavedRouteRecommendation(storage)?.route.id).toBe(READY.route.id);
     expect(loadSavedRouteRecommendation(storage)?.route.id).toBe(READY.route.id);
-    expect(storage.getItemCalls).toBe(1);
+    expect(storage.getItemCalls).toBe(3);
   });
 
   it.each([
@@ -560,13 +662,13 @@ describe("Stage 5 recommendation product contract", () => {
       "schema-invalid data",
       JSON.stringify({ version: 1, data: { route: { id: "incomplete" } } }),
     ],
-  ])("clears only the saved recommendation key for %s", (_label, raw) => {
+  ])("preserves the saved bytes for %s", (_label, raw) => {
     const storage = new MemoryStorage();
     storage.setItem("petpass:saved-route-recommendation", raw);
     storage.setItem("petpass:pet-profile", "unrelated-profile");
 
     expect(loadSavedRouteRecommendation(storage)).toBeNull();
-    expect(storage.values.has("petpass:saved-route-recommendation")).toBe(false);
+    expect(storage.values.get("petpass:saved-route-recommendation")).toBe(raw);
     expect(storage.values.get("petpass:pet-profile")).toBe("unrelated-profile");
   });
 

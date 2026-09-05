@@ -388,7 +388,7 @@ describe("Tourism pet-access evidence and source states", () => {
   });
 
   it("returns the ruleset version", () => {
-    expect(assess({}).rulesetVersion).toBe("1");
+    expect(assess({}).rulesetVersion).toBe("2");
   });
 
   it("bounds evidence, condition, conflict, and verification arrays", () => {

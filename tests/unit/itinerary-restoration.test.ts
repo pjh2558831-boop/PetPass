@@ -5,6 +5,7 @@ import type { SavedRouteRecommendationSnapshotV1 } from "@/lib/storage/recommend
 import type { GeneratedItinerary } from "@/types/route-generation";
 
 const SAVED_RECOMMENDATION: SavedRouteRecommendationSnapshotV1 = {
+  saveState: "legacy_summary",
   engineVersion: "petpass-route-engine-v1",
   objectiveVersion: "route-objective-v1",
   solverVersion: "route-solver-v1",

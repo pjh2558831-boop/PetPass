@@ -324,7 +324,7 @@ describe("automatic-route eligibility V1", () => {
     });
   });
 
-  it("requires verification when a supported equipment value is unknown", () => {
+  it("keeps uncollected preparable equipment as guidance", () => {
     const candidate = input();
     candidate.assessment = assessment({
       verdict: "conditional",
@@ -333,9 +333,9 @@ describe("automatic-route eligibility V1", () => {
     candidate.petProfile.hasLeash = null;
     expect(evaluateAutomaticRouteEligibility(candidate)).toMatchObject({
       eligible: true,
-      status: "verification_required",
+      status: "eligible",
       tier: "conditional",
-      reasonCodes: ["mandatory_condition_verification_required"],
+      reasonCodes: [],
     });
   });
 
@@ -398,12 +398,12 @@ describe("automatic-route eligibility V1", () => {
     });
   });
 
-  it("never auto-satisfies manual or unsupported mandatory conditions", () => {
+  it("separates routine guidance from material reservation requirements", () => {
     const manual = input();
     manual.assessment = assessment({
       verdict: "conditional",
       conditions: [
-        condition("leash_required", { manualConfirmationRecommended: true }),
+        condition("vaccination_required", { manualConfirmationRecommended: true }),
       ],
     });
     expect(evaluateAutomaticRouteEligibility(manual).status).toBe(

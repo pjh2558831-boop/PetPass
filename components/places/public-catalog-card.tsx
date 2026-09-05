@@ -7,6 +7,7 @@ import { Disclosure } from "@/components/ui/disclosure";
 import { mapCatalogPlaceToCategory, PLACE_CATEGORY_LABELS } from "@/lib/map-places/place-categories";
 import { resolvePlaceCardImage } from "@/lib/map-places/place-card-image";
 import type { PublicCatalogPlace } from "@/types/public-catalog-place";
+import { selectedItineraryVerdictLabel } from "@/lib/storage/selected-itinerary-storage";
 
 export function PublicCatalogCard({
   place,
@@ -30,9 +31,6 @@ export function PublicCatalogCard({
   const image = resolvePlaceCardImage(place, { staticMapEnabled });
   const hasImage = image.kind !== "category_placeholder";
   const sourceLabel = place.layer === "kakao" ? "카카오맵" : place.sourceLabel;
-  const showPublicLabel = place.layer !== "kakao" &&
-    place.petAccessVerdict !== "unknown" &&
-    place.publicLabel.length > 0;
   const petConditions = place.petConditions?.trim() || null;
   return (
     <article
@@ -44,11 +42,10 @@ export function PublicCatalogCard({
       <div className="catalog-result-card__body">
         <div className="catalog-result-card__badges">
           <span className="catalog-result-card__label">{sourceLabel}</span>
-          {showPublicLabel ? <span className="catalog-result-card__label">{place.publicLabel}</span> : null}
-          {petConditions ? <span className="catalog-result-card__label">동반 조건 있음</span> : null}
+          <span className="catalog-result-card__label">{selectedItineraryVerdictLabel(place.petAccessVerdict ?? "unknown")}</span>
         </div>
         <h3>{place.name}</h3>
-        {place.warning && place.layer !== "kakao" ? (
+        {place.warning ? (
           <p className="catalog-result-card__warning">{place.warning}</p>
         ) : null}
         <p><MapPin size={13} aria-hidden="true" />{place.address}</p>

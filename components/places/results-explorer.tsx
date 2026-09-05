@@ -841,7 +841,14 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
         for (const place of places) {
           if (missingIds.includes(place.contentId)) {
             const card = normalizeTourCatalogPlace(place);
-            next.set(card.id, card);
+            const marker = pagedMarkers.find(({ id }) => id === card.id);
+            next.set(card.id, marker ? {
+              ...card,
+              petAccessVerdict: marker.petAccessVerdict ?? card.petAccessVerdict,
+              publicLabel: marker.publicLabel,
+              petConditions: marker.petConditions ?? card.petConditions,
+              verificationRequired: marker.verificationRequired ?? card.verificationRequired,
+            } : card);
           }
         }
         return next;
@@ -1030,12 +1037,15 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const resetDraftFilters = () => {
     setDraftCategories(getRegionDefaultCatalogCategories(regionConfig) as PlaceCategory[]);
   };
+  const [selectionFocusKey, setSelectionFocusKey] = useState(0);
+  const mapSectionRef = useRef<HTMLElement>(null);
   const selectPlace = (id: string | null) => {
     setSelectedId(id);
     if (!id) return;
+    setMobileMode("list");
     const index = placeIndex.get(id);
     if (index !== undefined) setPage(Math.floor(index / PUBLIC_CATALOG_PAGE_SIZE) + 1);
-    requestAnimationFrame(() => document.getElementById(`place-card-${id.replace(":", "-")}`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
+    requestAnimationFrame(() => document.getElementById(`place-card-${id.replace(":", "-")}`)?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" }));
   };
   const toggleItineraryPlace = (place: PublicCatalogPlace) => {
     const result = toggleSelection(selectedItineraryPlaceFromCatalog(place));
@@ -1097,15 +1107,15 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
             variant={itineraryMode === "hybrid" ? "selected" : "automatic"}
           />
         </div>
-        <div className="mb-6 inline-flex rounded-lg border border-[#d7e0da] bg-white p-1" role="tablist" aria-label="장소 및 추천 보기">
+        <div className="mb-6 inline-flex rounded-lg border border-[#d7e0da] bg-white p-1" role="navigation" aria-label="장소 및 추천 보기">
           {itineraryMode === "hybrid" ? (
-            <Link href={`/results?tab=catalog&region=${region}&mode=select`} role="tab" aria-selected="false" className="inline-flex min-h-11 items-center gap-2 rounded-lg px-5 text-sm font-extrabold text-[#52665b]"><Rows3 size={16} aria-hidden="true" />장소 다시 선택</Link>
+            <Link href={`/results?tab=catalog&region=${region}&mode=select`} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-5 text-sm font-extrabold text-[#52665b]"><Rows3 size={16} aria-hidden="true" />장소 다시 선택</Link>
           ) : (
-            <button id="catalog-tab" type="button" role="tab" aria-selected="false" onClick={() => setActiveTab("catalog")} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-5 text-sm font-extrabold text-[#52665b]"><Rows3 size={16} aria-hidden="true" />전체 장소</button>
+            <Link href={`/results?tab=catalog&region=${region}`} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-5 text-sm font-extrabold text-[#52665b]"><Rows3 size={16} aria-hidden="true" />전체 장소</Link>
           )}
-          <button id="recommendations-tab" type="button" role="tab" aria-selected="true" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#236148] px-5 text-sm font-extrabold text-white"><Route size={16} aria-hidden="true" />맞춤 일정</button>
+          <Link href={`/results?tab=recommendations&region=${region}`} aria-current="page" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#236148] px-5 text-sm font-extrabold text-white"><Route size={16} aria-hidden="true" />맞춤 일정</Link>
         </div>
-        <div id="recommendations-panel" role="tabpanel" aria-labelledby="recommendations-tab"><RecommendationPlanner autoGenerate={generationRequested} onAutoGenerateStart={consumeGenerationRequest} selectionMode={itineraryMode === "hybrid" ? "hybrid" : "automatic"} /></div>
+        <div id="recommendations-panel"><RecommendationPlanner autoGenerate={generationRequested} onAutoGenerateStart={consumeGenerationRequest} selectionMode={itineraryMode === "hybrid" ? "hybrid" : "automatic"} /></div>
       </div>
     );
   }
@@ -1145,7 +1155,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   ) : null;
 
   return (
-    <div className={`full-map-explorer ${itineraryMode === "selection" ? "is-itinerary-selection" : ""}`} id="catalog-panel" role="tabpanel" aria-labelledby="catalog-tab">
+    <div className={`full-map-explorer ${itineraryMode === "selection" ? "is-itinerary-selection" : ""}`} id="catalog-panel">
       <div className="full-map-explorer__toolbar">
         <div className="explorer-toolbar-row explorer-mode-row" role="group" aria-label="탐색 모드">
           <span className="explorer-toolbar-label">탐색 모드</span>
@@ -1155,10 +1165,10 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
               <span><b>장소 선택</b><small>카드에서 방문지를 담아보세요</small></span>
             </div>
           ) : (
-            <div className="explorer-mode-tabs" role="tablist" aria-label="장소 및 추천 보기">
-              <button id="catalog-tab" type="button" role="tab" aria-selected="true"><Rows3 size={16} aria-hidden="true" />장소 찾기</button>
+            <div className="explorer-mode-tabs" role="navigation" aria-label="장소 및 추천 보기">
+              <Link href={`/results?tab=catalog&region=${region}`} aria-current="page"><Rows3 size={16} aria-hidden="true" />장소 찾기</Link>
               {regionConfig.routeCapabilities.fullyAutomaticRecommendation ? (
-                <Link href="/planner/pet" role="tab" aria-selected="false"><Route size={16} aria-hidden="true" />맞춤 일정</Link>
+                <Link href="/planner/pet"><Route size={16} aria-hidden="true" />맞춤 일정</Link>
               ) : null}
             </div>
           )}
@@ -1260,11 +1270,12 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       ) : null}
 
       <div className="full-map-explorer__main" data-mobile-mode={mobileMode}>
-        <section className="full-map-explorer__map" aria-label={`${districtName} 전체 장소 지도`}>
+        <section ref={mapSectionRef} className="full-map-explorer__map" aria-label={`${districtName} 전체 장소 지도`}>
           <MapPanel
             regionId={region}
             locations={mapLocations}
             selectedLocationId={selectedId}
+            selectionFocusKey={selectionFocusKey}
             onLocationSelect={selectPlace}
             onDataUpdate={() => {
               if (mapReadyForRegion !== region) {
@@ -1354,21 +1365,17 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
                 place={place}
                 selected={selectedId === place.id}
                 onSelect={() => {
-                  selectPlace(place.id);
+                  setSelectedId(place.id);
                   setMobileMode("map");
+                  setSelectionFocusKey(value => value + 1);
+                  requestAnimationFrame(() => mapSectionRef.current?.scrollIntoView({ block: "nearest", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
                 }}
                 staticMapEnabled={staticMapEnabled}
                 itinerarySelection={itineraryMode === "selection" && regionConfig.routeCapabilities.selectedPlaceRouting ? {
                   selected: selectionSnapshot.places.some(({ id }) => id === place.id),
                   disabledReason: selectionSnapshot.places.some(({ id }) => id === place.id)
                     ? undefined
-                    : place.petAccessVerdict === "not_allowed"
-                      ? "동반 불가로 확인된 장소"
-                      : place.layer === "veterinary" || place.layer === "pet_shop"
-                        ? "편의시설은 방문 일정에서 제외"
-                        : place.category === "other"
-                          ? "장소 유형 확인 후 담을 수 있어요"
-                          : selectionSnapshot.places.length >= MAX_SELECTED_ITINERARY_PLACES
+                    : selectionSnapshot.places.length >= MAX_SELECTED_ITINERARY_PLACES
                             ? `최대 ${MAX_SELECTED_ITINERARY_PLACES}곳까지 담을 수 있어요`
                             : undefined,
                   onToggle: () => toggleItineraryPlace(place),

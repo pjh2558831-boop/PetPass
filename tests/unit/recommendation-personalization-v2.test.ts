@@ -31,6 +31,19 @@ const BASE_CONTEXT: PersonalizationContextV2 = {
 };
 
 describe("recommendation personalization V2", () => {
+  it("scores broad-catalog route fit without a provenance, pet-evidence, or detail penalty", () => {
+    const full = { ...BASE_CANDIDATE, planningPolicy: "full_public_catalog_v1" as const };
+    const enriched = scoreCandidatePersonalizationV2(full, { ...BASE_CONTEXT, petCount: 3 });
+    const listOnly = scoreCandidatePersonalizationV2({
+      ...full, eligibilityTier: "unverified", scheduleStatus: "unknown",
+      informationTrust: 0, dataCompleteness: 0,
+    }, { ...BASE_CONTEXT, petCount: 3 });
+    expect(listOnly.total).toBeGreaterThan(0);
+    expect(listOnly.total).toBe(enriched.total);
+    expect(listOnly.styleUtilities).toEqual(enriched.styleUtilities);
+    expect(listOnly.explanationCodes).toContain("pet_evidence_unverified");
+  });
+
   it("penalizes uncertainty without filtering the candidate", () => {
     const verified = scoreCandidatePersonalizationV2(BASE_CANDIDATE, BASE_CONTEXT);
     const unverified = scoreCandidatePersonalizationV2(

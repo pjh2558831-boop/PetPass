@@ -1,4 +1,5 @@
 import "server-only";
+import { assessOperatingHours } from "@/lib/itinerary/operating-hours";
 
 import { getRouteTripConstraints } from "@/lib/recommendation/optimizer/trip-constraints";
 import type {
@@ -59,7 +60,7 @@ export function appendScheduledVisit(input: {
 }
 
 export function appendScheduledVisitTiming(input: {
-  candidate: Pick<RouteOptimizationCandidate, "schedule" | "dwellDurationMinutes">;
+  candidate: Pick<RouteOptimizationCandidate, "schedule" | "dwellDurationMinutes" | "planningPolicy">;
   edge: TravelMatrixEdge;
   currentTimeMs: number;
   serviceDayStartMs: number;
@@ -69,12 +70,15 @@ export function appendScheduledVisitTiming(input: {
   unknownIncrement: number;
 } | null {
   if (!isUsableTravelEdge(input.edge)) return null;
+  const fullCatalog = input.tripRequest.planningPolicy === "full_public_catalog_v1" || input.candidate.planningPolicy === "full_public_catalog_v1";
+  if (!fullCatalog && input.candidate.schedule.mandatoryReservationImpossible) return null;
   const arrivalAtMs = input.currentTimeMs + input.edge.durationSeconds * 1000;
   let visitStartsAtMs = arrivalAtMs;
   let unknownIncrement = 0;
-  if (input.candidate.schedule.status === "known") {
+  if (!fullCatalog && input.candidate.schedule.status === "known") {
     const arrivalDayStartMs = koreaStartOfDayMs(arrivalAtMs);
     const timing = input.candidate.schedule.windows
+      .flatMap(window => window.endMinutes > 1440 ? [window, { ...window, startMinutes: window.startMinutes - 1440, endMinutes: window.endMinutes - 1440, finalEntryMinutes: window.finalEntryMinutes === null ? null : window.finalEntryMinutes - 1440 }] : [window])
       .map((window) => {
         const openingAtMs = arrivalDayStartMs + window.startMinutes * 60_000;
         const closingAtMs = arrivalDayStartMs + window.endMinutes * 60_000;
@@ -96,11 +100,17 @@ export function appendScheduledVisitTiming(input: {
       .sort((left, right) => left.visitStartsAtMs - right.visitStartsAtMs)[0];
     if (!timing) return null;
     visitStartsAtMs = timing.visitStartsAtMs;
-  } else {
+  } else if (input.candidate.schedule.status === "unknown") {
     unknownIncrement = 1;
   }
   const departureAtMs =
     visitStartsAtMs + input.candidate.dwellDurationMinutes * 60_000;
+  if (!fullCatalog && input.tripRequest.scheduleIntent?.date !== null && input.candidate.schedule.restDayInformation) {
+    for (let day = koreaStartOfDayMs(visitStartsAtMs); day <= koreaStartOfDayMs(departureAtMs - 1); day += DAY_MS) {
+      const travelDate = new Date(day + KOREA_OFFSET_MS).toISOString().slice(0, 10);
+      if (assessOperatingHours({ travelDate, arrivalMinutes: 0, departureMinutes: 1, operatingInformation: null, restDayInformation: input.candidate.schedule.restDayInformation, sourceDate: input.candidate.schedule.sourceDate }).status === "closed") return null;
+    }
+  }
   const constraints = getRouteTripConstraints(input.tripRequest);
   if (departureAtMs - input.serviceDayStartMs > constraints.maxDurationMinutes * 60_000) {
     return null;

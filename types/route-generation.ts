@@ -181,6 +181,8 @@ export interface NormalizedItineraryRequest {
     label: string | null;
   };
   travelDate: string;
+  /** User intent; travelDate/startTime are computational references when omitted. */
+  scheduleIntent?: import("@/types/schedule").ScheduleIntent;
   tripType: TripType;
   tripPace: TripPace;
   startTime: string;
@@ -189,7 +191,7 @@ export interface NormalizedItineraryRequest {
   desiredStopCount: number;
   petSpecies: PetSpecies;
   petSize: PetSize | null;
-  acceptsOutdoorOnly: boolean;
+  acceptsOutdoorOnly: boolean | null;
   petEquipment: PetEquipmentAvailability;
   indoorAccessPreference: IndoorAccessPreference;
   environmentPreference?: EnvironmentPreference;

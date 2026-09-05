@@ -72,10 +72,10 @@ describe("PlannerStateProvider generation state", () => {
   it("starts neutral and confirms the combined planner form atomically", () => {
     expect(getPlannerState().profile).toMatchObject({
       name: "",
-      hasCarrier: false,
-      hasLeash: false,
-      hasMuzzle: false,
-      acceptsOutdoorOnly: false,
+      hasCarrier: null,
+      hasLeash: null,
+      hasMuzzle: null,
+      acceptsOutdoorOnly: null,
     });
     expect(getPlannerState().preferences).toMatchObject({
       tripDate: "",

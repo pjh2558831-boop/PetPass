@@ -81,6 +81,8 @@ export interface KakaoMobilityPoint {
 }
 
 export interface KakaoMultiDestinationInput {
+  signal?: AbortSignal;
+  providerCallBudget?: { remaining: number };
   origin: KakaoMobilityPoint;
   destinations: Array<KakaoMobilityPoint & { key: string }>;
   radiusMeters: number;
@@ -130,12 +132,15 @@ export interface KakaoMobilityClientOptions {
 export class KakaoMobilityProviderError extends Error {
   constructor(
     readonly code:
+      | "BUDGET_EXCEEDED"
+      | "UNSUPPORTED_FUTURE"
       | "INVALID_ENDPOINT"
       | "TIMEOUT"
       | "NETWORK"
       | "HTTP_ERROR"
       | "INVALID_RESPONSE",
     message: string,
+    readonly httpStatus?: number,
   ) {
     super(message);
     this.name = "KakaoMobilityProviderError";
@@ -286,13 +291,18 @@ export class KakaoMobilityClient {
 
   private async requestJson(
     operation: keyof typeof KAKAO_MOBILITY_PUBLIC_PATHS,
-    init: { method: "GET" | "POST"; query?: URLSearchParams; body?: unknown },
+    init: { method: "GET" | "POST"; query?: URLSearchParams; body?: unknown; signal?: AbortSignal; providerCallBudget?: { remaining: number } },
   ): Promise<unknown> {
     const path = KAKAO_MOBILITY_PUBLIC_PATHS[operation];
     assertPublicKakaoMobilityPath(path);
     const url = new URL(path, KAKAO_MOBILITY_PUBLIC_ORIGIN);
     if (init.query) url.search = init.query.toString();
     for (let attempt = 0; attempt <= this.retryCount; attempt += 1) {
+      init.signal?.throwIfAborted();
+      if (init.providerCallBudget) {
+        if (init.providerCallBudget.remaining <= 0) throw new KakaoMobilityProviderError("BUDGET_EXCEEDED", "Route provider request budget exhausted.");
+        init.providerCallBudget.remaining--;
+      }
       try {
         const response = await this.fetchImpl(url, {
           method: init.method,
@@ -301,16 +311,19 @@ export class KakaoMobilityClient {
             ...(init.body === undefined ? {} : { "Content-Type": "application/json" }),
           },
           body: init.body === undefined ? undefined : JSON.stringify(init.body),
-          signal: AbortSignal.timeout(this.timeoutMs),
+          signal: init.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(this.timeoutMs)]) : AbortSignal.timeout(this.timeoutMs),
           cache: "no-store",
         });
         if (!response.ok) {
           this.record({ operation, attempt: attempt + 1, outcome: "failed" });
           if (response.status >= 500 && attempt < this.retryCount) continue;
-          throw new KakaoMobilityProviderError(
-            "HTTP_ERROR",
-            `Kakao Mobility request failed with HTTP ${response.status}.`,
-          );
+          let unsupported = false;
+          if (operation === "future" && (response.status === 400 || response.status === 422)) {
+            const body = await response.json().catch(() => null) as { msg?: unknown; message?: unknown } | null;
+            const message = String(body?.msg ?? body?.message ?? "");
+            unsupported = /departure[_ ]?time|출발.*시간|예측/.test(message) && /invalid|unsupported|range|범위|지원|유효/i.test(message);
+          }
+          throw new KakaoMobilityProviderError(unsupported ? "UNSUPPORTED_FUTURE" : "HTTP_ERROR", "Kakao Mobility HTTP request failed.", response.status);
         }
         let payload: unknown;
         try {
@@ -324,6 +337,7 @@ export class KakaoMobilityClient {
         this.record({ operation, attempt: attempt + 1, outcome: "succeeded" });
         return payload;
       } catch (error) {
+        init.signal?.throwIfAborted();
         if (error instanceof KakaoMobilityProviderError) throw error;
         const timeout = isAbortError(error);
         this.record({
@@ -346,6 +360,7 @@ export class KakaoMobilityClient {
     input: KakaoMultiDestinationInput,
   ): Promise<KakaoMultiDestinationEntry[]> {
     const payload = await this.requestJson("destinations", {
+      signal: input.signal, providerCallBudget: input.providerCallBudget,
       method: "POST",
       body: {
         origin: {
@@ -390,6 +405,8 @@ export class KakaoMobilityClient {
   }
 
   async pairDirections(input: {
+    signal?: AbortSignal;
+    providerCallBudget?: { remaining: number };
     origin: KakaoMobilityPoint;
     destination: KakaoMobilityPoint;
     priority: "RECOMMEND" | "TIME" | "DISTANCE";
@@ -404,7 +421,7 @@ export class KakaoMobilityClient {
       summary: "true",
     });
     if (input.avoid.length > 0) query.set("avoid", [...new Set(input.avoid)].sort().join("|"));
-    const payload = await this.requestJson("directions", { method: "GET", query });
+    const payload = await this.requestJson("directions", { method: "GET", query, signal: input.signal, providerCallBudget: input.providerCallBudget });
     const parsed = detailedResponseSchema.safeParse(payload);
     if (!parsed.success) {
       throw new KakaoMobilityProviderError(
@@ -416,6 +433,7 @@ export class KakaoMobilityClient {
   }
 
   async currentDirections(input: {
+    signal?: AbortSignal;
     origin: KakaoMobilityPoint;
     destination: KakaoMobilityPoint;
     waypoints: KakaoMobilityPoint[];
@@ -449,6 +467,8 @@ export class KakaoMobilityClient {
   }
 
   async waypointDirections(input: {
+    signal?: AbortSignal;
+    providerCallBudget?: { remaining: number };
     origin: KakaoMobilityPoint;
     destination: KakaoMobilityPoint;
     waypoints: KakaoMobilityPoint[];
@@ -457,6 +477,7 @@ export class KakaoMobilityClient {
     includeGeometry: boolean;
   }): Promise<KakaoDetailedRoute> {
     const payload = await this.requestJson("waypoints", {
+      signal: input.signal, providerCallBudget: input.providerCallBudget,
       method: "POST",
       body: {
         origin: { x: input.origin.longitude, y: input.origin.latitude, name: input.origin.name },
@@ -484,6 +505,8 @@ export class KakaoMobilityClient {
   }
 
   async futureDirections(input: {
+    signal?: AbortSignal;
+    providerCallBudget?: { remaining: number };
     origin: KakaoMobilityPoint;
     destination: KakaoMobilityPoint;
     waypoints: KakaoMobilityPoint[];
@@ -505,7 +528,7 @@ export class KakaoMobilityClient {
       query.set("waypoints", input.waypoints.map(pointQuery).join("|"));
     }
     if (input.avoid.length > 0) query.set("avoid", [...new Set(input.avoid)].sort().join("|"));
-    const payload = await this.requestJson("future", { method: "GET", query });
+    const payload = await this.requestJson("future", { method: "GET", query, signal: input.signal, providerCallBudget: input.providerCallBudget });
     const parsed = detailedResponseSchema.safeParse(payload);
     if (!parsed.success) {
       throw new KakaoMobilityProviderError(
@@ -545,7 +568,7 @@ export async function getDirections(
   } catch (error) {
     if (error instanceof KakaoMobilityProviderError) {
       if (error.code === "HTTP_ERROR") {
-        const status = /HTTP (\d+)/.exec(error.message)?.[1] ?? "unknown";
+        const status = error.httpStatus ?? /HTTP (\d+)/.exec(error.message)?.[1] ?? "unknown";
         throw new ProviderResponseError(
           `Kakao Mobility가 HTTP ${status} 상태로 실패했습니다.`,
         );

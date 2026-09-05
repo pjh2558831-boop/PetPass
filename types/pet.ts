@@ -6,10 +6,10 @@ export interface PetProfile {
   name: string;
   species: PetSpecies;
   size: PetSize;
-  hasCarrier: boolean;
-  hasLeash: boolean;
-  hasMuzzle: boolean;
-  acceptsOutdoorOnly: boolean;
+  hasCarrier: boolean | null;
+  hasLeash: boolean | null;
+  hasMuzzle: boolean | null;
+  acceptsOutdoorOnly: boolean | null;
 }
 
 export type TripType = "DAY_TRIP" | "OVERNIGHT";

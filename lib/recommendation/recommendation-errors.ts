@@ -5,15 +5,15 @@ import type {
 import { ROUTE_RECOMMENDATION_API_VERSION } from "@/types/recommendation";
 
 const KOREAN_MESSAGES: Record<Exclude<RecommendationStatus, "ready">, string> = {
-  confirmation_required: "경로에 포함될 장소의 반려동물 동반 조건을 확인하고 동의해 주세요.",
+  confirmation_required: "제안 경로의 입장 여부에 필요한 사실을 확인해 주세요.",
   unavailable: "현재 조건에서 경로에 넣을 수 있는 장소를 찾지 못했습니다.",
   invalid_request: "입력한 여행 조건을 확인해 주세요.",
   region_not_supported_for_itinerary:
     "선택한 지역은 아직 여행 경로 추천을 지원하지 않습니다.",
   insufficient_eligible_places:
-    "입력한 조건을 모두 충족하는 공식 동반 장소가 충분하지 않습니다.",
+    "공개 목록에서 경로에 사용할 수 있는 장소가 충분하지 않습니다.",
   insufficient_feasible_route:
-    "방문 가능한 장소는 있지만 운영시간과 이동시간을 함께 맞추기 어려웠습니다.",
+    "공개 장소는 있지만 요청한 시간 안에 이동 경로를 구성하지 못했습니다.",
   tourism_provider_unavailable:
     "한국관광공사 정보를 확인하지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
   licensing_provider_unavailable:
@@ -47,7 +47,9 @@ export function recommendationFailure(
     status,
     apiVersion: ROUTE_RECOMMENDATION_API_VERSION,
     reasonCodes: [...new Set(reasonCodes)].sort(),
-    userMessage: KOREAN_MESSAGES[status],
+    userMessage: reasonCodes.includes("public_catalog_unavailable")
+      ? "공개 장소 목록을 불러오지 못했습니다. 잠시 뒤 다시 시도해 주세요."
+      : KOREAN_MESSAGES[status],
     retryable: RETRYABLE.has(status),
   };
 }

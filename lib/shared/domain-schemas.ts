@@ -20,10 +20,10 @@ export const petProfileSchema = z.object({
   name: z.string().trim().min(1).max(30),
   species: petSpeciesSchema,
   size: petSizeSchema,
-  hasCarrier: z.boolean(),
-  hasLeash: z.boolean(),
-  hasMuzzle: z.boolean(),
-  acceptsOutdoorOnly: z.boolean(),
+  hasCarrier: z.boolean().nullable(),
+  hasLeash: z.boolean().nullable(),
+  hasMuzzle: z.boolean().nullable(),
+  acceptsOutdoorOnly: z.boolean().nullable(),
 });
 
 export const travelPreferencesSchema = z.object({
@@ -31,10 +31,10 @@ export const travelPreferencesSchema = z.object({
   regionName: z.string().min(1),
   districtCode: z.string().min(1).optional(),
   districtName: z.string().min(1).optional(),
-  tripDate: z.string().date(),
+  tripDate: z.union([z.string().date(), z.literal("")]),
   tripType: z.enum(["DAY_TRIP", "OVERNIGHT"]),
   tripPace: z.enum(["relaxed", "balanced", "packed"]).default("balanced"),
-  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  startTime: z.union([z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/), z.literal("")]),
   preferredCategories: z.array(placeCategorySchema).min(1),
   departure: z
     .object({

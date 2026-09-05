@@ -15,13 +15,10 @@ export function explainStops(
   selectedCategories: readonly string[],
 ): RecommendedRouteStop[] {
   return route.visits.map((visit, index) => {
-    const inclusion = [
-      "matches_pet_profile",
-      "official_pet_evidence",
-      "strict_automatic_route_eligibility",
-      "stage2_place_utility",
-      "fits_trip_pace",
-    ];
+    const broadPlanning = visit.candidate.planningPolicy === "full_public_catalog_v1";
+    const inclusion = broadPlanning
+      ? ["full_public_catalog_candidate", "stage2_place_utility", "fits_trip_pace"]
+      : ["matches_pet_profile", "official_pet_evidence", "strict_automatic_route_eligibility", "stage2_place_utility", "fits_trip_pace"];
     if (selectedCategories.includes(visit.candidate.category)) {
       inclusion.push("matches_requested_category");
     }
@@ -66,9 +63,7 @@ export function explainStops(
       source: visit.candidate.source ?? "tourism_service2",
       petAssessment:
         visit.candidate.petAssessment ??
-        (visit.candidate.place?.assessment.verdict === "not_allowed"
-          ? "unknown"
-          : visit.candidate.place?.assessment.verdict) ??
+        visit.candidate.place?.assessment.verdict ??
         "unknown",
       evidenceStatus:
         visit.candidate.evidenceStatus ??

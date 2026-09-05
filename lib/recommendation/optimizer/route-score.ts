@@ -92,6 +92,7 @@ export function scoreCompletedRouteV1(input: {
   fastestTravelCache?: Map<string, number>;
 }): CompletedRouteCandidate {
   const { visits } = input;
+  const fullCatalog = input.tripRequest.planningPolicy === "full_public_catalog_v1";
   const cfg = ROUTE_OBJECTIVE_V1_CONFIG;
   const pace = getRouteTripConstraints(input.tripRequest);
   const orderedPlaceIds = visits.map((visit) => visit.candidate.node.id);
@@ -176,7 +177,7 @@ export function scoreCompletedRouteV1(input: {
       visit.candidate.exposure.score !== null &&
       visit.candidate.exposure.score <= cfg.explorationMaximumExposure &&
       visit.candidate.placeUtility.preferenceFit >= cfg.explorationMinimumPreferenceFit &&
-      visit.candidate.informationTrust.score >= cfg.explorationMinimumTrustScore,
+      (fullCatalog || visit.candidate.informationTrust.score >= cfg.explorationMinimumTrustScore),
   );
   const explorationBonus = exploration ? cfg.explorationBonus : 0;
   const drivingTimePenalty = Math.round((totalDrivingSeconds / 60) * cfg.drivingPenaltyPerMinute);
@@ -222,7 +223,7 @@ export function scoreCompletedRouteV1(input: {
   const unknownScheduleCount = visits.filter(
     (visit) => visit.candidate.schedule.status === "unknown",
   ).length;
-  const unknownSchedulePenalty = unknownScheduleCount * cfg.unknownSchedulePenalty;
+  const unknownSchedulePenalty = fullCatalog ? 0 : unknownScheduleCount * cfg.unknownSchedulePenalty;
   const paceDeviationPenalty =
     Math.abs(visits.length - pace.targetStops) * cfg.paceDeviationPenaltyPerStop;
   const scoreBreakdown: RouteScoreBreakdown = {
@@ -261,7 +262,7 @@ export function scoreCompletedRouteV1(input: {
   const warningCodes = [
     ...new Set(
       visits.flatMap((visit) =>
-        visit.candidate.schedule.status === "unknown"
+        fullCatalog || visit.candidate.schedule.status === "unknown"
           ? visit.candidate.schedule.warningCodes
           : [],
       ),
@@ -292,7 +293,7 @@ export function scoreCompletedRouteV1(input: {
     signature: orderedPlaceIds.join(">"),
     detourRatio: Math.round(detourRatio * 1_000_000) / 1_000_000,
     fastestDrivingSecondsForSelectedSet,
-    informationTrustSum: visits.reduce(
+    informationTrustSum: fullCatalog ? 0 : visits.reduce(
       (sum, visit) => sum + visit.candidate.informationTrust.score,
       0,
     ),
@@ -307,9 +308,10 @@ export function compareCompletedRoutes(
   left: CompletedRouteCandidate,
   right: CompletedRouteCandidate,
 ): number {
+  const fullCatalog = [...left.visits, ...right.visits].some(({ candidate }) => candidate.planningPolicy === "full_public_catalog_v1");
   return (
     right.score - left.score ||
-    left.warningCodes.length - right.warningCodes.length ||
+    (fullCatalog ? 0 : left.warningCodes.length - right.warningCodes.length) ||
     left.totalDrivingSeconds - right.totalDrivingSeconds ||
     left.totalWaitSeconds - right.totalWaitSeconds ||
     right.informationTrustSum - left.informationTrustSum ||

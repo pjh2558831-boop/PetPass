@@ -104,6 +104,7 @@ export interface TourPetAccessEvidence {
 }
 
 export interface TourPetAccessCondition {
+  subject?: "all" | "dangerous_dog" | "unknown";
   type: TourPetAccessConditionType;
   scope: TourPetAccessScope;
   label: string;
@@ -138,7 +139,7 @@ export interface TourPetAccessSourceState {
 }
 
 export interface TourPetAccessAssessment {
-  rulesetVersion: "1";
+  rulesetVersion: "1" | "2";
   verdict: TourPetAccessVerdict;
   evaluationState: TourPetAccessEvaluationState;
   confidence: TourPetAccessConfidence;

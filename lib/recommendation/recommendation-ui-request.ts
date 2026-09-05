@@ -39,8 +39,9 @@ export function createRouteRecommendationRequest(
     selectedCategories: RouteRecommendationRequest["trip"]["selectedCategories"];
     acknowledgedVerificationRequiredPlaceIds?: string[];
   },
-  eligibility: { includeVerificationRequired?: boolean } = {},
+  _eligibility: { includeVerificationRequired?: boolean } = {},
 ): RouteRecommendationRequest {
+  void _eligibility; // Legacy UI call shape; V2 collects answers only in the contextual result flow.
   if (!preferences.departure) {
     throw new TypeError("A resolved departure is required.");
   }
@@ -49,6 +50,7 @@ export function createRouteRecommendationRequest(
     throw new TypeError("The selected region is not part of the supported regional configuration.");
   }
   const request: RouteRecommendationRequest = {
+    requestVersion: 2,
     departure: {
       label: preferences.departure.label,
       latitude: preferences.departure.coordinates.latitude,
@@ -58,8 +60,8 @@ export function createRouteRecommendationRequest(
     trip: {
       regionId: region.id,
       districtId: preferences.districtCode ?? null,
-      date: preferences.tripDate,
-      startTime: preferences.startTime,
+      date: preferences.tripDate || null,
+      startTime: preferences.startTime || null,
       tripType:
         preferences.tripType === "OVERNIGHT" ? "overnight" : "day_trip",
       tripPace: preferences.tripPace,
@@ -79,12 +81,6 @@ export function createRouteRecommendationRequest(
       name: profile.name.trim() || null,
       species: profile.species,
       size: profile.size,
-      availableEquipment: {
-        carrier: profile.hasCarrier,
-        leash: profile.hasLeash,
-        muzzle: profile.hasMuzzle,
-      },
-      acceptsOutdoorOnlyPlaces: profile.acceptsOutdoorOnly,
     },
     ...(selection ? {
       selectedPlaceIds: selection.selectedPlaces.map(({ id }) => id),
@@ -92,16 +88,11 @@ export function createRouteRecommendationRequest(
         placeId: id,
         regionId,
       })),
-      acknowledgedVerificationRequiredPlaceIds:
-        selection.acknowledgedVerificationRequiredPlaceIds ?? [],
+      acknowledgedVerificationRequiredPlaceIds: [],
       autoFill: selection.autoFill,
-      includeVerificationRequired:
-        selection.includeVerificationRequired ??
-        eligibility.includeVerificationRequired ??
-        false,
+      includeVerificationRequired: false,
     } : {
-      includeVerificationRequired:
-        eligibility.includeVerificationRequired ?? false,
+      includeVerificationRequired: false,
     }),
     personalization: {
       petCount: 1,

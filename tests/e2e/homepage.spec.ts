@@ -959,7 +959,13 @@ test("paginates a dense home list with complete tab semantics and 44px mobile ta
   await expect(rows).toHaveCount(12);
   await expect(rows.getByText("부산 밀집 장소 1", { exact: true })).toHaveCount(1);
   await expect(page.getByRole("checkbox", { name: "부산 밀집 장소 1 일정에 담기" })).toBeVisible();
-  await expect(page.getByRole("checkbox", { name: "부산 밀집 장소 2 일정에 담기" })).toHaveCount(0);
+  const unknownCategorySelection = page.getByRole("checkbox", { name: "부산 밀집 장소 2 일정에 담기" });
+  await expect(unknownCategorySelection).toBeEnabled();
+  await unknownCategorySelection.check();
+  await expect(unknownCategorySelection).toBeChecked();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("weekendog:plan-draft")!).data.selectedPlaces[0])).toMatchObject({
+    id: "tour:1201", category: "other",
+  });
   await page.getByRole("button", { name: "다음 장소", exact: true }).click();
   await expect(rows).toHaveCount(2);
   await expect(rows.getByText("부산 밀집 장소 13", { exact: true })).toHaveCount(1);
@@ -967,6 +973,7 @@ test("paginates a dense home list with complete tab semantics and 44px mobile ta
   await expect(rows.first().getByRole("button", { name: /지도에서 보기/u })).toBeFocused();
 
   await page.getByRole("button", { name: "이전 장소", exact: true }).click();
+  await expect(unknownCategorySelection).toBeChecked();
   const firstRow = rows.first();
   const targetBoxes = await Promise.all([
     firstRow.locator(".homepage-workbench-row__check").boundingBox(),
@@ -979,8 +986,9 @@ test("paginates a dense home list with complete tab semantics and 44px mobile ta
 
   await firstRow.getByRole("checkbox").check();
   const trayControls = page.locator(".home-selected-itinerary__controls button");
-  await expect(trayControls).toHaveCount(3);
-  for (let index = 0; index < 3; index += 1) {
+  await expect(page.locator(".home-selected-itinerary__item")).toHaveCount(2);
+  await expect(trayControls).toHaveCount(6);
+  for (let index = 0; index < 6; index += 1) {
     const box = await trayControls.nth(index).boundingBox();
     expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);

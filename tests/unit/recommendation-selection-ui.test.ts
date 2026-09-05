@@ -5,6 +5,7 @@ import { RecommendationStopProvenance } from "@/components/itinerary/recommendat
 import { SelectedItineraryTray } from "@/components/places/selected-itinerary-tray";
 import { getRecommendationStopEditCopy } from "@/lib/recommendation/recommendation-stop-ui";
 import { createSelectedItinerarySnapshot } from "@/lib/storage/selected-itinerary-storage";
+import { recommendationPetAccessCopy, recommendationOperatingWarning } from "@/lib/recommendation/recommendation-copy";
 
 describe("hybrid recommendation result UI", () => {
   it("keeps an unknown selected place locked without exposing unsupported automatic actions", () => {
@@ -36,14 +37,23 @@ describe("hybrid recommendation result UI", () => {
       regionName: "서울",
     }));
 
-    expect(html).toContain("동반 가능 여부 확인 필요");
-    expect(html).toContain("사용자가 선택한 미확인 장소");
+    expect(html).toContain("동반 여부 미확인 · 방문 전 확인");
+    expect(html).toContain("사용자가 선택한 장소");
     expect(html).toContain("일정에 고정");
     expect(html).not.toContain("부족한 장소는 WEEKENDOG가 추천");
     expect(html).not.toContain("선택 장소 경로만 지원");
     expect(html).toContain("선택한 장소로 일정 만들기");
     expect(html).not.toContain("장소 없이 알아서 추천받기");
     expect(html).not.toContain("준비 중");
+  });
+
+  it("keeps negative, conditional, unknown and closure warnings factual", () => {
+    expect(recommendationPetAccessCopy({ petAssessment: "not_allowed" })).toBe("원문상 동반 불가");
+    expect(recommendationPetAccessCopy({ petAssessment: "unknown" })).toBe("동반 여부 미확인 · 방문 전 확인");
+    expect(recommendationPetAccessCopy({ petAssessment: "conditional" })).toBe("조건부 동반 · 이용 조건 확인");
+    expect(recommendationOperatingWarning({ operatingStatus: "reported_closed" })).toBe("예정 시각에 휴무 또는 영업시간 충돌 · 원문 확인");
+    expect(recommendationOperatingWarning({ licensingStatus: "confirmed_closed" })).toContain("휴업/폐업 안내 있음");
+    expect(recommendationOperatingWarning({ operatingStatus: "unknown", licensingStatus: "no_match" })).toBeNull();
   });
 
   it("labels a locked selected place and preserves its verification warning", () => {

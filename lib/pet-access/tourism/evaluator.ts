@@ -68,6 +68,7 @@ function conditionKey(condition: TourPetAccessCondition): string {
   return [
     condition.type,
     condition.scope,
+    condition.subject ?? "unknown",
     condition.structuredValue?.value ?? "",
     condition.structuredValue?.unit ?? "",
     condition.structuredValue?.comparator ?? "",

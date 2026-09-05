@@ -54,6 +54,9 @@ export function getRequestedRecommendationRegion(
 }
 export const routeRecommendationRequestSchema = z
   .object({
+    requestVersion: z.literal(2).optional(),
+    planningPolicy: z.literal("full_public_catalog_v1").optional(),
+    conditionConfirmation: z.object({ token: z.string().min(1).max(24_000), answers: z.array(z.object({ requirementId: z.string().regex(/^[a-f0-9]{64}$/), answer: z.enum(["confirmed", "not_applicable", "cannot_meet"]) }).strict()).max(100).refine((answers) => new Set(answers.map(({ requirementId }) => requirementId)).size === answers.length) }).strict().optional(),
     departure: z
       .object({
         label: z.string().trim().min(1).max(150),
@@ -71,13 +74,12 @@ export const routeRecommendationRequestSchema = z
       .object({
         regionId: z.enum(REGION_IDS),
         districtId: z.string().trim().min(1).max(20).nullable(),
-        date: z.string().date(),
-        startTime: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/u),
+        date: z.string().date().nullable().default(null),
+        startTime: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/u).nullable().default(null),
         tripType: z.enum(["day_trip", "overnight"]),
         tripPace: z.enum(["relaxed", "balanced", "packed"]),
         selectedCategories: z
           .array(categories)
-          .min(1)
           .max(7)
           .refine((values) => new Set(values).size === values.length, {
             message: "selectedCategories must not contain duplicates",
@@ -115,8 +117,8 @@ export const routeRecommendationRequestSchema = z
             leash: z.boolean(),
             muzzle: z.boolean(),
           })
-          .strict(),
-        acceptsOutdoorOnlyPlaces: z.boolean(),
+          .strict().optional(),
+        acceptsOutdoorOnlyPlaces: z.boolean().optional(),
       })
       .strict(),
     selectedPlaceIds: z
@@ -134,6 +136,16 @@ export const routeRecommendationRequestSchema = z
   })
   .strict()
   .superRefine((value, context) => {
+    if (value.trip.selectedCategories.length === 0 && value.selectedPlaceIds.length === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["trip", "selectedCategories"],
+        message: "Select a category or a place.",
+      });
+    }
+    if (value.requestVersion !== 2 && (!value.trip.date || !value.trip.startTime || !value.pet.availableEquipment || value.pet.acceptsOutdoorOnlyPlaces === undefined)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["requestVersion"], message: "Flexible inputs require requestVersion 2." });
+    }
     const region = getRegionConfig(value.trip.regionId);
     if (
       region &&
@@ -169,18 +181,6 @@ export const routeRecommendationRequestSchema = z
         code: z.ZodIssueCode.custom,
         path: ["acknowledgedVerificationRequiredPlaceIds"],
         message: "Automatic-place acknowledgements require includeVerificationRequired.",
-      });
-    }
-    const hybridAutoFill = selectedIds.size > 0 && value.autoFill;
-    if (
-      value.trip.tripType === "overnight" &&
-      !value.trip.selectedCategories.includes("accommodation") &&
-      !hybridAutoFill
-    ) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["trip", "selectedCategories"],
-        message: "Overnight requests must include accommodation unless hybrid auto-fill can reserve it.",
       });
     }
   });
@@ -231,20 +231,21 @@ export function normalizeRecommendationRequest(
         longitude: input.departure.longitude,
       },
     },
-    travelDate: input.trip.date,
+    travelDate: input.trip.date ?? "2000-01-01",
+    ...(input.requestVersion === 2 ? { scheduleIntent: { date: input.trip.date, startTime: input.trip.startTime } } : {}),
     tripType: input.trip.tripType === "overnight" ? "OVERNIGHT" : "DAY_TRIP",
     tripPace: input.trip.tripPace,
-    startTime: input.trip.startTime,
+    startTime: input.trip.startTime ?? "09:00",
     planningMode: "stop_count",
     desiredDurationMinutes: input.trip.durationMinutes ?? null,
     desiredStopCount: input.trip.desiredStopCount ?? pace.desiredStopCount,
     petSpecies: input.pet.species,
     petSize: input.pet.size,
-    acceptsOutdoorOnly: input.pet.acceptsOutdoorOnlyPlaces,
+    acceptsOutdoorOnly: input.pet.acceptsOutdoorOnlyPlaces ?? null,
     petEquipment: {
-      hasCarrier: input.pet.availableEquipment.carrier,
-      hasLeash: input.pet.availableEquipment.leash,
-      hasMuzzle: input.pet.availableEquipment.muzzle,
+      hasCarrier: input.pet.availableEquipment?.carrier ?? null,
+      hasLeash: input.pet.availableEquipment?.leash ?? null,
+      hasMuzzle: input.pet.availableEquipment?.muzzle ?? null,
     },
     indoorAccessPreference: "any",
     environmentPreference: input.trip.environmentPreference ?? "any",

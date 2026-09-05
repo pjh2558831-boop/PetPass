@@ -4,6 +4,7 @@ import {
   type CandidateFunnelRecord,
 } from "@/lib/recommendation/v2/candidate-funnel";
 import { calculateDiversityCapacityV2 } from "@/lib/recommendation/v2/diversity-capacity";
+import { routeRecommendationResponseSchema } from "@/lib/recommendation/recommendation-response";
 
 function record(
   identity: string,
@@ -137,6 +138,54 @@ describe("request-specific diversity capacity", () => {
     { id: "tour:5", category: "leisure" as const },
     { id: "tour:unsafe", category: "attraction" as const },
   ];
+
+  it("does not turn a missing preferred category into exhausted full-catalog diversity", () => {
+    const result = calculateDiversityCapacityV2({
+      planningPolicy: "full_public_catalog_v1",
+      candidates, requestedStopCount: 3, mandatorySelectedPlaceIds: [], seenCandidateIds: [],
+      requiredCategories: ["accommodation"], feasibleCandidateIds: ["tour:1", "tour:2", "tour:3"], requiredRoadEdgesResolved: true,
+    });
+    expect(result).toMatchObject({ maximumFeasibleNovelReplacements: 3, diversityCapacity: "sufficient", eligibleUniqueCandidateCount: 3, scoredUniqueCandidateCount: 6 });
+    expect(result.limitingReasonCodes).not.toContain("required_category_has_no_feasible_candidate");
+  });
+
+  it("keeps 534 unqueried reserves distinct from four seen road-known candidates through response serialization", () => {
+    const pool = Array.from({ length: 538 }, (_, index) => ({ id: `kakao:${index}`, category: "attraction" as const }));
+    const roadKnownIds = pool.slice(0, 4).map(candidate => candidate.id);
+    const result = calculateDiversityCapacityV2({
+      planningPolicy: "full_public_catalog_v1", candidates: pool,
+      unqueriedCandidateIds: pool.slice(4).map(candidate => candidate.id),
+      requestedStopCount: 3, mandatorySelectedPlaceIds: [], seenCandidateIds: roadKnownIds,
+      requiredCategories: ["food"], feasibleCandidateIds: roadKnownIds, requiredRoadEdgesResolved: true,
+    });
+    expect(result).toMatchObject({ scoredUniqueCandidateCount: 538, eligibleUniqueCandidateCount: 4, unseenEligibleCandidateCount: 0, unqueriedCandidateCount: 534, maximumFeasibleNovelReplacements: 0, diversityCapacity: "limited" });
+    expect(result.limitingReasonCodes).toContain("unqueried_candidates_require_road_validation");
+    const response = { status: "insufficient_feasible_route", apiVersion: "route-recommendation-response-v2", reasonCodes: ["unresolved_travel_edges_limit_stop_count"], userMessage: "다른 후보의 도로를 확인해 주세요.", retryable: false, diversity: result };
+    const parsed = routeRecommendationResponseSchema.parse(JSON.parse(JSON.stringify(response)));
+    expect(parsed.diversity).toEqual(result);
+    expect(routeRecommendationResponseSchema.safeParse({ ...response, diversity: { ...result, unqueriedCandidateCount: -1 } }).success).toBe(false);
+  });
+
+  it("counts only admitted, unseen, nonmandatory unqueried identities once", () => {
+    const result = calculateDiversityCapacityV2({
+      planningPolicy: "full_public_catalog_v1", candidates,
+      unqueriedCandidateIds: ["tour:1", "tour:2", "tour:3", "tour:4", "tour:4", "outside"],
+      requestedStopCount: 3, mandatorySelectedPlaceIds: ["tour:2"], seenCandidateIds: ["tour:3"],
+      requiredCategories: [], feasibleCandidateIds: ["tour:1"], requiredRoadEdgesResolved: true,
+    });
+    expect(result.unqueriedCandidateCount).toBe(1);
+    expect(result.maximumFeasibleNovelReplacements).toBe(1);
+  });
+
+  it("does not offer reserve replacements when every requested stop is mandatory", () => {
+    const result = calculateDiversityCapacityV2({
+      planningPolicy: "full_public_catalog_v1", candidates, unqueriedCandidateIds: ["tour:4", "tour:5"],
+      requestedStopCount: 3, mandatorySelectedPlaceIds: ["tour:1", "tour:2", "tour:3"], seenCandidateIds: [],
+      requiredCategories: [], feasibleCandidateIds: ["tour:1", "tour:2", "tour:3"], requiredRoadEdgesResolved: true,
+    });
+    expect(result).toMatchObject({ maximumFeasibleNovelReplacements: 0, unqueriedCandidateCount: 0, diversityCapacity: "exhausted" });
+    expect(result.limitingReasonCodes).toContain("all_stops_are_mandatory");
+  });
 
   it("reports sufficient capacity when all replaceable stops can be novel and feasible", () => {
     expect(calculateDiversityCapacityV2({

@@ -23,6 +23,8 @@ export interface MapPlacesSnapshotMarker {
   id: string;
   regionId: RegionId;
   providerPlaceId: string;
+  contentTypeId?: string | null;
+  phone?: string | null;
   name: string;
   dataset?: MapPlacesSnapshotDataset;
   layer: PublicCatalogLayer;

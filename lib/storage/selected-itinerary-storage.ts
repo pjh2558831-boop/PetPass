@@ -71,8 +71,6 @@ export type AddSelectedItineraryPlaceResult = {
     | "selected"
     | "already_selected"
     | "limit_reached"
-    | "blocked_not_allowed"
-    | "blocked_unsupported"
     | "region_mismatch";
   snapshot: SelectedItinerarySnapshot;
 };
@@ -126,15 +124,6 @@ export function addSelectedItineraryPlace(
   }
   if (place.regionId !== snapshot.regionId) {
     return { status: "region_mismatch", snapshot };
-  }
-  if (place.petAccessVerdict === "not_allowed") {
-    return { status: "blocked_not_allowed", snapshot };
-  }
-  if (
-    (place.layer !== "tourism" && place.layer !== "kakao") ||
-    !SELECTED_CATEGORY_MAP[place.category]
-  ) {
-    return { status: "blocked_unsupported", snapshot };
   }
   if (snapshot.places.length >= MAX_SELECTED_ITINERARY_PLACES) {
     return { status: "limit_reached", snapshot };
@@ -246,9 +235,9 @@ export function selectedItineraryVerdictLabel(
   verdict: SelectedItineraryPlace["petAccessVerdict"],
 ): string {
   if (verdict === "allowed") return "동반 가능 근거 확인";
-  if (verdict === "conditional") return "조건 확인 필요";
-  if (verdict === "not_allowed") return "동반 불가";
-  return "동반 가능 여부 확인 필요";
+  if (verdict === "conditional") return "조건부 동반 · 이용 조건 확인";
+  if (verdict === "not_allowed") return "원문상 동반 불가";
+  return "동반 여부 미확인 · 방문 전 확인";
 }
 
 export function selectedItineraryNeedsWarning(place: SelectedItineraryPlace): boolean {

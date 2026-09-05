@@ -6,6 +6,7 @@ export interface OperatingHoursInput {
   departureMinutes: number;
   operatingInformation: string | null;
   restDayInformation: string | null;
+  sourceDate?: string;
 }
 
 export interface OperatingHoursAssessment {
@@ -53,9 +54,11 @@ function containedBy(
   return arrival >= range.start || departure <= range.end;
 }
 
-function isExplicitRestDay(travelDate: string, restDay: string): boolean {
+function isExplicitRestDay(travelDate: string, restDay: string, sourceDate?: string): boolean {
   if (/연중\s*무휴|휴무\s*없음|무휴/.test(restDay)) return false;
-  if (/당일\s*(?:휴무|휴관)|오늘\s*(?:휴무|휴관)/.test(restDay)) return true;
+  if (/당일\s*(?:휴무|휴관)|오늘\s*(?:휴무|휴관)/.test(restDay)) return travelDate === sourceDate;
+  // A weekday qualified by holiday exceptions or ordinal weeks is not every such weekday.
+  if (/첫째|둘째|셋째|넷째|다섯째|\d\s*째|공휴일|제외|변경|문의/.test(restDay)) return false;
   const weekday = KOREAN_WEEKDAYS[
     new Date(`${travelDate}T00:00:00Z`).getUTCDay()
   ];
@@ -68,11 +71,15 @@ export function assessOperatingHours(
   const operating = input.operatingInformation?.trim() ?? "";
   const restDay = input.restDayInformation?.trim() ?? "";
 
-  if (restDay && isExplicitRestDay(input.travelDate, restDay)) {
+  if (restDay && isExplicitRestDay(input.travelDate, restDay, input.sourceDate)) {
     return { status: "closed", warning: null };
   }
 
   if (!operating) {
+    return { status: "unknown", warning: UNKNOWN_OPERATING_HOURS_WARNING };
+  }
+  if (/당일|오늘|첫째|둘째|셋째|넷째|공휴일|제외|변경|문의/.test(restDay) ||
+      /요일|주말|평일|공휴일|성수기|비수기|계절/.test(operating)) {
     return { status: "unknown", warning: UNKNOWN_OPERATING_HOURS_WARNING };
   }
 

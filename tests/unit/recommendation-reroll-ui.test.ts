@@ -37,6 +37,12 @@ describe("recommendation reroll UI state", () => {
     });
   });
 
+  it.each(["limited", "exhausted"] as const)("allows unqueried reserves to be explored without promising new road-feasible places for %s capacity", diversityCapacity => {
+    expect(recommendationRerollUiState({ diversity: { ...BASE, scoredUniqueCandidateCount: 538, unseenEligibleCandidateCount: 0, maximumFeasibleNovelReplacements: 0, unqueriedCandidateCount: 534, diversityCapacity } })).toMatchObject({
+      kind: "different_combination", buttonLabel: "다른 조합 보기", showRecoveryActions: false,
+    });
+  });
+
   it("reports exhausted capacity and keeps all explicit recovery actions", () => {
     expect(recommendationRerollUiState({
       diversity: {
@@ -55,7 +61,6 @@ describe("recommendation reroll UI state", () => {
       "장소 유형 바꾸기",
       "같은 지역 안에서 구·군 범위 넓히기",
       "지도에서 장소 직접 선택하기",
-      "확인 필요 장소를 명시적으로 허용하기",
     ]);
   });
 });

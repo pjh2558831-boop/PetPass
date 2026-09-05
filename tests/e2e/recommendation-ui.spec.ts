@@ -1,4 +1,5 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import type { RouteRecommendationReadyResponseV1 } from "../../types/recommendation";
 import {
   chooseConfirmedDeparture,
   continueToDay,
@@ -6,6 +7,7 @@ import {
   DEPARTURE_PATH,
   expectNoHorizontalOverflow,
   GENERATE_PATH,
+  futureTripDate,
   openPetPlanner,
 } from "./planner-test-helpers";
 
@@ -16,16 +18,16 @@ const stop = (id: string, sequence: number, title: string, category: "attraction
   address: `부산광역시 공식로 ${sequence}`,
   coordinates: { latitude: 35.11 + sequence * 0.02, longitude: 129.04 + sequence * 0.02 },
   category,
-  arrivalAt: `2026-08-15T0${sequence + 1}:00:00.000Z`,
-  visitStartsAt: `2026-08-15T0${sequence + 1}:00:00.000Z`,
-  departureAt: `2026-08-15T0${sequence + 2}:00:00.000Z`,
+  arrivalAt: `${futureTripDate()}T0${sequence + 1}:00:00.000Z`,
+  visitStartsAt: `${futureTripDate()}T0${sequence + 1}:00:00.000Z`,
+  departureAt: `${futureTripDate()}T0${sequence + 2}:00:00.000Z`,
   dwellMinutes: category === "food" ? 60 : 90,
   driveSecondsFromPrevious: 900 * sequence,
   distanceMetersFromPrevious: 3_200 * sequence,
   source: "tourism_service2" as const,
   sourceLabel: "한국관광공사" as const,
   petAssessment: sequence === 1 ? "allowed" as const : "conditional" as const,
-  mandatoryConditions: sequence === 1 ? [] : [{ type: "leash_required", label: "목줄 착용 필수", manualConfirmationRecommended: false }],
+  mandatoryConditions: sequence === 1 ? [] : [{ type: "leash_required" as const, label: "목줄 착용 필수", manualConfirmationRecommended: false }],
   informationTrust: sequence === 1 ? "high" as const : "medium" as const,
   licensingStatus: category === "food" ? "no_match" as const : "not_applicable" as const,
   operatingHoursWarnings: sequence === 1 ? [] : ["operating_hours_missing"],
@@ -49,7 +51,7 @@ const BASE_READY = {
   editSessionId: "792f3903-b879-4d53-93ba-85aa7d52a27f",
   requestSummary: {
     departureLabel: "부산광역시 연제구 중앙대로 1001",
-    tripDate: "2026-08-15",
+    tripDate: futureTripDate(),
     startTime: "10:00",
     tripType: "day_trip" as const,
     tripPace: "balanced" as const,
@@ -62,8 +64,8 @@ const BASE_READY = {
     kind: "optimized" as const,
     label: "추천 일정",
     routeSummary: {
-      startAt: "2026-08-15T01:00:00.000Z",
-      endAt: "2026-08-15T05:00:00.000Z",
+      startAt: `${futureTripDate()}T01:00:00.000Z`,
+      endAt: `${futureTripDate()}T05:00:00.000Z`,
       stopCount: 2,
       totalDistanceMeters: 9_600,
       totalDrivingSeconds: 2_700,
@@ -72,6 +74,10 @@ const BASE_READY = {
     },
     temporalBasis: { searchMatrix: "traffic_independent", finalRoute: "current_traffic" },
     stops: mainStops,
+    segments: [
+      { fromPlaceId: "departure", toPlaceId: "1001", travelSeconds: 900, distanceMeters: 3_200, temporalBasis: "current_traffic" },
+      { fromPlaceId: "1001", toPlaceId: "2001", travelSeconds: 1_800, distanceMeters: 6_400, temporalBasis: "current_traffic" },
+    ],
     geometry: [
       { latitude: 35.1796, longitude: 129.0756 },
       mainStops[0].coordinates,
@@ -85,8 +91,8 @@ const BASE_READY = {
       alternativeType: "lower_travel" as const,
       label: "이동이 적은 일정",
       routeSummary: {
-        startAt: "2026-08-15T01:00:00.000Z",
-        endAt: "2026-08-15T04:40:00.000Z",
+        startAt: `${futureTripDate()}T01:00:00.000Z`,
+        endAt: `${futureTripDate()}T04:40:00.000Z`,
         stopCount: 2,
         totalDistanceMeters: 7_400,
         totalDrivingSeconds: 2_100,
@@ -95,8 +101,8 @@ const BASE_READY = {
       },
       temporalBasis: { searchMatrix: "traffic_independent", finalRoute: "current_traffic" },
       stops: [
-        { ...mainStops[1], sequence: 1, arrivalAt: "2026-08-15T01:20:00.000Z", departureAt: "2026-08-15T02:20:00.000Z" },
-        { ...mainStops[0], sequence: 2, arrivalAt: "2026-08-15T02:40:00.000Z", departureAt: "2026-08-15T04:10:00.000Z" },
+        { ...mainStops[1], sequence: 1, arrivalAt: `${futureTripDate()}T01:20:00.000Z`, departureAt: `${futureTripDate()}T02:20:00.000Z` },
+        { ...mainStops[0], sequence: 2, arrivalAt: `${futureTripDate()}T02:40:00.000Z`, departureAt: `${futureTripDate()}T04:10:00.000Z` },
       ],
       geometry: [
         { latitude: 35.1796, longitude: 129.0756 },
@@ -186,13 +192,13 @@ const READY = {
       personalizationExplanationCodes: ["route_style_shortest"],
       routeSummary: {
         ...BASE_READY.route.routeSummary,
-        endAt: "2026-08-15T04:40:00.000Z",
+        endAt: `${futureTripDate()}T04:40:00.000Z`,
         totalDistanceMeters: 7_400,
         totalDrivingSeconds: 2_100,
       },
       stops: [
-        { ...mainStops[1], sequence: 1, arrivalAt: "2026-08-15T01:20:00.000Z", departureAt: "2026-08-15T02:20:00.000Z" },
-        { ...mainStops[0], sequence: 2, arrivalAt: "2026-08-15T02:40:00.000Z", departureAt: "2026-08-15T04:10:00.000Z" },
+        { ...mainStops[1], sequence: 1, arrivalAt: `${futureTripDate()}T01:20:00.000Z`, departureAt: `${futureTripDate()}T02:20:00.000Z` },
+        { ...mainStops[0], sequence: 2, arrivalAt: `${futureTripDate()}T02:40:00.000Z`, departureAt: `${futureTripDate()}T04:10:00.000Z` },
       ],
       geometry: [
         { latitude: 35.1796, longitude: 129.0756 },
@@ -285,7 +291,7 @@ async function installFakeMap(page: Page) {
   });
 }
 
-async function generate(page: Page, testInfo: TestInfo, response = READY) {
+async function generate(page: Page, testInfo: TestInfo, response: RouteRecommendationReadyResponseV1 = READY) {
   await installFakeMap(page);
   await page.route(`**${GENERATE_PATH}`, async (route) => {
     await route.fulfill({ status: response.status === "ready" ? 200 : 422, contentType: "application/json", body: JSON.stringify(response) });
@@ -329,13 +335,15 @@ test("submits the strict combined contract once and renders the exact provider-b
   expect(bodies[0]).toMatchObject({
     departure: { label: "부산광역시 연제구 중앙대로 1001", source: "address_search" },
     trip: { regionId: "busan", tripPace: "balanced", selectedCategories: ["attraction", "food"] },
-    pet: { species: "DOG", size: "SMALL", availableEquipment: { carrier: true, leash: true, muzzle: false } },
+    pet: { species: "DOG", size: "SMALL" },
   });
-  await expect(page.getByText(/요청한 3곳보다 적지만/u)).toBeVisible();
+  expect(bodies[0]).not.toHaveProperty("pet.availableEquipment");
+  expect(bodies[0]).not.toHaveProperty("pet.acceptsOutdoorOnlyPlaces");
+  await expect(page.getByText("요청한 3곳보다 적은 2곳으로 이동 경로를 계산했어요.", { exact: true })).toBeVisible();
   await expect(page.getByText(/9\.6km · 약 45분/u)).toBeVisible();
   await expect(page.getByText(/관광지 · 한국관광공사/u)).toBeVisible();
   await expect(page.getByText("동반 근거 확인", { exact: true })).toBeVisible();
-  await expect(page.getByText("조건부 동반", { exact: true })).toBeVisible();
+  await expect(page.getByText("조건부 동반 · 이용 조건 확인", { exact: true })).toBeVisible();
   await expect(page.getByText(/목줄 착용 필수/u)).toBeVisible();
   await expect(page.getByText("근거 미확인", { exact: true }).first()).toBeVisible();
   await page.getByText("추천 근거와 확인사항", { exact: true }).first().click();
@@ -491,6 +499,10 @@ test("revalidates manual order, labels it honestly, and restores the original", 
         { ...mainStops[1], sequence: 1 },
         { ...mainStops[0], sequence: 2 },
       ],
+      segments: [
+        { fromPlaceId: "departure", toPlaceId: "2001", travelSeconds: 1_800, distanceMeters: 6_400, temporalBasis: "current_traffic" },
+        { fromPlaceId: "2001", toPlaceId: "1001", travelSeconds: 1_500, distanceMeters: 4_800, temporalBasis: "current_traffic" },
+      ],
       geometry: [READY.route.geometry[0], mainStops[1].coordinates, mainStops[0].coordinates],
     },
     warnings: ["manual_route_revalidated"],
@@ -519,6 +531,44 @@ test("revalidates manual order, labels it honestly, and restores the original", 
   await page.getByRole("button", { name: "원래 추천 일정 복원" }).click();
   await expect(page.getByText("WEEKENDOG 추천 일정", { exact: true })).toBeVisible();
   await expect(page.getByText(/9\.6km · 약 45분/u)).toBeVisible();
+});
+
+test("keeps factual conditions non-blocking after manual revision and uses the renewed edit session", async ({ page }, testInfo) => {
+  const initial = fullCatalogResponse();
+  await generate(page, testInfo, initial);
+  const approvedSession = `v1.${"c".repeat(60)}.${"d".repeat(43)}`;
+  const requests: Array<{ editSessionId: string; orderedPlaceIds: string[]; conditionAnswers?: unknown[] }> = [];
+  const manualStops = [initial.route.stops[1]!, initial.route.stops[0]!].map((value, index) => {
+    const arrival = index === 0 ? 900 : 6300;
+    const departure = arrival + value.dwellMinutes * 60;
+    const absolute = (seconds: number) => new Date(Date.parse(initial.route.routeSummary.startAt!) + seconds * 1000).toISOString();
+    return { ...value, sequence: index + 1, driveSecondsFromPrevious: initial.route.segments![index]!.travelSeconds, distanceMetersFromPrevious: initial.route.segments![index]!.distanceMeters, arrivalAt: absolute(arrival), visitStartsAt: absolute(arrival), departureAt: absolute(departure), arrivalOffsetSeconds: arrival, visitStartsOffsetSeconds: arrival, departureOffsetSeconds: departure };
+  });
+  const manualRoute = {
+    ...initial.route, kind: "manual", label: "직접 수정한 일정",
+    stops: manualStops,
+    geometry: [initial.route.geometry[0]!, ...manualStops.map(value => value.coordinates)],
+    segments: initial.route.segments!.map((edge, index) => ({ ...edge, fromPlaceId: index === 0 ? "departure" : "tour:2001", toPlaceId: index === 0 ? "tour:2001" : "kakao:9001" })),
+  };
+  await page.route("**/api/itineraries/revalidate", async (route) => {
+    requests.push(route.request().postDataJSON());
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ status: "ready", apiVersion: "route-recommendation-response-v2", route: manualRoute, warnings: [], editSessionId: approvedSession }) });
+  });
+  await page.locator('[id="recommended-stop-kakao:9001"]').getByRole("button", { name: "뒤로" }).click();
+  await page.getByRole("button", { name: "경로 다시 계산" }).click();
+  await expect(page.getByText("직접 수정한 일정", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "이 일정에 필요한 사실만 확인해 주세요" })).toHaveCount(0);
+  await expect(page.getByText("원문상 동반 불가", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "일정 저장", exact: true })).toBeEnabled();
+  expect(requests[0]?.conditionAnswers).toBeUndefined();
+  expect(requests[0]?.orderedPlaceIds).toEqual(["tour:2001", "kakao:9001"]);
+  await page.getByRole("button", { name: "일정 저장", exact: true }).click();
+  await expect(page.getByRole("link", { name: "저장된 일정 보기" })).toBeVisible();
+  await page.locator('[id="recommended-stop-tour:2001"]').getByRole("button", { name: "뒤로" }).click();
+  await page.getByRole("button", { name: "경로 다시 계산" }).click();
+  await expect.poll(() => requests.length).toBe(2);
+  expect(requests[1]?.editSessionId).toBe(approvedSession);
+  expect(requests[1]?.conditionAnswers).toBeUndefined();
 });
 
 test("restores a saved recommendation directly and after refresh without provider requests", async ({ page }, testInfo) => {
@@ -584,16 +634,17 @@ test("restores a saved recommendation directly and after refresh without provide
       providerRequests.push(pathname);
     }
   });
-  await page.goto("/planner/pet");
-  await expect(page.getByRole("heading", { name: "여행 정보 입력" })).toBeVisible();
-  await page.goto("/itinerary");
+  await page.evaluate(() => Object.assign((window as unknown as { __savedRouteStorageMetrics: object }).__savedRouteStorageMetrics, { reads: 0, parses: 0, parseDurationMs: 0 }));
+  await page.getByRole("link", { name: "저장된 일정 보기" }).click();
+  await expect(page).toHaveURL(/\/itinerary$/u);
   await expect(page.getByText("저장된 일정", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "균형 추천" })).toBeVisible();
   await expect(page.locator('[data-itinerary-source="saved-recommendation"] .surface-card')).toHaveCount(0);
   await expect(page.getByRole("list", { name: "저장된 일정 방문 순서" }).locator(":scope > li")).toHaveCount(2);
-  await expect(page.getByText("해운대 공식 공원")).toBeVisible();
-  await expect(page.getByText("광안 공식 식당")).toBeVisible();
-  await expect(page.getByText("저장된 방문 장소", { exact: true })).toHaveCount(2);
+  await expect(page.getByRole("heading", { name: "해운대 공식 공원" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "광안 공식 식당" })).toBeVisible();
+  await expect(page.getByText("한국관광공사", { exact: true })).toHaveCount(2);
+  await expect(page.getByText("저장된 조건 원문", { exact: true })).toHaveCount(2);
   await expect(page.getByText("한국관광공사 기반 추천에 저장된 장소", { exact: true })).toHaveCount(0);
   await expect(page.getByText(/9\.6km/u)).toBeVisible();
   await expect(page.getByText(/45분/u)).toBeVisible();
@@ -603,7 +654,8 @@ test("restores a saved recommendation directly and after refresh without provide
   const firstMetrics = await page.evaluate(() =>
     (window as unknown as { __savedRouteStorageMetrics: { reads: number; parses: number; parseDurationMs: number } }).__savedRouteStorageMetrics,
   );
-  expect(firstMetrics.reads).toBe(1);
+  // One raw freshness read and one versioned validation read; unchanged payload parses once.
+  expect(firstMetrics.reads).toBe(2);
   expect(firstMetrics.parses).toBe(1);
 
   await page.reload();
@@ -613,7 +665,7 @@ test("restores a saved recommendation directly and after refresh without provide
   const refreshMetrics = await page.evaluate(() =>
     (window as unknown as { __savedRouteStorageMetrics: { reads: number; parses: number; parseDurationMs: number } }).__savedRouteStorageMetrics,
   );
-  expect(refreshMetrics.reads).toBe(1);
+  expect(refreshMetrics.reads).toBe(2);
   expect(refreshMetrics.parses).toBe(1);
   expect(providerRequests).toEqual([]);
 
@@ -634,7 +686,7 @@ test("restores a saved recommendation directly and after refresh without provide
   console.log(`SAVED_ROUTE_METRICS ${JSON.stringify({ storageBytes, firstMetrics, refreshMetrics, providerRequests: providerRequests.length })}`);
 });
 
-test("clears only a corrupt saved recommendation and keeps the neutral itinerary state", async ({ page }) => {
+test("preserves a corrupt saved recommendation and keeps the neutral itinerary state", async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("petpass:saved-route-recommendation", "{broken");
     localStorage.setItem("petpass:pet-profile", "unrelated-profile");
@@ -645,7 +697,7 @@ test("clears only a corrupt saved recommendation and keeps the neutral itinerary
     saved: localStorage.getItem("petpass:saved-route-recommendation"),
     profile: localStorage.getItem("petpass:pet-profile"),
   }));
-  expect(values).toEqual({ saved: null, profile: "unrelated-profile" });
+  expect(values).toEqual({ saved: "{broken", profile: "unrelated-profile" });
 });
 
 test("keeps a rejected manual edit visible and allows restoration", async ({ page }, testInfo) => {
@@ -664,6 +716,25 @@ test("keeps a rejected manual edit visible and allows restoration", async ({ pag
   await expect(page.getByRole("alert").filter({ hasText: "운영시간과 이동시간" })).toBeVisible();
   await page.getByRole("button", { name: "원래 추천 복원" }).click();
   await expect(page.getByRole("list", { name: /균형 추천 방문 순서/u }).locator(":scope > li")).toHaveCount(2);
+});
+
+test("submits an overnight trip without forcing an accommodation category preference", async ({ page }, testInfo) => {
+  await installFakeMap(page);
+  let submitted: { trip: { tripType: string; selectedCategories: string[] } } | undefined;
+  await page.route(`**${GENERATE_PATH}`, async (route) => {
+    submitted = route.request().postDataJSON();
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(READY) });
+  });
+  await openPetPlanner(page, testInfo, "full-catalog-overnight-preference");
+  await continueToTrip(page);
+  await chooseConfirmedDeparture(page);
+  await page.getByRole("radio", { name: /1박 여행/u }).check({ force: true });
+  await continueToDay(page);
+  await expect(page.getByRole("checkbox", { name: "숙소", exact: true })).not.toBeChecked();
+  await page.getByRole("button", { name: "여행 추천 받기" }).click();
+  await expect.poll(() => submitted?.trip.tripType).toBe("overnight");
+  expect(submitted?.trip.selectedCategories).toEqual(["attraction", "food"]);
+  await expect(page).toHaveURL(/\/results\?tab=recommendations&region=busan$/u);
 });
 
 test("shows compact request-backed loading without fake pipeline stages", async ({ page }, testInfo) => {
@@ -685,7 +756,7 @@ test("shows compact request-backed loading without fake pipeline stages", async 
   await expect(loading).toContainText("반려견 동반 근거와 실제 이동 경로를 확인하고 있어요.");
   await expect(loading).toContainText("보리 · 강아지 · 소형");
   await expect(loading).toContainText("부산광역시 연제구 중앙대로 1001 출발");
-  await expect(loading).toContainText("2026-08-15 · 10:00");
+  await expect(loading).toContainText(`${futureTripDate()} · 10:00`);
   await expect(loading).not.toContainText(/Kakao|geometry/u);
   await expect(loading.locator(".recommendation-loading-stop")).toHaveCount(3);
   await expect(page.getByText("선택 장소 확인")).toHaveCount(0);
@@ -756,4 +827,325 @@ test("keeps the Stage 5 result usable at desktop, tablet, and mobile widths", as
       documentContainsTimeline: true,
     });
   }
+});
+
+// Completion-first fixtures exercise HTTP/UI/storage contracts; engine correctness is covered by service tests.
+function completionResponse(date: string | null, startTime: string | null, suggestedTime?: string) {
+  const effectiveTime = suggestedTime ?? startTime ?? (date ? "09:00" : null);
+  const schedule = {
+    requested: { date, startTime }, effective: { date, startTime: effectiveTime },
+    state: suggestedTime && suggestedTime !== startTime ? "adjustment_proposal" as const : date ? "scheduled" as const : "undated_template" as const,
+    timingBasis: date ? "dated" as const : startTime ? "illustrative_clock" as const : "relative" as const,
+    roadValidated: true, timeBudgetValidated: true,
+    calendarValidation: date ? "checked_known_rules" as const : "date_required" as const,
+    operatingAvailability: "requires_confirmation" as const, reasonCodes: [],
+  };
+  const absolute = (seconds: number) => date ? new Date(Date.parse(`${date}T${effectiveTime}:00+09:00`) + seconds * 1000).toISOString() : null;
+  const stops = READY.route.stops.map((value, index) => {
+    const arrival = index === 0 ? 900 : 8100;
+    const departure = arrival + value.dwellMinutes * 60;
+    return { ...value, placeId: `tour:${value.placeId}`, regionId: "busan" as const, arrivalAt: absolute(arrival), visitStartsAt: absolute(arrival), departureAt: absolute(departure), arrivalOffsetSeconds: arrival, visitStartsOffsetSeconds: arrival, departureOffsetSeconds: departure };
+  });
+  const route = { ...READY.route, planningPolicy: "full_public_catalog_v1" as const, venueCompatibility: "unchecked" as const, schedule, stops, routeSignature: "tour:1001>tour:2001", routeSummary: { ...READY.route.routeSummary, startAt: absolute(0), endAt: absolute(11700), totalElapsedSeconds: 11700 }, segments: READY.route.segments.map((edge, index) => ({ ...edge, fromPlaceId: index === 0 ? "departure" : "tour:1001", toPlaceId: `tour:${edge.toPlaceId}` })) };
+  return { ...READY, apiVersion: "route-recommendation-response-v2" as const, requestSummary: { ...READY.requestSummary, tripDate: date, startTime }, route, routeOptions: [route] };
+}
+
+function fullCatalogResponse(kakaoId = "9001"): RouteRecommendationReadyResponseV1 {
+  const base = completionResponse(futureTripDate(), "10:00");
+  const route = {
+    ...base.route,
+    stops: [
+      { ...base.route.stops[0]!, placeId: `kakao:${kakaoId}`, title: `카카오 공개 장소 ${kakaoId}`, source: "kakao_catalog" as const, sourceLabel: "카카오 검색 후보" as const, petAssessment: "unknown" as const, evidenceStatus: "unverified" as const, informationTrust: "low" as const, evidence: [], inclusionReasonCodes: ["matches_requested_category"], catalogEvidence: [{ provider: "kakao" as const, providerPlaceId: kakaoId, petAssessment: "unknown" as const, originalText: null, retrievedAt: null, publicLabel: "동반 여부 미확인" }] },
+      { ...base.route.stops[1]!, petAssessment: "not_allowed" as const, evidenceStatus: "verified" as const, conditionAcknowledged: false, operatingStatus: "reported_closed" as const, licensingStatus: "confirmed_closed" as const, mandatoryConditions: [], evidence: [{ field: "catalog", label: "보존된 이용 안내", originalText: "반려동물 출입 불가 · 휴업 안내" }], inclusionReasonCodes: ["matches_requested_category"], catalogEvidence: [{ provider: "kto" as const, providerPlaceId: "2001", petAssessment: "not_allowed" as const, originalText: "반려동물 출입 불가 · 휴업 안내", retrievedAt: "2026-09-01T00:00:00Z", publicLabel: "동반 불가 안내" }] },
+    ],
+    segments: base.route.segments.map((edge, index) => ({ ...edge, fromPlaceId: index === 0 ? "departure" : `kakao:${kakaoId}`, toPlaceId: index === 0 ? `kakao:${kakaoId}` : "tour:2001" })),
+    routeSignature: `kakao:${kakaoId}>tour:2001`,
+  };
+  return { ...base, route, routeOptions: [route], candidateSourceCounts: { kto: 1, kakao: 1, merged: 0 } };
+}
+
+for (const mode of [
+  { name: "undated relative", date: null, time: null },
+  { name: "date only", date: futureTripDate(), time: null },
+  { name: "time only", date: null, time: "10:00" },
+  { name: "fixed schedule", date: futureTripDate(), time: "10:00" },
+]) {
+  test(`completion schedule ${mode.name} survives request, saved link, and refresh`, async ({ page }, testInfo) => {
+    const bodies: Array<Record<string, unknown>> = [];
+    await installFakeMap(page);
+    await page.route(`**${GENERATE_PATH}`, async (route) => {
+      bodies.push(route.request().postDataJSON());
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(completionResponse(mode.date, mode.time)) });
+    });
+    await openPetPlanner(page, testInfo, "completion-mode");
+    await continueToTrip(page);
+    if (!mode.date) await page.getByRole("button", { name: "날짜 미정", exact: true }).click();
+    if (!mode.time) await page.getByRole("button", { name: "시간 미정", exact: true }).click();
+    await chooseConfirmedDeparture(page);
+    await continueToDay(page);
+    await page.getByRole("button", { name: "여행 추천 받기" }).click();
+    await expect(page.getByRole("heading", { name: /에서 시작하는 2곳 일정/u })).toBeVisible();
+    expect(bodies[0]).toMatchObject({ requestVersion: 2, trip: { date: mode.date, startTime: mode.time } });
+    expect(bodies[0]).not.toHaveProperty("pet.availableEquipment");
+    if (!mode.date) await expect(page.getByLabel("일정 상태")).toContainText("날짜 미정 초안");
+    if (!mode.date && !mode.time) await expect(page.locator("#recommended-stop-tour\\:1001")).toContainText("출발 후 15분");
+    if (!mode.date && mode.time) await expect(page.locator("#recommended-stop-tour\\:1001")).toContainText("10:15 (예시)");
+    if (mode.date && !mode.time) await expect(page.getByLabel("일정 상태")).toContainText("추천 출발 시간: 09:00");
+    await page.getByRole("button", { name: "일정 저장", exact: true }).click();
+    await page.getByRole("link", { name: "저장된 일정 보기" }).click();
+    await expect(page).toHaveURL(/\/itinerary$/u);
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "균형 추천" })).toBeVisible();
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("petpass:saved-route-recommendation")!));
+    expect(saved.version).toBe(2);
+    expect(saved.data.route.schedule.requested).toEqual({ date: mode.date, startTime: mode.time });
+    expect(saved.data.route.segments).toHaveLength(2);
+    expect(saved.data.saveState).toBe("draft");
+    if (!mode.date) expect(saved.data.route.stops.every((value: { arrivalAt: unknown }) => value.arrivalAt === null)).toBe(true);
+    expect(JSON.stringify(saved)).not.toContain(READY.editSessionId);
+  });
+}
+
+test("keeps an explicit time until applying and revalidating its proposal", async ({ page }, testInfo) => {
+  const requestedTimes: string[] = [];
+  await installFakeMap(page);
+  await page.route(`**${GENERATE_PATH}`, async (route) => {
+    const request = route.request().postDataJSON();
+    requestedTimes.push(request.trip.startTime);
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(completionResponse(request.trip.date, request.trip.startTime, request.trip.startTime === "10:00" ? "11:00" : undefined)) });
+  });
+  await openPetPlanner(page, testInfo, "completion-proposal");
+  await continueToTrip(page);
+  await chooseConfirmedDeparture(page);
+  await continueToDay(page);
+  await page.getByRole("button", { name: "여행 추천 받기" }).click();
+  await expect(page.getByLabel("일정 상태")).toContainText("요청 출발 10:00");
+  await expect(page.getByLabel("일정 상태")).toContainText("11:00 출발을 제안");
+  const storedTime = () => page.evaluate(() => JSON.parse(localStorage.getItem("weekendog:plan-draft")!).data.startTime);
+  expect(await storedTime()).toBe("10:00");
+  await page.getByRole("button", { name: "이 시간 적용" }).click();
+  await expect.poll(() => requestedTimes).toEqual(["10:00", "11:00"]);
+  await expect(page.getByLabel("일정 상태")).toContainText("요청 출발 11:00");
+  await expect(page.getByRole("button", { name: "이 시간 적용" })).toHaveCount(0);
+  expect(await storedTime()).toBe("11:00");
+});
+
+test("keeps manual order when applying a schedule proposal and commits the clock only after validation", async ({ page }, testInfo) => {
+  await installFakeMap(page);
+  let generations = 0;
+  const edits: Array<{ orderedPlaceIds: string[]; applyScheduleProposal?: boolean }> = [];
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route(`**${GENERATE_PATH}`, async route => {
+    generations++;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(completionResponse(futureTripDate(), "10:00", "11:00")) });
+  });
+  await page.route("**/api/itineraries/revalidate", async route => {
+    const request = route.request().postDataJSON(); edits.push(request);
+    if (request.applyScheduleProposal) await gate;
+    const ready = completionResponse(futureTripDate(), request.applyScheduleProposal ? "11:00" : "10:00", request.applyScheduleProposal ? undefined : "11:00");
+    const ordered = request.orderedPlaceIds.map((id: string, index: number) => ({ ...ready.route.stops.find(stop => stop.placeId === id)!, sequence: index + 1 }));
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ status: "ready", apiVersion: ready.apiVersion, route: { ...ready.route, kind: "manual", label: "직접 수정한 일정", stops: ordered }, warnings: [], editSessionId: `v1.${"a".repeat(60)}.${"b".repeat(43)}` }) });
+  });
+  await openPetPlanner(page, testInfo, "completion-manual-proposal");
+  await continueToTrip(page); await chooseConfirmedDeparture(page); await continueToDay(page);
+  await page.getByRole("button", { name: "여행 추천 받기" }).click();
+  await page.locator('[id="recommended-stop-tour:1001"]').getByRole("button", { name: "뒤로" }).click();
+  await page.getByRole("button", { name: "경로 다시 계산" }).click();
+  await expect(page.getByText("직접 수정한 일정", { exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: "이 시간 적용" }).click();
+  await expect.poll(() => edits.length).toBe(2);
+  expect(edits[1]).toMatchObject({ orderedPlaceIds: ["tour:2001", "tour:1001"], applyScheduleProposal: true });
+  const storedTime = () => page.evaluate(() => JSON.parse(localStorage.getItem("weekendog:plan-draft")!).data.startTime);
+  expect(await storedTime()).toBe("10:00");
+  release();
+  await expect(page.getByLabel("일정 상태")).toContainText("요청 출발 11:00");
+  expect(await storedTime()).toBe("11:00");
+  expect(generations).toBe(1);
+  await expect(page.getByRole("list", { name: "직접 수정한 일정 방문 순서" }).locator(":scope > li").first()).toContainText("광안 공식 식당");
+  await expect(page.getByRole("button", { name: "이 시간 적용" })).toHaveCount(0);
+});
+
+test("preserves the last valid route after reroll failure and recovers on the next success", async ({ page }, testInfo) => {
+  let attempt = 0;
+  await installFakeMap(page);
+  await page.route(`**${GENERATE_PATH}`, async (route) => {
+    attempt++;
+    await route.fulfill({ status: attempt === 2 ? 503 : 200, contentType: "application/json", body: JSON.stringify(attempt === 2 ? { status: "kakao_provider_unavailable", apiVersion: "route-recommendation-response-v2", reasonCodes: ["timeout"], userMessage: "실제 이동 경로를 계산하지 못했습니다.", retryable: true } : completionResponse(futureTripDate(), "10:00")) });
+  });
+  await openPetPlanner(page, testInfo, "completion-retained");
+  await continueToTrip(page);
+  await chooseConfirmedDeparture(page);
+  await continueToDay(page);
+  await page.getByRole("button", { name: "여행 추천 받기" }).click();
+  await expect(page.getByRole("heading", { name: /에서 시작하는 2곳 일정/u })).toBeVisible();
+  await page.getByRole("button", { name: "새로운 장소로 다시 추천" }).click();
+  const failure = page.getByRole("alert").filter({ hasText: "마지막으로 성공한 입력 기준" });
+  await expect(failure).toBeVisible();
+  await expect(page.getByRole("list", { name: "균형 추천 방문 순서" })).toBeVisible();
+  await expect(page.locator("[data-provider-polyline]")).toHaveCount(1);
+  await page.getByRole("button", { name: "현재 입력으로 다시 시도" }).click();
+  await expect(failure).toHaveCount(0);
+  expect(attempt).toBe(3);
+});
+
+test("removal and undo preserve route state while exclusions survive reroll and refresh", async ({ page }, testInfo) => {
+  const exclusions: string[][] = [];
+  await installFakeMap(page);
+  await page.route(`**${GENERATE_PATH}`, async (route) => {
+    exclusions.push(route.request().postDataJSON().personalization.explicitlyExcludedPlaceIds);
+    const body = completionResponse(futureTripDate(), "10:00");
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+  });
+  await openPetPlanner(page, testInfo, "completion-exclusions");
+  await continueToTrip(page);
+  await chooseConfirmedDeparture(page);
+  await continueToDay(page);
+  await page.getByRole("button", { name: "여행 추천 받기" }).click();
+  const secondStop = page.locator('[id="recommended-stop-tour:2001"]');
+  await secondStop.getByRole("button", { name: "제외", exact: true }).click();
+  await expect(secondStop).toHaveCount(0);
+  await page.getByRole("button", { name: "마지막 제외 실행 취소" }).click();
+  await expect(secondStop).toBeVisible();
+  await secondStop.getByRole("button", { name: "제외", exact: true }).click();
+  await page.getByRole("button", { name: "새로운 장소로 다시 추천" }).click();
+  await expect.poll(() => exclusions.length).toBe(2);
+  expect(exclusions[1]).toEqual(["tour:2001"]);
+  const readExcluded = () => page.evaluate(() => JSON.parse(localStorage.getItem("weekendog:plan-draft")!).data.excludedPlaceIds);
+  expect(await readExcluded()).toEqual(["tour:2001"]);
+  await page.reload();
+  expect(await readExcluded()).toEqual(["tour:2001"]);
+});
+
+test("route style tabs support arrow keys, Home, End, and panel association", async ({ page }, testInfo) => {
+  await generate(page, testInfo);
+  const balanced = page.getByRole("tab", { name: "균형 추천" });
+  await balanced.focus();
+  await balanced.press("ArrowRight");
+  await expect(page.getByRole("tab", { name: "여유 일정" })).toBeFocused().catch(async (error) => {
+    console.log("ROUTE_TAB_FOCUS", await page.evaluate(() => ({ id: document.activeElement?.id, tag: document.activeElement?.tagName, text: document.activeElement?.textContent?.slice(0, 100) })));
+    throw error;
+  });
+  await expect(page.getByRole("tab", { name: "여유 일정" })).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("End");
+  await expect(page.getByRole("tab", { name: "이동 최소" })).toBeFocused();
+  await page.keyboard.press("Home");
+  await expect(balanced).toBeFocused();
+  const panelId = await balanced.getAttribute("aria-controls");
+  await expect(page.locator(`[id="${panelId}"]`)).toHaveAttribute("role", "tabpanel");
+  await expect(page.getByRole("tab", { name: "여유 일정" })).toHaveAttribute("tabindex", "-1");
+});
+
+test("keeps a reroll reachable when public catalog reserve has not yet been road-queried", async ({ page }, testInfo) => {
+  const requests: Array<Record<string, unknown>> = [];
+  await installFakeMap(page);
+  await page.route(`**${GENERATE_PATH}`, async (route) => {
+    requests.push(route.request().postDataJSON());
+    const body = fullCatalogResponse(requests.length === 1 ? "9001" : "9002");
+    body.diversityCapacity = "limited";
+    body.diversity = {
+      eligibleUniqueCandidateCount: 2,
+      requestedStopCount: 3,
+      unseenEligibleCandidateCount: 0,
+      maximumFeasibleNovelReplacements: 0,
+      scoredUniqueCandidateCount: 50,
+      unqueriedCandidateCount: 48,
+      diversityCapacity: "limited",
+      limitingReasonCodes: ["unqueried_catalog_candidates_remain"],
+    };
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+  });
+  await openPetPlanner(page, testInfo, "full-catalog-reserve");
+  await continueToTrip(page);
+  await chooseConfirmedDeparture(page);
+  await continueToDay(page);
+  await page.getByRole("button", { name: "여행 추천 받기" }).click();
+  await expect(page.locator('[id="recommended-stop-kakao:9001"]')).toBeVisible();
+  const reroll = page.getByRole("button", { name: "다른 조합 보기", exact: true });
+  await expect(reroll).toBeEnabled();
+  await expect(page.getByRole("button", { name: "새로운 장소로 다시 추천", exact: true })).toHaveCount(0);
+  await expect(page.getByText("확인 필요 장소를 명시적으로 허용하기", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "새 장소 선택 폭을 넓히는 방법", exact: true })).toHaveCount(0);
+  await reroll.click();
+  await expect(page.locator('[id="recommended-stop-kakao:9002"]')).toBeVisible();
+  await expect(page.locator('[id="recommended-stop-kakao:9001"]')).toHaveCount(0);
+  await expect(page.getByText("원문상 동반 불가", { exact: true })).toBeVisible();
+  expect(requests).toHaveLength(2);
+  expect(requests.every(request => !request.conditionConfirmation && !request.conditionAnswers)).toBe(true);
+  await expectNoHorizontalOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath("unqueried-reserve-reroll.png"), fullPage: true });
+});
+
+test("full catalog unknown and negative warnings survive map, reroll, save and refresh without acknowledgements", async ({ page }, testInfo) => {
+  const requests: Array<Record<string, unknown>> = [];
+  await installFakeMap(page);
+  await page.route(`**${GENERATE_PATH}`, async (route) => {
+    requests.push(route.request().postDataJSON());
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(fullCatalogResponse(requests.length === 1 ? "9001" : "9002")) });
+  });
+  await openPetPlanner(page, testInfo, "full-catalog-warnings");
+  await continueToTrip(page);
+  await chooseConfirmedDeparture(page);
+  await continueToDay(page);
+  await page.getByRole("button", { name: "여행 추천 받기" }).click();
+  await expect(page.getByRole("heading", { name: /에서 시작하는 2곳 일정/u })).toBeVisible();
+  await expect(page.getByText("전체 장소 기반 추천", { exact: true })).toBeVisible();
+  await expect(page.getByText("동반 여부 미확인 · 방문 전 확인", { exact: true })).toBeVisible();
+  await expect(page.getByText("원문상 동반 불가", { exact: true })).toBeVisible();
+  await expect(page.getByText("휴업/폐업 안내 있음 · 원문 확인", { exact: true })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /균형 추천/u })).toContainText("이용 안내 2곳");
+  await expect(page.getByText("축소 결과 · 이동시간 안에 계산한 경로", { exact: true })).toBeVisible();
+  await expect(page.getByText("안전하게 완성 가능한 장소만 포함", { exact: false })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "이 일정에 필요한 사실만 확인해 주세요" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "답변한 조건 다시 확인" })).toHaveCount(0);
+  await expectNoHorizontalOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath("full-catalog-result-warnings.png"), fullPage: true });
+  await page.locator('[id="recommended-stop-kakao:9001"]').getByRole("button", { name: /지도에서 보기/u }).click();
+  await expect(page.locator('[id="recommended-stop-kakao:9001"]')).toHaveAttribute("data-selected", "true");
+  await page.getByRole("button", { name: "새로운 장소로 다시 추천" }).click();
+  await expect(page.locator('[id="recommended-stop-kakao:9002"]')).toBeVisible();
+  expect(requests).toHaveLength(2);
+  expect(requests.every(request => !request.conditionConfirmation && !request.conditionAnswers)).toBe(true);
+  await page.getByRole("button", { name: "일정 저장", exact: true }).click();
+  await page.getByRole("link", { name: "저장된 일정 보기" }).click();
+  await expect(page).toHaveURL(/\/itinerary$/u);
+  await page.reload();
+  await expect(page).toHaveURL(/\/itinerary$/u);
+  await expect(page.getByText("원문상 동반 불가", { exact: true })).toBeVisible();
+  await expect(page.getByText("휴업/폐업 안내 있음 · 원문 확인", { exact: true })).toBeVisible();
+  await expect(page.getByText("동반 여부 미확인 · 방문 전 확인", { exact: true })).toBeVisible();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("petpass:saved-route-recommendation")!).data);
+  expect(saved.saveState).toBe("draft");
+  expect(saved.route.stops.map((item: { petAssessment: string }) => item.petAssessment)).toEqual(["unknown", "not_allowed"]);
+  expect(saved.route.stops[1].conditionAcknowledged).toBe(false);
+  expect(saved.route.stops[1].catalogEvidence[0].originalText).toBe("반려동물 출입 불가 · 휴업 안내");
+  expect(JSON.stringify(saved)).not.toContain(READY.editSessionId);
+  await expectNoHorizontalOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath("full-catalog-saved-warnings.png"), fullPage: true });
+});
+
+test("cancels the first generation and ignores its late response before a fresh retry", async ({ page }, testInfo) => {
+  let attempts = 0;
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await installFakeMap(page);
+  await page.route(`**${GENERATE_PATH}`, async (route) => {
+    attempts++;
+    const attempt = attempts;
+    if (attempt === 1) await gate;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(completionResponse(futureTripDate(), "10:00")) }).catch(() => undefined);
+  });
+  await openPetPlanner(page, testInfo, "completion-cancel");
+  await continueToTrip(page);
+  await chooseConfirmedDeparture(page);
+  await continueToDay(page);
+  await page.getByRole("button", { name: "여행 추천 받기" }).click();
+  await expect(page.getByRole("status", { name: "맞춤 일정 생성 상태" })).toBeVisible();
+  await page.getByRole("button", { name: "요청 취소" }).click();
+  await expect(page.getByRole("button", { name: "추천 일정 만들기", exact: true })).toBeVisible();
+  release();
+  await expect(page.getByRole("heading", { name: /에서 시작하는 2곳 일정/u })).toHaveCount(0);
+  await page.getByRole("button", { name: "추천 일정 만들기", exact: true }).click();
+  await expect(page.getByRole("heading", { name: /에서 시작하는 2곳 일정/u })).toBeVisible();
+  expect(attempts).toBe(2);
 });

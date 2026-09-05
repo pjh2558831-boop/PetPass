@@ -137,15 +137,19 @@ export async function optimizeRouteOptionsV2(
   let attempts = 0;
   let failures = 0;
   let validationDurationMs = 0;
-  const validations = await Promise.all(selectedOptions.map(async (option) => ({
-    option,
-    validated: await validateFinalistsV1({
+  const validationReasons = new Set<string>();
+  const validations = [];
+  for (const option of selectedOptions) {
+    input.signal?.throwIfAborted();
+    if (input.validationBudget && input.validationBudget.remaining <= 0) break;
+    validations.push({ option, validated: await validateFinalistsV1({
       optimization: input,
       finalists: [option.route.internal],
       travelTimeProvider: dependencies.travelTimeProvider,
-    }),
-  })));
+    }) });
+  }
   for (const { option, validated } of validations) {
+    validated.reasonCodes.forEach(code => validationReasons.add(code));
     attempts += validated.attempts;
     failures += validated.failures;
     validationDurationMs += validated.durationMs;
@@ -184,7 +188,7 @@ export async function optimizeRouteOptionsV2(
   if (options.length === 0) {
     return {
       status: "final_validation_failed",
-      reasonCodes: ["no_selected_route_option_passed_exact_validation"],
+      reasonCodes: ["no_selected_route_option_passed_exact_validation", ...validationReasons],
       diagnostics: search.diagnostics,
     };
   }
@@ -204,6 +208,7 @@ export async function optimizeRouteOptionsV2(
       : "best_found_within_time_limit",
     excludedHighlights: explainExcludedPlaces({ optimization: input, selected: primary }),
     warnings: [
+      ...validationReasons,
       ...(search.diagnostics.beamFallbackUsed
         ? ["exact_search_limit_reached_beam_fallback_used"]
         : []),

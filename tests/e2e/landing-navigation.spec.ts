@@ -149,7 +149,7 @@ test("opens the mobile navigation and follows its real destination", async ({
   await mobileNavigation.getByRole("link", { name: "장소 찾기" }).click();
 
   await expect(page).toHaveURL(/\/results\?tab=catalog&region=seoul&page=1$/u);
-  await expect(page.getByRole("tabpanel", { name: "장소 찾기" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "장소 및 추천 보기" }).getByRole("link", { name: "장소 찾기" })).toHaveAttribute("aria-current", "page");
 });
 
 test("avoids horizontal overflow at the required viewports", async ({ page }) => {

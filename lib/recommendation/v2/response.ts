@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import { applyCanonicalPetConditionPolicy } from "@/lib/pet-access/canonical-condition-eligibility";
+import { CANONICAL_PET_CONDITION_VERSION } from "@/lib/pet-access/canonical-condition-eligibility";
 import type { normalizeRecommendationRequest } from "@/lib/recommendation/recommendation-request";
 import type { DetailedEligibleCandidate } from "@/lib/recommendation/types";
 import type { RecommendedRouteStop, RouteOptimizationInput } from "@/lib/recommendation/types/route-optimizer";
@@ -25,6 +26,7 @@ export function requestFingerprintV2(input: {
   normalized: ReturnType<typeof normalizeRecommendationRequest>;
   catalogVersion: string;
   candidates: readonly CanonicalRecommendationCandidateV2[];
+  schedules?: Array<ProductRouteV1["schedule"]>;
   selection?: { selectedPlaceIds: readonly string[]; autoFill: boolean };
   eligibilityPolicy?: {
     includeVerificationRequired: boolean;
@@ -41,6 +43,9 @@ export function requestFingerprintV2(input: {
     },
     routeStyles: ["balanced", "shortest", "relaxed"],
     request: input.normalized,
+    schedules: input.schedules,
+    conditionPolicyVersion: CANONICAL_PET_CONDITION_VERSION,
+    planningPolicy: "full_public_catalog_v1",
     ...(input.selection ? { selection: input.selection } : {}),
     eligibilityPolicy: input.eligibilityPolicy,
     catalogVersion: input.catalogVersion,
@@ -48,6 +53,7 @@ export function requestFingerprintV2(input: {
       id: candidate.canonicalId,
       providerIdentities: candidate.providerIdentities,
       retrievedAt: candidate.retrievedAt,
+      conditions: candidate.conditionEligibility,
     })),
   }), "utf8").digest("hex");
 }
@@ -59,6 +65,8 @@ function productStopV2(
   selectedPlaceIds?: ReadonlySet<string>,
   includeVerificationRequired = false,
   acknowledgedPlaceIds: ReadonlySet<string> = new Set(),
+  allowMaterialProposal = false,
+  broadPlanning = false,
 ): RecommendedRouteStopV1 {
   const kto = candidate.ktoCandidate;
   const selected = selectedPlaceIds?.has(candidate.canonicalId) ?? false;
@@ -68,8 +76,9 @@ function productStopV2(
     includeVerificationRequired,
     acknowledged: acknowledgedPlaceIds.has(candidate.canonicalId),
     preserveUserSelection: selected,
+    allowMaterialProposal,
   });
-  if (conditionPolicy.decision === "reject") {
+  if (!broadPlanning && conditionPolicy.decision === "reject") {
     throw new TypeError(
       `Final V2 route stop failed canonical pet-condition validation: ${candidate.canonicalId}`,
     );
@@ -77,7 +86,11 @@ function productStopV2(
   const kakaoConditionWarning = candidate.source === "kakao_catalog" && candidate.petConditions
     ? `반려견 동반 조건: ${candidate.petConditions} · 방문 전 업체에 최신 동반 조건을 확인해 주세요.`
     : null;
-  const verificationWarning = conditionPolicy.decision === "confirmation_required"
+  const verificationWarning = broadPlanning
+    ? candidate.conditionEligibility.state === "eligible"
+      ? null
+      : candidate.conditionEligibility.warnings[0]?.message ?? "반려동물 동반 가능 여부와 조건을 방문 전에 확인해 주세요."
+    : conditionPolicy.decision === "confirmation_required"
     ? candidate.conditionEligibility.warnings[0]?.message ??
       "반려동물 동반 조건을 확인하고 동의해 주세요."
     : selected
@@ -89,6 +102,14 @@ function productStopV2(
           ? "selected_pet_policy_requires_confirmation"
           : null
       : null;
+  const resolvedLicensingStatus = kto ? licensingStatus(kto) : "not_applicable";
+  const operatingStatus = resolvedLicensingStatus === "confirmed_closed"
+    ? "reported_closed" as const
+    : kto?.scheduleCompatibility.status === "conflict"
+      ? "reported_closed" as const
+    : kto?.scheduleCompatibility.status === "compatible"
+      ? "reported_open" as const
+      : "unknown" as const;
   return {
     placeId: candidate.canonicalId,
     sequence: stop.sequence,
@@ -108,24 +129,26 @@ function productStopV2(
     evidenceStatus: candidate.evidenceStatus,
     retrievedAt: candidate.retrievedAt,
     providerIdentities: candidate.providerIdentities,
+    catalogEvidence: candidate.catalogEvidence,
     regionId: candidate.regionId,
     districtId: candidate.districtCode,
     selectionOrigin: candidate.selectionOrigin,
     operatingHoursEvidenceState: candidate.operatingHoursEvidenceState,
+    operatingStatus,
     ...(selectedPlaceIds ? {
       provenance: selected ? "user_selected" as const : "auto_fill" as const,
       locked: selected,
       verificationWarning,
     } : {}),
     petConditionEligibility: candidate.conditionEligibility,
-    conditionAcknowledged: conditionPolicy.routeStatus === "ready",
+    ...(acknowledgedPlaceIds.has(candidate.canonicalId) ? { conditionAcknowledged: true } : broadPlanning ? {} : { conditionAcknowledged: conditionPolicy.routeStatus === "ready" }),
     mandatoryConditions: kto?.assessment.conditions.map((condition) => ({
       type: condition.type,
       label: condition.label,
       manualConfirmationRecommended: condition.manualConfirmationRecommended,
     })) ?? [],
     informationTrust: stop.informationTrust,
-    licensingStatus: kto ? licensingStatus(kto) : "not_applicable",
+    licensingStatus: resolvedLicensingStatus,
     operatingHoursWarnings: kto?.scheduleCompatibility.warningCodes ?? ["operating_hours_unverified"],
     inclusionReasonCodes: stop.inclusionReasonCodes,
     orderingReasonCodes: stop.orderingReasonCodes,
@@ -152,7 +175,10 @@ export function routeFromOptionV2(input: {
   selectedPlaceIds?: ReadonlySet<string>;
   includeVerificationRequired?: boolean;
   acknowledgedPlaceIds?: ReadonlySet<string>;
+  allowMaterialProposal?: boolean;
 }): ProductRouteV1 {
+  const broadPlanning = input.optimization.tripRequest.planningPolicy === "full_public_catalog_v1" ||
+    input.optimization.candidates.some(({ planningPolicy }) => planningPolicy === "full_public_catalog_v1");
   const schedule = routeOptionScheduleV2(input.option, input.optimization);
   const stopCount = input.option.stops.length;
   const reductionStatus = stopCount === 1
@@ -177,6 +203,8 @@ export function routeFromOptionV2(input: {
       input.selectedPlaceIds,
       input.includeVerificationRequired,
       input.acknowledgedPlaceIds,
+      input.allowMaterialProposal,
+      broadPlanning,
     );
   });
   const categoryComposition = Object.fromEntries(
@@ -188,6 +216,7 @@ export function routeFromOptionV2(input: {
   const selectedPlaceCount = stops.filter(({ placeId }) => input.selectedPlaceIds?.has(placeId)).length;
   const maximumSingleWaitSeconds = Math.max(0, ...input.option.route.visits.map(({ waitSeconds }) => waitSeconds));
   return {
+    ...(broadPlanning ? { planningPolicy: "full_public_catalog_v1" as const, venueCompatibility: "unchecked" as const } : {}),
     id: `optimized:${input.option.style}:${input.option.route.signature}`,
     kind: "optimized",
     label: labels[input.option.style],
@@ -232,7 +261,7 @@ export function routeFromOptionV2(input: {
       temporalBasis: input.option.temporalBasis,
     })),
     geometry: input.option.geometry,
-    confirmationStatus: stops.some(({ conditionAcknowledged }) =>
+    confirmationStatus: broadPlanning ? "ready" : stops.some(({ conditionAcknowledged }) =>
       conditionAcknowledged === false)
       ? "confirmation_required"
       : "ready",

@@ -176,7 +176,7 @@ export function createRouteRecommendationHandler(
     try {
       result = await (options.generate ?? generateRouteRecommendation)(
         parsed.data,
-        { ...options.dependencies, signal: request.signal },
+        { includeDiagnostics: process.env.NODE_ENV === "development", ...options.dependencies, signal: request.signal },
       );
     } catch (error) {
       if (request.signal.aborted) throw error;
@@ -184,7 +184,8 @@ export function createRouteRecommendationHandler(
         "recommendation_handler_failed",
       ]);
     }
-    return Response.json(result, {
+    return Response.json({ ...result, apiVersion: parsed.data.requestVersion === 2
+      ? "route-recommendation-response-v2" : result.apiVersion }, {
       status:
         result.status === "ready"
           ? 200

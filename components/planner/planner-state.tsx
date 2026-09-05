@@ -23,10 +23,10 @@ export const DEFAULT_PLANNER_PROFILE: PetProfile = {
   name: "",
   species: "DOG",
   size: "SMALL",
-  hasCarrier: false,
-  hasLeash: false,
-  hasMuzzle: false,
-  acceptsOutdoorOnly: false,
+  hasCarrier: null,
+  hasLeash: null,
+  hasMuzzle: null,
+  acceptsOutdoorOnly: null,
 };
 
 const DEFAULT_PLANNER_REGION = REGION_CONFIGS.find(

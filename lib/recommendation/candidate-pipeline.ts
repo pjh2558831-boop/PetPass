@@ -680,18 +680,18 @@ export async function runCandidatePipelineV1(
           scheduleCompatibility: assessScheduleCompatibilityV1({
             detail: scheduleDetail,
             providerAvailable: scheduleDetail !== null,
-            travelDate: input.context.request.travelDate,
+            travelDate: input.context.request.scheduleIntent ? input.context.request.scheduleIntent.date : input.context.request.travelDate,
             asOf,
             // Stage 2 has no route order, so it cannot assert a visit window.
             proposedArrivalMinutes: null,
             proposedDepartureMinutes: null,
-            feasibleWindow: {
+            ...(input.context.request.scheduleIntent ? {} : { feasibleWindow: {
               earliestArrivalMinutes: tripStartMinutes,
               latestDepartureMinutes: tripLatestDeparture,
               dwellMinutes: resolveDwellDurationV1({
                 category: candidate.contentTypeId,
               }).minutes,
-            },
+            } }),
           }),
         };
       } catch {
@@ -701,7 +701,7 @@ export async function runCandidatePipelineV1(
           scheduleCompatibility: assessScheduleCompatibilityV1({
             detail: null,
             providerAvailable: false,
-            travelDate: input.context.request.travelDate,
+            travelDate: input.context.request.scheduleIntent ? input.context.request.scheduleIntent.date : input.context.request.travelDate,
             asOf,
             proposedArrivalMinutes: null,
             proposedDepartureMinutes: null,

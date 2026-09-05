@@ -16,7 +16,8 @@ type Compatibility =
   | PetSizeCompatibilityState
   | "unknown";
 
-type ConditionOutcome = "satisfied" | "conflict" | "confirmation_required";
+type ConditionOutcome = "satisfied" | "guidance" | "conflict" | "confirmation_required";
+export const CANONICAL_PET_CONDITION_VERSION = "canonical-pet-condition-v2" as const;
 
 function uniqueSorted<T extends string>(values: readonly T[]): T[] {
   return [...new Set(values)].sort() as T[];
@@ -74,6 +75,7 @@ function conditionItem(
 ): CanonicalPetConditionItem {
   return {
     code: canonicalCode(condition),
+    subject: condition.subject ?? (/맹견|위험견/.test(condition.sourceText) ? "dangerous_dog" : "all"),
     sourceType: condition.type,
     label: condition.label,
     sourceText: condition.sourceText,
@@ -88,33 +90,35 @@ function expressibleOutcome(input: {
   sizeCompatibility: Compatibility;
 }): ConditionOutcome {
   const { condition, petProfile } = input;
+  const subject = condition.subject ?? (/맹견|위험견/.test(condition.sourceText) ? "dangerous_dog" : "all");
+  if (subject === "dangerous_dog" && petProfile.isDangerousDog === false) return "satisfied";
+  const preparable = ["leash_required", "harness_required", "carrier_required", "muzzle_required", "stroller_required", "sanitation_requirement", "owner_supervision", "fee_required", "deposit_required", "designated_area_only"];
+  if (preparable.includes(condition.type)) {
+    if (subject !== "all" && petProfile.isDangerousDog !== true) return "guidance";
+    const equipment = condition.type === "leash_required" ? petProfile.hasLeash
+      : condition.type === "carrier_required" ? petProfile.hasCarrier
+        : condition.type === "muzzle_required" ? petProfile.hasMuzzle : null;
+    return equipment === false ? "conflict" : "guidance";
+  }
   let outcome: ConditionOutcome;
   switch (condition.type) {
-    case "leash_required":
-      outcome = petProfile.hasLeash === null
-        ? "confirmation_required"
-        : petProfile.hasLeash
-          ? "satisfied"
-          : "conflict";
-      break;
-    case "carrier_required":
-      outcome = petProfile.hasCarrier === null
-        ? "confirmation_required"
-        : petProfile.hasCarrier
-          ? "satisfied"
-          : "conflict";
-      break;
-    case "muzzle_required":
-      outcome = petProfile.hasMuzzle === null
-        ? "confirmation_required"
-        : petProfile.hasMuzzle
-          ? "satisfied"
-          : "conflict";
-      break;
     case "outdoor_only":
     case "indoor_restricted":
-      outcome = petProfile.acceptsOutdoorOnly ? "satisfied" : "conflict";
+      outcome = petProfile.acceptsOutdoorOnly === false ? "conflict" : "guidance";
       break;
+    case "dangerous_dog_limit":
+      outcome = /불가|금지|제한/.test(condition.sourceText)
+        ? petProfile.isDangerousDog === true && /불가|금지/.test(condition.sourceText) ? "conflict" : "confirmation_required"
+        : "guidance";
+      break;
+    case "pet_count_limit": {
+      const limit = condition.structuredValue;
+      if (!limit || petProfile.petCount === undefined) return "confirmation_required";
+      const compatible = limit.comparator === "maximum" ? petProfile.petCount <= limit.value
+        : limit.comparator === "minimum" ? petProfile.petCount >= limit.value : petProfile.petCount === limit.value;
+      outcome = compatible ? "satisfied" : "conflict";
+      break;
+    }
     case "size_limit":
       outcome = input.sizeCompatibility === "compatible"
         ? "satisfied"
@@ -154,11 +158,14 @@ export function evaluateCanonicalPetConditions(input: {
   speciesCompatibility?: "compatible" | "incompatible" | "verification_required";
 }): CanonicalPetConditionEligibility {
   const satisfiedConditions: CanonicalPetConditionItem[] = [];
+  const guidanceConditions: CanonicalPetConditionItem[] = [];
   const conflictingConditions: CanonicalPetConditionItem[] = [];
   const confirmationRequiredConditions: CanonicalPetConditionItem[] = [];
   const unsupportedConditions: CanonicalPetConditionItem[] = [];
 
   for (const condition of input.assessment.conditions ?? []) {
+    // Old derived records also retain the source needed to repair the scoped muzzle bug.
+    if (condition.type === "dangerous_dog_limit" && /입마개/.test(condition.sourceText) && !/불가|금지/.test(condition.sourceText)) continue;
     const item = conditionItem(condition);
     const outcome = expressibleOutcome({
       condition,
@@ -167,6 +174,8 @@ export function evaluateCanonicalPetConditions(input: {
     });
     if (outcome === "satisfied") {
       satisfiedConditions.push(item);
+    } else if (outcome === "guidance") {
+      guidanceConditions.push(item);
     } else if (outcome === "conflict") {
       conflictingConditions.push(item);
     } else {
@@ -217,6 +226,7 @@ export function evaluateCanonicalPetConditions(input: {
   }
 
   const unavailableEvidence =
+    (input.assessment.conditions ?? []).some(condition => !condition.sourceText?.trim()) ||
     input.assessment.verdict === "unknown" ||
     ["partial", "insufficient_evidence", "unavailable", "not_applicable"].includes(
       input.assessment.evaluationState,
@@ -247,10 +257,12 @@ export function evaluateCanonicalPetConditions(input: {
         : "eligible" as const;
   const conditionCodes = uniqueSorted([
     ...satisfiedConditions,
+    ...guidanceConditions,
     ...conflictingConditions,
     ...confirmationRequiredConditions,
   ].map(({ code }) => code));
   const warnings: CanonicalPetConditionEligibility["warnings"] = [
+    ...guidanceConditions.map((item) => ({ code: item.code, message: item.sourceText || item.label, sourceText: item.sourceText, evidenceIds: item.evidenceIds })),
     ...(notAllowed ? [{
       code: "pet_access_not_allowed" as const,
       message: input.assessment.summary || "반려동물 동반이 허용되지 않습니다.",
@@ -265,7 +277,7 @@ export function evaluateCanonicalPetConditions(input: {
     })),
     ...confirmationRequiredConditions.map((item) => ({
       code: item.code,
-      message: `${item.label}: 이용 전 직접 확인하고 동의해 주세요.`,
+      message: `${item.label}: 이 장소에 필요한 사항만 확인해 주세요.`,
       sourceText: item.sourceText,
       evidenceIds: item.evidenceIds,
     })),
@@ -278,10 +290,11 @@ export function evaluateCanonicalPetConditions(input: {
   ];
 
   return {
-    version: "canonical-pet-condition-v1",
+    version: CANONICAL_PET_CONDITION_VERSION,
     state,
     conditionCodes,
     satisfiedConditions,
+    guidanceConditions,
     conflictingConditions,
     confirmationRequiredConditions,
     unsupportedConditions,
@@ -334,6 +347,7 @@ export function applyCanonicalPetConditionPolicy(input: {
   includeVerificationRequired: boolean;
   acknowledged: boolean;
   preserveUserSelection?: boolean;
+  allowMaterialProposal?: boolean;
 }): CanonicalPetConditionPolicyResult {
   const preservesUserSelection =
     input.flow === "user_selected" || input.preserveUserSelection === true;
@@ -385,7 +399,7 @@ export function applyCanonicalPetConditionPolicy(input: {
         conditionEligibility: input.analysis,
       };
     }
-    if (preservesUserSelection || input.includeVerificationRequired) {
+    if (preservesUserSelection || input.includeVerificationRequired || input.allowMaterialProposal) {
       return {
         decision: "confirmation_required",
         routeStatus: "confirmation_required",

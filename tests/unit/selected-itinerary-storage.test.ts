@@ -95,7 +95,7 @@ describe("selected itinerary storage", () => {
     expect(removed.places).toEqual([]);
   });
 
-  it("enforces the five-place limit and blocks known-not-allowed or unsupported facilities", () => {
+  it("enforces the five-place limit without using pet policy or facility type as admission gates", () => {
     let snapshot = createSelectedItinerarySnapshot("busan");
     for (let index = 1; index <= 5; index += 1) {
       snapshot = addSelectedItineraryPlace(snapshot, place(`tour:${7000 + index}`)).snapshot;
@@ -108,11 +108,35 @@ describe("selected itinerary storage", () => {
     expect(addSelectedItineraryPlace(
       createSelectedItinerarySnapshot("busan"),
       place("tour:7998", { petAccessVerdict: "not_allowed" }),
-    ).status).toBe("blocked_not_allowed");
+    ).status).toBe("selected");
     expect(addSelectedItineraryPlace(
       createSelectedItinerarySnapshot("busan"),
       place("kakao:7997", { layer: "veterinary" }),
-    ).status).toBe("blocked_unsupported");
+    ).status).toBe("selected");
+  });
+
+  it("preserves negative and unknown public selections across reload without inventing a category or acknowledgement", () => {
+    const storage = new MemoryStorage();
+    let snapshot = createSelectedItinerarySnapshot("busan");
+    for (const selected of [
+      place("tour:7998", { petAccessVerdict: "not_allowed", publicLabel: "반려동물 입장 불가" }),
+      place("kakao:7997", { layer: "veterinary", category: "other", sourceLabel: "동물병원" }),
+      place("kakao:7996", { layer: "pet_shop", category: "other", sourceLabel: "펫샵·용품점" }),
+    ]) {
+      const result = addSelectedItineraryPlace(snapshot, selected);
+      expect(result.status).toBe("selected");
+      snapshot = result.snapshot;
+    }
+    expect(saveSelectedItinerary(snapshot, storage)).toBe(true);
+    expect(loadSelectedItinerary(storage)).toMatchObject({
+      acknowledgedVerificationRequiredPlaceIds: [],
+      places: [
+        { id: "tour:7998", petAccessVerdict: "not_allowed", publicLabel: "반려동물 입장 불가" },
+        { id: "kakao:7997", petAccessVerdict: "unknown", category: "other", layer: "veterinary" },
+        { id: "kakao:7996", petAccessVerdict: "unknown", category: "other", layer: "pet_shop" },
+      ],
+    });
+    expect(getSelectedItineraryCategories(snapshot.places.slice(1))).toEqual([]);
   });
 
   it("requires an explicit clear before changing a selected itinerary to another region", () => {

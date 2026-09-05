@@ -16,6 +16,7 @@ export interface CandidateFunnelRecord {
   canonicalConditionState: PetConditionEligibilityState;
   operatingHoursState: "verified" | "verification_required" | "conflict";
   explicitlyExcluded?: boolean;
+  hasGuidance?: boolean;
 }
 
 export interface CandidateFunnelDiagnostics {
@@ -48,6 +49,13 @@ export interface CandidateFunnelDiagnostics {
     optimizerInput: number;
   };
   rejectedByReason: Record<string, number>;
+  observations?: {
+    detailedBySource: { kto: number; kakao: number };
+    conditions: { guidance: number; material: number; incompatible: number; unknown: number };
+    uniqueRejectedIds: number;
+    rejectionReasonOccurrences: number;
+    calendarDateSelected: boolean;
+  };
 }
 
 function increment(
@@ -70,6 +78,7 @@ function filterStage(
 }
 
 export function buildCandidateFunnelDiagnostics(input: {
+  planningPolicy?: "full_public_catalog_v1";
   records: readonly CandidateFunnelRecord[];
   requestedRegionId: RegionId;
   requestedDistrictCode: string | null;
@@ -81,6 +90,8 @@ export function buildCandidateFunnelDiagnostics(input: {
   optimizerInputIds: ReadonlySet<string>;
   includeVerificationRequired?: boolean;
   acknowledgedConditionIds?: ReadonlySet<string>;
+  completionFirst?: boolean;
+  calendarDateSelected?: boolean;
 }): CandidateFunnelDiagnostics {
   const rejectedByReason: Record<string, number> = {};
   const selectedCategories = new Set(input.selectedCategories);
@@ -114,7 +125,7 @@ export function buildCandidateFunnelDiagnostics(input: {
   const district = filterStage(
     regional,
     ({ districtCode }) =>
-      input.requestedDistrictCode === null ||
+      input.planningPolicy === "full_public_catalog_v1" || input.requestedDistrictCode === null ||
       districtCode === input.requestedDistrictCode,
     rejectedByReason,
     "district_mismatch",
@@ -122,7 +133,7 @@ export function buildCandidateFunnelDiagnostics(input: {
   const categories = filterStage(
     district,
     ({ category }) =>
-      category !== "unsupported" && selectedCategories.has(category),
+      input.planningPolicy === "full_public_catalog_v1" || (category !== "unsupported" && selectedCategories.has(category)),
     rejectedByReason,
     "unsupported_or_unrequested_category",
   );
@@ -135,7 +146,7 @@ export function buildCandidateFunnelDiagnostics(input: {
   const petEligible = filterStage(
     categories,
     ({ petEvidenceState }) =>
-      petEvidenceState === "verified" || petEvidenceState === "conditional",
+      input.planningPolicy === "full_public_catalog_v1" || petEvidenceState === "verified" || petEvidenceState === "conditional",
     rejectedByReason,
     "pet_evidence_not_eligible",
   );
@@ -148,7 +159,8 @@ export function buildCandidateFunnelDiagnostics(input: {
   const conditionEligible = filterStage(
     notExplicitlyExcluded,
     ({ identity, canonicalConditionState }) =>
-      canonicalConditionState === "eligible" ||
+      input.planningPolicy === "full_public_catalog_v1" || canonicalConditionState === "eligible" ||
+      (input.completionFirst === true && canonicalConditionState === "eligible_with_confirmation") ||
       (input.includeVerificationRequired === true &&
         canonicalConditionState === "eligible_with_confirmation" &&
         acknowledged.has(identity)),
@@ -158,41 +170,42 @@ export function buildCandidateFunnelDiagnostics(input: {
   const hoursEligible = filterStage(
     conditionEligible,
     ({ operatingHoursState }) =>
-      operatingHoursState === "verified" ||
+      input.planningPolicy === "full_public_catalog_v1" || operatingHoursState === "verified" ||
+      (input.completionFirst === true && operatingHoursState === "verification_required") ||
       (input.includeVerificationRequired === true &&
         operatingHoursState === "verification_required"),
     rejectedByReason,
     "operating_hours_not_eligible",
   );
-  const dateTime = filterStage(
+  const routeReasons = input.planningPolicy === "full_public_catalog_v1" ? {} : rejectedByReason;
+  const matrixEvaluated = filterStage(
     hoursEligible,
+    ({ identity }) => !input.matrixEvaluatedIds || input.matrixEvaluatedIds.has(identity),
+    routeReasons,
+    "matrix_evaluation_limit",
+  );
+  const dateTime = filterStage(
+    matrixEvaluated,
     ({ identity }) => input.dateTimeFeasibleIds.has(identity),
-    rejectedByReason,
+    routeReasons,
     "date_or_time_infeasible",
   );
   const departureDistance = filterStage(
     dateTime,
     ({ identity }) => input.departureDistanceFeasibleIds.has(identity),
-    rejectedByReason,
+    routeReasons,
     "departure_or_distance_infeasible",
   );
-  const matrixEvaluated = filterStage(
-    departureDistance,
-    ({ identity }) =>
-      (input.matrixEvaluatedIds ?? input.departureDistanceFeasibleIds).has(identity),
-    rejectedByReason,
-    "matrix_evaluation_limit",
-  );
   const matrix = filterStage(
-    matrixEvaluated,
+    departureDistance,
     ({ identity }) => input.matrixFeasibleIds.has(identity),
-    rejectedByReason,
+    routeReasons,
     "travel_matrix_infeasible",
   );
   const optimizer = filterStage(
     matrix,
     ({ identity }) => input.optimizerInputIds.has(identity),
-    rejectedByReason,
+    routeReasons,
     "optimizer_input_limit",
   );
 
@@ -200,7 +213,8 @@ export function buildCandidateFunnelDiagnostics(input: {
     (sum, count) => sum + count,
     0,
   );
-  if (rejectedTotal + optimizer.length !== input.records.length) {
+  const deferred = input.planningPolicy === "full_public_catalog_v1" ? hoursEligible.length - optimizer.length : 0;
+  if (rejectedTotal + optimizer.length + deferred !== input.records.length) {
     throw new TypeError("Candidate funnel counts do not reconcile.");
   }
 
@@ -223,5 +237,12 @@ export function buildCandidateFunnelDiagnostics(input: {
       optimizerInput: optimizer.length,
     },
     rejectedByReason,
+    observations: {
+      detailedBySource: { kto: unique.filter(record => record.identity.startsWith("tour:") && record.evidenceMode === "detailed").length, kakao: unique.filter(record => record.identity.startsWith("kakao:") && record.evidenceMode === "detailed").length },
+      conditions: { guidance: unique.filter(record => record.hasGuidance).length, material: unique.filter(record => record.canonicalConditionState === "eligible_with_confirmation").length, incompatible: unique.filter(record => record.canonicalConditionState === "ineligible").length, unknown: unique.filter(record => record.canonicalConditionState === "insufficient_evidence").length },
+      uniqueRejectedIds: new Set(input.records.filter(record => !(input.planningPolicy === "full_public_catalog_v1" ? hoursEligible : optimizer).some(value => value.identity === record.identity)).map(record => record.identity)).size,
+      rejectionReasonOccurrences: rejectedTotal,
+      calendarDateSelected: input.calendarDateSelected ?? true,
+    },
   };
 }

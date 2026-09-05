@@ -4,13 +4,10 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
-  Backpack,
   Cat,
   Check,
   Dog,
-  House,
   PawPrint,
-  ShieldCheck,
 } from "lucide-react";
 import { usePlannerState } from "@/components/planner/planner-state";
 import { Button } from "@/components/ui/button";
@@ -32,11 +29,6 @@ const sizeOptions: Array<{ value: PetSize; label: string; note: string }> = [
   { value: "LARGE", label: "대형", note: "약 25kg 이상" },
 ];
 
-const equipmentOptions = [
-  { key: "hasCarrier" as const, label: "이동장", icon: Backpack },
-  { key: "hasLeash" as const, label: "목줄", icon: ShieldCheck },
-  { key: "hasMuzzle" as const, label: "입마개", icon: Dog },
-];
 
 const speciesLabels: Record<PetSpecies, string> = {
   DOG: "강아지",
@@ -60,9 +52,6 @@ export function PetProfileForm() {
     setProfile((current) => ({ ...current, [key]: value }));
   };
 
-  const selectedEquipment = equipmentOptions
-    .filter(({ key }) => profile[key])
-    .map(({ label }) => label);
 
   return (
     <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
@@ -195,64 +184,6 @@ export function PetProfileForm() {
           </div>
         </fieldset>
 
-        <fieldset className="mt-8 border-t border-[var(--line)] pt-7">
-          <legend className="text-sm font-extrabold">지금 준비할 수 있는 물품</legend>
-          <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
-            선택 상태는 시설의 필수 준비물 조건과 그대로 비교됩니다.
-          </p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-3">
-            {equipmentOptions.map(({ key, label, icon: Icon }) => {
-              const selected = profile[key];
-              return (
-                <label
-                  key={key}
-                  className={`flex min-h-20 cursor-pointer items-center gap-3 rounded-[var(--radius-card)] border p-4 text-sm font-bold transition-colors ${
-                    selected
-                      ? "border-[var(--mint-500)] bg-[var(--brand-soft)] text-[var(--brand)]"
-                      : "border-[var(--line)] bg-white text-[#607168] hover:border-[#91ae9e]"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected}
-                    onChange={(event) => update(key, event.target.checked)}
-                    className="size-5 shrink-0 accent-[var(--brand)]"
-                  />
-                  <Icon size={19} aria-hidden="true" />
-                  <span>
-                    <span className="block">{label}</span>
-                    <span className="mt-0.5 block text-[11px] font-semibold text-[var(--muted)]">
-                      {selected ? "준비 가능" : "준비 안 됨"}
-                    </span>
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-        </fieldset>
-
-        <label
-          className={`mt-8 flex cursor-pointer items-start gap-3 rounded-[var(--radius-card)] border p-4 transition-colors ${
-            profile.acceptsOutdoorOnly
-              ? "border-[var(--mint-500)] bg-[var(--brand-soft)]"
-              : "border-[var(--line)] bg-white"
-          }`}
-        >
-          <input
-            type="checkbox"
-            className="mt-1 size-5 shrink-0 accent-[var(--brand)]"
-            checked={profile.acceptsOutdoorOnly}
-            onChange={(event) => update("acceptsOutdoorOnly", event.target.checked)}
-          />
-          <House size={20} className="mt-0.5 shrink-0 text-[var(--brand)]" aria-hidden="true" />
-          <span>
-            <span className="block text-sm font-extrabold">야외 위주 활동에 익숙해요</span>
-            <span className="mt-1 block text-xs leading-5 text-[var(--muted)]">
-              장소를 제외하는 조건이 아니라 편안함 추천의 참고 정보로만 사용해요.
-            </span>
-          </span>
-        </label>
-
         <div className="mt-8 flex justify-end">
           <Button type="submit" variant="brand" className="w-full sm:w-auto">
             여행 조건 정하기 <ArrowRight size={17} aria-hidden="true" />
@@ -279,20 +210,7 @@ export function PetProfileForm() {
             </p>
           </div>
         </div>
-        <dl className="mt-5 space-y-4 text-sm">
-          <div>
-            <dt className="text-xs font-bold text-[var(--muted)]">준비 가능한 물품</dt>
-            <dd className="mt-1 font-extrabold">
-              {selectedEquipment.length > 0 ? selectedEquipment.join(" · ") : "선택 없음"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs font-bold text-[var(--muted)]">공간 조건</dt>
-            <dd className="mt-1 font-extrabold">
-              {profile.acceptsOutdoorOnly ? "야외 활동 익숙함" : "공간 선호 미지정"}
-            </dd>
-          </div>
-        </dl>
+
         <p className="mt-6 rounded-[var(--radius-control)] border border-[#d9c5aa] bg-[var(--orange-soft)] p-4 text-xs font-semibold leading-5 text-[#6f543f]">
           이 값은 시설이 공개한 반려동물 동반 원문과 비교하는 조건으로만 사용합니다.
         </p>

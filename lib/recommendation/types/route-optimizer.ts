@@ -29,6 +29,8 @@ export interface NormalizedVisitWindow {
 }
 
 export interface NormalizedVisitSchedule {
+  restDayInformation?: string | null;
+  sourceDate?: string;
   status: "known" | "unknown";
   windows: NormalizedVisitWindow[];
   mandatoryReservationImpossible: boolean;
@@ -43,6 +45,7 @@ export interface RouteExposureResult {
 }
 
 export interface RouteOptimizationCandidate {
+  planningPolicy?: "full_public_catalog_v1";
   /** Present only when the candidate has an authoritative KTO detail record. */
   place: DetailedEligibleCandidate | null;
   node: TravelNode;
@@ -57,7 +60,7 @@ export interface RouteOptimizationCandidate {
   informationTrust: PlaceTrustResult;
   exposure: RouteExposureResult;
   source?: "tourism_service2" | "kakao_catalog";
-  petAssessment?: "allowed" | "conditional" | "unknown";
+  petAssessment?: "allowed" | "conditional" | "not_allowed" | "unknown";
   evidenceStatus?: "verified" | "conditional" | "unverified";
   eligibilityTier?: "verified" | "conditional" | "unverified";
   personalization?: PersonalizationScoreV2;
@@ -66,6 +69,8 @@ export interface RouteOptimizationCandidate {
 }
 
 export interface RouteOptimizationTripRequest {
+  planningPolicy?: "full_public_catalog_v1";
+  scheduleIntent?: import("@/types/schedule").ScheduleIntent;
   date: string;
   startTime: string;
   timezone: "Asia/Seoul";
@@ -85,6 +90,8 @@ export interface RouteOptimizationTripRequest {
 }
 
 export interface RouteOptimizationInput {
+  signal?: AbortSignal;
+  validationBudget?: { remaining: number };
   departure: TravelNode;
   candidates: RouteOptimizationCandidate[];
   matrix: TravelMatrixResult;
@@ -162,7 +169,7 @@ export interface RecommendedRouteStop {
   waitSeconds: number;
   dwellDurationSource: "provider" | "category_default";
   source: "tourism_service2" | "kakao_catalog";
-  petAssessment: "allowed" | "conditional" | "unknown";
+  petAssessment: "allowed" | "conditional" | "not_allowed" | "unknown";
   evidenceStatus?: "verified" | "conditional" | "unverified";
   informationTrust: "high" | "medium" | "low";
   placeUtility: PlaceUtilityBreakdown;

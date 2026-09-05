@@ -1,4 +1,5 @@
 import "server-only";
+import { seoulDate } from "@/lib/recommendation/schedule/schedule-intent";
 
 import { resolveDwellDurationV1 } from "@/lib/recommendation/config/dwell-duration-v1";
 import type { DetailedEligibleCandidate } from "@/lib/recommendation/types";
@@ -12,7 +13,15 @@ import type {
 const RANGE_PATTERN = /(?:^|\D)([01]?\d|2[0-3]):([0-5]\d)\s*(?:~|-|–|—)\s*([01]?\d|2[0-3]):([0-5]\d)(?=\D|$)/g;
 
 export function normalizeSchedule(candidate: DetailedEligibleCandidate): NormalizedVisitSchedule {
-  if (candidate.scheduleCompatibility.status === "unknown") {
+  const stale = candidate.scheduleCompatibility.warningCodes.some(code => /stale|conflicting_or_partial/.test(code));
+  const retrieved = candidate.scheduleDetail?.source?.retrievedAt;
+  return { ...normalizeScheduleWindows(candidate), restDayInformation: stale ? null : candidate.scheduleDetail?.restDayInformation ?? null,
+    ...(retrieved && Number.isFinite(Date.parse(retrieved)) ? { sourceDate: seoulDate(new Date(retrieved)) } : {}) };
+}
+
+function normalizeScheduleWindows(candidate: DetailedEligibleCandidate): NormalizedVisitSchedule {
+  if (candidate.scheduleCompatibility.warningCodes.some(code => /stale|conflicting_or_partial/.test(code))) return { status: "unknown", windows: [], mandatoryReservationImpossible: false, source: "stage2_unknown", warningCodes: candidate.scheduleCompatibility.warningCodes };
+  if (candidate.scheduleCompatibility.status === "unknown" && !candidate.scheduleDetail?.operatingInformation) {
     return {
       status: "unknown",
       windows: [],
@@ -31,11 +40,14 @@ export function normalizeSchedule(candidate: DetailedEligibleCandidate): Normali
       warningCodes: ["operating_hours_missing"],
     };
   }
-  const matches = [...operating.matchAll(RANGE_PATTERN)];
+  const breakText = operating.match(/(?:브레이크\s*타임|휴게\s*시간)[^0-9]{0,12}[0-2]?\d:[0-5]\d\s*[~–—-]\s*[0-2]?\d:[0-5]\d/)?.[0];
+  const opening = breakText ? operating.replace(breakText, "") : operating;
+  const finalEntry = operating.match(/(?:입장\s*마감|마지막\s*입장|라스트\s*오더)\s*[:：]?\s*([0-2]?\d):([0-5]\d)/);
+  const matches = [...opening.matchAll(RANGE_PATTERN)];
   const ambiguous =
     matches.length !== 1 ||
     /break|last\s*entry|요일|주말|평일|공휴일|성수기|비수기|계절|마감|브레이크|라스트/i.test(
-      operating,
+      finalEntry ? opening.replace(finalEntry[0], "") : opening,
     );
   if (ambiguous) {
     return {
@@ -48,8 +60,9 @@ export function normalizeSchedule(candidate: DetailedEligibleCandidate): Normali
   }
   const match = matches[0];
   const startMinutes = Number(match[1]) * 60 + Number(match[2]);
-  const endMinutes = Number(match[3]) * 60 + Number(match[4]);
-  if (endMinutes <= startMinutes) {
+  const rawEnd = Number(match[3]) * 60 + Number(match[4]);
+  const endMinutes = rawEnd < startMinutes ? rawEnd + 1440 : rawEnd;
+  if (endMinutes === startMinutes) {
     return {
       status: "unknown",
       windows: [],
@@ -60,7 +73,12 @@ export function normalizeSchedule(candidate: DetailedEligibleCandidate): Normali
   }
   return {
     status: "known",
-    windows: [{ startMinutes, endMinutes, finalEntryMinutes: null }],
+    windows: (() => {
+      let finalEntryMinutes = finalEntry ? Number(finalEntry[1]) * 60 + Number(finalEntry[2]) : null;
+      if (finalEntryMinutes !== null && finalEntryMinutes < startMinutes && endMinutes > 1440) finalEntryMinutes += 1440;
+      const pause = breakText ? [...breakText.matchAll(RANGE_PATTERN)][0] : null;
+      return pause ? [{ startMinutes, endMinutes: Number(pause[1]) * 60 + Number(pause[2]), finalEntryMinutes }, { startMinutes: Number(pause[3]) * 60 + Number(pause[4]), endMinutes, finalEntryMinutes }] : [{ startMinutes, endMinutes, finalEntryMinutes }];
+    })(),
     mandatoryReservationImpossible: false,
     source: "provider_normalized",
     warningCodes: [],

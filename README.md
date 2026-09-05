@@ -46,7 +46,7 @@ Open `http://localhost:3000` after the server starts.
 
 The Kakao Developers application must allow the browser origins that load the
 JavaScript SDK. Register `http://localhost:3000`, the production origin
-`https://pet-pass-two.vercel.app`, and each preview origin used for browser
+`https://weekendog.site`, and each preview origin used for browser
 verification. A REST API key does not replace the JavaScript key or its web-domain
 registration.
 
@@ -78,7 +78,7 @@ Add `NEXT_PUBLIC_KAKAO_MAP_JS_KEY`, `KAKAO_REST_API_KEY`,
 for Production, Preview, and Development. Redeploy after changing them. Keep the
 Kakao REST key and Supabase secret key server-only and mark them sensitive in
 Production and Preview. The linked Vercel project is `pet-pass`, whose production
-URL is `https://pet-pass-two.vercel.app`.
+URL is `https://weekendog.site`.
 
 Before a Preview deployment, rotate the public-data service key and Kakao REST
 key if either may have appeared in diagnostic output, then update their non-empty

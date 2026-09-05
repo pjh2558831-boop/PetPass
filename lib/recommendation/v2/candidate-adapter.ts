@@ -22,23 +22,29 @@ import type { TourContentTypeId } from "@/types/place";
 import type { PlaceTrustResult } from "@/types/place-source";
 
 function contentType(candidate: CanonicalRecommendationCandidateV2): TourContentTypeId | "cafe_rest" {
+  if (candidate.catalogCategory === "cafe") return "cafe_rest";
   if (candidate.ktoCandidate) return candidate.ktoCandidate.contentTypeId;
   switch (candidate.category) {
     case "food": return "39";
     case "accommodation": return "32";
     case "leisure": return "28";
     case "shopping": return "38";
+    case "culture": return "14";
+    case "festival": return "15";
     default: return "12";
   }
 }
 
 function role(candidate: CanonicalRecommendationCandidateV2): RouteVisitRole {
+  if (candidate.catalogCategory === "cafe") return "rest";
   if (candidate.ktoCandidate) return visitRole(candidate.ktoCandidate);
   switch (candidate.category) {
     case "food": return "meal";
     case "accommodation": return "accommodation";
     case "shopping": return "shopping";
     case "attraction":
+    case "culture":
+    case "festival":
     case "leisure": return "activity";
     default: return "other";
   }
@@ -63,16 +69,16 @@ function schedule(candidate: CanonicalRecommendationCandidateV2): NormalizedVisi
 
 function trust(candidate: CanonicalRecommendationCandidateV2, computedAt: string): PlaceTrustResult {
   if (candidate.ktoCandidate) return candidate.ktoCandidate.trust;
-  const score = Math.round(25 + candidate.dataCompleteness * 30);
+  const score = 0;
   return {
     ruleVersion: "petpass-trust-v1",
     score,
-    level: score >= 70 ? "high" : score >= 40 ? "medium" : "low",
-    evidenceCount: 1,
+    level: "low",
+    evidenceCount: 0,
     computedAt,
     components: [{
-      code: "kakao_discovery_baseline",
-      label: "카카오 저장 후보",
+      code: "missing_evidence",
+      label: "상세 동반 근거 미조회",
       points: score,
       kind: "context",
       ...(candidate.retrievedAt ? { observedAt: candidate.retrievedAt } : {}),
@@ -119,6 +125,7 @@ export function adaptCanonicalCandidateForRouteV2(input: {
   const candidateHighActivity = highActivity(input.candidate);
   const personalization = scoreCandidatePersonalizationV2(
     {
+      planningPolicy: input.candidate.planningPolicy,
       canonicalId: input.candidate.canonicalId,
       category: input.candidate.category,
       eligibilityTier: input.candidate.eligibilityTier,
@@ -137,6 +144,7 @@ export function adaptCanonicalCandidateForRouteV2(input: {
   );
   const dwell = resolveDwellDurationV1({ category: contentType(input.candidate) });
   return {
+    planningPolicy: input.candidate.planningPolicy,
     place: input.candidate.ktoCandidate,
     node: {
       id: input.candidate.canonicalId,
@@ -146,7 +154,7 @@ export function adaptCanonicalCandidateForRouteV2(input: {
       longitude: input.candidate.coordinates.longitude,
     },
     placeUtility: utility(input.candidate, personalization),
-    dwellDurationMinutes: dwell.minutes,
+    dwellDurationMinutes: input.candidate.category === "unknown" || input.candidate.category === "transportation" ? 30 : dwell.minutes,
     dwellDurationSource: "category_default",
     schedule: schedule(input.candidate),
     category: input.candidate.category,

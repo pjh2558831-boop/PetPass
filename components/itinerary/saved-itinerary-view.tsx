@@ -1,21 +1,15 @@
+import { MapPanel } from "@/components/map/map-panel";
+import { formatScheduleTime as koreaTime } from "@/lib/recommendation/schedule/schedule-display";
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, CalendarDays, Clock3, MapPinned } from "lucide-react";
 import {
   formatRouteDistance,
   formatRouteDuration,
 } from "@/lib/kakao/directions-client";
-import { recommendationWarningCopy } from "@/lib/recommendation/recommendation-copy";
+import { recommendationWarningCopy, recommendationPetAccessCopy, recommendationOperatingWarning } from "@/lib/recommendation/recommendation-copy";
 import type { SavedRouteRecommendationSnapshotV1 } from "@/lib/storage/recommendation-storage";
 import type { Itinerary } from "@/types/itinerary";
 
-function koreaTime(value: string): string {
-  return new Intl.DateTimeFormat("ko-KR", {
-    timeZone: "Asia/Seoul",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(new Date(value));
-}
 
 function PlannerLink() {
   return (
@@ -38,12 +32,7 @@ export function SavedRecommendationView({
     const copy = recommendationWarningCopy(code);
     return copy ? [copy] : [];
   });
-  const elapsedSeconds = Math.max(
-    0,
-    (Date.parse(snapshot.route.routeSummary.endAt) -
-      Date.parse(snapshot.route.routeSummary.startAt)) /
-      1_000,
-  );
+  const elapsedSeconds = snapshot.route.routeSummary.totalElapsedSeconds ?? snapshot.route.routeSummary.totalDrivingSeconds + snapshot.route.routeSummary.totalVisitSeconds + snapshot.route.routeSummary.totalWaitSeconds;
 
   return (
     <div className="space-y-6" data-itinerary-source="saved-recommendation">
@@ -56,11 +45,11 @@ export function SavedRecommendationView({
           <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-bold text-[var(--muted)]">
             <span className="inline-flex items-center gap-1.5">
               <CalendarDays size={16} aria-hidden="true" />
-              {snapshot.requestSummary.tripDate}
+              {snapshot.requestSummary.tripDate ?? "날짜 미정 초안"}
             </span>
             <span className="inline-flex items-center gap-1.5">
               <Clock3 size={16} aria-hidden="true" />
-              {snapshot.requestSummary.startTime} 출발
+              {snapshot.requestSummary.startTime ?? "출발 시간 미정"}
             </span>
             <span className="inline-flex items-center gap-1.5">
               <MapPinned size={16} aria-hidden="true" />
@@ -71,6 +60,8 @@ export function SavedRecommendationView({
         <PlannerLink />
       </header>
 
+      <p className="text-sm">{snapshot.route.planningPolicy === "full_public_catalog_v1" ? "전체 장소 기반 경로 초안 · 이동 경로 계산 완료 · 시설 이용 가능 여부는 별도 확인해 주세요." : snapshot.saveState === "draft" ? "초안으로 저장됨 · 날짜 또는 제안 시각의 적용이 필요합니다." : snapshot.saveState === "legacy_summary" ? "이전 형식의 요약입니다. 원문·지도 정보는 저장되어 있지 않습니다." : "일정 한 개를 저장한 스냅샷입니다."} <Link href="/planner/pet" className="underline">입력 확인하고 편집하기</Link></p>
+      {snapshot.route.geometry && snapshot.route.stops.every(stop => stop.coordinates) ? <MapPanel regionId={snapshot.route.stops.find(stop => stop.regionId)?.regionId ?? "busan"} compact title="저장된 이동 경로" locations={[...(snapshot.departure ? [{ id: "route-departure", name: snapshot.requestSummary.departureLabel, address: "출발지", coordinates: snapshot.departure }] : []), ...snapshot.route.stops.map(stop => ({ id: stop.placeId, name: stop.title, address: stop.address ?? "", coordinates: stop.coordinates, order: stop.sequence }))]} routeCoordinates={snapshot.route.geometry} /> : null}
       <section className="saved-route-summary" aria-labelledby="saved-route-summary-heading">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -119,9 +110,14 @@ export function SavedRecommendationView({
               <div className="min-w-0">
                 <h3 className="break-words text-lg font-black [overflow-wrap:anywhere]">{stop.title}</h3>
                 <p className="mt-1 text-sm font-semibold text-[var(--muted)]">
-                  {koreaTime(stop.arrivalAt)} 도착 · {koreaTime(stop.departureAt)} 출발
+                  {koreaTime(stop.arrivalAt, stop.arrivalOffsetSeconds, snapshot.route.schedule)} 도착 · {koreaTime(stop.departureAt, stop.departureOffsetSeconds, snapshot.route.schedule)} 출발
                 </p>
-                <p className="mt-1 text-xs font-semibold text-[#607168]">저장된 방문 장소</p>
+                <p className="mt-1 text-xs font-semibold text-[#52635a]">{stop.sourceLabel ?? "저장된 방문 장소"}{stop.retrievedAt ? ` · 조회 ${new Date(stop.retrievedAt).toLocaleDateString("ko-KR")}` : ""}</p>
+                {stop.petAssessment !== undefined ? <p className="mt-1 text-sm font-semibold">{recommendationPetAccessCopy(stop)}</p> : null}
+                {recommendationOperatingWarning(stop) ? <p className="mt-1 text-sm font-bold text-[#76542f]">{recommendationOperatingWarning(stop)}</p> : null}
+                {stop.mandatoryConditions?.length ? <ul className="mt-1 text-sm">{stop.mandatoryConditions.map((item) => <li key={`${item.type}:${item.label}`}>{item.label}</li>)}</ul> : null}
+                {stop.evidence?.length ? <details className="mt-2 text-sm"><summary>저장된 조건 원문</summary>{stop.evidence.map((item, index) => <blockquote className="my-2 whitespace-pre-wrap" key={index}>{item.originalText}</blockquote>)}</details> : null}
+                {stop.catalogEvidence?.length ? <details className="mt-2 text-sm"><summary>저장된 카탈로그 출처</summary>{stop.catalogEvidence.map((item) => <p className="my-2 whitespace-pre-wrap" key={`${item.provider}:${item.providerPlaceId}`}>{item.provider === "kto" ? "한국관광공사" : "카카오맵"} · {item.publicLabel}{item.retrievedAt ? ` · 조회 ${new Date(item.retrievedAt).toLocaleDateString("ko-KR")}` : ""}{item.originalText ? ` · ${item.originalText}` : " · 동반 안내 원문 없음"}</p>)}</details> : null}
               </div>
             </li>
           ))}

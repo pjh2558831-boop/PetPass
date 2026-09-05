@@ -166,6 +166,99 @@ function validationInput(stops = 3): OrderedRouteValidationInput {
 }
 
 describe("Kakao public Mobility contract", () => {
+  it("replenishes a shortlist using existing roads and only the remainder of one 48-call budget", async () => {
+    const client = new FakeClient();
+    const shared = provider(client);
+    const budget: NonNullable<TravelMatrixInput["providerCallBudget"]> = { remaining: 48 };
+    const farPlaces = Array.from({ length: 7 }, (_, index) => place(index + 1, { latitude: 35.1796 + (index + 1) * 0.2 }));
+    const first = await shared.buildMatrix(input(0, { candidates: farPlaces.slice(0, 6), providerCallBudget: budget }));
+    expect(first.complete).toBe(true);
+    expect(first.diagnostics.providerCalls).toBe(42);
+    expect(budget.remaining).toBe(6);
+    const deadline = budget.deadline;
+    const secondInput = input(0, { candidates: [...farPlaces.slice(0, 5), farPlaces[6]], providerCallBudget: budget });
+    const second = await shared.buildMatrix(secondInput);
+    expect(second.diagnostics).toMatchObject({ providerCalls: 6, persistentCacheHits: 30, budgetExceeded: true });
+    expect(client.pairCalls).toHaveLength(48);
+    expect(budget).toEqual({ remaining: 0, deadline });
+    const exhausted = await shared.buildMatrix(secondInput);
+    expect(exhausted.diagnostics.providerCalls).toBe(0);
+    expect(exhausted.diagnostics.unresolvedEdges).toBeGreaterThan(0);
+    expect(client.pairCalls).toHaveLength(48);
+  });
+
+  it("keeps the original matrix deadline across reserve attempts", async () => {
+    let clock = 0;
+    const client = new FakeClient();
+    const shared = new KakaoTravelTimeProvider({ client, now: () => NOW, monotonicNow: () => clock, cache: new MemoryTravelTimeCache() });
+    const budget: NonNullable<TravelMatrixInput["providerCallBudget"]> = { remaining: 48 };
+    await shared.buildMatrix(input(1, { providerCallBudget: budget }));
+    const remaining = budget.remaining;
+    clock = 10_001;
+    const second = await shared.buildMatrix(input(2, { providerCallBudget: budget }));
+    expect(second.diagnostics).toMatchObject({ providerCalls: 0, deadlineExceeded: true });
+    expect(budget).toEqual({ remaining, deadline: 10_000 });
+  });
+
+  it("caps actual matrix HTTP calls, including provider retries, at 48", async () => {
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 503 }));
+    const client = new KakaoMobilityClient({ apiKey: "fixture-only", fetchImpl, retryCount: 1 });
+    const matrix = await new KakaoTravelTimeProvider({ client, cache: new MemoryTravelTimeCache(), now: () => NOW }).buildMatrix(input(15));
+    expect(fetchImpl).toHaveBeenCalledTimes(48);
+    expect(matrix.diagnostics.providerCalls).toBe(48);
+    expect(matrix.diagnostics.budgetExceeded).toBe(true);
+  });
+
+  it.each([429, 401, 403])("preserves essential matrix provider HTTP %s as a distinct cause", async (httpStatus) => {
+    const client = new FakeClient();
+    const failure = new KakaoMobilityProviderError("HTTP_ERROR", "fixture provider failure", httpStatus);
+    vi.spyOn(client, "multiDestination").mockRejectedValue(failure);
+    vi.spyOn(client, "pairDirections").mockRejectedValue(failure);
+    const matrix = await provider(client).buildMatrix(input(1));
+    expect(matrix.edges.origin["place-01"].reasonCodes).toContain(httpStatus === 429 ? "kakao_rate_limited" : "kakao_authentication_failed");
+    expect(matrix.diagnostics.resolvedEdges).toBe(0);
+  });
+
+  it.each(["batch", "pair"])("propagates cancellation during %s work without starting another fallback", async (phase) => {
+    const controller = new AbortController();
+    const client = new FakeClient();
+    const abort = () => {
+      controller.abort();
+      throw new DOMException("Fixture cancellation", "AbortError");
+    };
+    if (phase === "batch") vi.spyOn(client, "multiDestination").mockImplementation(async () => abort());
+    else {
+      vi.spyOn(client, "multiDestination").mockResolvedValue([]);
+      vi.spyOn(client, "pairDirections").mockImplementation(async () => abort());
+    }
+    await expect(provider(client).buildMatrix(input(4, { signal: controller.signal }))).rejects.toMatchObject({ name: "AbortError" });
+    if (phase === "batch") expect(client.pairCalls).toHaveLength(0);
+  });
+
+  it("keeps a replacement request independent from an earlier request's cancellation", async () => {
+    const first = new AbortController();
+    const second = new AbortController();
+    const client = new FakeClient();
+    const original = client.multiDestination.bind(client);
+    vi.spyOn(client, "multiDestination").mockImplementation(async (request) => {
+      if (request.signal === first.signal) {
+        await new Promise<void>((_resolve, reject) => {
+          request.signal!.addEventListener("abort", () => reject(new DOMException("Fixture cancellation", "AbortError")), { once: true });
+          setTimeout(() => first.abort(), 0);
+        });
+      }
+      return original({ ...request, signal: undefined });
+    });
+    const shared = provider(client);
+    const [canceled, replacement] = await Promise.allSettled([
+      shared.buildMatrix(input(2, { signal: first.signal })),
+      shared.buildMatrix(input(2, { signal: second.signal })),
+    ]);
+    expect(canceled.status).toBe("rejected");
+    expect(replacement).toMatchObject({ status: "fulfilled", value: { complete: true } });
+    expect(client.pairCalls).toHaveLength(0);
+  });
+
   it("keeps every configured provider path on the public v1 contract", () => {
     expect(KAKAO_MOBILITY_PUBLIC_ORIGIN).toBe("https://apis-navi.kakaomobility.com");
     expect(KAKAO_MOBILITY_PUBLIC_PATHS).toEqual({
@@ -619,6 +712,34 @@ describe("travel edge cache boundaries", () => {
 });
 
 describe("ordered route validation", () => {
+  it("shares the three-call final budget across unsupported predictions and their current-road fallback", async () => {
+    const client = new FakeClient();
+    client.routeSections = 1;
+    const future = vi.spyOn(client, "futureDirections").mockRejectedValue(new KakaoMobilityProviderError("UNSUPPORTED_FUTURE", "Unsupported requested departure time", 400));
+    const service = provider(client);
+    const budget = { remaining: 3 };
+    const request = { ...validationInput(1), requestedDepartureAt: "2026-08-15T01:00:00Z", providerCallBudget: budget };
+    const first = await service.validateOrderedRoute(request);
+    expect(first.status).toBe("validated");
+    expect(first.temporalBasis).toBe("current_traffic");
+    expect(first.reasonCodes).toContain("future_prediction_unsupported_current_road_estimate_used");
+    expect(budget.remaining).toBe(1);
+    await service.validateOrderedRoute(request);
+    expect(budget.remaining).toBe(0);
+    await service.validateOrderedRoute(request);
+    expect(future).toHaveBeenCalledTimes(2);
+    expect(client.waypointCalls).toHaveLength(1);
+  });
+  it("preserves authentication and rate-limit failures without prediction fallback", async () => {
+    for (const status of [401, 429]) {
+      const client = new FakeClient();
+      vi.spyOn(client, "futureDirections").mockRejectedValue(new KakaoMobilityProviderError("HTTP_ERROR", "redacted", status));
+      const result = await provider(client).validateOrderedRoute({ ...validationInput(1), requestedDepartureAt: "2026-08-15T01:00:00Z", providerCallBudget: { remaining: 3 } });
+      expect(result.status).toBe("provider_unavailable");
+      expect(result.reasonCodes).toContain(status === 429 ? "kakao_rate_limited" : "kakao_authentication_failed");
+      expect(client.waypointCalls).toHaveLength(0);
+    }
+  });
   it("uses the public waypoint operation, preserves order, and does not return to origin", async () => {
     const client = new FakeClient();
     client.routeSections = 3;

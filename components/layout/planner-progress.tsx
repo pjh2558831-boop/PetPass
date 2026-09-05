@@ -95,7 +95,7 @@ export function PlannerProgress({
                       ? "bg-[var(--brand)] text-white"
                       : complete
                         ? "bg-[var(--mint-100)] text-[var(--brand)]"
-                        : "bg-[#e8ece9] text-[#748078]"
+                        : "bg-[#e8ece9] text-[#52635a]"
                   }`}
                   aria-hidden="true"
                 >

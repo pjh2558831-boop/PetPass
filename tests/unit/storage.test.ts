@@ -39,20 +39,20 @@ describe("versioned storage", () => {
     expect(loadDraftItinerary(storage)?.id).toBe(demoItinerary.id);
   });
 
-  it("recovers from corrupted JSON by clearing it", () => {
+  it("preserves corrupt bytes for recovery", () => {
     const storage = new MemoryStorage();
     storage.setItem("petpass:pet-profile", "{broken");
     expect(loadPetProfile(storage)).toBeNull();
-    expect(storage.getItem("petpass:pet-profile")).toBeNull();
+    expect(storage.getItem("petpass:pet-profile")).toBe("{broken");
   });
 
-  it("clears unsupported future schema versions", () => {
+  it("preserves unsupported future schema versions", () => {
     const storage = new MemoryStorage();
     storage.setItem(
       "petpass:pet-profile",
       JSON.stringify({ version: 99, data: demoProfile }),
     );
     expect(loadPetProfile(storage)).toBeNull();
-    expect(storage.getItem("petpass:pet-profile")).toBeNull();
+    expect(storage.getItem("petpass:pet-profile")).toBe(JSON.stringify({ version: 99, data: demoProfile }));
   });
 });

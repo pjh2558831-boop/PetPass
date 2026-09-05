@@ -254,7 +254,7 @@ export function LivePlaceDetail({
           <dl className="place-detail-facts mt-6 text-sm">
             {informationCards.map(({ icon: Icon, label, value }) => (
               <div key={label}>
-                <dt className="flex items-center gap-3 text-xs font-extrabold text-[#748078]">
+                <dt className="flex items-center gap-3 text-xs font-extrabold text-[#52635a]">
                   <Icon size={18} className="shrink-0 text-[#3d8b68]" aria-hidden="true" />
                   {label}
                 </dt>

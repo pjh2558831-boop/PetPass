@@ -3,6 +3,7 @@ import "server-only";
 import { ROUTE_SOLVER_V1_CONFIG } from "@/lib/recommendation/config/route-solver-v1";
 import { compareCompletedRoutes, scoreCompletedRouteV1 } from "@/lib/recommendation/optimizer/route-score";
 import { appendScheduledVisit, tripStartMs } from "@/lib/recommendation/optimizer/schedule-simulator";
+import { getRouteTripConstraints } from "@/lib/recommendation/optimizer/trip-constraints";
 import type {
   CompletedRouteCandidate,
   RouteOptimizationInput,
@@ -67,6 +68,8 @@ function resimulate(input: {
     (returnSection.fromId !== visits.at(-1)?.candidate.node.id ||
       returnSection.toId !== input.optimization.departure.id)
   ) return null;
+  if (currentTimeMs + (returnSection?.durationSeconds ?? 0) * 1_000 - start >
+    getRouteTripConstraints(input.optimization.tripRequest).maxDurationMinutes * 60_000) return null;
   return scoreCompletedRouteV1({
     visits,
     departureId: input.optimization.departure.id,
@@ -88,22 +91,30 @@ export async function validateFinalistsV1(input: {
   attempts: number;
   failures: number;
   durationMs: number;
+  reasonCodes: string[];
 }> {
   const started = performance.now();
   const routes: ValidatedInternalRoute[] = [];
   let attempts = 0;
   let failures = 0;
+  const reasonCodes = new Set<string>();
   for (const internal of input.finalists.slice(0, ROUTE_SOLVER_V1_CONFIG.maxFinalValidationAttempts)) {
+    input.optimization.signal?.throwIfAborted();
+    if (input.optimization.validationBudget && input.optimization.validationBudget.remaining <= 0) break;
     attempts += 1;
     const validation = await input.travelTimeProvider.validateOrderedRoute({
+      signal: input.optimization.signal,
+      providerCallBudget: input.optimization.validationBudget,
       departure: input.optimization.departure,
       orderedStops: internal.visits.map((visit) => visit.candidate.node),
       roundTrip: input.optimization.tripRequest.roundTrip,
-      requestedDepartureAt: new Date(tripStartMs(input.optimization.tripRequest)).toISOString(),
+      requestedDepartureAt: input.optimization.tripRequest.scheduleIntent?.date === null
+        ? null : new Date(tripStartMs(input.optimization.tripRequest)).toISOString(),
       priority: "TIME",
       avoid: [],
       includeGeometry: true,
     });
+    validation.reasonCodes.forEach(code => reasonCodes.add(code));
     if (validation.status !== "validated") {
       failures += 1;
       continue;
@@ -116,6 +127,7 @@ export async function validateFinalistsV1(input: {
     });
     if (!route) {
       failures += 1;
+      reasonCodes.add("exact_segments_fail_schedule_validation");
       continue;
     }
     routes.push({ route, validation: exactValidation });
@@ -125,6 +137,7 @@ export async function validateFinalistsV1(input: {
     routes,
     attempts,
     failures,
+    reasonCodes: [...reasonCodes],
     durationMs: Math.max(0, Math.round(performance.now() - started)),
   };
 }

@@ -174,7 +174,7 @@ function ktoCandidate(
   } as unknown as DetailedEligibleCandidate;
 }
 
-function songdoCandidate(hasMuzzle: boolean): DetailedEligibleCandidate {
+function restrictedCandidate(hasMuzzle: boolean): DetailedEligibleCandidate {
   const candidate = ktoCandidate("126122", {
     verdict: "conditional",
     tier: "conditional",
@@ -202,7 +202,7 @@ function songdoCandidate(hasMuzzle: boolean): DetailedEligibleCandidate {
       type: "dangerous_dog_limit" as const,
       scope: "whole_place" as const,
       label: "맹견 동반 제한 확인",
-      sourceText: "맹견 동반 시 관련 규정을 확인해 주세요.",
+      sourceText: "맹견 동반은 제한되므로 대상 여부를 확인해 주세요.",
       evidenceIds: ["detailPetTour2:relaAcdntRiskMtr:2"],
       manualConfirmationRecommended: true,
     },
@@ -235,8 +235,8 @@ function songdoCandidate(hasMuzzle: boolean): DetailedEligibleCandidate {
     }],
     warnings: [],
   };
-  candidate.title = "부산 송도해수욕장";
-  candidate.summary.title = "부산 송도해수욕장";
+  candidate.title = "조건 정책 테스트 장소";
+  candidate.summary.title = "조건 정책 테스트 장소";
   candidate.assessment = assessment;
   candidate.eligibility = {
     ...candidate.eligibility,
@@ -311,6 +311,32 @@ function snapshot(items: MapPlacesSnapshotMarker[]): MapPlacesSnapshot {
     categoryCounts: {},
     freshness: { status: "fresh" },
     items,
+  };
+}
+
+function publishedKto(candidate: DetailedEligibleCandidate): MapPlacesSnapshotMarker {
+  const publicCategory: MapPlacesSnapshotMarker["category"] =
+    ["attraction", "leisure", "accommodation", "food", "shopping"].includes(candidate.category)
+      ? candidate.category as MapPlacesSnapshotMarker["category"]
+      : "other";
+  return {
+    id: `tour:${candidate.contentId}`,
+    regionId: "busan",
+    providerPlaceId: candidate.contentId,
+    name: candidate.title,
+    layer: "tourism",
+    category: publicCategory,
+    districtCode: candidate.region.districtCode,
+    districtName: null,
+    address: candidate.summary.address ?? "",
+    coordinates: candidate.coordinates,
+    lastSeenAt: candidate.summary.source.retrievedAt,
+    completeness: 1,
+    petAccessVerdict: candidate.assessment.verdict,
+    petConditions: candidate.assessment.conditions.map(({ sourceText }) => sourceText).filter(Boolean).join(" · ") || null,
+    verificationRequired: candidate.assessment.verdict !== "allowed",
+    publicLabel: "한국관광공사 공개 관광정보",
+    sourceLabel: "한국관광공사",
   };
 }
 
@@ -405,7 +431,7 @@ function dependencies(kto: DetailedEligibleCandidate[], markers: MapPlacesSnapsh
     tourService: { getPlaceDetail } as unknown as TourPlaceService,
     collectCatalog: vi.fn<typeof collectTourCatalog>(async () => ({ places: [] } as never)),
     candidatePipeline: vi.fn(async () => pipeline(kto)),
-    loadCatalogSnapshot: vi.fn(async () => snapshot(markers)),
+    loadCatalogSnapshot: vi.fn(async () => snapshot([...kto.map(publishedKto), ...markers])),
     travelTimeProvider: provider,
     now: () => new Date("2026-08-15T00:00:00.000Z"),
     editSessionSecret: "unit-test-route-edit-session-secret",
@@ -415,7 +441,7 @@ function dependencies(kto: DetailedEligibleCandidate[], markers: MapPlacesSnapsh
 }
 
 describe("selected-place hybrid recommendation", () => {
-  it("uses the same Songdo analysis for selected and automatic confirmation", async () => {
+  it("returns restricted public places as factual geographic drafts without a confirmation gate", async () => {
     const request = {
       ...REQUEST,
       pet: {
@@ -432,34 +458,18 @@ describe("selected-place hybrid recommendation", () => {
       ...request,
       selectedPlaceIds: ["tour:126122"],
       autoFill: false,
-    }, dependencies([songdoCandidate(true)], []));
+    }, dependencies([restrictedCandidate(true)], []));
     const automatic = await generateRouteRecommendation({
       ...request,
       includeVerificationRequired: true,
-    }, dependencies([songdoCandidate(true)], []));
+    }, dependencies([restrictedCandidate(true)], []));
 
-    expect(selected.status).toBe("confirmation_required");
-    expect(automatic.status).toBe("confirmation_required");
-    if (
-      selected.status !== "confirmation_required" ||
-      automatic.status !== "confirmation_required"
-    ) return;
-    expect(selected.confirmationRequirements?.[0]?.conditionEligibility).toEqual(
-      automatic.confirmationRequirements?.[0]?.conditionEligibility,
-    );
-    expect(automatic.routeOptions?.every(
-      ({ confirmationStatus }) => confirmationStatus === "confirmation_required",
-    )).toBe(true);
-    expect(automatic.confirmationRequirements?.[0]?.conditionEligibility.warnings).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ code: "dangerous_dog_restriction" }),
-        expect.objectContaining({ code: "waste_handling_required" }),
-      ]),
-    );
+    expect(selected).toMatchObject({ status: "ready", route: { planningPolicy: "full_public_catalog_v1", venueCompatibility: "unchecked", confirmationStatus: "ready", stops: [expect.objectContaining({ petAssessment: "conditional" })] } });
+    expect(automatic).toMatchObject({ status: "ready", route: { planningPolicy: "full_public_catalog_v1", confirmationStatus: "ready", stops: [expect.objectContaining({ petAssessment: "conditional" })] } });
     expect(routeRecommendationResponseSchema.safeParse(automatic).success).toBe(true);
   });
 
-  it("excludes Songdo from strict automatic routes", async () => {
+  it("keeps a restricted public place in automatic broad planning", async () => {
     const result = await generateRouteRecommendation({
       ...REQUEST,
       pet: {
@@ -468,32 +478,23 @@ describe("selected-place hybrid recommendation", () => {
         acceptsOutdoorOnlyPlaces: true,
       },
       trip: { ...REQUEST.trip, desiredStopCount: 1 },
-    }, dependencies([songdoCandidate(true)], []));
+    }, dependencies([restrictedCandidate(true)], []));
 
-    expect(result).toMatchObject({
-      status: "insufficient_eligible_places",
-      resultState: "insufficient_eligible_places",
-    });
+    expect(result).toMatchObject({ status: "ready", route: { venueCompatibility: "unchecked", stops: [expect.objectContaining({ placeId: "tour:126122", petAssessment: "conditional" })] } });
   });
 
-  it("rejects an explicitly conflicting selected Songdo profile", async () => {
+  it("keeps profile-conflicting selected facts without claiming compatibility", async () => {
     const result = await generateRouteRecommendation({
       ...REQUEST,
       selectedPlaceIds: ["tour:126122"],
+      pet: { ...REQUEST.pet, availableEquipment: { ...REQUEST.pet.availableEquipment, leash: false } },
       autoFill: false,
-    }, dependencies([songdoCandidate(false)], []));
+    }, dependencies([restrictedCandidate(false)], []));
 
-    expect(result).toMatchObject({
-      status: "invalid_request",
-      selectionIssues: [expect.objectContaining({
-        placeId: "tour:126122",
-        code: "selected_place_condition_unsatisfied",
-        reasonCodes: expect.arrayContaining(["pet_profile_conflict"]),
-      })],
-    });
+    expect(result).toMatchObject({ status: "ready", selectionIssues: [], route: { venueCompatibility: "unchecked", stops: [expect.objectContaining({ placeId: "tour:126122", petAssessment: "conditional" })] } });
   });
 
-  it("requires acknowledgement before Songdo can become a ready route", async () => {
+  it("does not turn legacy acknowledgement IDs into condition approval", async () => {
     const base = {
       ...REQUEST,
       pet: {
@@ -504,7 +505,7 @@ describe("selected-place hybrid recommendation", () => {
       trip: { ...REQUEST.trip, desiredStopCount: 1 },
       includeVerificationRequired: true,
     };
-    const selectedDependencies = dependencies([songdoCandidate(true)], []);
+    const selectedDependencies = dependencies([restrictedCandidate(true)], []);
     const selected = await generateRouteRecommendation({
       ...base,
       selectedPlaceIds: ["tour:126122"],
@@ -514,7 +515,7 @@ describe("selected-place hybrid recommendation", () => {
     const automatic = await generateRouteRecommendation({
       ...base,
       acknowledgedVerificationRequiredPlaceIds: ["tour:126122"],
-    }, dependencies([songdoCandidate(true)], []));
+    }, dependencies([restrictedCandidate(true)], []));
 
     expect(selected).toMatchObject({
       status: "ready",
@@ -522,7 +523,6 @@ describe("selected-place hybrid recommendation", () => {
         confirmationStatus: "ready",
         stops: [expect.objectContaining({
           placeId: "tour:126122",
-          conditionAcknowledged: true,
           selectionOrigin: "user_selected",
         })],
       },
@@ -533,7 +533,6 @@ describe("selected-place hybrid recommendation", () => {
         confirmationStatus: "ready",
         stops: [expect.objectContaining({
           placeId: "tour:126122",
-          conditionAcknowledged: true,
           selectionOrigin: "automatic_recommendation",
         })],
       },
@@ -553,7 +552,7 @@ describe("selected-place hybrid recommendation", () => {
         route: {
           stops: [expect.objectContaining({
             placeId: "tour:126122",
-            conditionAcknowledged: true,
+            petAssessment: "conditional",
           })],
         },
       });
@@ -622,39 +621,22 @@ describe("selected-place hybrid recommendation", () => {
     });
   });
 
-  it("returns a clear issue and replacements for a not-allowed selection", async () => {
+  it("keeps a not-allowed selected place as a factual draft", async () => {
     const result = await generateRouteRecommendation({
       ...REQUEST,
       selectedPlaceIds: ["kakao:201"],
     }, dependencies([ktoCandidate("1001")], [marker("kakao:201", { verdict: "not_allowed" })]));
-    expect(result).toMatchObject({
-      status: "invalid_request",
-      selectionIssues: [{
-        placeId: "kakao:201",
-        code: "selected_place_not_allowed",
-        replacementCandidateIds: ["tour:1001"],
-      }],
-    });
+    expect(result).toMatchObject({ status: "ready", selectionIssues: [], route: { venueCompatibility: "unchecked", stops: expect.arrayContaining([expect.objectContaining({ placeId: "kakao:201", petAssessment: "not_allowed" })]) } });
   });
 
-  it("requires explicit acknowledgement before routing an unknown selected anchor", async () => {
+  it("routes an unknown selected anchor without fabricating confirmation", async () => {
     const result = await generateRouteRecommendation({
       ...REQUEST,
       selectedPlaceIds: ["kakao:201"],
       autoFill: false,
     }, dependencies([], [marker("kakao:201")]));
-    expect(result).toMatchObject({
-      status: "confirmation_required",
-      resultState: "confirmation_required",
-      requestedStopCount: 1,
-      feasibleStopCount: 1,
-      selectionIssues: [{
-        placeId: "kakao:201",
-        code: "selected_place_confirmation_required",
-        blocking: true,
-      }],
-      recoveryActions: ["acknowledge_selected_place_verification"],
-    });
+    expect(result).toMatchObject({ status: "ready", requestedStopCount: 1, feasibleStopCount: 1, selectionIssues: [], route: { confirmationStatus: "ready", venueCompatibility: "unchecked", stops: [expect.objectContaining({ placeId: "kakao:201", petAssessment: "unknown" })] } });
+    if (result.status === "ready") expect(result.route.stops[0]).not.toHaveProperty("conditionAcknowledged");
   });
 
   it("retains an acknowledged unknown Kakao anchor with an explicit warning", async () => {
@@ -670,7 +652,7 @@ describe("selected-place hybrid recommendation", () => {
       placeId: "kakao:201",
       selectionOrigin: "user_selected",
       locked: true,
-      verificationWarning: "selected_kakao_requires_confirmation",
+      verificationWarning: expect.stringContaining("직접 확인"),
     })]);
   });
 
@@ -692,7 +674,7 @@ describe("selected-place hybrid recommendation", () => {
     expect(result.route.stops[0]).toMatchObject({
       placeId: "kakao:201",
       petAssessment: "conditional",
-      verificationWarning: `반려견 동반 조건: ${condition} · 방문 전 업체에 최신 동반 조건을 확인해 주세요.`,
+      catalogEvidence: [expect.objectContaining({ originalText: condition, petAssessment: "conditional" })],
     });
   });
 
@@ -728,7 +710,7 @@ describe("selected-place hybrid recommendation", () => {
     expect(result.route.stops.filter(({ provenance }) => provenance === "auto_fill")).toHaveLength(2);
   });
 
-  it("excludes unverified and Shopping candidates from automatic supplementation", async () => {
+  it("allows unverified and Shopping public candidates in automatic supplementation", async () => {
     const result = await generateRouteRecommendation({
       ...REQUEST,
       selectedPlaceIds: ["tour:1001"],
@@ -742,11 +724,11 @@ describe("selected-place hybrid recommendation", () => {
     expect(result.status).toBe("ready");
     if (result.status !== "ready") return;
     expect(result.route.stops.map(({ placeId }) => placeId)).toContain("tour:1002");
-    expect(result.route.stops.map(({ placeId }) => placeId)).not.toContain("tour:1003");
-    expect(result.route.stops.map(({ placeId }) => placeId)).not.toContain("tour:1004");
+    expect(result.route.stops.map(({ placeId }) => placeId)).toContain("tour:1003");
+    expect(result.route.stops.map(({ placeId }) => placeId)).toContain("tour:1004");
   });
 
-  it("keeps unknown-evidence supplements out even after explicit opt-in", async () => {
+  it("keeps unknown-evidence supplements without needing the legacy opt-in", async () => {
     const result = await generateRouteRecommendation({
       ...REQUEST,
       selectedPlaceIds: ["tour:1001"],
@@ -759,9 +741,7 @@ describe("selected-place hybrid recommendation", () => {
 
     expect(result.status).toBe("ready");
     if (result.status !== "ready") return;
-    expect(result.route.stops.map(({ placeId }) => placeId)).toEqual([
-      "tour:1001",
-    ]);
+    expect(result.route.stops.map(({ placeId }) => placeId)).toEqual(["tour:1001", "tour:1002"]);
   });
 
   it("preserves every anchor without relabeling a reordered copy as another option", async () => {
@@ -849,7 +829,7 @@ describe("selected-place hybrid recommendation", () => {
         smallCategory: null,
       },
     } as TourPlaceSummary;
-    const deps = dependencies([], []);
+    const deps = dependencies([shopping], []);
     deps.collectCatalog.mockImplementation(async (_service, query) => ({
       places: query.contentTypeId === "38" ? [shoppingSummary] : [],
     } as never));
@@ -864,13 +844,12 @@ describe("selected-place hybrid recommendation", () => {
       expect(result.route.stops[0]).toMatchObject({
         placeId: "tour:9001",
         provenance: "user_selected",
-        verificationWarning: "selected_shopping_requires_confirmation",
+        petAssessment: "unknown",
+        catalogEvidence: [expect.objectContaining({ provider: "kto", petAssessment: "unknown" })],
       });
     }
     expect(deps.getPlaceDetail).not.toHaveBeenCalled();
-    expect(deps.candidatePipeline).toHaveBeenCalledWith(expect.objectContaining({
-      catalog: [],
-    }));
+    expect(deps.candidatePipeline).not.toHaveBeenCalled();
     expect(routeRecommendationResponseSchema.safeParse(result).success).toBe(true);
   });
 });

@@ -22,6 +22,9 @@ export type DepartureSource =
   | "current_location";
 
 export interface RouteRecommendationRequest {
+  requestVersion?: 2;
+  planningPolicy?: "full_public_catalog_v1";
+  conditionConfirmation?: { token: string; answers: ConditionAnswer[] };
   departure: {
     label: string;
     latitude: number;
@@ -31,8 +34,8 @@ export interface RouteRecommendationRequest {
   trip: {
     regionId: RegionId;
     districtId: string | null;
-    date: string;
-    startTime: string;
+    date: string | null;
+    startTime: string | null;
     tripType: "day_trip" | "overnight";
     tripPace: TripPace;
     selectedCategories: Array<
@@ -48,12 +51,12 @@ export interface RouteRecommendationRequest {
     name: string | null;
     species: PetSpecies;
     size: PetSize;
-    availableEquipment: {
-      carrier: boolean;
-      leash: boolean;
-      muzzle: boolean;
+    availableEquipment?: {
+      carrier?: boolean;
+      leash?: boolean;
+      muzzle?: boolean;
     };
-    acceptsOutdoorOnlyPlaces: boolean;
+    acceptsOutdoorOnlyPlaces?: boolean;
   };
   /** Canonical provider identities (`tour:<id>` or `kakao:<id>`). */
   selectedPlaceIds?: string[];
@@ -107,23 +110,28 @@ export interface RecommendedRouteStopV1 {
   title: string;
   address: string | null;
   coordinates: Coordinates;
-  category: Exclude<TourPlaceCategory, "transportation" | "unknown">;
-  arrivalAt: string;
-  visitStartsAt: string;
-  departureAt: string;
+  category: TourPlaceCategory;
+  arrivalAt: string | null;
+  visitStartsAt: string | null;
+  departureAt: string | null;
+  arrivalOffsetSeconds?: number;
+  visitStartsOffsetSeconds?: number;
+  departureOffsetSeconds?: number;
   dwellMinutes: number;
   driveSecondsFromPrevious: number;
   distanceMetersFromPrevious: number;
   source: "tourism_service2" | "kakao_catalog";
   sourceLabel: "한국관광공사" | "카카오 검색 후보";
-  petAssessment: "allowed" | "conditional" | "unknown";
+  petAssessment: "allowed" | "conditional" | "not_allowed" | "unknown";
   evidenceStatus?: "verified" | "conditional" | "unverified";
   retrievedAt?: string | null;
   providerIdentities?: Array<{ provider: "kto" | "kakao"; id: string }>;
+  catalogEvidence?: CatalogEvidenceV1[];
   regionId?: RegionId;
   districtId?: string | null;
   selectionOrigin?: "user_selected" | "automatic_fill" | "automatic_recommendation";
   operatingHoursEvidenceState?: "verified" | "verification_required";
+  operatingStatus?: "unknown" | "reported_closed" | "reported_open";
   /** @deprecated Use selectionOrigin. */
   provenance?: "user_selected" | "auto_fill";
   locked?: boolean;
@@ -138,6 +146,7 @@ export interface RecommendedRouteStopV1 {
   informationTrust: "high" | "medium" | "low";
   licensingStatus:
     | "confirmed_open"
+    | "confirmed_closed"
     | "no_match"
     | "verification_required"
     | "not_applicable";
@@ -150,6 +159,15 @@ export interface RecommendedRouteStopV1 {
     label: string;
     originalText: string;
   }>;
+}
+
+export interface CatalogEvidenceV1 {
+  provider: "kto" | "kakao";
+  providerPlaceId: string;
+  petAssessment: "allowed" | "conditional" | "not_allowed" | "unknown";
+  originalText: string | null;
+  retrievedAt: string | null;
+  publicLabel: string;
 }
 
 export interface RecommendationSelectionIssueV1 {
@@ -172,13 +190,14 @@ export interface RecommendationSelectionIssueV1 {
 export interface RecommendationReplacementCandidateV1 {
   placeId: string;
   title: string;
-  category: Exclude<TourPlaceCategory, "transportation" | "unknown">;
+  category: TourPlaceCategory;
   source: "tourism_service2" | "kakao_catalog";
 }
 
 export interface ProductRouteSummaryV1 {
-  startAt: string;
-  endAt: string;
+  startAt: string | null;
+  endAt: string | null;
+  totalElapsedSeconds?: number;
   stopCount: number;
   totalDistanceMeters: number;
   totalDrivingSeconds: number;
@@ -197,6 +216,9 @@ export interface ProductRouteSegmentV1 {
 }
 
 export interface ProductRouteV1 {
+  planningPolicy?: "full_public_catalog_v1";
+  venueCompatibility?: "unchecked";
+  schedule?: import("@/types/schedule").RouteSchedule;
   id: string;
   kind: "optimized" | "manual";
   label: string;
@@ -215,8 +237,8 @@ export interface ProductRouteV1 {
   reductionStatus?: "complete" | "reduced" | "single_stop";
   personalizationExplanationCodes?: string[];
   maximumSingleWaitSeconds?: number;
-  estimatedFinishAt?: string;
-  categoryComposition?: Partial<Record<Exclude<TourPlaceCategory, "transportation" | "unknown">, number>>;
+  estimatedFinishAt?: string | null;
+  categoryComposition?: Partial<Record<TourPlaceCategory, number>>;
   selectedPlaceCount?: number;
   automaticPlaceCount?: number;
   evidenceWarnings?: string[];
@@ -232,6 +254,23 @@ export interface RouteAlternativeV1 extends ProductRouteV1 {
 }
 
 export interface SafeRecommendationDiagnostics {
+  catalogCoverage?: {
+    pages: number;
+    unavailableSources: string[];
+    sourceCounts: { kto: number; kakao: number };
+    entities: { ktoOnly: number; kakaoOnly: number; merged: number };
+    identities: Array<{ rawId: string; canonicalId: string | null; outcome: "canonical" | "alias" | "excluded"; reason?: string }>;
+    scoredIds: string[];
+    shortlistIds: string[];
+    reserveIds: string[];
+    matrixNodeIds: string[];
+    matrixEdges: Array<{ fromId: string; toId: string; status: string; source: string; reasonCodes: string[] }>;
+    matrixProviderCalls: number;
+    matrixAttempts: number;
+    feasibleIds: string[];
+    finalUsedIds: string[];
+    evidenceGateRejections: number;
+  };
   candidateFunnel?: CandidateFunnelDiagnostics;
   candidateEligibility?: {
     providerRawCandidates: number;
@@ -264,7 +303,7 @@ export interface SafeRecommendationDiagnostics {
 
 export interface RouteRecommendationReadyResponseV1 {
   status: "ready";
-  apiVersion: typeof ROUTE_RECOMMENDATION_API_VERSION;
+  apiVersion: typeof ROUTE_RECOMMENDATION_API_VERSION | "route-recommendation-response-v2";
   engineVersion:
     | typeof ROUTE_RECOMMENDATION_ENGINE_VERSION
     | typeof ROUTE_RECOMMENDATION_ENGINE_V2;
@@ -273,8 +312,8 @@ export interface RouteRecommendationReadyResponseV1 {
   editSessionId: string;
   requestSummary: {
     departureLabel: string;
-    tripDate: string;
-    startTime: string;
+    tripDate: string | null;
+    startTime: string | null;
     tripType: "day_trip" | "overnight";
     tripPace: TripPace;
     selectedCategories: string[];
@@ -325,16 +364,28 @@ export interface RouteRecommendationReadyResponseV1 {
   diversityLimitedReasons?: string[];
 }
 
+export interface ConditionAnswer {
+  requirementId: string;
+  answer: "confirmed" | "not_applicable" | "cannot_meet";
+}
+export interface ConditionQuestion {
+  requirementId: string;
+  placeId: string;
+  label: string;
+  sourceText: string;
+  answers: ConditionAnswer["answer"][];
+}
 export interface RecommendationConditionConfirmationV1 {
   placeId: string;
   title: string;
   selectionOrigin: "user_selected" | "automatic_fill" | "automatic_recommendation";
   conditionEligibility: CanonicalPetConditionEligibility;
+  questions?: ConditionQuestion[];
 }
 
 export interface RouteRecommendationFailureResponseV1 {
   status: Exclude<RecommendationStatus, "ready">;
-  apiVersion: typeof ROUTE_RECOMMENDATION_API_VERSION;
+  apiVersion: typeof ROUTE_RECOMMENDATION_API_VERSION | "route-recommendation-response-v2";
   reasonCodes: string[];
   userMessage: string;
   retryable: boolean;
@@ -349,6 +400,7 @@ export interface RouteRecommendationFailureResponseV1 {
   selectionIssues?: RecommendationSelectionIssueV1[];
   replacementCandidates?: RecommendationReplacementCandidateV1[];
   confirmationRequirements?: RecommendationConditionConfirmationV1[];
+  confirmationToken?: string;
   routeOptions?: ProductRouteV1[];
 }
 
@@ -369,13 +421,16 @@ export type RouteRecommendationResponseV1 =
 export interface ManualRouteValidationRequestV1 {
   editSessionId: string;
   orderedPlaceIds: string[];
+  conditionAnswers?: ConditionAnswer[];
+  applyScheduleProposal?: true;
 }
 
 export type ManualRouteValidationResponseV1 =
   | {
       status: "ready";
-      apiVersion: typeof ROUTE_RECOMMENDATION_API_VERSION;
+      apiVersion: typeof ROUTE_RECOMMENDATION_API_VERSION | "route-recommendation-response-v2";
       route: ProductRouteV1;
       warnings: string[];
+      editSessionId?: string;
     }
   | RouteRecommendationFailureResponseV1;

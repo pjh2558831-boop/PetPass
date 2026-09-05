@@ -55,6 +55,9 @@ export async function POST(request: Request): Promise<Response> {
   const result = await validateManualRoute(
     parsed.data.editSessionId,
     parsed.data.orderedPlaceIds,
+    { signal: request.signal },
+    parsed.data.conditionAnswers,
+    parsed.data.applyScheduleProposal,
   );
   return Response.json(result, {
     status:

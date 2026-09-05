@@ -483,6 +483,7 @@ describe("Stage 5 canonical recommendation orchestration", () => {
     expect(revalidated.status).toBe("ready");
     if (revalidated.status !== "ready") return;
     const stop = revalidated.route.stops[0]!;
+    if (!stop.arrivalAt || !stop.visitStartsAt || !stop.departureAt || !revalidated.route.routeSummary.startAt || !revalidated.route.routeSummary.endAt) throw new Error("A fixed schedule must contain absolute timestamps");
     expect(stop.arrivalAt.endsWith(":01.000Z")).toBe(true);
     expect(Date.parse(stop.visitStartsAt)).toBeGreaterThanOrEqual(
       Date.parse(stop.arrivalAt),

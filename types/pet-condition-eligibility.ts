@@ -32,6 +32,7 @@ export type CanonicalPetConditionCode =
   | "operator_confirmation_required";
 
 export interface CanonicalPetConditionItem {
+  subject?: "all" | "dangerous_dog" | "unknown";
   code: CanonicalPetConditionCode;
   sourceType: TourPetAccessConditionType | "assessment_conflict" | "verification_item";
   label: string;
@@ -63,10 +64,11 @@ export type CanonicalPetConditionReasonCode =
   | "insufficient_pet_evidence";
 
 export interface CanonicalPetConditionEligibility {
-  version: "canonical-pet-condition-v1";
+  version: "canonical-pet-condition-v1" | "canonical-pet-condition-v2";
   state: PetConditionEligibilityState;
   conditionCodes: CanonicalPetConditionCode[];
   satisfiedConditions: CanonicalPetConditionItem[];
+  guidanceConditions?: CanonicalPetConditionItem[];
   conflictingConditions: CanonicalPetConditionItem[];
   confirmationRequiredConditions: CanonicalPetConditionItem[];
   unsupportedConditions: CanonicalPetConditionItem[];

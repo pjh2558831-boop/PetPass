@@ -37,7 +37,7 @@ import {
   loadSelectedItinerary,
   saveSelectedItinerary,
   selectedItineraryNeedsWarning,
-  setSelectedItineraryVerificationAcknowledged,
+  selectedItineraryVerdictLabel,
   type SelectedItinerarySnapshot,
 } from "@/lib/storage/selected-itinerary-storage";
 import type {
@@ -61,13 +61,6 @@ const sizeOptions: Array<{ value: PetSize; label: string; note: string }> = [
   { value: "LARGE", label: "대형", note: "약 25kg 이상" },
 ];
 
-const equipmentOptions = [
-  { key: "hasCarrier" as const, label: "이동장" },
-  { key: "hasLeash" as const, label: "목줄" },
-  { key: "hasMuzzle" as const, label: "입마개" },
-  { key: "acceptsOutdoorOnly" as const, label: "야외 공간 가능" },
-];
-
 const environmentOptions = [
   { value: "any" as const, label: "상관없음" },
   { value: "indoor_preferred" as const, label: "실내 우선" },
@@ -76,7 +69,7 @@ const environmentOptions = [
 
 const tripTypeOptions: Array<{ value: TripType; label: string; note: string }> = [
   { value: "DAY_TRIP", label: "당일치기", note: "하루 안에 마치는 일정" },
-  { value: "OVERNIGHT", label: "1박 여행", note: "숙소를 마지막 방문지로 배치" },
+  { value: "OVERNIGHT", label: "1박 여행", note: "숙소에서 끝나는 첫날 경로" },
 ];
 
 const categoryOptions: Array<{ value: PlaceCategory; label: string }> = [
@@ -122,8 +115,8 @@ function preferencesFromDraft(
     districtName: draft.districtId
       ? getRegionDistrict(region, draft.districtId)?.name
       : undefined,
-    tripDate: draft.travelDate ?? current.tripDate,
-    startTime: draft.startTime ?? current.startTime,
+    tripDate: draft.travelDate ?? "",
+    startTime: draft.startTime ?? "",
     tripType: draft.tripType === "overnight" ? "OVERNIGHT" : "DAY_TRIP",
     tripPace: draft.pace,
     preferredCategories: preferredCategories.length > 0
@@ -302,6 +295,7 @@ export function UnifiedPlannerForm({
     useState<SelectedItinerarySnapshot | null>(null);
   const [selectionError, setSelectionError] = useState("");
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  const [inputsReady, setInputsReady] = useState(false);
   const selectedMode = mode === "selected";
   const preferenceRegion = getRegionConfigByService2LegalDongCode(
     preferences.regionCode,
@@ -333,6 +327,7 @@ export function UnifiedPlannerForm({
           setPreferences((current) => preferencesFromDraft(draft, current));
         }
       }
+      setInputsReady(true);
       if (!selectedMode) return;
       setSelectedItinerary(stored);
       if (!stored || stored.places.length === 0) {
@@ -428,18 +423,11 @@ export function UnifiedPlannerForm({
     const selectedPlaces = selectedItinerary?.places ?? [];
     const autoFill = selectedItinerary?.autoFill ?? true;
     const selectedCategories = getSelectedItineraryCategories(selectedPlaces);
-    const unacknowledgedVerificationPlaces = selectedPlaces.filter(
-      (place) => selectedItineraryNeedsWarning(place) &&
-        !selectedItinerary?.acknowledgedVerificationRequiredPlaceIds.includes(place.id),
-    );
 
     if (includes("selection")) {
       if (selectedMode && selectedPlaces.length === 0) {
         nextErrors.selection =
           "일정에 담은 장소가 없습니다. 장소를 한 곳 이상 골라 주세요.";
-      } else if (selectedMode && unacknowledgedVerificationPlaces.length > 0) {
-        nextErrors.selection =
-          "확인이 필요한 선택 장소의 동반·운영 조건을 직접 확인한다는 항목에 동의해 주세요.";
       } else if (
         selectedMode &&
         !autoFill &&
@@ -465,14 +453,14 @@ export function UnifiedPlannerForm({
       nextErrors.departure =
         "검색 결과나 지도에서 실제 출발지를 선택해 주세요.";
     }
-    if (includes("tripDate") && !isValidIsoDate(preferences.tripDate)) {
-      nextErrors.tripDate = "여행 날짜를 선택해 주세요.";
+    if (includes("tripDate") && preferences.tripDate !== "" && (!isValidIsoDate(preferences.tripDate) || preferences.tripDate < new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()))) {
+      nextErrors.tripDate = "오늘 이후 날짜를 선택하거나 날짜 미정으로 바꿔 주세요.";
     }
     if (
-      includes("startTime") &&
+      includes("startTime") && preferences.startTime !== "" &&
       !/^(?:[01]\d|2[0-3]):[0-5]\d$/u.test(preferences.startTime)
     ) {
-      nextErrors.startTime = "시작 시간을 선택해 주세요.";
+      nextErrors.startTime = "올바른 시간을 입력하거나 시간 미정으로 바꿔 주세요.";
     }
 
     if (includes("planning")) {
@@ -510,12 +498,6 @@ export function UnifiedPlannerForm({
       ) {
         nextErrors.categories =
           "방문하고 싶은 장소 유형을 하나 이상 선택해 주세요.";
-      } else if (
-        !selectedMode &&
-        preferences.tripType === "OVERNIGHT" &&
-        !preferences.preferredCategories.includes("ACCOMMODATION")
-      ) {
-        nextErrors.categories = "1박 여행은 숙소 유형을 함께 선택해 주세요.";
       }
     }
 
@@ -667,6 +649,7 @@ export function UnifiedPlannerForm({
 
         const confirmedProfile: PetProfile = {
           ...profile,
+          hasCarrier: null, hasLeash: null, hasMuzzle: null, acceptsOutdoorOnly: null,
           name: profile.name.trim(),
           species: species!,
           size: size!,
@@ -710,6 +693,7 @@ export function UnifiedPlannerForm({
         );
       }}
     >
+      <fieldset disabled={!inputsReady} aria-busy={!inputsReady} aria-label="여행 정보" className="m-0 min-w-0 border-0 p-0">
       <PlannerFormProgress current={currentStep} />
 
       {selectedMode && selectedItinerary?.places.length ? (
@@ -888,26 +872,6 @@ export function UnifiedPlannerForm({
 
             <div className="planner-divider-grid">
               <fieldset className="planner-field">
-                <legend>
-                  준비 및 이용 조건 <small>(선택)</small>
-                </legend>
-                <div className="planner-check-rows">
-                  {equipmentOptions.map(({ key, label }) => (
-                    <label key={key}>
-                      <input
-                        type="checkbox"
-                        checked={profile[key]}
-                        onChange={(event) =>
-                          updateProfile(key, event.target.checked)
-                        }
-                      />
-                      <span>{label}</span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-
-              <fieldset className="planner-field">
                 <legend>실내·야외 선호</legend>
                 <div className="planner-radio-rows">
                   {environmentOptions.map((option) => (
@@ -1055,7 +1019,8 @@ export function UnifiedPlannerForm({
                 </div>
               ) : null}
               <div className="planner-field">
-                <label htmlFor="trip-date">여행 날짜</label>
+                <label htmlFor="trip-date">여행 날짜 <small>(선택)</small></label>
+                <button type="button" aria-pressed={!preferences.tripDate} onClick={() => { updatePreferences("tripDate", ""); clearError("tripDate"); }}>날짜 미정</button>
                 <input
                   id="trip-date"
                   type="date"
@@ -1080,7 +1045,8 @@ export function UnifiedPlannerForm({
                 ) : null}
               </div>
               <div className="planner-field">
-                <label htmlFor="start-time">시작 시간</label>
+                <label htmlFor="start-time">시작 시간 <small>(선택)</small></label>
+                <button type="button" aria-pressed={!preferences.startTime} onClick={() => { updatePreferences("startTime", ""); clearError("startTime"); clearError("planning"); }}>시간 미정</button>
                 <input
                   id="start-time"
                   type="time"
@@ -1191,7 +1157,7 @@ export function UnifiedPlannerForm({
                           </em>
                           {selectedItineraryNeedsWarning(place) ? (
                             <em className="planner-selected-summary__warning">
-                              동반 가능 여부 확인 필요 · 사용자가 선택한 장소이며 공식 확인 전입니다
+                              {selectedItineraryVerdictLabel(place.petAccessVerdict)} · 사용자가 선택한 장소
                             </em>
                           ) : null}
                         </span>
@@ -1233,37 +1199,7 @@ export function UnifiedPlannerForm({
                     {activeRegion.displayName}에서는 직접 고른 장소의 순서와 실제 이동 경로를 만들 수 있으며, 자동 채우기는 아직 지원하지 않습니다.
                   </p>
                 ) : null}
-                {selectedItinerary?.places.some(selectedItineraryNeedsWarning) ? (
-                  <label className="planner-inline-check">
-                    <input
-                      type="checkbox"
-                      checked={selectedItinerary.places
-                        .filter(selectedItineraryNeedsWarning)
-                        .every(({ id }) => selectedItinerary
-                          .acknowledgedVerificationRequiredPlaceIds.includes(id))}
-                      onChange={(event) => {
-                        let next = selectedItinerary;
-                        for (const place of selectedItinerary.places.filter(selectedItineraryNeedsWarning)) {
-                          next = setSelectedItineraryVerificationAcknowledged(
-                            next,
-                            place.id,
-                            event.target.checked,
-                          );
-                        }
-                        setSelectedItinerary(next);
-                        clearError("selection");
-                        if (!saveSelectedItinerary(next)) {
-                          setSelectionError("확인 동의를 저장하지 못했습니다.");
-                        } else {
-                          setSelectionError("");
-                        }
-                      }}
-                    />
-                    <span>
-                      확인 필요 장소의 반려동물 동반 조건과 운영시간을 방문 전에 직접 확인하겠습니다
-                    </span>
-                  </label>
-                ) : null}
+                {selectedItinerary?.places.some(selectedItineraryNeedsWarning) ? <p className="planner-notice">동반 여부와 이용 조건은 장소별 안내로 표시하며, 경로 계산을 막지 않습니다.</p> : null}
                 {selectionError ? (
                   <p className="planner-error" role="alert">
                     {selectionError}
@@ -1400,6 +1336,7 @@ export function UnifiedPlannerForm({
                 <legend>
                   방문하고 싶은 장소 <small>(복수 선택)</small>
                 </legend>
+                <p className="planner-help">선택한 유형을 우선 추천하며, 다른 유형의 공개 장소도 이동 경로 후보에 포함합니다.</p>
                 <div className="planner-category-grid">
                   {categoryOptions.map((option) => (
                     <label
@@ -1513,6 +1450,7 @@ export function UnifiedPlannerForm({
           )}
         </aside>
       </div>
+      </fieldset>
     </form>
   );
 }

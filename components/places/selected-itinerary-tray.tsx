@@ -49,7 +49,7 @@ function SelectionTrayContents({
                 <span>{PLACE_CATEGORY_LABELS[mapCatalogPlaceToCategory(place)]} · {place.sourceLabel}</span>
                 <span><LockKeyhole size={12} aria-hidden="true" /> 일정에 고정 · {selectedItineraryVerdictLabel(place.petAccessVerdict)}</span>
                 {selectedItineraryNeedsWarning(place) ? (
-                  <small><AlertTriangle size={12} aria-hidden="true" /> 동반 가능 여부 확인 필요 · 사용자가 선택한 미확인 장소</small>
+                  <small><AlertTriangle size={12} aria-hidden="true" /> {selectedItineraryVerdictLabel(place.petAccessVerdict)} · 사용자가 선택한 장소</small>
                 ) : null}
               </div>
               <div className="selected-itinerary-tray__controls">

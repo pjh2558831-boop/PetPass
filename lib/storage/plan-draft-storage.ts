@@ -15,7 +15,7 @@ import {
 import { REGION_IDS, type RegionId } from "@/types/region";
 import type { PetProfile, PlaceCategory, TravelPreferences } from "@/types/pet";
 
-export const PLAN_DRAFT_SCHEMA_VERSION = 1;
+export const PLAN_DRAFT_SCHEMA_VERSION = 2;
 export const PLAN_DRAFT_STORAGE_KEY = "weekendog:plan-draft";
 
 const canonicalPlaceId = z.string().regex(/^(?:tour|kakao):[0-9]+$/u);
@@ -55,10 +55,10 @@ const draftPetProfileSchema = z.object({
   name: z.string().trim().max(30),
   species: z.enum(["DOG", "CAT", "OTHER"]),
   size: z.enum(["SMALL", "MEDIUM", "LARGE"]),
-  hasCarrier: z.boolean(),
-  hasLeash: z.boolean(),
-  hasMuzzle: z.boolean(),
-  acceptsOutdoorOnly: z.boolean(),
+  hasCarrier: z.boolean().nullable(),
+  hasLeash: z.boolean().nullable(),
+  hasMuzzle: z.boolean().nullable(),
+  acceptsOutdoorOnly: z.boolean().nullable(),
 }).strict();
 
 const planDraftSchema = z.object({
@@ -66,6 +66,7 @@ const planDraftSchema = z.object({
   regionId: z.enum(REGION_IDS),
   districtId: z.string().trim().min(1).max(20).nullable(),
   selectedPlaces: z.array(planDraftSelectedPlaceSchema).max(5),
+  excludedPlaceIds: z.array(canonicalPlaceId).max(30).default([]),
   acknowledgedVerificationRequiredPlaceIds: z.array(canonicalPlaceId).max(5),
   petProfile: draftPetProfileSchema.nullable(),
   origin: z.object({
@@ -187,6 +188,7 @@ export function createPlanDraft(regionId: RegionId): PlanDraft {
     regionId,
     districtId: null,
     selectedPlaces: [],
+    excludedPlaceIds: [],
     acknowledgedVerificationRequiredPlaceIds: [],
     petProfile: null,
     origin: null,
@@ -305,8 +307,6 @@ export function plannerInputFromPlanDraft(
   if (
     !draft.petProfile ||
     !draft.origin ||
-    !draft.travelDate ||
-    !draft.startTime ||
     draft.requestedCategories.length === 0
   ) {
     return null;
@@ -336,10 +336,10 @@ export function plannerInputFromPlanDraft(
             ({ legalDongDistrictCode }) => legalDongDistrictCode === draft.districtId,
           )?.name
         : undefined,
-      tripDate: draft.travelDate,
+      tripDate: draft.travelDate ?? "",
       tripType: draft.tripType === "overnight" ? "OVERNIGHT" : "DAY_TRIP",
       tripPace: draft.pace,
-      startTime: draft.startTime,
+      startTime: draft.startTime ?? "",
       preferredCategories,
       departure: {
         label: draft.origin.name,
@@ -361,6 +361,7 @@ export function plannerInputFromPlanDraft(
 export function loadPlanDraft(storage?: StorageLike | null): PlanDraft | null {
   const draft = readVersionedValue(PLAN_DRAFT_STORAGE_KEY, planDraftSchema, {
     version: PLAN_DRAFT_SCHEMA_VERSION,
+    migrations: { 1: (value) => { const old = value as Record<string, unknown>; return { ...old, schemaVersion: 2, excludedPlaceIds: [], petProfile: old.petProfile ? { ...old.petProfile as object, hasCarrier: null, hasLeash: null, hasMuzzle: null, acceptsOutdoorOnly: null } : null }; } },
     storage,
   });
   return draft ? { ...draft, includeVerificationRequired: false } : null;

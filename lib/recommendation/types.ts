@@ -21,10 +21,7 @@ import type { PlaceTrustResult } from "@/types/place-source";
 import type { PopularityResult } from "@/lib/recommendation/popularity/popularity-calculator";
 import type { PlaceUtilityBreakdown } from "@/lib/recommendation/scoring/place-utility";
 
-export type UsefulTourCategory = Exclude<
-  TourPlaceCategory,
-  "transportation" | "unknown"
->;
+export type UsefulTourCategory = TourPlaceCategory;
 
 export type CachedDetailStatus =
   | "available"

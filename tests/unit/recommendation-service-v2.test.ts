@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { generateRouteRecommendation } from "@/lib/recommendation/recommendation-service";
-import { routeRecommendationResponseSchema } from "@/lib/recommendation/recommendation-response";
+import { generateRouteRecommendation, validateManualRoute } from "@/lib/recommendation/recommendation-service";
+import { manualRouteValidationRequestSchema, manualRouteValidationResponseSchema, routeRecommendationResponseSchema } from "@/lib/recommendation/recommendation-response";
+import { loadSavedRouteRecommendation, saveRouteRecommendation } from "@/lib/storage/recommendation-storage";
+import { loadRecommendationPublicCatalog } from "@/lib/recommendation/public-catalog";
+import type { PublicMapPlaceDTO } from "@/types/public-map-place";
+import type { PublicMapCatalogQuery } from "@/lib/map-places/public-catalog";
 import type {
   CandidatePipelineDiagnostics,
   CandidatePipelineResult,
@@ -8,7 +12,7 @@ import type {
 } from "@/lib/recommendation/types";
 import type { TourPlaceService } from "@/lib/tour-api/service";
 import type { TravelMatrixResult, TravelTimeProvider } from "@/lib/travel/types";
-import type { MapPlacesSnapshot, MapPlacesSnapshotMarker } from "@/types/map-places-snapshot";
+import type { MapPlacesSnapshot, MapPlacesSnapshotMarker, MapPlacesSnapshotRequest } from "@/types/map-places-snapshot";
 import type { RouteRecommendationRequest } from "@/types/recommendation";
 
 const REQUEST: RouteRecommendationRequest = {
@@ -189,18 +193,18 @@ function tourMarker(id: string, offset: number): MapPlacesSnapshotMarker {
   };
 }
 
-function snapshot(items: MapPlacesSnapshotMarker[]): MapPlacesSnapshot {
+function snapshot(items: MapPlacesSnapshotMarker[], dataset: MapPlacesSnapshotRequest["dataset"] = "core"): MapPlacesSnapshot {
   return {
     contractVersion: 1,
     region: "busan",
     scope: "default",
-    dataset: "core",
+    dataset,
     generatedAt: "2026-08-15T00:00:00.000Z",
     publicationVersion: "p1-0123456789abcdef",
     dataVersion: "v1-0123456789abcdef",
     totalCount: items.length,
-    providerCounts: { tour: 0, kakao: items.length },
-    categoryCounts: { attraction: items.length },
+    providerCounts: { tour: items.filter(item => item.layer === "tourism").length, kakao: items.filter(item => item.layer === "kakao").length },
+    categoryCounts: items.reduce<MapPlacesSnapshot["categoryCounts"]>((counts, item) => { counts[item.category] = (counts[item.category] ?? 0) + 1; return counts; }, {}),
     freshness: { status: "fresh" },
     items,
   };
@@ -284,11 +288,28 @@ function travelProvider() {
 
 function dependencies(kto: DetailedEligibleCandidate[], kakao: MapPlacesSnapshotMarker[]) {
   const provider = travelProvider();
+  // Publish the fixture inventory explicitly: optional detail collection is not
+  // the source of candidates in the public-catalog recommendation path.
+  const published = [...new Map([
+    ...kto.map((candidate): MapPlacesSnapshotMarker => ({
+      ...tourMarker(candidate.contentId, 0),
+      contentTypeId: candidate.contentTypeId,
+      name: candidate.title,
+      coordinates: candidate.coordinates,
+      address: candidate.summary.address ?? undefined,
+      petAccessVerdict: candidate.assessment.verdict,
+      petConditions: candidate.assessment.conditions.map(condition => condition.sourceText).join("\n") || null,
+    })),
+    ...kakao,
+  ].map(marker => [marker.id, marker])).values()];
   return {
     tourService: {} as TourPlaceService,
     collectCatalog: vi.fn(async () => ({ places: [] } as never)),
     candidatePipeline: vi.fn(async () => pipeline(kto)),
-    loadCatalogSnapshot: vi.fn(async () => snapshot(kakao)),
+    loadCatalogSnapshot: vi.fn(async ({ dataset }: MapPlacesSnapshotRequest) => snapshot(
+      published.filter(marker => (marker.dataset ?? (marker.category === "shopping" && marker.layer === "tourism" ? "shopping" : "core")) === dataset),
+      dataset,
+    )),
     travelTimeProvider: provider,
     now: () => new Date("2026-08-15T00:00:00.000Z"),
     editSessionSecret: "unit-test-route-edit-session-secret",
@@ -297,6 +318,145 @@ function dependencies(kto: DetailedEligibleCandidate[], kakao: MapPlacesSnapshot
 }
 
 describe("recommendation service V2 orchestration", () => {
+  it("counts every new automatic stop even when only one candidate matches a preferred category", async () => {
+    const result = await generateRouteRecommendation(REQUEST, dependencies([], [
+      kakaoMarker("801", 0),
+      { ...kakaoMarker("802", .002), category: "food" },
+      { ...kakaoMarker("803", .004), category: "food" },
+    ]));
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.route.stops.some(stop => stop.placeId === "kakao:801")).toBe(true);
+    expect(result.newPlaceCount).toBe(result.route.stops.length);
+  });
+  it.each(["provider_unavailable", "kakao_rate_limited", "kakao_authentication_failed"])("does not label an essential matrix outage %s as schedule shortage", async reason => {
+    const deps = dependencies([ktoCandidate("9001", 0)], []);
+    const build = deps.provider.buildMatrix.getMockImplementation()!;
+    deps.provider.buildMatrix.mockImplementation(async input => {
+      const matrix = await build(input);
+      for (const edges of Object.values(matrix.edges)) for (const edge of Object.values(edges)) {
+        edge.status = "provider_unavailable"; edge.durationSeconds = null; edge.distanceMeters = null; edge.reasonCodes = [reason];
+      }
+      matrix.diagnostics.resolvedEdges = 0;
+      return matrix;
+    });
+    const result = await generateRouteRecommendation({ ...REQUEST, requestVersion: 2 }, deps);
+    expect(result.status).toBe(reason === "kakao_rate_limited" ? "rate_limited" : "kakao_provider_unavailable");
+    expect(deps.provider.validateOrderedRoute).not.toHaveBeenCalled();
+  });
+  it("keeps unanswered published conditions as facts without an admission confirmation gate", async () => {
+    const candidate = ktoCandidate("9001", 0);
+    candidate.assessment.conditions = [
+      { type: "vaccination_required", label: "백신 증빙", sourceText: "예방접종 증명서 지참 필수", scope: "whole_place", evidenceIds: [], manualConfirmationRecommended: true },
+      { type: "reservation_required", label: "예약 완료", sourceText: "반려동물 객실 사전 예약 필수", scope: "whole_place", evidenceIds: [], manualConfirmationRecommended: true },
+    ];
+    const request: RouteRecommendationRequest = { ...REQUEST, requestVersion: 2, trip: { ...REQUEST.trip, date: null, startTime: null }, pet: { name: null, species: "DOG", size: "SMALL" } };
+    const deps = { ...dependencies([candidate], []), now: () => new Date("2026-09-05T03:00:00Z") };
+    for (const conditionConfirmation of [undefined, { token: "obsolete-untrusted-token", answers: [{ requirementId: "obsolete-question", answer: "confirmed" as const }] }]) {
+      const result = await generateRouteRecommendation({ ...request, conditionConfirmation }, deps);
+      expect(result.status).toBe("ready");
+      if (result.status !== "ready") throw new Error("Expected a geographic draft");
+      expect(routeRecommendationResponseSchema.safeParse(result).success).toBe(true);
+      expect(result.route).toMatchObject({ planningPolicy: "full_public_catalog_v1", venueCompatibility: "unchecked", schedule: { state: "undated_template" } });
+      expect(result.route.stops[0]).toMatchObject({
+        catalogEvidence: [{ provider: "kto", providerPlaceId: "9001", originalText: "예방접종 증명서 지참 필수\n반려동물 객실 사전 예약 필수", retrievedAt: "2026-08-15T00:00:00.000Z" }],
+      });
+      expect(result.route.stops[0]!.conditionAcknowledged).not.toBe(true);
+      expect("confirmationToken" in result).toBe(false);
+    }
+    expect(deps.candidatePipeline).not.toHaveBeenCalled();
+  });
+  it("preserves published conditions through signed manual edits while rejecting tampering and expiry", async () => {
+    const candidates = [ktoCandidate("9101", 0), ktoCandidate("9102", 0.01)];
+    for (const candidate of candidates) {
+      candidate.scheduleDetail!.operatingInformation = "15:00-20:00";
+      candidate.assessment.conditions = [
+        { type: "vaccination_required", label: "백신 증빙", sourceText: "예방접종 증명서 지참 필수", scope: "whole_place", evidenceIds: [], manualConfirmationRecommended: true },
+        { type: "reservation_required", label: "예약 확인", sourceText: "반려동물 객실 사전 예약 필수", scope: "whole_place", evidenceIds: [], manualConfirmationRecommended: true },
+      ];
+    }
+    const request: RouteRecommendationRequest = { ...REQUEST, requestVersion: 2, trip: { ...REQUEST.trip, desiredStopCount: 2 }, pet: { name: null, species: "DOG", size: "SMALL" } };
+    const deps = dependencies(candidates, []);
+    const answered = await generateRouteRecommendation(request, deps);
+    expect(answered.status).toBe("ready");
+    if (answered.status !== "ready") return;
+    expect(answered.route.schedule?.state).toBe("scheduled");
+    const keptId = answered.route.stops[0]!.placeId;
+    const validationDeps = { travelTimeProvider: deps.travelTimeProvider, now: deps.now, editSessionSecret: deps.editSessionSecret };
+    const revised = await validateManualRoute(answered.editSessionId, [keptId], validationDeps);
+    expect(revised).toMatchObject({ status: "ready", route: { planningPolicy: "full_public_catalog_v1", venueCompatibility: "unchecked", stops: [{ placeId: keptId, conditionAcknowledged: false }] } });
+    expect(manualRouteValidationResponseSchema.safeParse(revised).success).toBe(true);
+    expect(await validateManualRoute(answered.editSessionId + "forged", [keptId], validationDeps)).toMatchObject({ status: "invalid_request" });
+    expect(await validateManualRoute(answered.editSessionId, ["kakao:unlisted"], validationDeps)).toMatchObject({ status: "invalid_request" });
+    expect(await validateManualRoute(answered.editSessionId, [keptId], { ...validationDeps, now: () => new Date("2026-08-15T00:21:00Z") })).toMatchObject({ status: "invalid_request" });
+    expect(manualRouteValidationRequestSchema.safeParse({ editSessionId: answered.editSessionId, orderedPlaceIds: [keptId], conditionAnswers: [{ requirementId: "same-question", answer: "confirmed" }, { requirementId: "same-question", answer: "cannot_meet" }] }).success).toBe(false);
+    if (revised.status === "ready") {
+      expect(revised.route.stops[0]!.catalogEvidence).toEqual(answered.route.stops[0]!.catalogEvidence);
+      expect(revised.editSessionId).toBeTruthy();
+      expect(await validateManualRoute(revised.editSessionId!, [keptId], validationDeps)).toMatchObject({ status: "ready", route: { stops: [{ conditionAcknowledged: false }] } });
+      const cancellation = new AbortController();
+      const cancelledProvider = { ...deps.travelTimeProvider, validateOrderedRoute: async () => {
+        cancellation.abort();
+        throw cancellation.signal.reason;
+      } };
+      await expect(validateManualRoute(revised.editSessionId!, [keptId], { ...validationDeps, travelTimeProvider: cancelledProvider, signal: cancellation.signal })).rejects.toMatchObject({ name: "AbortError" });
+    }
+  });
+  it("proposes the nearest feasible clock without mutating intent, then revalidates explicit application", async () => {
+    const candidate = ktoCandidate("9002", 0);
+    const deps = { ...dependencies([candidate], []), now: () => new Date("2026-09-05T03:07:00Z") };
+    const request: RouteRecommendationRequest = { ...REQUEST, requestVersion: 2, trip: { ...REQUEST.trip, date: "2026-09-05", startTime: "10:00", desiredStopCount: 1 }, pet: { name: null, species: "DOG", size: "SMALL" } };
+    const proposal = await generateRouteRecommendation(request, deps);
+    expect(proposal.status).toBe("ready");
+    if (proposal.status !== "ready") throw new Error("Expected proposed route");
+    expect(proposal.route.schedule?.state).toBe("adjustment_proposal");
+    expect(proposal.route.schedule?.requested.startTime).toBe("10:00");
+    const time = proposal.route.schedule!.effective.startTime!;
+    expect(time).toBe("12:15");
+    expect(request.trip.startTime).toBe("10:00");
+    const applied = await generateRouteRecommendation({ ...request, trip: { ...request.trip, startTime: time } }, deps);
+    expect(applied.status).toBe("ready");
+    if (applied.status === "ready") expect(applied.route.schedule).toMatchObject({ state: "scheduled", requested: { startTime: time } });
+    const manualApplied = await validateManualRoute(proposal.editSessionId, proposal.route.stops.map(({ placeId }) => placeId), { travelTimeProvider: deps.travelTimeProvider, now: deps.now, editSessionSecret: deps.editSessionSecret }, [], true);
+    expect(manualApplied).toMatchObject({ status: "ready", route: { kind: "manual", schedule: { state: "scheduled", requested: { startTime: time } } } });
+    if (manualApplied.status === "ready") expect(await validateManualRoute(manualApplied.editSessionId!, manualApplied.route.stops.map(({ placeId }) => placeId), { travelTimeProvider: deps.travelTimeProvider, now: deps.now, editSessionSecret: deps.editSessionSecret }, [], true)).toMatchObject({ status: "invalid_request", reasonCodes: ["manual_route_has_no_schedule_proposal"] });
+  });
+  it("does not use a past departure today and rejects an explicit past date", async () => {
+    const deps = { ...dependencies([ktoCandidate("9003", 0)], []), now: () => new Date("2026-09-05T03:07:00Z") };
+    const request: RouteRecommendationRequest = { ...REQUEST, requestVersion: 2, trip: { ...REQUEST.trip, date: "2026-09-05", startTime: "10:00", desiredStopCount: 1 } };
+    const result = await generateRouteRecommendation(request, deps);
+    expect(result.status).toBe("ready");
+    if (result.status === "ready") { expect(result.route.schedule?.state).toBe("adjustment_proposal"); expect(result.route.schedule!.effective.startTime! >= "12:15").toBe(true); }
+    expect((await generateRouteRecommendation({ ...request, trip: { ...request.trip, date: "2026-09-04" } }, deps)).status).toBe("invalid_request");
+  });
+  it.each([[null, null], ["2026-09-12", null], [null, "10:00"], ["2026-09-12", "10:00"]])("keeps schedule intent %s / %s through real orchestration", async (date, startTime) => {
+    const deps = dependencies([ktoCandidate("1001", 0), ktoCandidate("1002", 0.01), ktoCandidate("1003", 0.02)], []);
+    const result = await generateRouteRecommendation({ ...REQUEST, requestVersion: 2, trip: { ...REQUEST.trip, date, startTime }, pet: { name: "보리", species: "DOG", size: "SMALL" } }, { ...deps, now: () => new Date("2026-09-05T00:00:00Z") });
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.route.schedule?.requested).toEqual({ date, startTime });
+    expect(result.route.schedule?.roadValidated).toBe(true);
+    expect(result.route.segments).toHaveLength(result.route.stops.length);
+    if (date === null) {
+      expect(result.route.routeSummary.startAt).toBeNull();
+      expect(result.route.stops[0].arrivalAt).toBeNull();
+      expect(result.route.stops[0].arrivalOffsetSeconds).toBeGreaterThan(0);
+      expect(JSON.stringify(result)).not.toContain("2000-01-01");
+    }
+    expect(routeRecommendationResponseSchema.safeParse(result).success).toBe(true);
+    const values = new Map<string, string>();
+    const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); }, removeItem: (key: string) => { values.delete(key); } };
+    expect(saveRouteRecommendation(result, result.route, storage)).toBe(true);
+    const snapshot = loadSavedRouteRecommendation(storage)!;
+    expect(snapshot.route.schedule?.requested).toEqual({ date, startTime });
+    expect(snapshot.route.stops[0]!.coordinates).toEqual(result.route.stops[0]!.coordinates);
+    expect(snapshot.route.segments).toEqual(result.route.segments);
+    expect(JSON.stringify(snapshot)).not.toContain("editSession");
+    const before = [...values];
+    expect(saveRouteRecommendation(result, { ...result.route, segments: [] }, storage)).toBe(false);
+    expect(saveRouteRecommendation(result, result.route, { ...storage, setItem: () => { throw new Error("quota"); } })).toBe(false);
+    expect([...values]).toEqual(before);
+  });
   it("returns a truthful single-stop suggestion", async () => {
     const deps = dependencies([ktoCandidate("1001", 0)], []);
     const result = await generateRouteRecommendation(REQUEST, deps);
@@ -310,7 +470,7 @@ describe("recommendation service V2 orchestration", () => {
     });
   });
 
-  it("excludes unverified Kakao candidates from automatic recommendations by default", async () => {
+  it("recommends and saves public Kakao candidates without inventing pet approval", async () => {
     const deps = dependencies(
       [ktoCandidate("1001", 0)],
       [kakaoMarker("201", 0), kakaoMarker("202", 0.01), kakaoMarker("203", 0.02)],
@@ -320,18 +480,24 @@ describe("recommendation service V2 orchestration", () => {
     expect(result.status).toBe("ready");
     if (result.status !== "ready") return;
     expect(routeRecommendationResponseSchema.safeParse(result).success).toBe(true);
-    expect(result.candidateSourceCounts).toEqual({ kto: 1, kakao: 0, merged: 0 });
-    expect(result.routeOptions?.flatMap(({ stops }) => stops).every((stop) =>
-      stop.source === "tourism_service2" && stop.petAssessment === "allowed" && stop.evidenceStatus === "verified",
-    )).toBe(true);
-    expect(deps.collectCatalog).toHaveBeenCalledTimes(1);
-    expect(deps.candidatePipeline).toHaveBeenCalledTimes(1);
-    expect(deps.loadCatalogSnapshot).toHaveBeenCalledTimes(1);
+    expect(result.candidateSourceCounts).toEqual({ kto: 1, kakao: 3, merged: 0 });
+    const kakaoStops = result.route.stops.filter(stop => stop.source === "kakao_catalog");
+    expect(kakaoStops.length).toBeGreaterThan(0);
+    expect(kakaoStops.every(stop => stop.petAssessment === "unknown" && stop.evidenceStatus === "unverified" && stop.conditionAcknowledged !== true)).toBe(true);
+    expect(deps.collectCatalog).not.toHaveBeenCalled();
+    expect(deps.candidatePipeline).not.toHaveBeenCalled();
+    expect(deps.loadCatalogSnapshot.mock.calls.map(([input]) => input.dataset)).toEqual(["core"]);
     expect(deps.provider.buildMatrix).toHaveBeenCalledTimes(1);
     expect(deps.provider.validateOrderedRoute.mock.calls.length).toBeLessThanOrEqual(3);
     expect(result.routeOptions?.flatMap(({ stops }) => stops).every(({ placeId }) =>
       placeId.startsWith("tour:") || placeId.startsWith("kakao:"),
     )).toBe(true);
+    const values = new Map<string, string>();
+    const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); }, removeItem: (key: string) => { values.delete(key); } };
+    expect(saveRouteRecommendation(result, result.route, storage)).toBe(true);
+    const saved = loadSavedRouteRecommendation(storage)!;
+    expect(saved.route.stops.filter(stop => stop.source === "kakao_catalog")).toEqual(kakaoStops);
+    expect(saved.route.venueCompatibility).toBe("unchecked");
   });
 
   it("counts one published identity once when snapshot, list, and enriched views overlap", async () => {
@@ -350,7 +516,7 @@ describe("recommendation service V2 orchestration", () => {
     });
   });
 
-  it("keeps unknown-evidence Kakao candidates out after explicit opt-in", async () => {
+  it("does not turn the legacy evidence opt-in into pet approval", async () => {
     const deps = dependencies(
       [ktoCandidate("1001", 0)],
       [kakaoMarker("201", 0), kakaoMarker("202", 0.01), kakaoMarker("203", 0.02)],
@@ -363,14 +529,13 @@ describe("recommendation service V2 orchestration", () => {
     expect(result.status).toBe("ready");
     if (result.status !== "ready") return;
     expect(result.diagnostics).toBeUndefined();
-    expect(result.candidateSourceCounts).toEqual({ kto: 1, kakao: 0, merged: 0 });
-    expect(result.routeOptions?.flatMap(({ stops }) => stops).every((stop) =>
-      stop.source === "tourism_service2" &&
-      stop.petAssessment === "allowed",
+    expect(result.candidateSourceCounts).toEqual({ kto: 1, kakao: 3, merged: 0 });
+    expect(result.routeOptions?.flatMap(({ stops }) => stops).filter(stop => stop.source === "kakao_catalog").every(stop =>
+      stop.petAssessment === "unknown" && stop.conditionAcknowledged !== true,
     )).toBe(true);
   });
 
-  it("exposes three authoritative, segment-preserving route options", async () => {
+  it("exposes three segment-preserving public-catalog route options", async () => {
     const deps = dependencies(
       [
         ktoCandidate("1001", 0),
@@ -435,8 +600,8 @@ describe("recommendation service V2 orchestration", () => {
         regionFilteredCandidates: 8,
         districtFilteredCandidates: 8,
         requestedCategoryCandidates: 8,
-        petEligibleCandidates: 5,
-        operatingHoursEligibleCandidates: 5,
+        petEligibleCandidates: 8,
+        operatingHoursEligibleCandidates: 8,
         finalUsedPlaces: result.route.routeSummary.stopCount,
       });
       expect(result.diagnostics?.candidateFunnel).toMatchObject({
@@ -444,20 +609,20 @@ describe("recommendation service V2 orchestration", () => {
           publishedRegionalCatalog: 8,
           core: 8,
           shopping: 0,
-          listOnly: 0,
+          listOnly: 8,
         },
         stages: {
           stableIdentityUnique: 8,
-          petEvidenceEligible: 5,
-          canonicalConditionEligible: 5,
-          operatingHoursEligible: 5,
-          optimizerInput: 5,
+          petEvidenceEligible: 8,
+          canonicalConditionEligible: 8,
+          operatingHoursEligible: 8,
+          optimizerInput: 4,
         },
       });
       expect(result.diversity).toMatchObject({
-        eligibleUniqueCandidateCount: 5,
+        eligibleUniqueCandidateCount: 4,
         requestedStopCount: 3,
-        unseenEligibleCandidateCount: 5,
+        unseenEligibleCandidateCount: 4,
         maximumFeasibleNovelReplacements: 3,
         diversityCapacity: "sufficient",
       });
@@ -471,15 +636,17 @@ describe("recommendation service V2 orchestration", () => {
         solverDurationMs: result.diagnostics?.solver.durationMs ?? 0,
         rawResponseBytes: new TextEncoder().encode(JSON.stringify(result)).byteLength,
       };
+      expect(measurement).toMatchObject({ catalogCalls: 0, pipelineCalls: 0, snapshotCalls: 1, matrixCalls: 1 });
+      expect(measurement.finalValidationCalls).toBeLessThanOrEqual(3);
     }
     durations.sort((left, right) => left - right);
     measurement.medianWallMs = Math.round(durations[2]! * 100) / 100;
     console.log(`V2_SERVICE_METRICS ${JSON.stringify(measurement)}`);
   });
 
-  it("applies the solver cap only after the verified pool reaches service scoring", async () => {
-    const kto = Array.from({ length: 20 }, (_, index) =>
-      ktoCandidate(String(3_000 + index), index / 1_000));
+  it.each([20, 71, 538])("scores all %i public candidates before the bounded road shortlist", async count => {
+    const kto = Array.from({ length: count }, (_, index) =>
+      ktoCandidate(String(3_000 + index), index / 10_000));
     const deps = {
       ...dependencies(kto, []),
       includeDiagnostics: true,
@@ -489,12 +656,144 @@ describe("recommendation service V2 orchestration", () => {
 
     expect(result.status).toBe("ready");
     const matrixInput = deps.provider.buildMatrix.mock.calls[0]?.[0];
-    expect(matrixInput?.candidates).toHaveLength(15);
+    expect(matrixInput?.candidates).toHaveLength(4);
+    const coverage = result.diagnostics?.catalogCoverage;
+    expect(coverage?.scoredIds.slice().sort()).toEqual(kto.map(candidate => `tour:${candidate.contentId}`).sort());
+    expect(coverage?.shortlistIds).toHaveLength(4);
+    expect(coverage?.reserveIds).toHaveLength(count - 4);
+    expect(new Set([...coverage!.shortlistIds, ...coverage!.reserveIds]).size).toBe(count);
+    expect(coverage?.evidenceGateRejections).toBe(0);
     expect(result.diagnostics?.candidateFunnel).toMatchObject({
-      catalog: { publishedRegionalCatalog: 20 },
-      stages: { stableIdentityUnique: 20, matrixFeasible: 15 },
-      rejectedByReason: { matrix_evaluation_limit: 5 },
+      catalog: { publishedRegionalCatalog: count },
+      stages: { stableIdentityUnique: count, matrixFeasible: 4 },
     });
+    expect(result.diagnostics?.candidateFunnel?.rejectedByReason.matrix_evaluation_limit).toBeUndefined();
+  });
+
+  it.each([538, 743])("reads all %i paginated public rows through scoring and real optimization including the last-page Kakao choice", async count => {
+    const rows: PublicMapPlaceDTO[] = Array.from({ length: count }, (_, index) => {
+      const last = index === count - 1;
+      const provider = last || index % 2 ? "kakao" : "tour";
+      return {
+        id: `${provider}:${index + 1}`, provider, providerPlaceId: String(index + 1),
+        name: last ? "마지막 페이지 가까운 미확인 후보" : `공개 장소 ${index + 1}`,
+        kind: provider === "tour" ? "tourism_place" : "pet_travel_candidate",
+        category: "attraction", district: { code: "350", name: "해운대구" },
+        address: `부산광역시 공개로 ${index + 1}`,
+        coordinates: last ? { latitude: REQUEST.departure.latitude + 0.0001, longitude: REQUEST.departure.longitude + 0.0001 } : { latitude: 35.3 + index / 100_000, longitude: 129.2 + index / 100_000 },
+        phone: null, imageUrl: null, contentTypeId: provider === "tour" ? "12" : null,
+        placeUrl: null, source: provider === "tour" ? "kto_official" : "kakao_search_candidate",
+        reviewStatus: "unreviewed", publicLabel: "동반 여부 미확인", petAccessVerdict: "unknown",
+      };
+    });
+    const query = vi.fn(async (input: PublicMapCatalogQuery) => {
+      expect(input.categories).toBeUndefined();
+      expect(input.kinds).toBeUndefined();
+      expect(input.districtCodes).toBeUndefined();
+      const source = rows.filter(row => row.provider === input.providers![0]);
+      const start = input.afterId ?? 0;
+      const items = source.slice(start, start + input.pageSize);
+      return { region: { id: "busan" as const, displayName: "부산" }, items, page: input.page, pageSize: input.pageSize, totalCount: source.length, hasNext: start + items.length < source.length, nextCursor: start + items.length };
+    });
+    const deps = dependencies([], []);
+    const result = await generateRouteRecommendation({ ...REQUEST, requestVersion: 2, trip: { ...REQUEST.trip, date: null, startTime: null } }, {
+      ...deps, loadCatalogSnapshot: undefined,
+      loadPublicCatalog: region => loadRecommendationPublicCatalog(region, { query }),
+      includeDiagnostics: true,
+    });
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") throw new Error("Expected complete public-catalog recommendation");
+    expect(query.mock.calls.length).toBeGreaterThan(2);
+    expect(deps.collectCatalog).not.toHaveBeenCalled();
+    expect(deps.candidatePipeline).not.toHaveBeenCalled();
+    expect(deps.loadCatalogSnapshot).not.toHaveBeenCalled();
+    expect(routeRecommendationResponseSchema.safeParse(result).success).toBe(true);
+    const coverage = result.diagnostics!.catalogCoverage!;
+    expect(new Set(coverage.scoredIds)).toEqual(new Set(rows.map(row => row.id)));
+    expect(new Set([...coverage.shortlistIds, ...coverage.reserveIds])).toEqual(new Set(coverage.scoredIds));
+    expect(coverage.reserveIds.length).toBe(count - coverage.shortlistIds.length);
+    expect(coverage.evidenceGateRejections).toBe(0);
+    expect(coverage.shortlistIds).toContain(`kakao:${count}`);
+    expect(result.route.stops).toEqual(expect.arrayContaining([expect.objectContaining({ placeId: `kakao:${count}`, petAssessment: "unknown", evidenceStatus: "unverified" })]));
+    expect(result.route.schedule).toMatchObject({ roadValidated: true, state: "undated_template" });
+    expect(result.route.segments).toHaveLength(result.route.stops.length);
+    expect(deps.provider.buildMatrix).toHaveBeenCalledTimes(1);
+    expect(deps.provider.validateOrderedRoute.mock.calls.length).toBeLessThanOrEqual(3);
+  });
+
+  it("completes a reduced road-valid route with reserve candidates while retaining its witness and shared provider budget", async () => {
+    const deps = dependencies(Array.from({ length: 9 }, (_, index) => ktoCandidate(String(5_000 + index), index / 10_000)), []);
+    const completeMatrix = deps.provider.buildMatrix.getMockImplementation()!;
+    const exactRoute = deps.provider.validateOrderedRoute.getMockImplementation()!;
+    const cachedEdges = new Map<string, TravelMatrixResult["edges"][string][string]>();
+    const unavailableIds = new Set<string>();
+    let initialValidIds: string[] = [];
+    let matrixProviderCalls = 0;
+    const budgetBeforeAttempts: number[] = [];
+    deps.provider.buildMatrix.mockImplementation(async input => {
+      const firstAttempt = budgetBeforeAttempts.length === 0;
+      const budget = input.providerCallBudget!;
+      budgetBeforeAttempts.push(budget.remaining);
+      if (firstAttempt) {
+        initialValidIds = input.candidates.slice(0, 2).map(node => node.id);
+        input.candidates.slice(2).forEach(node => unavailableIds.add(node.id));
+      }
+      const matrix = await completeMatrix(input);
+      let providerCalls = 0;
+      let cacheHits = 0;
+      for (const row of Object.values(matrix.edges)) for (const edge of Object.values(row)) {
+        const key = `${edge.fromId}>${edge.toId}`;
+        const cached = cachedEdges.get(key);
+        if (cached) {
+          Object.assign(edge, cached, { source: "request_cache" });
+          cacheHits += 1;
+          continue;
+        }
+        expect(budget.remaining).toBeGreaterThan(0);
+        budget.remaining -= 1;
+        providerCalls += 1;
+        matrixProviderCalls += 1;
+        if (unavailableIds.has(edge.fromId) || unavailableIds.has(edge.toId)) {
+          Object.assign(edge, { status: "unresolved", distanceMeters: null, durationSeconds: null, reasonCodes: ["provider_no_route"] });
+        }
+        cachedEdges.set(key, { ...edge });
+      }
+      const edges = Object.values(matrix.edges).flatMap(row => Object.values(row));
+      const resolvedEdges = edges.filter(edge => edge.status === "resolved").length;
+      Object.assign(matrix, { complete: resolvedEdges === edges.length });
+      Object.assign(matrix.diagnostics, { resolvedEdges, unresolvedEdges: edges.length - resolvedEdges, providerCalls, requestCacheHits: cacheHits, multiDestinationRequests: 0, directionsFallbackRequests: providerCalls });
+      return matrix;
+    });
+    deps.provider.validateOrderedRoute.mockImplementation(async input => {
+      expect(input.providerCallBudget!.remaining).toBeGreaterThan(0);
+      input.providerCallBudget!.remaining -= 1;
+      expect(input.orderedStops.every(node => !unavailableIds.has(node.id))).toBe(true);
+      return exactRoute(input);
+    });
+
+    const result = await generateRouteRecommendation({ ...REQUEST, requestVersion: 2, trip: { ...REQUEST.trip, desiredStopCount: 4, durationMinutes: 600 } }, { ...deps, includeDiagnostics: true });
+
+    expect(result).toMatchObject({ status: "ready", route: { reductionStatus: "complete", routeSummary: { stopCount: 4 } } });
+    if (result.status !== "ready") throw new Error("Expected reserve candidates to complete the real route");
+    expect(routeRecommendationResponseSchema.safeParse(result).success).toBe(true);
+    const [initial, replenished] = deps.provider.buildMatrix.mock.calls.map(([input]) => input);
+    expect(deps.provider.buildMatrix).toHaveBeenCalledTimes(2);
+    expect(initial!.candidates).toHaveLength(5);
+    expect(replenished!.candidates).toHaveLength(4);
+    expect(replenished!.candidates.map(node => node.id)).toEqual(expect.arrayContaining(initialValidIds));
+    expect(result.route.stops.map(stop => stop.placeId)).toEqual(expect.arrayContaining(initialValidIds));
+    expect(result.route.stops.filter(stop => !initial!.candidates.some(node => node.id === stop.placeId))).toHaveLength(2);
+    expect(initial!.providerCallBudget).toBe(replenished!.providerCallBudget);
+    expect(budgetBeforeAttempts).toEqual([48, 18]);
+    expect(matrixProviderCalls).toBe(44);
+    expect(matrixProviderCalls).toBeLessThanOrEqual(48);
+    expect(replenished!.providerCallBudget!.remaining).toBe(4);
+    expect(result.diagnostics?.catalogCoverage).toMatchObject({ matrixAttempts: 2, matrixProviderCalls: 44 });
+    expect(result.route.segments).toHaveLength(4);
+    expect(result.route.routeSummary.totalDrivingSeconds).toBe(2_400);
+    expect(deps.provider.validateOrderedRoute.mock.calls.length).toBeGreaterThan(0);
+    expect(deps.provider.validateOrderedRoute.mock.calls.length).toBeLessThanOrEqual(3);
+    expect(new Set(deps.provider.validateOrderedRoute.mock.calls.map(([input]) => input.providerCallBudget)).size).toBe(1);
   });
 
   it.each([
@@ -591,7 +890,7 @@ describe("recommendation service V2 orchestration", () => {
     });
   });
 
-  it("does not substitute unknown stored Kakao evidence after a partial KTO failure", async () => {
+  it("uses public Kakao rows independently of unavailable optional KTO detail enrichment", async () => {
     const deps = dependencies([], [kakaoMarker("201", 0)]);
     deps.candidatePipeline.mockResolvedValue({
       ...pipeline([]),
@@ -603,12 +902,19 @@ describe("recommendation service V2 orchestration", () => {
     }, deps);
 
     expect(result).toMatchObject({
-      status: "insufficient_eligible_places",
-      resultState: "insufficient_eligible_places",
-      reasonCodes: expect.arrayContaining([
-        "no_strictly_eligible_candidate_across_enabled_sources",
-        "kto_provider_unavailable",
-      ]),
+      status: "ready",
+      route: { stops: [{ placeId: "kakao:201", petAssessment: "unknown", evidenceStatus: "unverified" }] },
+    });
+    expect(deps.candidatePipeline).not.toHaveBeenCalled();
+    expect(deps.provider.buildMatrix).toHaveBeenCalledTimes(1);
+  });
+
+  it("distinguishes unavailable public inventory from a healthy empty inventory", async () => {
+    const deps = dependencies([], []);
+    deps.loadCatalogSnapshot.mockRejectedValue(new Error("Published catalog unavailable"));
+    expect(await generateRouteRecommendation(REQUEST, deps)).toMatchObject({
+      status: "tourism_provider_unavailable",
+      reasonCodes: ["public_catalog_unavailable"],
     });
     expect(deps.provider.buildMatrix).not.toHaveBeenCalled();
   });

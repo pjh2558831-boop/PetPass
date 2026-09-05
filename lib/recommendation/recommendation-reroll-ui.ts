@@ -5,7 +5,6 @@ export const REROLL_RECOVERY_ACTIONS = [
   "장소 유형 바꾸기",
   "같은 지역 안에서 구·군 범위 넓히기",
   "지도에서 장소 직접 선택하기",
-  "확인 필요 장소를 명시적으로 허용하기",
 ] as const;
 
 export interface RecommendationRerollUiState {
@@ -22,6 +21,15 @@ export function recommendationRerollUiState(input: {
   const capacity = input.diversityCapacity ?? input.diversity?.diversityCapacity;
   const novelReplacements = input.diversity?.maximumFeasibleNovelReplacements ?? 0;
   if (!capacity && !input.diversity) {
+    return {
+      kind: "different_combination",
+      buttonLabel: "다른 조합 보기",
+      showRecoveryActions: false,
+    };
+  }
+  if ((input.diversity?.unqueriedCandidateCount ?? 0) > 0 &&
+    (capacity === "exhausted" || novelReplacements === 0) &&
+    !input.diversity?.limitingReasonCodes.includes("all_stops_are_mandatory")) {
     return {
       kind: "different_combination",
       buttonLabel: "다른 조합 보기",

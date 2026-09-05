@@ -152,15 +152,15 @@ describe("useSelectedItinerarySelection", () => {
     act(() => {
       expect(getSelection().toggle(place("tour:1102", {
         petAccessVerdict: "not_allowed",
-      })).status).toBe("blocked_not_allowed");
+      })).status).toBe("selected");
     });
-    expect(getSelection().snapshot.places.map(({ id }) => id)).toEqual(["tour:1101"]);
-    expect(getSelection().message).toContain("동반 불가");
+    expect(getSelection().snapshot.places.map(({ id }) => id)).toEqual(["tour:1101", "tour:1102"]);
+    expect(getSelection().snapshot.places[1]?.petAccessVerdict).toBe("not_allowed");
 
     act(() => {
       expect(getSelection().toggle(place("tour:1101")).status).toBe("removed");
     });
-    expect(loadSelectedItinerary(storage)?.places).toEqual([]);
+    expect(loadSelectedItinerary(storage)?.places).toMatchObject([{ id: "tour:1102", petAccessVerdict: "not_allowed" }]);
     expect(getSelection().message).toContain("일정에서 뺐습니다");
   });
 

@@ -49,12 +49,14 @@ describe("unified planner product flow", () => {
       "estimatedFinishAt",
       "routeCategorySummary",
       "automaticPlaceCount",
-      "verificationCount",
+      "noticeCount",
       "reductionStatus",
       "routeDifferenceSummary",
     ]) {
       expect(planner).toContain(fact);
     }
+    expect(planner).toContain("축소 결과 · 이동시간 안에 계산한 경로");
+    expect(planner).not.toContain("안전하게 완성 가능한 장소만 포함");
   });
 
   it("keeps structural edits on the lightweight revalidation endpoint", () => {

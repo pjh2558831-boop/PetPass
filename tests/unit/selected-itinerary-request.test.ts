@@ -52,7 +52,7 @@ describe("selected itinerary request", () => {
         { placeId: "tour:7001", regionId: "busan" },
         { placeId: "kakao:9001", regionId: "busan" },
       ],
-      acknowledgedVerificationRequiredPlaceIds: ["kakao:9001"],
+      acknowledgedVerificationRequiredPlaceIds: [],
       autoFill: true,
       trip: { selectedCategories: ["attraction", "food"] },
     });

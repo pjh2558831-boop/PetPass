@@ -46,12 +46,31 @@ describe("public catalog card pet conditions", () => {
       verificationRequired: true,
     }));
 
-    expect(html).toContain("동반 조건 있음");
+    expect(html).toContain("조건부 동반 · 이용 조건 확인");
     expect(html).toContain("반려견 동반 조건");
     expect(html).toContain(condition);
     expect(html).toContain("방문 전 업체에 최신 동반 조건을 확인해 주세요.");
     expect(html).toContain('aria-expanded="false"');
     expect(html).toContain("aria-controls=");
+  });
+
+  it("shows known negative Kakao facts without converting them into unknown or disabling selection", () => {
+    const html = renderToStaticMarkup(createElement(PublicCatalogCard, {
+      place: place({ petAccessVerdict: "not_allowed", publicLabel: "반려동물 입장 금지", warning: "휴업 안내 있음", petConditions: "반려동물 입장 금지" }),
+      selected: false, onSelect: vi.fn(), staticMapEnabled: false,
+      itinerarySelection: { selected: false, onToggle: vi.fn() },
+    }));
+    expect(html).toContain("원문상 동반 불가");
+    expect(html).toContain("휴업 안내 있음");
+    expect(html).toContain("반려동물 입장 금지");
+    expect(html).not.toContain("동반 여부 미확인");
+    expect(html).not.toContain("disabled=");
+  });
+
+  it("shows unknown Kakao access without a verification claim", () => {
+    const html = render(place());
+    expect(html).toContain("동반 여부 미확인 · 방문 전 확인");
+    expect(html).not.toContain("동반 가능 근거 확인");
   });
 
   it.each([null, "", "   "])("renders no condition UI for %j", (condition) => {

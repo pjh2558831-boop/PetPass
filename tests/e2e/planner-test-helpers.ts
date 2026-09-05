@@ -3,6 +3,11 @@ import { expect, type Locator, type Page, type TestInfo } from "@playwright/test
 export const GENERATE_PATH = "/api/itineraries/generate";
 export const DEPARTURE_PATH = "/api/kakao/local/departure";
 
+export function futureTripDate(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" })
+    .format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1_000));
+}
+
 async function selectLabelledControl(control: Locator) {
   if (await control.isChecked()) return;
   await control.locator("xpath=ancestor::label[1]").click();
@@ -36,11 +41,9 @@ export async function continueToTrip(page: Page) {
   if ((await checkedSize.count()) === 0) {
     await selectLabelledControl(page.getByRole("radio", { name: /^소형/u }));
   }
-  await selectLabelledControl(page.getByRole("checkbox", { name: "이동장", exact: true }));
-  await selectLabelledControl(page.getByRole("checkbox", { name: "목줄", exact: true }));
   await page.getByRole("button", { name: "출발지와 시간 입력" }).click();
   await expect(page.getByRole("heading", { name: "출발지와 시간" })).toBeVisible();
-  await page.getByLabel("여행 날짜").fill("2026-08-15");
+  await page.getByLabel("여행 날짜").fill(futureTripDate());
   await page.getByLabel("시작 시간").fill("10:00");
   await expect(page).toHaveURL(/\/planner\/pet(?:\?.*)?$/u);
 }
@@ -122,7 +125,7 @@ export async function generateConfirmedRecommendations(
   await expect(page).toHaveURL(/\/results\?tab=recommendations&region=busan$/u);
   await expect(
     page.getByRole("heading", {
-      name: "보리와 함께할 부산 당일 경로를 비교해 보세요.",
+      name: /에서 시작하는 \d곳 일정/u,
     }),
   ).toBeVisible();
   return body;

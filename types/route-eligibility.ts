@@ -51,7 +51,9 @@ export interface AutomaticRoutePetProfile {
   hasCarrier: boolean | null;
   hasLeash: boolean | null;
   hasMuzzle: boolean | null;
-  acceptsOutdoorOnly: boolean;
+  acceptsOutdoorOnly: boolean | null;
+  isDangerousDog?: boolean | null;
+  petCount?: number;
 }
 
 export interface AutomaticRouteGeographicBounds {

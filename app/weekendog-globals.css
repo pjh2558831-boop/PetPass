@@ -8,7 +8,7 @@
   --surface-sage: #eef5f0;
   --foreground: #13201b;
   --muted: #5d6963;
-  --muted-subtle: #7e8883;
+  --muted-subtle: #52635a;
   --text-secondary: var(--muted);
   --text-muted: var(--muted-subtle);
   --line: #e1e7e2;
@@ -2889,6 +2889,7 @@ select {
 
 /* WEEKENDOG public homepage */
 .weekendoog-home,
+.results-route-shell,
 .site-header {
   --ui2-brand: #0b503a;
   --ui2-brand-deep: #073f2e;
@@ -5051,7 +5052,7 @@ body:has(.weekendoog-home) .site-header {
   gap: 9px;
   border-top: 3px solid #dce4df;
   padding-top: 10px;
-  color: #718078;
+  color: #52635a;
 }
 
 .planner-form-progress li[aria-current="step"],
@@ -5071,7 +5072,7 @@ body:has(.weekendoog-home) .site-header {
   place-items: center;
   border-radius: 50%;
   background: #e8ece9;
-  color: #627169;
+  color: #52635a;
   font-size: 12px;
   font-weight: 900;
 }
@@ -8045,7 +8046,7 @@ body:has(.weekendoog-home) .site-footer {
   display: inline-flex;
 }
 
-.explorer-mode-tabs [role="tab"] {
+.explorer-mode-tabs a {
   display: inline-flex;
   min-height: 44px;
   align-items: center;
@@ -8056,12 +8057,12 @@ body:has(.weekendoog-home) .site-footer {
   font-weight: 850;
 }
 
-.explorer-mode-tabs [role="tab"][aria-selected="true"] {
+.explorer-mode-tabs [aria-current="page"] {
   border-bottom-color: var(--ui2-brand);
   color: var(--ui2-brand);
 }
 
-.explorer-mode-tabs [role="tab"]:disabled {
+.explorer-mode-tabs a:disabled {
   cursor: not-allowed;
   color: #8b948f;
 }
@@ -8558,6 +8559,7 @@ body:has(.weekendoog-home) .site-footer {
 
   .explorer-tools-row {
     border-bottom: 1px solid var(--ui2-line);
+    flex-wrap: wrap;
   }
 
   .full-map-explorer__mobile-switch {
@@ -8641,7 +8643,7 @@ body:has(.weekendoog-home) .site-footer {
     width: 100%;
   }
 
-  .explorer-mode-tabs [role="tab"] {
+  .explorer-mode-tabs a {
     flex: 1 1 0;
     justify-content: center;
     font-size: 11px;
@@ -8736,5 +8738,17 @@ body:has(.weekendoog-home) .site-footer {
 @media (prefers-reduced-motion: reduce) {
   .map-loading-indicator {
     animation: none;
+  }
+}
+
+@media (max-width: 359px) {
+  .explorer-tools-row .full-map-explorer__mobile-switch {
+    flex: 0 0 100%;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 768px) {
+  .explorer-scope-row .explorer-district-control {
+    width: auto;
   }
 }

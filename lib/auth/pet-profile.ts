@@ -88,10 +88,10 @@ export function savedPetProfileToRow(
     name: parsed.name,
     species: parsed.species,
     size: parsed.size,
-    has_carrier: parsed.hasCarrier,
-    has_leash: parsed.hasLeash,
-    has_muzzle: parsed.hasMuzzle,
-    accepts_outdoor_only: parsed.acceptsOutdoorOnly,
+    has_carrier: parsed.hasCarrier ?? undefined,
+    has_leash: parsed.hasLeash ?? undefined,
+    has_muzzle: parsed.hasMuzzle ?? undefined,
+    accepts_outdoor_only: parsed.acceptsOutdoorOnly ?? undefined,
     image_path: parsedImagePath,
   };
 }

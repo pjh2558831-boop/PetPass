@@ -101,6 +101,7 @@ function insertFinalist(
 function accommodationAllowed(input: RouteOptimizationInput, state: PartialState, candidateRole: string): boolean {
   if (candidateRole !== "accommodation") return true;
   if (
+    input.tripRequest.planningPolicy !== "full_public_catalog_v1" &&
     input.tripRequest.tripType === "day_trip" &&
     !input.tripRequest.selectedCategories.includes("accommodation")
   ) {
@@ -123,12 +124,12 @@ function completedConstraint(input: RouteOptimizationInput, visits: ScheduledRou
   const requestedCategories = new Set(input.tripRequest.selectedCategories);
   const coveredRequestedCategories = new Set(
     visits
-      .filter(({ candidate }) => candidate.locked ||
+      .filter(({ candidate }) => input.tripRequest.planningPolicy === "full_public_catalog_v1" || candidate.locked ||
         (candidate.eligibilityTier !== "unverified" && candidate.evidenceStatus !== "unverified"))
       .map(({ candidate }) => candidate.category)
       .filter((category) => requestedCategories.has(category)),
   ).size;
-  if (coveredRequestedCategories < (input.tripRequest.minimumRequestedCategoryCount ?? 0)) return false;
+  if (input.tripRequest.planningPolicy !== "full_public_catalog_v1" && coveredRequestedCategories < (input.tripRequest.minimumRequestedCategoryCount ?? 0)) return false;
   if (input.tripRequest.tripType === "overnight") {
     return visits.at(-1)?.candidate.visitRole === "accommodation";
   }
@@ -170,7 +171,7 @@ function partialHeuristic(visits: ScheduledRouteVisit[]): number {
     0,
   );
   const drive = visits.reduce((sum, visit) => sum + visit.travelSeconds, 0);
-  const unknown = visits.filter((visit) => visit.candidate.schedule.status === "unknown").length;
+  const unknown = visits.filter((visit) => visit.candidate.planningPolicy !== "full_public_catalog_v1" && visit.candidate.schedule.status === "unknown").length;
   return utility - (drive / 60) * ROUTE_OBJECTIVE_V1_CONFIG.drivingPenaltyPerMinute -
     unknown * ROUTE_OBJECTIVE_V1_CONFIG.unknownSchedulePenalty;
 }
@@ -209,12 +210,14 @@ function expandState(
     diagnostics.prunedByConstraint += 1;
     return null;
   }
-  if (candidate.schedule.mandatoryReservationImpossible) {
+  if (input.tripRequest.planningPolicy !== "full_public_catalog_v1" && candidate.schedule.mandatoryReservationImpossible) {
     diagnostics.prunedByConstraint += 1;
     return null;
   }
   if (
+    input.tripRequest.planningPolicy !== "full_public_catalog_v1" &&
     candidate.schedule.status === "unknown" &&
+    !input.tripRequest.scheduleIntent &&
     !candidate.locked &&
     state.unknownCount >= ROUTE_SOLVER_V1_CONFIG.maxUnknownScheduleStops
   ) {
@@ -327,18 +330,21 @@ export function searchRoutesV1(
   const fastestTravelCache = new Map<string, number>();
   let stopped = false;
 
-  const dfs = (state: PartialState): void => {
-    if (stopped || state.visits.length >= pace.maxStops) return;
+  const searchBudgetExceeded = (): boolean => {
     if (diagnostics.expandedStates >= stateLimit) {
       diagnostics.stateLimitExceeded = true;
       stopped = true;
-      return;
     }
     if (now() - started >= deadlineMs) {
       diagnostics.deadlineExceeded = true;
       stopped = true;
-      return;
     }
+    return stopped;
+  };
+
+  const dfs = (state: PartialState): void => {
+    input.signal?.throwIfAborted();
+    if (stopped || state.visits.length >= pace.maxStops || searchBudgetExceeded()) return;
     if (
       finalists.length >= ROUTE_SOLVER_V1_CONFIG.maxInternalFinalists &&
       safeUpperBound(input, state) < finalists.at(-1)!.score
@@ -347,6 +353,8 @@ export function searchRoutesV1(
       return;
     }
     for (let index = 0; index < input.candidates.length; index += 1) {
+      input.signal?.throwIfAborted();
+      if (searchBudgetExceeded()) return;
       diagnostics.expandedStates += 1;
       const expanded = expandState(input, state, index, diagnostics);
       if (!expanded) continue;
@@ -361,7 +369,7 @@ export function searchRoutesV1(
   };
   dfs(root);
   diagnostics.exactSearchCompleted = !stopped;
-  if (stopped) {
+  if (stopped && !input.tripRequest.scheduleIntent && input.tripRequest.planningPolicy !== "full_public_catalog_v1") {
     diagnostics.beamFallbackUsed = true;
     for (const route of beamSearch(input, diagnostics)) insertFinalist(finalists, route);
   }
