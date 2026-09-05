@@ -7,6 +7,11 @@ function place(index: number, provider: "tour" | "kakao"): PublicMapPlaceDTO {
 }
 
 describe("complete public recommendation catalog", () => {
+  it("preserves the first upstream failure through catalog aggregation", async () => {
+    const upstream = Object.assign(new Error("private provider body"), { code: "PGRST301", httpStatus: 401 });
+    await expect(loadRecommendationPublicCatalog("busan", { query: async () => { throw upstream; } }))
+      .rejects.toMatchObject({ message: "public_catalog_unavailable", cause: upstream });
+  });
   it("propagates cancellation to the page request without continuing to another source", async () => {
     const controller = new AbortController();
     let calls = 0;

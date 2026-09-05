@@ -1,4 +1,5 @@
 import "server-only";
+import { recordRecommendationProviderFailure } from "@/lib/shared/recommendation-trace";
 
 import {
   KakaoMobilityClient,
@@ -692,6 +693,7 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
             }
           } catch (error) {
             input.signal?.throwIfAborted();
+            recordRecommendationProviderFailure("multi_destinations", error);
             diagnostics.logicalProviderFailures += 1;
             if (error instanceof KakaoMobilityProviderError && error.code === "TIMEOUT") {
               diagnostics.logicalTimeouts += 1;
@@ -783,6 +785,7 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
           }
         } catch (error) {
           input.signal?.throwIfAborted();
+          recordRecommendationProviderFailure("directions", error);
           diagnostics.logicalProviderFailures += 1;
           if (error instanceof KakaoMobilityProviderError && error.code === "TIMEOUT") {
             diagnostics.logicalTimeouts += 1;
@@ -1086,6 +1089,7 @@ export class KakaoTravelTimeProvider implements TravelTimeProvider {
         const fallback = await this.validateOrderedRoute({ ...input, requestedDepartureAt: null });
         return { ...fallback, reasonCodes: [...fallback.reasonCodes, "future_prediction_unsupported_current_road_estimate_used"], diagnostics: { ...fallback.diagnostics, providerCalls: providerCalls + fallback.diagnostics.providerCalls } };
       }
+      recordRecommendationProviderFailure(providerOperation, error);
       const malformed =
         error instanceof KakaoMobilityProviderError && error.code === "INVALID_RESPONSE";
       return {

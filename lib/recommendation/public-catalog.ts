@@ -36,6 +36,7 @@ export async function loadRecommendationPublicCatalog(
   const unavailableSources: string[] = [];
   let pages = 0;
   let successfulSources = 0;
+  let firstFailure: unknown;
   for (const dataset of region.mapCatalog.snapshotDatasets) {
     for (const provider of dataset === "shopping" ? ["tour" as const] : region.allowedMapProviders) {
       const sourceItems: MapPlacesSnapshotMarker[] = [];
@@ -65,11 +66,12 @@ export async function loadRecommendationPublicCatalog(
         successfulSources += 1;
       } catch (error) {
         if (dependencies.signal?.aborted) throw error;
+        firstFailure ??= error;
         unavailableSources.push(`${provider}:${dataset}`);
       }
     }
   }
-  if (!successfulSources || (!items.length && unavailableSources.length)) throw new Error("public_catalog_unavailable");
+  if (!successfulSources || (!items.length && unavailableSources.length)) throw new Error("public_catalog_unavailable", { cause: firstFailure });
   const catalog = {
     items,
     pages,

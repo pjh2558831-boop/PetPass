@@ -4,6 +4,7 @@ import { seoulDate, departureCandidates } from "@/lib/recommendation/schedule/sc
 import { attachRouteSchedule } from "@/lib/recommendation/schedule/route-schedule";
 import { findFeasibleSchedule } from "@/lib/recommendation/schedule/flexible-schedule";
 import "server-only";
+import { enterRecommendationStage, recordRecommendationProviderFailure, safeProviderFailure } from "@/lib/shared/recommendation-trace";
 import { applyConditionAnswers, conditionQuestions } from "./condition-confirmation";
 
 import { BUSAN_DISCOVERY_BOUNDS } from "@/lib/kakao/discovery";
@@ -812,6 +813,7 @@ export async function generateRouteRecommendation(
   try {
     const travelTimeProvider = dependencies.travelTimeProvider ?? new KakaoTravelTimeProvider();
     const routeOptionsOptimizer = dependencies.routeOptionsOptimizer ?? optimizeRouteOptionsV2;
+    enterRecommendationStage("catalog", 0);
     const now = dependencies.now ?? (() => new Date());
     let publicCatalog: RecommendationPublicCatalog;
     try {
@@ -823,8 +825,14 @@ export async function generateRouteRecommendation(
       }
     } catch (error) {
       if (dependencies.signal?.aborted) throw error;
-      return recommendationFailure("tourism_provider_unavailable", ["public_catalog_unavailable"]);
+      recordRecommendationProviderFailure("get_public_map_catalog_by_region_v4", error);
+      const failure = safeProviderFailure(error);
+      return recommendationFailure(failure.httpStatus === 429 ? "rate_limited" : "tourism_provider_unavailable", [
+        "public_catalog_unavailable",
+        ...(failure.httpStatus || failure.domainCode ? [`public_catalog_${failure.category}`] : []),
+      ]);
     }
+    enterRecommendationStage("candidate_selection", publicCatalog.items.length);
     const snapshot = publicCatalog;
     const publishedMarkers = publicCatalog.items;
     const snapshotUnavailable = publicCatalog.unavailableSources.length > 0;
@@ -1076,6 +1084,7 @@ export async function generateRouteRecommendation(
       longitude: request.departure.longitude,
     };
     const matrixBudget = { remaining: 48 };
+    enterRecommendationStage("kakao_matrix", adapted.length);
     let matrix = await travelTimeProvider.buildMatrix({
       providerCallBudget: matrixBudget,
       signal: dependencies.signal,
@@ -1126,6 +1135,7 @@ export async function generateRouteRecommendation(
       matrix,
       tripRequest,
     };
+    enterRecommendationStage("route_search", adapted.length);
     let scheduling = findFeasibleSchedule(feasibilityInput, generatedAt);
     // One reserve attempt shares road calls, cache, cancellation, and the original search allowance.
     if (scheduling.feasibility.maximumFeasibleStopCount < targetCapacity && spatial.reserveIds.length && !(hybridMode && request.autoFill === false) && matrixBudget.remaining >= 2) {
@@ -1141,8 +1151,10 @@ export async function generateRouteRecommendation(
         retryCandidates.push(candidate); newPairAllowance -= additionalPairs;
       }
       if (retryCandidates.some(candidate => !existingIds.has(candidate.node.id))) {
+        enterRecommendationStage("kakao_matrix", retryCandidates.length);
         const retryMatrix = await travelTimeProvider.buildMatrix({ signal: dependencies.signal, providerCallBudget: matrixBudget, departure, candidates: retryCandidates.map(candidate => candidate.node), travelMode: "driving", priority: "TIME", avoid: [], requestedDepartureAt: null });
         matrixRuns.push(retryMatrix);
+        enterRecommendationStage("route_search", retryCandidates.length);
         const retry = findFeasibleSchedule({ ...scheduling.input, candidates: retryCandidates, matrix: retryMatrix }, generatedAt, scheduling.budget);
         if (retry.feasibility.maximumFeasibleStopCount > scheduling.feasibility.maximumFeasibleStopCount) { adapted = retryCandidates; matrix = retryMatrix; adaptedIds = new Set(adapted.map(candidate => candidate.node.id)); scheduling = retry; }
       }
@@ -1218,10 +1230,12 @@ export async function generateRouteRecommendation(
       const failedEdges = Object.values(matrix.edges).flatMap(edges => Object.values(edges))
         .filter(edge => edge.fromId !== edge.toId && edge.status === "provider_unavailable");
       if (failedEdges.some(edge => edge.reasonCodes.includes("kakao_rate_limited"))) {
+        enterRecommendationStage("kakao_matrix", adapted.length);
         return recommendationFailure("rate_limited", ["kakao_rate_limited"]);
       }
       if (failedEdges.length && (matrix.diagnostics.resolvedEdges === 0 ||
           failedEdges.some(edge => edge.reasonCodes.includes("kakao_authentication_failed")))) {
+        enterRecommendationStage("kakao_matrix", adapted.length);
         return recommendationFailure("kakao_provider_unavailable", [...new Set(failedEdges.flatMap(edge => edge.reasonCodes))]);
       }
       const detailedFailure = {
@@ -1367,6 +1381,7 @@ export async function generateRouteRecommendation(
         : detailedFailure;
     }
     const requestedTarget = targetCapacity;
+    enterRecommendationStage("response_mapping", adapted.length);
     const evaluatedRouteOptions = optimized.options.map((option) => routeFromOptionV2({
       allowMaterialProposal: request.requestVersion === 2,
       option,

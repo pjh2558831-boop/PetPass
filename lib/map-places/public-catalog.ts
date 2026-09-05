@@ -94,8 +94,8 @@ async function queryRpcPage(
     p_after_id: afterId ?? undefined,
     p_result_limit: input.pageSize,
   });
-  const { data, error } = await (input.signal ? query.abortSignal(input.signal) : query);
-  if (error) throw new Error("공개 지도 장소를 조회하지 못했습니다.");
+  const { data, error, status } = await (input.signal ? query.abortSignal(input.signal) : query);
+  if (error) throw Object.assign(new Error("공개 지도 장소를 조회하지 못했습니다."), { code: error.code, httpStatus: status });
   return publicCatalogRowSchema.array().parse(data ?? []);
 }
 

@@ -25,6 +25,7 @@ import {
   type RecommendationServiceDependencies,
 } from "@/lib/recommendation/recommendation-service";
 import { getRegionRouteCapabilityBlock } from "@/lib/regions/config";
+import { traceRecommendationRequest } from "@/lib/shared/recommendation-trace";
 
 export function createItineraryGenerationHandler(
   dependencies: ItineraryGenerationDependencies = {},
@@ -90,7 +91,7 @@ export function createRouteRecommendationHandler(
     generate?: typeof generateRouteRecommendation;
   } = {},
 ) {
-  return async function POST(request: Request): Promise<Response> {
+  const handle = async function POST(request: Request): Promise<Response> {
     const enabled =
       options.enabled ?? process.env.ROUTE_ENGINE_V1_ENABLED === "true";
     const limit = (options.rateLimit ?? consumeRateLimit)(
@@ -193,6 +194,7 @@ export function createRouteRecommendationHandler(
       headers: { "Cache-Control": "no-store" },
     });
   };
+  return (request: Request) => traceRecommendationRequest(() => handle(request));
 }
 
 export async function POST(request: Request): Promise<Response> {

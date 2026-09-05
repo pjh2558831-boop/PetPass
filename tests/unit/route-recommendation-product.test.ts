@@ -490,6 +490,8 @@ describe("Stage 5 recommendation product contract", () => {
     const serialized = JSON.stringify(await failed.json());
     expect(failed.status).toBe(500);
     expect(serialized).toContain("recommendation_handler_failed");
+    expect(failed.headers.get("X-Request-ID")).toMatch(/^[a-f0-9-]{36}$/u);
+    expect(serialized).toContain(`참조 번호: ${failed.headers.get("X-Request-ID")!.slice(0, 8)}`);
     expect(serialized).not.toContain("SECRET");
     expect(serialized).not.toContain("provider.invalid");
   });

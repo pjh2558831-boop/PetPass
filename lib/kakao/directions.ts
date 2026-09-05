@@ -141,6 +141,7 @@ export class KakaoMobilityProviderError extends Error {
       | "INVALID_RESPONSE",
     message: string,
     readonly httpStatus?: number,
+    readonly resultCode?: number,
   ) {
     super(message);
     this.name = "KakaoMobilityProviderError";
@@ -212,6 +213,8 @@ function normalizeDetailedRoute(
     throw new KakaoMobilityProviderError(
       "INVALID_RESPONSE",
       `Kakao Mobility route result ${route.result_code}.`,
+      undefined,
+      route.result_code,
     );
   }
   const coordinates = requireGeometry ? geometry(route) : [];

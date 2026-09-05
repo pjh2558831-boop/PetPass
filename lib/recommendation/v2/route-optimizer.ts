@@ -1,4 +1,5 @@
 import "server-only";
+import { enterRecommendationStage } from "@/lib/shared/recommendation-trace";
 
 import { explainExcludedPlaces, explainStops } from "@/lib/recommendation/optimizer/explanations";
 import { validateFinalistsV1 } from "@/lib/recommendation/optimizer/final-validation";
@@ -105,6 +106,7 @@ export async function optimizeRouteOptionsV2(
   },
 ): Promise<RouteOptionsOptimizationResultV2> {
   const started = performance.now();
+  enterRecommendationStage("route_search", input.candidates.length);
   const search = searchRoutesV1(input, {
     now: dependencies.now,
     deadlineMs: dependencies.solverDeadlineMs,
@@ -139,6 +141,7 @@ export async function optimizeRouteOptionsV2(
   let validationDurationMs = 0;
   const validationReasons = new Set<string>();
   const validations = [];
+  enterRecommendationStage("final_directions", input.candidates.length);
   for (const option of selectedOptions) {
     input.signal?.throwIfAborted();
     if (input.validationBudget && input.validationBudget.remaining <= 0) break;
@@ -148,6 +151,7 @@ export async function optimizeRouteOptionsV2(
       travelTimeProvider: dependencies.travelTimeProvider,
     }) });
   }
+  enterRecommendationStage("response_mapping", input.candidates.length);
   for (const { option, validated } of validations) {
     validated.reasonCodes.forEach(code => validationReasons.add(code));
     attempts += validated.attempts;
@@ -186,6 +190,7 @@ export async function optimizeRouteOptionsV2(
   search.diagnostics.validationDurationMs = validationDurationMs;
   search.diagnostics.totalDurationMs = Math.max(0, Math.round(performance.now() - started));
   if (options.length === 0) {
+    enterRecommendationStage("final_directions", input.candidates.length);
     return {
       status: "final_validation_failed",
       reasonCodes: ["no_selected_route_option_passed_exact_validation", ...validationReasons],

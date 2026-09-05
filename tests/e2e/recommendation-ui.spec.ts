@@ -966,12 +966,17 @@ test("keeps manual order when applying a schedule proposal and commits the clock
   await expect(page.getByRole("button", { name: "이 시간 적용" })).toHaveCount(0);
 });
 
-test("preserves the last valid route after reroll failure and recovers on the next success", async ({ page }, testInfo) => {
+for (const failureCase of [
+  { status: "kakao_provider_unavailable", http: 503, message: "실제 이동 경로를 계산하지 못했습니다." },
+  { status: "rate_limited", http: 429, message: "공개 장소 목록을 불러오지 못했습니다. 잠시 뒤 다시 시도해 주세요." },
+  { status: "internal_error", http: 500, message: "여행 경로를 만드는 중 문제가 발생했습니다. (참조 번호: a1b2c3d4)" },
+]) {
+test(`preserves the last valid route after reroll failure and recovers on the next success (${failureCase.status})`, async ({ page }, testInfo) => {
   let attempt = 0;
   await installFakeMap(page);
   await page.route(`**${GENERATE_PATH}`, async (route) => {
     attempt++;
-    await route.fulfill({ status: attempt === 2 ? 503 : 200, contentType: "application/json", body: JSON.stringify(attempt === 2 ? { status: "kakao_provider_unavailable", apiVersion: "route-recommendation-response-v2", reasonCodes: ["timeout"], userMessage: "실제 이동 경로를 계산하지 못했습니다.", retryable: true } : completionResponse(futureTripDate(), "10:00")) });
+    await route.fulfill({ status: attempt === 2 ? failureCase.http : 200, contentType: "application/json", body: JSON.stringify(attempt === 2 ? { status: failureCase.status, apiVersion: "route-recommendation-response-v2", reasonCodes: ["controlled_failure"], userMessage: failureCase.message, retryable: true } : completionResponse(futureTripDate(), "10:00")) });
   });
   await openPetPlanner(page, testInfo, "completion-retained");
   await continueToTrip(page);
@@ -982,12 +987,14 @@ test("preserves the last valid route after reroll failure and recovers on the ne
   await page.getByRole("button", { name: "새로운 장소로 다시 추천" }).click();
   const failure = page.getByRole("alert").filter({ hasText: "마지막으로 성공한 입력 기준" });
   await expect(failure).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: failureCase.message })).toBeVisible();
   await expect(page.getByRole("list", { name: "균형 추천 방문 순서" })).toBeVisible();
   await expect(page.locator("[data-provider-polyline]")).toHaveCount(1);
   await page.getByRole("button", { name: "현재 입력으로 다시 시도" }).click();
   await expect(failure).toHaveCount(0);
   expect(attempt).toBe(3);
 });
+}
 
 test("removal and undo preserve route state while exclusions survive reroll and refresh", async ({ page }, testInfo) => {
   const exclusions: string[][] = [];

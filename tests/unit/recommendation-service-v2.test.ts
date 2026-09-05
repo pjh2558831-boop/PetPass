@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { createRouteRecommendationHandler } from "@/app/api/itineraries/generate/handler";
+import { KakaoTravelTimeProvider } from "@/lib/kakao/travel-time-provider";
+import { KakaoMobilityProviderError } from "@/lib/kakao/directions";
 import { generateRouteRecommendation, validateManualRoute } from "@/lib/recommendation/recommendation-service";
 import { manualRouteValidationRequestSchema, manualRouteValidationResponseSchema, routeRecommendationResponseSchema } from "@/lib/recommendation/recommendation-response";
 import { loadSavedRouteRecommendation, saveRouteRecommendation } from "@/lib/storage/recommendation-storage";
@@ -318,6 +321,29 @@ function dependencies(kto: DetailedEligibleCandidate[], kakao: MapPlacesSnapshot
 }
 
 describe("recommendation service V2 orchestration", () => {
+  it.each(["catalog", "kakao_matrix", "final_directions"] as const)("correlates the first failed %s stage without raw provider data", async stage => {
+    const log = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const deps = dependencies([], [kakaoMarker("801", 0)]);
+      const fail = vi.fn(async () => { throw new KakaoMobilityProviderError("HTTP_ERROR", "SECRET private address provider body", 503); });
+      const roads = new KakaoTravelTimeProvider({ client: { multiDestination: fail, pairDirections: fail, waypointDirections: fail, futureDirections: fail }, cache: { getEdge: async () => null, setEdge: async () => {} } });
+      if (stage === "catalog") deps.loadCatalogSnapshot.mockRejectedValue(new Error("public_catalog_unavailable", { cause: Object.assign(new Error("SECRET"), { code: "PGRST003", httpStatus: 429 }) }));
+      const travelTimeProvider: TravelTimeProvider = {
+        buildMatrix: stage === "kakao_matrix" ? input => roads.buildMatrix(input) : deps.provider.buildMatrix,
+        validateOrderedRoute: stage === "final_directions" ? input => roads.validateOrderedRoute(input) : deps.provider.validateOrderedRoute,
+      };
+      const response = await createRouteRecommendationHandler({ enabled: true, dependencies: { ...deps, travelTimeProvider }, rateLimit: () => ({ allowed: true, limit: 8, remaining: 7, retryAfterSeconds: 0 }) })(new Request("http://localhost/api/itineraries/generate", { method: "POST", body: JSON.stringify(REQUEST) }));
+      expect(response.status).toBe(stage === "catalog" ? 429 : 503);
+      expect(routeRecommendationResponseSchema.safeParse(await response.clone().json()).success).toBe(true);
+      expect(log).toHaveBeenCalledTimes(1);
+      const trace = JSON.parse(log.mock.calls[0]![1]);
+      expect(trace).toMatchObject({ correlationId: response.headers.get("X-Request-ID"), firstFailedStage: stage, provider: stage === "catalog" ? "supabase" : "kakao", upstreamHttpStatus: stage === "catalog" ? 429 : 503, retryable: true });
+      expect(trace.candidateCount).toBe(stage === "catalog" ? 0 : 1);
+      expect(trace.elapsedMs).toBeGreaterThanOrEqual(0);
+      expect(JSON.stringify(log.mock.calls)).not.toContain("SECRET");
+      expect(await response.text()).not.toContain("SECRET");
+    } finally { log.mockRestore(); }
+  });
   it("counts every new automatic stop even when only one candidate matches a preferred category", async () => {
     const result = await generateRouteRecommendation(REQUEST, dependencies([], [
       kakaoMarker("801", 0),
