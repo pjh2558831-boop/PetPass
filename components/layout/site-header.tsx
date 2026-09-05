@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { PawPrint } from "lucide-react";
+import Image from "next/image";
 import { HomepageSkipLink } from "@/components/home/homepage-skip-link";
 import { type NavigationItem } from "@/components/layout/mobile-navigation";
 import { SiteNavigationLink } from "@/components/layout/site-navigation-link";
@@ -31,10 +31,8 @@ export function SiteHeader() {
           className="site-brand"
           aria-label="WEEKENDOG 홈"
         >
-          <span className="site-brand-mark">
-            <PawPrint size={19} aria-hidden="true" />
-          </span>
-          <span className="site-brand-wordmark">WEEKENDOG</span>
+          <Image src="/brand/weekendog-horizontal.png" alt="" width={690} height={120} unoptimized className="weekendog-logo weekendog-logo--header" />
+          <Image src="/brand/weekendog-symbol.png" alt="" width={492} height={342} unoptimized className="weekendog-logo weekendog-logo--compact" />
         </Link>
         <nav
           aria-label="주요 메뉴"
