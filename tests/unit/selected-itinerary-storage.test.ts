@@ -167,7 +167,7 @@ describe("selected itinerary storage", () => {
     ]);
   });
 
-  it("persists an explicit acknowledgement only for selected verification-required places", () => {
+  it("does not create legacy access acknowledgements for registered places", () => {
     const unknown = place("kakao:9001");
     const verified = place("tour:7001", { petAccessVerdict: "allowed" });
     let snapshot = createSelectedItinerarySnapshot("busan");
@@ -176,7 +176,7 @@ describe("selected itinerary storage", () => {
 
     snapshot = setSelectedItineraryVerificationAcknowledged(snapshot, "kakao:9001", true);
     snapshot = setSelectedItineraryVerificationAcknowledged(snapshot, "tour:7001", true);
-    expect(snapshot.acknowledgedVerificationRequiredPlaceIds).toEqual(["kakao:9001"]);
+    expect(snapshot.acknowledgedVerificationRequiredPlaceIds).toEqual([]);
 
     expect(removeSelectedItineraryPlace(snapshot, "kakao:9001"))
       .toMatchObject({ acknowledgedVerificationRequiredPlaceIds: [] });

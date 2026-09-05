@@ -1,9 +1,6 @@
 import Link from "next/link";
 import {
-  AlertTriangle,
-  Ban,
   CheckCircle2,
-  CircleHelp,
   ExternalLink,
   ShieldCheck,
 } from "lucide-react";
@@ -11,35 +8,7 @@ import {
   TOUR_PET_ACCESS_SCOPE_LABELS,
 } from "@/lib/pet-access/tourism/constants";
 import { GENERATED_PET_VERDICT_COPY, type StopPresentation } from "@/lib/itinerary/presentation";
-import type { TourPetAccessAssertion, TourPetAccessEvaluationState } from "@/types/tour-pet-access";
-
-const VERDICT_STYLES = {
-  allowed: "border-[#b9ddca] bg-[#edf8f2] text-[#236148]",
-  conditional: "border-[#ead19f] bg-[#fff8e8] text-[#74551e]",
-  not_allowed: "border-[#e5bdb7] bg-[#fff1ef] text-[#823f36]",
-  unknown: "border-[#d4dcd7] bg-[#f3f5f3] text-[#52665b]",
-} as const;
-
-const VERDICT_ICONS = {
-  allowed: CheckCircle2,
-  conditional: AlertTriangle,
-  not_allowed: Ban,
-  unknown: CircleHelp,
-} as const;
-
-const EVALUATION_LABELS: Record<TourPetAccessEvaluationState, string> = {
-  complete: "근거 평가 완료",
-  partial: "일부 자료로 평가",
-  insufficient_evidence: "근거 확인 필요",
-  unavailable: "원문 자료 확인 불가",
-  not_applicable: "평가 대상 아님",
-};
-
-const CONFIDENCE_LABELS = {
-  high: "근거 강도 높음",
-  medium: "근거 강도 보통",
-  low: "근거 추가 확인 필요",
-} as const;
+import type { TourPetAccessAssertion } from "@/types/tour-pet-access";
 
 const ASSERTION_LABELS: Record<TourPetAccessAssertion, string> = {
   allows: "동반 가능 근거",
@@ -88,8 +57,6 @@ function PetAccessContent({ presentation }: { presentation: StopPresentation }) 
 
   return (
     <div className="space-y-4 text-sm leading-6 text-[#52665b]">
-      {access.summary ? <p className="font-semibold text-[#344a40]">{access.summary}</p> : null}
-
       {equipmentRequirements.length > 0 ? (
         <div>
           <h4 className="text-xs font-black text-[#344a40]">장비 조건</h4>
@@ -160,21 +127,10 @@ function PetAccessContent({ presentation }: { presentation: StopPresentation }) 
         </div>
       ) : null}
 
-      {confirmation.hasConfirmationRequirements ? (
+      {confirmation.operatingHoursWarning ? (
         <div className="rounded-xl border border-[#ead7b8] bg-[#fff8ec] p-3 text-[#76542f]">
-          <p className="font-extrabold">방문 전 확인할 내용</p>
-          <ul className="mt-1 list-disc pl-5">
-            {confirmation.callAheadRequired ? <li>시설에 직접 반려동물 동반 가능 여부를 확인해 주세요.</li> : null}
-            {confirmation.sizeVerificationRequired ? <li>현재 반려동물 크기가 허용 범위인지 확인해 주세요.</li> : null}
-            {confirmation.operatingHoursWarning ? <li>{confirmation.operatingHoursWarning}</li> : null}
-            {confirmation.manualConditions.map((condition) => (
-              <li key={`${condition.type}:${condition.scope}:${condition.label}`}>
-                {condition.label}의 최신 적용 여부를 확인해 주세요.
-              </li>
-            ))}
-            {confirmation.verificationItems.map((item) => <li key={item.code}>{item.label}</li>)}
-            {confirmation.assessmentWarnings.map((warning) => <li key={warning}>{warning}</li>)}
-          </ul>
+          <p className="font-extrabold">운영시간 안내</p>
+          <p className="mt-1">{confirmation.operatingHoursWarning}</p>
         </div>
       ) : null}
 
@@ -221,20 +177,14 @@ export function PetAccessDetails({
 }) {
   const { stop } = presentation;
   const copy = GENERATED_PET_VERDICT_COPY[stop.petAccess.verdict];
-  const VerdictIcon = VERDICT_ICONS[stop.petAccess.verdict];
-
   return (
     <section aria-label={`${stop.title} 반려동물 동반 안내`}>
-      <div className={`pet-access-verdict ${VERDICT_STYLES[stop.petAccess.verdict]}`} data-verdict={stop.petAccess.verdict}>
+      <div className="pet-access-verdict border-[#b9ddca] bg-[#edf8f2] text-[#236148]" data-verdict="allowed">
         <p className="flex items-center gap-2 font-black">
-          <VerdictIcon size={17} aria-hidden="true" />
+          <CheckCircle2 size={17} aria-hidden="true" />
           {copy.label}
         </p>
         <p className="mt-1 text-xs font-semibold leading-5">{copy.description}</p>
-        <p className="mt-1 text-[11px] font-bold">
-          {EVALUATION_LABELS[stop.petAccess.evaluationState]}
-          {stop.petAccess.confidence ? ` · ${CONFIDENCE_LABELS[stop.petAccess.confidence]}` : ""}
-        </p>
       </div>
 
       {expanded ? (
@@ -245,7 +195,7 @@ export function PetAccessDetails({
         <details className="pet-access-details-disclosure">
           <summary className="flex min-h-11 cursor-pointer items-center gap-2 py-1 text-xs font-extrabold text-[#315b48]">
             <ShieldCheck size={15} aria-hidden="true" />
-            동반 조건·근거·확인 항목 보기
+            동반 조건·근거 보기
           </summary>
           <div className="pb-2 pt-2">
             <PetAccessContent presentation={presentation} />

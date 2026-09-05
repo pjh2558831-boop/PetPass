@@ -32,6 +32,9 @@ export function PublicCatalogCard({
   const hasImage = image.kind !== "category_placeholder";
   const sourceLabel = place.layer === "kakao" ? "카카오맵" : place.sourceLabel;
   const petConditions = place.petConditions?.trim() || null;
+  const warning = place.warning === "카카오 검색 후보입니다. 방문 전 반려동물 동반 가능 여부를 확인해 주세요."
+    ? null
+    : place.warning;
   return (
     <article
       id={`place-card-${place.id.replace(":", "-")}`}
@@ -45,8 +48,8 @@ export function PublicCatalogCard({
           <span className="catalog-result-card__label">{selectedItineraryVerdictLabel(place.petAccessVerdict ?? "unknown")}</span>
         </div>
         <h3>{place.name}</h3>
-        {place.warning ? (
-          <p className="catalog-result-card__warning">{place.warning}</p>
+        {warning ? (
+          <p className="catalog-result-card__warning">{warning}</p>
         ) : null}
         <p><MapPin size={13} aria-hidden="true" />{place.address}</p>
         {petConditions ? (
@@ -58,11 +61,6 @@ export function PublicCatalogCard({
               className="catalog-result-card__condition-disclosure"
             >
               <p className="catalog-result-card__condition-full">{petConditions}</p>
-              {place.verificationRequired ? (
-                <p className="catalog-result-card__condition-notice">
-                  방문 전 업체에 최신 동반 조건을 확인해 주세요.
-                </p>
-              ) : null}
             </Disclosure>
           </>
         ) : null}

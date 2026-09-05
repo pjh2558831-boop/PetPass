@@ -50,7 +50,7 @@ export function computePlaceTrust(
           }
         : {
             code: "tourism_without_pet_evidence",
-            label: "한국관광공사 장소 원문(반려동물 근거 미확인)",
+            label: "한국관광공사 장소 원문(상세 동반 정보 없음)",
             points: PLACE_TRUST_RULES.tourismWithoutPetEvidence,
             kind: "context",
             observedAt: input.tourism.retrievedAt,

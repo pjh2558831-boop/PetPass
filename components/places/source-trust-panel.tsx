@@ -132,7 +132,7 @@ export function SourceTrustPanel({
       {trust.flags.includes("operational_status_conflict") || conflicts.length > 0 ? (
         <div className="place-detail-conflict mt-6" role="status">
           <p className="flex items-center gap-2 font-extrabold">
-            <CircleAlert size={17} aria-hidden="true" /> 출처 충돌 확인 필요
+            <CircleAlert size={17} aria-hidden="true" /> 출처 내용이 서로 다름
           </p>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5">
             {trust.flags.includes("operational_status_conflict") ? (

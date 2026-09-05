@@ -37,14 +37,22 @@ const context = {
 };
 
 describe("catalog-recommendation-v1", () => {
-  it("is deterministic, bounded, and keeps Kakao evidence unverified", () => {
+  it("is deterministic, bounded, and does not rank by provider or legacy access state", () => {
     const first = calculateCatalogRecommendationV1(place("1"), context);
     const second = calculateCatalogRecommendationV1(place("1"), context);
+    const tourism = calculateCatalogRecommendationV1(place("1", {
+      id: "tour:1",
+      layer: "tourism",
+      sourceLabel: "한국관광공사",
+      publicLabel: "조건부 동반 가능",
+    }), context);
     expect(first).toEqual(second);
     expect(first.score).toBeGreaterThanOrEqual(0);
     expect(first.score).toBeLessThanOrEqual(1_000);
     expect(Object.values(first.components).every((value) => value >= 0 && value <= 1)).toBe(true);
-    expect(first.components.petEvidenceConfidence).toBe(0.2);
+    expect(first.components.petEvidenceConfidence).toBe(tourism.components.petEvidenceConfidence);
+    expect(first.components.discoveryStrength).toBe(tourism.components.discoveryStrength);
+    expect(first.score).toBe(tourism.score);
   });
 
   it("uses stable recommendation ties and does not fabricate popularity order", () => {

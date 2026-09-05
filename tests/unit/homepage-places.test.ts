@@ -163,7 +163,7 @@ describe("provider-neutral homepage place snapshot", () => {
     });
     expect(result.cards.filter(({ layer }) => layer !== "official")).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ layer: "kakao_candidate", isAllowed: false, imageUrl: null, sourceLabel: "카카오 검색 후보" }),
+        expect.objectContaining({ layer: "kakao_candidate", isAllowed: true, imageUrl: null, sourceLabel: "카카오 검색 후보", statusLabel: "반려동물 동반 가능", warning: null }),
         expect.objectContaining({ layer: "veterinary", isAllowed: false, sourceLabel: "동물병원" }),
         expect.objectContaining({ layer: "pet_shop", isAllowed: false, sourceLabel: "펫샵·용품점" }),
       ]),

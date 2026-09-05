@@ -77,9 +77,9 @@ export function HomepagePlaceCarousel({
     layers.pet_shop.state === "unavailable";
   const officialStatus =
     featuredState === "partial"
-      ? "일부 공식 장소의 동반 근거를 확인하지 못해 확인된 장소만 보여드려요."
+      ? "일부 장소 정보를 불러오지 못해 현재 제공 가능한 장소만 보여드려요."
       : featuredState === "unavailable"
-        ? "공식 장소 목록은 확인했지만 동반 근거를 지금 확인할 수 없습니다."
+        ? "공식 장소 정보를 지금 불러올 수 없습니다."
         : null;
 
   if (places.length === 0) return null;
@@ -90,7 +90,7 @@ export function HomepagePlaceCarousel({
         <div>
           <p className="homepage-kicker">장소 둘러보기</p>
           <h2 id="homepage-places-title">함께 살펴볼 장소</h2>
-          <p>공식 동반 가능 장소와 확인이 필요한 카카오 후보를 구분해 보여드려요.</p>
+          <p>WEEKENDOG 등록 장소와 이용 조건을 데이터 제공처와 함께 보여드려요.</p>
         </div>
         <div className="homepage-heading-actions">
           <Link href="/results?tab=catalog" className="homepage-text-link">

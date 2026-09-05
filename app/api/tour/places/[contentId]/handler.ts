@@ -96,7 +96,7 @@ export function createTourPlaceDetailHandler(
           tourismDetail.summary,
           petAccessAssessment.evidence.length > 0
             ? `반려동물 원문 근거 ${petAccessAssessment.evidence.length}건`
-            : "반려동물 원문 근거 미확인",
+            : "상세 반려동물 원문 없음",
         ),
       ];
       const trust = computePlaceTrust({

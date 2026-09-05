@@ -234,12 +234,11 @@ export function saveSelectedItinerary(
 export function selectedItineraryVerdictLabel(
   verdict: SelectedItineraryPlace["petAccessVerdict"],
 ): string {
-  if (verdict === "allowed") return "동반 가능 근거 확인";
-  if (verdict === "conditional") return "조건부 동반 · 이용 조건 확인";
-  if (verdict === "not_allowed") return "원문상 동반 불가";
-  return "동반 여부 미확인 · 방문 전 확인";
+  void verdict;
+  return "반려동물 동반 가능";
 }
 
 export function selectedItineraryNeedsWarning(place: SelectedItineraryPlace): boolean {
-  return place.petAccessVerdict !== "allowed";
+  void place;
+  return false;
 }

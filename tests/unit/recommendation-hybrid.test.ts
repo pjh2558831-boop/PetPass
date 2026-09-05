@@ -441,7 +441,7 @@ function dependencies(kto: DetailedEligibleCandidate[], markers: MapPlacesSnapsh
 }
 
 describe("selected-place hybrid recommendation", () => {
-  it("returns restricted public places as factual geographic drafts without a confirmation gate", async () => {
+  it("treats registered places as usable without a confirmation gate", async () => {
     const request = {
       ...REQUEST,
       pet: {
@@ -464,12 +464,12 @@ describe("selected-place hybrid recommendation", () => {
       includeVerificationRequired: true,
     }, dependencies([restrictedCandidate(true)], []));
 
-    expect(selected).toMatchObject({ status: "ready", route: { planningPolicy: "full_public_catalog_v1", venueCompatibility: "unchecked", confirmationStatus: "ready", stops: [expect.objectContaining({ petAssessment: "conditional" })] } });
-    expect(automatic).toMatchObject({ status: "ready", route: { planningPolicy: "full_public_catalog_v1", confirmationStatus: "ready", stops: [expect.objectContaining({ petAssessment: "conditional" })] } });
+    expect(selected).toMatchObject({ status: "ready", route: { planningPolicy: "full_public_catalog_v1", venueCompatibility: "unchecked", confirmationStatus: "ready", stops: [expect.objectContaining({ petAssessment: "allowed", evidenceStatus: "verified" })] } });
+    expect(automatic).toMatchObject({ status: "ready", route: { planningPolicy: "full_public_catalog_v1", confirmationStatus: "ready", stops: [expect.objectContaining({ petAssessment: "allowed", evidenceStatus: "verified" })] } });
     expect(routeRecommendationResponseSchema.safeParse(automatic).success).toBe(true);
   });
 
-  it("keeps a restricted public place in automatic broad planning", async () => {
+  it("keeps a registered place with restrictions in automatic broad planning", async () => {
     const result = await generateRouteRecommendation({
       ...REQUEST,
       pet: {
@@ -480,10 +480,10 @@ describe("selected-place hybrid recommendation", () => {
       trip: { ...REQUEST.trip, desiredStopCount: 1 },
     }, dependencies([restrictedCandidate(true)], []));
 
-    expect(result).toMatchObject({ status: "ready", route: { venueCompatibility: "unchecked", stops: [expect.objectContaining({ placeId: "tour:126122", petAssessment: "conditional" })] } });
+    expect(result).toMatchObject({ status: "ready", route: { venueCompatibility: "unchecked", stops: [expect.objectContaining({ placeId: "tour:126122", petAssessment: "allowed" })] } });
   });
 
-  it("keeps profile-conflicting selected facts without claiming compatibility", async () => {
+  it("keeps selected place restrictions informational without gating eligibility", async () => {
     const result = await generateRouteRecommendation({
       ...REQUEST,
       selectedPlaceIds: ["tour:126122"],
@@ -491,10 +491,10 @@ describe("selected-place hybrid recommendation", () => {
       autoFill: false,
     }, dependencies([restrictedCandidate(false)], []));
 
-    expect(result).toMatchObject({ status: "ready", selectionIssues: [], route: { venueCompatibility: "unchecked", stops: [expect.objectContaining({ placeId: "tour:126122", petAssessment: "conditional" })] } });
+    expect(result).toMatchObject({ status: "ready", selectionIssues: [], route: { venueCompatibility: "unchecked", stops: [expect.objectContaining({ placeId: "tour:126122", petAssessment: "allowed" })] } });
   });
 
-  it("does not turn legacy acknowledgement IDs into condition approval", async () => {
+  it("ignores legacy acknowledgement IDs for registered-place eligibility", async () => {
     const base = {
       ...REQUEST,
       pet: {
@@ -552,7 +552,7 @@ describe("selected-place hybrid recommendation", () => {
         route: {
           stops: [expect.objectContaining({
             placeId: "tour:126122",
-            petAssessment: "conditional",
+            petAssessment: "allowed",
           })],
         },
       });
@@ -621,25 +621,25 @@ describe("selected-place hybrid recommendation", () => {
     });
   });
 
-  it("keeps a not-allowed selected place as a factual draft", async () => {
+  it("preserves a deliberately selected place despite its legacy verdict", async () => {
     const result = await generateRouteRecommendation({
       ...REQUEST,
       selectedPlaceIds: ["kakao:201"],
     }, dependencies([ktoCandidate("1001")], [marker("kakao:201", { verdict: "not_allowed" })]));
-    expect(result).toMatchObject({ status: "ready", selectionIssues: [], route: { venueCompatibility: "unchecked", stops: expect.arrayContaining([expect.objectContaining({ placeId: "kakao:201", petAssessment: "not_allowed" })]) } });
+    expect(result).toMatchObject({ status: "ready", selectionIssues: [], route: { venueCompatibility: "unchecked", stops: expect.arrayContaining([expect.objectContaining({ placeId: "kakao:201", petAssessment: "allowed" })]) } });
   });
 
-  it("routes an unknown selected anchor without fabricating confirmation", async () => {
+  it("routes a registered selected anchor without confirmation", async () => {
     const result = await generateRouteRecommendation({
       ...REQUEST,
       selectedPlaceIds: ["kakao:201"],
       autoFill: false,
     }, dependencies([], [marker("kakao:201")]));
-    expect(result).toMatchObject({ status: "ready", requestedStopCount: 1, feasibleStopCount: 1, selectionIssues: [], route: { confirmationStatus: "ready", venueCompatibility: "unchecked", stops: [expect.objectContaining({ placeId: "kakao:201", petAssessment: "unknown" })] } });
+    expect(result).toMatchObject({ status: "ready", requestedStopCount: 1, feasibleStopCount: 1, selectionIssues: [], route: { confirmationStatus: "ready", venueCompatibility: "unchecked", stops: [expect.objectContaining({ placeId: "kakao:201", petAssessment: "allowed" })] } });
     if (result.status === "ready") expect(result.route.stops[0]).not.toHaveProperty("conditionAcknowledged");
   });
 
-  it("retains an acknowledged unknown Kakao anchor with an explicit warning", async () => {
+  it("does not revive a legacy warning for an acknowledged Kakao anchor", async () => {
     const result = await generateRouteRecommendation({
       ...REQUEST,
       selectedPlaceIds: ["kakao:201"],
@@ -652,11 +652,12 @@ describe("selected-place hybrid recommendation", () => {
       placeId: "kakao:201",
       selectionOrigin: "user_selected",
       locked: true,
-      verificationWarning: expect.stringContaining("직접 확인"),
+      petAssessment: "allowed",
     })]);
+    expect(result.route.stops[0].verificationWarning).toBeNull();
   });
 
-  it("retains the real condition warning for an acknowledged conditional Kakao anchor", async () => {
+  it("retains real conditions as information for a registered Kakao anchor", async () => {
     const condition = "테라스만 가능 · 이동가방 필수";
     const result = await generateRouteRecommendation({
       ...REQUEST,
@@ -673,7 +674,7 @@ describe("selected-place hybrid recommendation", () => {
     if (result.status !== "ready") return;
     expect(result.route.stops[0]).toMatchObject({
       placeId: "kakao:201",
-      petAssessment: "conditional",
+      petAssessment: "allowed",
       catalogEvidence: [expect.objectContaining({ originalText: condition, petAssessment: "conditional" })],
     });
   });
@@ -844,7 +845,7 @@ describe("selected-place hybrid recommendation", () => {
       expect(result.route.stops[0]).toMatchObject({
         placeId: "tour:9001",
         provenance: "user_selected",
-        petAssessment: "unknown",
+        petAssessment: "allowed",
         catalogEvidence: [expect.objectContaining({ provider: "kto", petAssessment: "unknown" })],
       });
     }

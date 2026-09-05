@@ -8,7 +8,6 @@ import {
   Clock3,
   MapPinned,
   PencilLine,
-  ShieldAlert,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmedTripSummary } from "@/components/itinerary/confirmed-trip-summary";
@@ -120,7 +119,7 @@ export function ItineraryEditor() {
         sourceLabel:
           stop.source === "TOUR_API"
             ? "한국관광공사 동반 근거 장소"
-            : "카카오 탐색 후보 · 직접 확인 필요",
+            : "카카오 등록 장소",
         interactive: true,
         clusterable: false,
       })) ?? [],
@@ -215,13 +214,6 @@ export function ItineraryEditor() {
       </header>
 
       <ConfirmedTripSummary profile={profile} preferences={preferences} />
-
-      {presentation.blockedByPetAccess ? (
-        <div className="rounded-lg border border-[#e5bdb7] bg-[#fff1ef] p-4 text-[#823f36]" role="alert">
-          <p className="flex items-center gap-2 font-black"><ShieldAlert size={18} aria-hidden="true" /> 동반 불가 판정이 포함된 경로입니다.</p>
-          <p className="mt-1 text-sm leading-6">이 결과를 완전히 이용 가능한 일정으로 표시하지 않습니다. 비교 화면에서 다른 전략을 선택해 주세요.</p>
-        </div>
-      ) : null}
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.12fr)_minmax(330px,.88fr)]">
         <section className="min-w-0" aria-labelledby="itinerary-timeline-heading">

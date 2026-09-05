@@ -37,9 +37,9 @@ describe("hybrid recommendation result UI", () => {
       regionName: "서울",
     }));
 
-    expect(html).toContain("동반 여부 미확인 · 방문 전 확인");
-    expect(html).toContain("사용자가 선택한 장소");
+    expect(html).toContain("반려동물 동반 가능");
     expect(html).toContain("일정에 고정");
+    expect(html).not.toContain("동반 여부 미확인");
     expect(html).not.toContain("부족한 장소는 WEEKENDOG가 추천");
     expect(html).not.toContain("선택 장소 경로만 지원");
     expect(html).toContain("선택한 장소로 일정 만들기");
@@ -47,16 +47,16 @@ describe("hybrid recommendation result UI", () => {
     expect(html).not.toContain("준비 중");
   });
 
-  it("keeps negative, conditional, unknown and closure warnings factual", () => {
-    expect(recommendationPetAccessCopy({ petAssessment: "not_allowed" })).toBe("원문상 동반 불가");
-    expect(recommendationPetAccessCopy({ petAssessment: "unknown" })).toBe("동반 여부 미확인 · 방문 전 확인");
-    expect(recommendationPetAccessCopy({ petAssessment: "conditional" })).toBe("조건부 동반 · 이용 조건 확인");
+  it("uses one registered-place access label while preserving operating warnings", () => {
+    for (const petAssessment of ["allowed", "conditional", "not_allowed", "unknown"] as const) {
+      expect(recommendationPetAccessCopy({ petAssessment })).toBe("반려동물 동반 가능");
+    }
     expect(recommendationOperatingWarning({ operatingStatus: "reported_closed" })).toBe("예정 시각에 휴무 또는 영업시간 충돌 · 원문 확인");
     expect(recommendationOperatingWarning({ licensingStatus: "confirmed_closed" })).toContain("휴업/폐업 안내 있음");
     expect(recommendationOperatingWarning({ operatingStatus: "unknown", licensingStatus: "no_match" })).toBeNull();
   });
 
-  it("labels a locked selected place and preserves its verification warning", () => {
+  it("labels a locked selected place without a legacy verification warning", () => {
     const html = renderToStaticMarkup(createElement(RecommendationStopProvenance, {
       stop: {
         title: "광안 여행 후보",
@@ -68,7 +68,7 @@ describe("hybrid recommendation result UI", () => {
 
     expect(html).toContain("내가 선택한 장소");
     expect(html).toContain("일정에 고정");
-    expect(html).toContain("방문 전 반려동물 동반 가능 여부를 확인해 주세요.");
+    expect(html).not.toContain("방문 전 반려동물 동반 가능 여부를 확인해 주세요.");
     expect(html).not.toContain("자동 장소 바꾸기");
     expect(getRecommendationStopEditCopy({ provenance: "user_selected", locked: true })).toEqual({
       removeLabel: "선택 해제하고 제외",

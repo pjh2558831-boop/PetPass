@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, ChevronDown, ChevronUp, LockKeyhole, Route, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, LockKeyhole, Route, Trash2 } from "lucide-react";
 import { PlaceCardMedia } from "@/components/places/place-card-media";
 import type { SelectedItineraryMoveDirection } from "@/components/places/use-selected-itinerary-selection";
 import {
@@ -9,7 +9,6 @@ import {
   PLACE_CATEGORY_LABELS,
 } from "@/lib/map-places/place-categories";
 import {
-  selectedItineraryNeedsWarning,
   selectedItineraryVerdictLabel,
   type SelectedItineraryPlace,
   type SelectedItinerarySnapshot,
@@ -72,9 +71,6 @@ export function HomeSelectedItineraryTray({
                   <strong>{place.name}</strong>
                   <span>{PLACE_CATEGORY_LABELS[category]} · {place.sourceLabel}</span>
                   <span><LockKeyhole size={12} aria-hidden="true" /> 일정에 고정 · {selectedItineraryVerdictLabel(place.petAccessVerdict)}</span>
-                  {selectedItineraryNeedsWarning(place) ? (
-                    <small><AlertTriangle size={12} aria-hidden="true" /> 동반 가능 여부 확인 필요</small>
-                  ) : null}
                 </div>
                 <div className="home-selected-itinerary__controls">
                   <button

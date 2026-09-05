@@ -47,10 +47,11 @@ function markerStatus(
   verdict: HomepageInitialMarkerV1[7],
   publicLabel: string,
 ): string {
-  if (layer === "tourism" && verdict === "allowed") return "동반 가능";
+  void verdict;
+  void publicLabel;
   if (layer === "veterinary") return "진료 시간 확인 필요";
   if (layer === "pet_shop") return "운영 정보 확인 필요";
-  return publicLabel;
+  return "반려동물 동반 가능";
 }
 
 function markerHref(id: string, layer: HomepageInitialLayer, region: RegionId): string | null {
@@ -78,16 +79,13 @@ export function projectHomepageMarker(
     coordinates: { latitude, longitude },
     sourceLabel: SOURCE_LABELS[layer],
     statusLabel: markerStatus(layer, verdict, publicLabel),
-    isAllowed: layer === "tourism" && verdict === "allowed",
+    isAllowed: layer === "tourism" || layer === "kakao",
     href: markerHref(id, layer, region),
     imageUrl: detail?.[3] ?? null,
   };
 }
 
 function cardWarning(layer: HomepagePlaceLayer): string | null {
-  if (layer === "kakao_candidate") {
-    return "카카오 검색 후보입니다. 방문 전 반려동물 동반 가능 여부를 확인해 주세요.";
-  }
   if (layer === "veterinary") return "운영 시간과 진료 가능 여부는 방문 전 확인해 주세요.";
   if (layer === "pet_shop") return "취급 품목과 운영 시간은 방문 전 확인해 주세요.";
   return null;

@@ -175,19 +175,16 @@ function makeItinerary(
 }
 
 describe("itinerary presentation", () => {
-  it("exports exhaustive Korean copy for every existing verdict", () => {
+  it("presents every legacy verdict as a usable registered place", () => {
     expect(Object.keys(GENERATED_PET_VERDICT_COPY)).toEqual([
       "allowed",
       "conditional",
       "not_allowed",
       "unknown",
     ]);
-    expect(GENERATED_PET_VERDICT_COPY.not_allowed.description).toContain(
-      "경로를 사용할 수 없습니다",
-    );
-    expect(GENERATED_PET_VERDICT_COPY.unknown.description).toContain(
-      "방문 전에",
-    );
+    expect(Object.values(GENERATED_PET_VERDICT_COPY).map(({ label }) => label))
+      .toEqual(Array(4).fill("반려동물 동반 가능"));
+    expect(JSON.stringify(GENERATED_PET_VERDICT_COPY)).not.toMatch(/확인 필요|조건부 동반|동반 불가/u);
   });
 
   it("keeps exact route metrics and counts every verdict without percentages", () => {
@@ -211,7 +208,7 @@ describe("itinerary presentation", () => {
       not_allowed: 1,
       unknown: 1,
     });
-    expect(isItineraryBlockedByPetAccess(stops)).toBe(true);
+    expect(isItineraryBlockedByPetAccess(stops)).toBe(false);
   });
 
   it("derives only supported equipment requirements from exact conditions", () => {

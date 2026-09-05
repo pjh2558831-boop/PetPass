@@ -98,10 +98,10 @@ describe("public catalog normalization", () => {
     source: { provider: "Korea Tourism Organization", operation: "areaBasedList2", retrievedAt: "2026-08-15T00:00:00Z" },
   } satisfies TourPlaceSummary;
 
-  it("normalizes Tourism shopping canonically without claiming access", () => {
+  it("normalizes registered Tourism shopping with the common access label", () => {
     expect(normalizeTourCatalogPlace(tourPlace)).toMatchObject({
       id: "tour:tour-1", layer: "tourism", category: "shopping",
-      publicLabel: "동반 정보 확인 필요", warning: null,
+      publicLabel: "반려동물 동반 가능", warning: null,
     });
   });
 
@@ -125,7 +125,7 @@ describe("public catalog normalization", () => {
     expect(card.placeUrl).toBeNull();
   });
 
-  it("always gives Kakao candidates a pre-visit warning and no access badge", () => {
+  it("gives registered Kakao places the same access label without a verification warning", () => {
     const kakao = {
       id: "kakao:1", providerPlaceId: "1", name: "후보", kind: "pet_travel_candidate", category: "cafe",
       district: { code: "500", name: "수영구" }, address: "부산광역시 수영구", coordinates: { latitude: 35.1, longitude: 129.1 },
@@ -133,8 +133,8 @@ describe("public catalog normalization", () => {
       reviewStatus: "unreviewed", publicLabel: "동반 여부 확인 필요",
     } satisfies PublicMapPlaceDTO;
     const result = normalizeKakaoCatalogPlace(kakao);
-    expect(result.warning).toContain("방문 전");
-    expect(result.publicLabel).not.toBe("동반 가능");
+    expect(result.warning).toBeNull();
+    expect(result.publicLabel).toBe("반려동물 동반 가능");
   });
 
   it("labels veterinary and pet-shop records as facilities without access or 24-hour claims", () => {

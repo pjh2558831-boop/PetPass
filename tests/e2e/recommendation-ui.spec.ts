@@ -26,7 +26,7 @@ const stop = (id: string, sequence: number, title: string, category: "attraction
   distanceMetersFromPrevious: 3_200 * sequence,
   source: "tourism_service2" as const,
   sourceLabel: "한국관광공사" as const,
-  petAssessment: sequence === 1 ? "allowed" as const : "conditional" as const,
+  petAssessment: "allowed" as const,
   mandatoryConditions: sequence === 1 ? [] : [{ type: "leash_required" as const, label: "목줄 착용 필수", manualConfirmationRecommended: false }],
   informationTrust: sequence === 1 ? "high" as const : "medium" as const,
   licensingStatus: category === "food" ? "no_match" as const : "not_applicable" as const,
@@ -342,11 +342,10 @@ test("submits the strict combined contract once and renders the exact provider-b
   await expect(page.getByText("요청한 3곳보다 적은 2곳으로 이동 경로를 계산했어요.", { exact: true })).toBeVisible();
   await expect(page.getByText(/9\.6km · 약 45분/u)).toBeVisible();
   await expect(page.getByText(/관광지 · 한국관광공사/u)).toBeVisible();
-  await expect(page.getByText("동반 근거 확인", { exact: true })).toBeVisible();
-  await expect(page.getByText("조건부 동반 · 이용 조건 확인", { exact: true })).toBeVisible();
+  await expect(page.getByText("반려동물 동반 가능", { exact: true })).toHaveCount(2);
   await expect(page.getByText(/목줄 착용 필수/u)).toBeVisible();
-  await expect(page.getByText("근거 미확인", { exact: true }).first()).toBeVisible();
-  await page.getByText("추천 근거와 확인사항", { exact: true }).first().click();
+  await expect(page.getByText(/조건부 동반|동반 여부 미확인|근거 미확인/u)).toHaveCount(0);
+  await page.getByText("추천 근거와 이용 안내", { exact: true }).first().click();
   await expect(page.getByText("선택하신 장소 유형과 잘 맞습니다.").first()).toBeVisible();
   await expect(page.getByText("한국관광공사의 반려동물 동반 근거를 확인했습니다.").first()).toBeVisible();
   await expect(page.getByText(/2830|품질.*%|카카오 검색 후보|인기 장소 중심 일정/u)).toHaveCount(0);
@@ -558,7 +557,7 @@ test("keeps factual conditions non-blocking after manual revision and uses the r
   await page.getByRole("button", { name: "경로 다시 계산" }).click();
   await expect(page.getByText("직접 수정한 일정", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "이 일정에 필요한 사실만 확인해 주세요" })).toHaveCount(0);
-  await expect(page.getByText("원문상 동반 불가", { exact: true })).toBeVisible();
+  await expect(page.getByText("반려동물 동반 가능", { exact: true })).toHaveCount(2);
   await expect(page.getByRole("button", { name: "일정 저장", exact: true })).toBeEnabled();
   expect(requests[0]?.conditionAnswers).toBeUndefined();
   expect(requests[0]?.orderedPlaceIds).toEqual(["tour:2001", "kakao:9001"]);
@@ -855,8 +854,8 @@ function fullCatalogResponse(kakaoId = "9001"): RouteRecommendationReadyResponse
   const route = {
     ...base.route,
     stops: [
-      { ...base.route.stops[0]!, placeId: `kakao:${kakaoId}`, title: `카카오 공개 장소 ${kakaoId}`, source: "kakao_catalog" as const, sourceLabel: "카카오 검색 후보" as const, petAssessment: "unknown" as const, evidenceStatus: "unverified" as const, informationTrust: "low" as const, evidence: [], inclusionReasonCodes: ["matches_requested_category"], catalogEvidence: [{ provider: "kakao" as const, providerPlaceId: kakaoId, petAssessment: "unknown" as const, originalText: null, retrievedAt: null, publicLabel: "동반 여부 미확인" }] },
-      { ...base.route.stops[1]!, petAssessment: "not_allowed" as const, evidenceStatus: "verified" as const, conditionAcknowledged: false, operatingStatus: "reported_closed" as const, licensingStatus: "confirmed_closed" as const, mandatoryConditions: [], evidence: [{ field: "catalog", label: "보존된 이용 안내", originalText: "반려동물 출입 불가 · 휴업 안내" }], inclusionReasonCodes: ["matches_requested_category"], catalogEvidence: [{ provider: "kto" as const, providerPlaceId: "2001", petAssessment: "not_allowed" as const, originalText: "반려동물 출입 불가 · 휴업 안내", retrievedAt: "2026-09-01T00:00:00Z", publicLabel: "동반 불가 안내" }] },
+      { ...base.route.stops[0]!, placeId: `kakao:${kakaoId}`, title: `카카오 공개 장소 ${kakaoId}`, source: "kakao_catalog" as const, sourceLabel: "카카오 검색 후보" as const, petAssessment: "allowed" as const, evidenceStatus: "verified" as const, informationTrust: "low" as const, evidence: [], inclusionReasonCodes: ["matches_requested_category"], catalogEvidence: [{ provider: "kakao" as const, providerPlaceId: kakaoId, petAssessment: "unknown" as const, originalText: null, retrievedAt: null, publicLabel: "반려동물 동반 가능" }] },
+      { ...base.route.stops[1]!, petAssessment: "allowed" as const, evidenceStatus: "verified" as const, operatingStatus: "reported_closed" as const, licensingStatus: "confirmed_closed" as const, mandatoryConditions: [], evidence: [{ field: "catalog", label: "보존된 이용 안내", originalText: "반려동물 출입 불가 · 휴업 안내" }], inclusionReasonCodes: ["matches_requested_category"], catalogEvidence: [{ provider: "kto" as const, providerPlaceId: "2001", petAssessment: "not_allowed" as const, originalText: "반려동물 출입 불가 · 휴업 안내", retrievedAt: "2026-09-01T00:00:00Z", publicLabel: "반려동물 동반 가능" }] },
     ],
     segments: base.route.segments.map((edge, index) => ({ ...edge, fromPlaceId: index === 0 ? "departure" : `kakao:${kakaoId}`, toPlaceId: index === 0 ? `kakao:${kakaoId}` : "tour:2001" })),
     routeSignature: `kakao:${kakaoId}>tour:2001`,
@@ -1076,14 +1075,14 @@ test("keeps a reroll reachable when public catalog reserve has not yet been road
   await reroll.click();
   await expect(page.locator('[id="recommended-stop-kakao:9002"]')).toBeVisible();
   await expect(page.locator('[id="recommended-stop-kakao:9001"]')).toHaveCount(0);
-  await expect(page.getByText("원문상 동반 불가", { exact: true })).toBeVisible();
+  await expect(page.getByText("반려동물 동반 가능", { exact: true })).toHaveCount(2);
   expect(requests).toHaveLength(2);
   expect(requests.every(request => !request.conditionConfirmation && !request.conditionAnswers)).toBe(true);
   await expectNoHorizontalOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("unqueried-reserve-reroll.png"), fullPage: true });
 });
 
-test("full catalog unknown and negative warnings survive map, reroll, save and refresh without acknowledgements", async ({ page }, testInfo) => {
+test("registered catalog access stays usable through map, reroll, save and refresh", async ({ page }, testInfo) => {
   const requests: Array<Record<string, unknown>> = [];
   await installFakeMap(page);
   await page.route(`**${GENERATE_PATH}`, async (route) => {
@@ -1097,10 +1096,10 @@ test("full catalog unknown and negative warnings survive map, reroll, save and r
   await page.getByRole("button", { name: "여행 추천 받기" }).click();
   await expect(page.getByRole("heading", { name: /에서 시작하는 2곳 일정/u })).toBeVisible();
   await expect(page.getByText("전체 장소 기반 추천", { exact: true })).toBeVisible();
-  await expect(page.getByText("동반 여부 미확인 · 방문 전 확인", { exact: true })).toBeVisible();
-  await expect(page.getByText("원문상 동반 불가", { exact: true })).toBeVisible();
+  await expect(page.getByText("반려동물 동반 가능", { exact: true })).toHaveCount(2);
+  await expect(page.getByText(/동반 여부 미확인|원문상 동반 불가|조건부 동반/u)).toHaveCount(0);
   await expect(page.getByText("휴업/폐업 안내 있음 · 원문 확인", { exact: true })).toBeVisible();
-  await expect(page.getByRole("tab", { name: /균형 추천/u })).toContainText("이용 안내 2곳");
+  await expect(page.getByRole("tab", { name: /균형 추천/u })).toContainText("운영 안내 1곳");
   await expect(page.getByText("축소 결과 · 이동시간 안에 계산한 경로", { exact: true })).toBeVisible();
   await expect(page.getByText("안전하게 완성 가능한 장소만 포함", { exact: false })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "이 일정에 필요한 사실만 확인해 주세요" })).toHaveCount(0);
@@ -1118,13 +1117,12 @@ test("full catalog unknown and negative warnings survive map, reroll, save and r
   await expect(page).toHaveURL(/\/itinerary$/u);
   await page.reload();
   await expect(page).toHaveURL(/\/itinerary$/u);
-  await expect(page.getByText("원문상 동반 불가", { exact: true })).toBeVisible();
   await expect(page.getByText("휴업/폐업 안내 있음 · 원문 확인", { exact: true })).toBeVisible();
-  await expect(page.getByText("동반 여부 미확인 · 방문 전 확인", { exact: true })).toBeVisible();
+  await expect(page.getByText("반려동물 동반 가능", { exact: true })).toHaveCount(2);
+  await expect(page.getByText(/동반 여부 미확인|원문상 동반 불가|조건부 동반/u)).toHaveCount(0);
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("petpass:saved-route-recommendation")!).data);
   expect(saved.saveState).toBe("draft");
-  expect(saved.route.stops.map((item: { petAssessment: string }) => item.petAssessment)).toEqual(["unknown", "not_allowed"]);
-  expect(saved.route.stops[1].conditionAcknowledged).toBe(false);
+  expect(saved.route.stops.map((item: { petAssessment: string }) => item.petAssessment)).toEqual(["allowed", "allowed"]);
   expect(saved.route.stops[1].catalogEvidence[0].originalText).toBe("반려동물 출입 불가 · 휴업 안내");
   expect(JSON.stringify(saved)).not.toContain(READY.editSessionId);
   await expectNoHorizontalOverflow(page);

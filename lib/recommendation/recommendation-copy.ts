@@ -1,11 +1,8 @@
 import type { RecommendationStatus, RecommendationRecoveryAction, RecommendedRouteStopV1 } from "@/types/recommendation";
 
 export function recommendationPetAccessCopy(stop: Pick<Partial<RecommendedRouteStopV1>, "petAssessment" | "petConditionEligibility">): string {
-  if (stop.petAssessment === "not_allowed") return "원문상 동반 불가";
-  if (stop.petConditionEligibility?.state === "ineligible") return "입력한 반려동물 조건과 맞지 않음 · 원문 확인";
-  if (stop.petAssessment === "conditional") return "조건부 동반 · 이용 조건 확인";
-  if (stop.petAssessment === "allowed") return "동반 근거 확인";
-  return "동반 여부 미확인 · 방문 전 확인";
+  void stop;
+  return "반려동물 동반 가능";
 }
 
 export function recommendationOperatingWarning(stop: Pick<Partial<RecommendedRouteStopV1>, "operatingStatus" | "licensingStatus">): string | null {
@@ -34,7 +31,7 @@ const WARNING_COPY: Readonly<Record<string, string>> = {
   operating_hours_missing: "운영시간 정보가 없어 방문 전 확인이 필요합니다.",
   operating_hours_ambiguous: "운영시간 표현이 명확하지 않아 방문 전 확인이 필요합니다.",
   default_dwell_duration_used: "예상 체류시간은 장소 유형의 기본값입니다.",
-  conditional_pet_requirement: "동반 조건과 준비물을 방문 전에 다시 확인해 주세요.",
+  conditional_pet_requirement: "동반 조건과 준비물은 장소 안내에서 확인할 수 있습니다.",
   manual_route_revalidated: "직접 수정한 순서를 Kakao 경로로 다시 확인했습니다.",
   default_dwell_shortened: "완성 가능한 경로를 위해 장소 유형별 기본 체류시간을 줄였습니다. 시설의 이용 제한이 아닙니다.",
   future_prediction_unsupported_current_road_estimate_used: "요청 시각의 예측을 지원하지 않아 현재 도로 이동 추정으로 확인했습니다.",
@@ -60,15 +57,15 @@ export const RECOVERY_ACTION_COPY: Record<RecommendationRecoveryAction, string> 
   change_categories: "장소 유형 바꾸기",
   widen_district: "지역 범위 넓히기",
   select_places_manually: "장소 직접 선택하기",
-  allow_verification_required_candidates: "조건을 확인할 수 있는 장소 직접 살펴보기",
-  acknowledge_selected_place_verification: "선택 장소의 필요한 사실 확인하기",
-  acknowledge_route_conditions: "경로 장소의 필요한 사실 확인하기",
+  allow_verification_required_candidates: "등록 장소 직접 살펴보기",
+  acknowledge_selected_place_verification: "선택 장소 정보 살펴보기",
+  acknowledge_route_conditions: "경로 장소 정보 살펴보기",
 };
 
 export function recommendationActions(status: RecommendationStatus): string[] {
   switch (status) {
     case "confirmation_required":
-      return ["경로 장소의 동반 조건 확인하기"];
+      return ["경로 장소 정보 살펴보기"];
     case "unavailable":
       return ["장소 유형 바꾸기", "출발지 확인하기", "방문 가능한 장소 둘러보기"];
     case "insufficient_eligible_places":

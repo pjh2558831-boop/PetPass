@@ -1,46 +1,12 @@
-import {
-  Ban,
-  CircleAlert,
-  CircleCheckBig,
-  CircleHelp,
-} from "lucide-react";
+import { CircleCheckBig } from "lucide-react";
 import { Disclosure } from "@/components/ui/disclosure";
 import { TOUR_PET_ACCESS_SCOPE_LABELS } from "@/lib/pet-access/tourism/constants";
 import { tourPetAccessVerdictLabel } from "@/lib/pet-access/tourism/verdict-label";
 import type {
   TourPetAccessAssessment,
   TourPetAccessAssertion,
-  TourPetAccessEvaluationState,
 } from "@/types/tour-pet-access";
 import type { RegionId } from "@/types/region";
-
-const VERDICT_STYLES: Record<TourPetAccessAssessment["verdict"], string> = {
-  allowed: "border-[#b9ddca] bg-[#edf8f2] text-[#236148]",
-  conditional: "border-[#ead19f] bg-[#fff8e8] text-[#74551e]",
-  not_allowed: "border-[#e5bdb7] bg-[#fff1ef] text-[#823f36]",
-  unknown: "border-[#d4dcd7] bg-[#f3f5f3] text-[#52665b]",
-};
-
-const VERDICT_ICONS = {
-  allowed: CircleCheckBig,
-  conditional: CircleAlert,
-  not_allowed: Ban,
-  unknown: CircleHelp,
-} as const;
-
-const CONFIDENCE_LABELS: Record<TourPetAccessAssessment["confidence"], string> = {
-  high: "근거 강도 높음",
-  medium: "근거 강도 보통",
-  low: "근거 확인 필요",
-};
-
-const STATE_LABELS: Record<TourPetAccessEvaluationState, string> = {
-  complete: "평가 완료",
-  partial: "일부 자료로 평가",
-  insufficient_evidence: "판단 근거 부족",
-  unavailable: "원문 자료 불러오기 실패",
-  not_applicable: "평가 대상 아님",
-};
 
 const ASSERTION_LABELS: Record<TourPetAccessAssertion, string> = {
   allows: "동반 가능 근거",
@@ -64,7 +30,6 @@ export function PetAccessDecisionSummary({
   assessment: TourPetAccessAssessment;
   regionId: RegionId;
 }) {
-  const VerdictIcon = VERDICT_ICONS[assessment.verdict];
   const visibleConditions = assessment.conditions.slice(0, 3);
   const remainingConditionCount = assessment.conditions.length - visibleConditions.length;
 
@@ -80,22 +45,19 @@ export function PetAccessDecisionSummary({
         반려동물 동반 안내
       </h2>
       <div
-        className={"place-detail-decision__summary mt-3 border p-4 " + VERDICT_STYLES[assessment.verdict]}
+        className="place-detail-decision__summary mt-3 border border-[#b9ddca] bg-[#edf8f2] p-4 text-[#236148]"
       >
         <p className="flex items-center gap-2 text-base font-black">
-          <VerdictIcon
+          <CircleCheckBig
             aria-hidden="true"
             className="shrink-0"
-            data-verdict-icon={assessment.verdict}
+            data-verdict-icon="allowed"
             size={20}
             strokeWidth={2.5}
           />
           {tourPetAccessVerdictLabel(assessment.verdict, regionId)}
         </p>
-        <p className="mt-2 text-sm font-semibold leading-6">{assessment.summary}</p>
-        <p className="mt-2 text-xs font-extrabold">
-          {CONFIDENCE_LABELS[assessment.confidence]} · {STATE_LABELS[assessment.evaluationState]}
-        </p>
+        <p className="mt-2 text-sm font-semibold leading-6">등록된 WEEKENDOG 장소입니다. 아래 이용 조건과 원문 안내를 확인해 주세요.</p>
       </div>
 
       {visibleConditions.length > 0 ? (
@@ -141,15 +103,6 @@ export function PetAccessAssessmentPanel({
           원문 근거 {assessment.evidence.length}개
         </p>
       </div>
-
-      {assessment.warnings.length > 0 ? (
-        <div className="place-detail-callout mt-5" role="status">
-          <p className="font-extrabold">자료 상태 안내</p>
-          <ul className="mt-2 list-disc space-y-1 pl-5">
-            {assessment.warnings.map((warning) => <li key={warning}>{warning}</li>)}
-          </ul>
-        </div>
-      ) : null}
 
       {assessment.conditions.length > 0 ? (
         <div className="place-detail-evidence-group">
@@ -207,17 +160,6 @@ export function PetAccessAssessmentPanel({
         </div>
       ) : null}
 
-      {assessment.verificationItems.length > 0 ? (
-        <div className="place-detail-evidence-group">
-          <h3>방문 전 확인할 내용</h3>
-          <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 text-[#52665b]">
-            {assessment.verificationItems.map((item) => (
-              <li key={item.code}>{item.label}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
       <div className="place-detail-evidence-group">
         <h3>한국관광공사 제공 근거</h3>
         {assessment.evidence.length > 0 ? (
@@ -267,9 +209,6 @@ export function PetAccessTechnicalDisclosure({
         ))}
         <p className="mt-2">규칙 버전: {assessment.rulesetVersion}</p>
         <p>평가 시각: {assessment.evaluatedAt}</p>
-        <p>
-          {CONFIDENCE_LABELS[assessment.confidence]} · {STATE_LABELS[assessment.evaluationState]}
-        </p>
       </div>
     </Disclosure>
   );

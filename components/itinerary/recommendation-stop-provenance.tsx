@@ -1,4 +1,4 @@
-import { AlertTriangle, LockKeyhole, RefreshCw } from "lucide-react";
+import { LockKeyhole, RefreshCw } from "lucide-react";
 import type { RecommendedRouteStopV1 } from "@/types/recommendation";
 
 type StopProvenance = Pick<
@@ -15,7 +15,7 @@ export function RecommendationStopProvenance({
   replacementSupported?: boolean;
   onReplace?: () => void;
 }) {
-  if (!stop.provenance && !stop.verificationWarning) return null;
+  if (!stop.provenance) return null;
   const selected = stop.provenance === "user_selected";
   const canReplace = stop.provenance === "auto_fill" && replacementSupported && onReplace;
 
@@ -45,12 +45,6 @@ export function RecommendationStopProvenance({
             </button>
           ) : null}
         </div>
-      ) : null}
-      {stop.verificationWarning ? (
-        <p className="flex items-start gap-2 rounded-xl border border-[#eed8ae] bg-[#fff8ec] p-3 text-xs font-bold leading-5 text-[#76542f]">
-          <AlertTriangle className="mt-0.5 shrink-0" size={15} aria-hidden="true" />
-          {stop.verificationWarning}
-        </p>
       ) : null}
     </div>
   );

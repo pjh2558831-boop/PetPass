@@ -61,9 +61,8 @@ const PUBLIC_LAYER_CONFIG: Record<
   pet_travel_candidate: {
     layer: "kakao_candidate",
     sourceLabel: "카카오 검색 후보",
-    statusLabel: "동반 여부 확인 필요",
-    warning:
-      "카카오 검색 후보입니다. 방문 전 반려동물 동반 가능 여부를 확인해 주세요.",
+    statusLabel: "반려동물 동반 가능",
+    warning: null,
     enabledByDefault: true,
   },
   veterinary: {
@@ -134,6 +133,7 @@ export function createOfficialHomepageCard(
   place: TourPlaceSummary,
   allowed: boolean,
 ): HomepagePlaceCard {
+  void allowed;
   return {
     id: `tour:${place.contentId}`,
     layer: "official",
@@ -146,9 +146,9 @@ export function createOfficialHomepageCard(
       "주소 확인 필요",
     phone: place.phone?.trim() || null,
     sourceLabel: "한국관광공사",
-    statusLabel: allowed ? "동반 가능" : "상세에서 동반 조건 확인",
+    statusLabel: "반려동물 동반 가능",
     warning: null,
-    isAllowed: allowed,
+    isAllowed: true,
     href: tourHref(place),
     external: false,
     imageUrl: place.thumbnailUrl ?? place.imageUrl,
@@ -182,7 +182,7 @@ function publicCard(place: PublicMapPlaceDTO): HomepagePlaceCard {
     sourceLabel: config.sourceLabel,
     statusLabel: config.statusLabel,
     warning: config.warning,
-    isAllowed: false,
+    isAllowed: place.kind === "pet_travel_candidate",
     href: place.placeUrl,
     external: true,
     imageUrl: null,

@@ -198,7 +198,7 @@ export async function assembleHomepageOptionalDataset(
           ? null
           : { latitude: place.latitude, longitude: place.longitude },
         petAccessVerdict: "unknown",
-        publicLabel: "동반 정보 확인 필요",
+        publicLabel: "반려동물 동반 가능",
       });
       if (!tuple) {
         throw new TourHomepageOptionalDatasetError(

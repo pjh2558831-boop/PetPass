@@ -496,7 +496,7 @@ describe("recommendation service V2 orchestration", () => {
     });
   });
 
-  it("recommends and saves public Kakao candidates without inventing pet approval", async () => {
+  it("recommends and saves registered Kakao candidates under the common eligibility rule", async () => {
     const deps = dependencies(
       [ktoCandidate("1001", 0)],
       [kakaoMarker("201", 0), kakaoMarker("202", 0.01), kakaoMarker("203", 0.02)],
@@ -509,7 +509,8 @@ describe("recommendation service V2 orchestration", () => {
     expect(result.candidateSourceCounts).toEqual({ kto: 1, kakao: 3, merged: 0 });
     const kakaoStops = result.route.stops.filter(stop => stop.source === "kakao_catalog");
     expect(kakaoStops.length).toBeGreaterThan(0);
-    expect(kakaoStops.every(stop => stop.petAssessment === "unknown" && stop.evidenceStatus === "unverified" && stop.conditionAcknowledged !== true)).toBe(true);
+    expect(kakaoStops.every(stop => stop.petAssessment === "allowed" && stop.evidenceStatus === "verified" && stop.conditionAcknowledged !== true)).toBe(true);
+    expect(kakaoStops.every(stop => stop.catalogEvidence?.some(evidence => evidence.petAssessment === "unknown"))).toBe(true);
     expect(deps.collectCatalog).not.toHaveBeenCalled();
     expect(deps.candidatePipeline).not.toHaveBeenCalled();
     expect(deps.loadCatalogSnapshot.mock.calls.map(([input]) => input.dataset)).toEqual(["core"]);
@@ -542,7 +543,7 @@ describe("recommendation service V2 orchestration", () => {
     });
   });
 
-  it("does not turn the legacy evidence opt-in into pet approval", async () => {
+  it("does not let the legacy evidence opt-in change registered-place eligibility", async () => {
     const deps = dependencies(
       [ktoCandidate("1001", 0)],
       [kakaoMarker("201", 0), kakaoMarker("202", 0.01), kakaoMarker("203", 0.02)],
@@ -557,7 +558,7 @@ describe("recommendation service V2 orchestration", () => {
     expect(result.diagnostics).toBeUndefined();
     expect(result.candidateSourceCounts).toEqual({ kto: 1, kakao: 3, merged: 0 });
     expect(result.routeOptions?.flatMap(({ stops }) => stops).filter(stop => stop.source === "kakao_catalog").every(stop =>
-      stop.petAssessment === "unknown" && stop.conditionAcknowledged !== true,
+      stop.petAssessment === "allowed" && stop.evidenceStatus === "verified" && stop.conditionAcknowledged !== true,
     )).toBe(true);
   });
 
@@ -740,7 +741,7 @@ describe("recommendation service V2 orchestration", () => {
     expect(coverage.reserveIds.length).toBe(count - coverage.shortlistIds.length);
     expect(coverage.evidenceGateRejections).toBe(0);
     expect(coverage.shortlistIds).toContain(`kakao:${count}`);
-    expect(result.route.stops).toEqual(expect.arrayContaining([expect.objectContaining({ placeId: `kakao:${count}`, petAssessment: "unknown", evidenceStatus: "unverified" })]));
+    expect(result.route.stops).toEqual(expect.arrayContaining([expect.objectContaining({ placeId: `kakao:${count}`, petAssessment: "allowed", evidenceStatus: "verified" })]));
     expect(result.route.schedule).toMatchObject({ roadValidated: true, state: "undated_template" });
     expect(result.route.segments).toHaveLength(result.route.stops.length);
     expect(deps.provider.buildMatrix).toHaveBeenCalledTimes(1);
@@ -929,7 +930,7 @@ describe("recommendation service V2 orchestration", () => {
 
     expect(result).toMatchObject({
       status: "ready",
-      route: { stops: [{ placeId: "kakao:201", petAssessment: "unknown", evidenceStatus: "unverified" }] },
+      route: { stops: [{ placeId: "kakao:201", petAssessment: "allowed", evidenceStatus: "verified" }] },
     });
     expect(deps.candidatePipeline).not.toHaveBeenCalled();
     expect(deps.provider.buildMatrix).toHaveBeenCalledTimes(1);

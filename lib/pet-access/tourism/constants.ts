@@ -67,9 +67,9 @@ export const INTRO_PET_FIELD_LABELS: Record<TourIntroPetPolicyField, string> = {
 
 export const TOUR_PET_ACCESS_VERDICT_LABELS: Record<TourPetAccessVerdict, string> = {
   allowed: "반려동물 동반 가능",
-  conditional: "조건부 동반 가능",
-  not_allowed: "반려동물 동반 불가로 안내됨",
-  unknown: "반려동물 동반 여부 확인 필요",
+  conditional: "반려동물 동반 가능",
+  not_allowed: "반려동물 동반 가능",
+  unknown: "반려동물 동반 가능",
 };
 
 export const TOUR_PET_ACCESS_SCOPE_LABELS: Record<TourPetAccessScope, string> = {

@@ -14,18 +14,54 @@ function detail(overrides: Partial<DetailedEligibleCandidate> = {}): DetailedEli
 }
 
 describe("full public catalog candidate fusion", () => {
-  it.each(["unknown", "not_allowed"] as const)("keeps %s pet evidence and unknown hours", (petAccessVerdict) => {
-    const result = fuse({ catalogCandidates: [marker({ petAccessVerdict })] });
-    expect(result.candidates).toEqual([expect.objectContaining({ canonicalId: "kakao:2001", planningPolicy: "full_public_catalog_v1", petVerdict: petAccessVerdict, scheduleStatus: "unknown" })]);
+  it.each([
+    ["conditional", false],
+    ["unknown", true],
+    ["not_allowed", true],
+  ] as const)("treats a registered Kakao place with legacy %s evidence as usable", (petAccessVerdict, verificationRequired) => {
+    const result = fuse({ catalogCandidates: [marker({ petAccessVerdict, verificationRequired })] });
+    expect(result.candidates).toEqual([expect.objectContaining({
+      canonicalId: "kakao:2001",
+      planningPolicy: "full_public_catalog_v1",
+      petVerdict: "allowed",
+      verificationRequired: false,
+      evidenceStatus: "verified",
+      eligibilityTier: "verified",
+      conditionEligibility: expect.objectContaining({ state: "eligible" }),
+      scheduleStatus: "unknown",
+    })]);
     expect(result.candidates[0]!.catalogEvidence).toEqual([expect.objectContaining({ provider: "kakao", petAssessment: petAccessVerdict })]);
     expect(result.diagnostics.excludedByReason).toEqual({});
+  });
+
+  it("applies the same registered-place eligibility to Korea Tourism Organization data", () => {
+    const result = fuse({
+      catalogCandidates: [tourismMarker({ petAccessVerdict: "conditional", verificationRequired: true })],
+      ktoCandidates: [detail({
+        assessment: { verdict: "conditional", evaluationState: "partial", conditions: [] },
+        eligibility: { eligible: false, status: "verification_required", tier: "conditional", reasonCodes: [], warnings: [], evidenceFieldNames: [] },
+      } as unknown as Partial<DetailedEligibleCandidate>)],
+    });
+
+    expect(result.candidates[0]).toMatchObject({
+      canonicalId: "tour:1001",
+      source: "tourism_service2",
+      petVerdict: "allowed",
+      verificationRequired: false,
+      evidenceStatus: "verified",
+      eligibilityTier: "verified",
+      conditionEligibility: { state: "eligible" },
+    });
+    expect(result.candidates[0]!.catalogEvidence).toEqual([
+      expect.objectContaining({ provider: "kto", petAssessment: "conditional" }),
+    ]);
   });
 
   it("keeps unknown categories without inventing a known category", () => {
     expect(fuse({ catalogCandidates: [marker({ category: "other" })] }).candidates[0]?.category).toBe("unknown");
   });
 
-  it("counts Kakao veterinary and shop layers by provider, independently of route admission", () => {
+  it("keeps hospitals and pet shops in catalog diagnostics but excludes them from automatic candidates", () => {
     const result = fuse({ catalogCandidates: [tourismMarker(),
       marker({ id: "kakao:1", providerPlaceId: "1", name: "공개 병원", layer: "veterinary" }),
       marker({ id: "kakao:2", providerPlaceId: "2", name: "공개 상점", layer: "pet_shop" }),
@@ -33,7 +69,24 @@ describe("full public catalog candidate fusion", () => {
     ] });
     expect(result.diagnostics.sourceCounts).toEqual({ kto: 1, kakao: 3 });
     expect(result.diagnostics.identities).toHaveLength(4);
-    expect(result.candidates).toHaveLength(4);
+    expect(result.candidates.map(({ canonicalId }) => canonicalId)).toEqual(["kakao:3", "tour:1001"]);
+    expect(result.diagnostics.excludedByReason).toEqual({ automatic_itinerary_category_excluded: 2 });
+  });
+
+  it("preserves a deliberately selected hospital or pet shop", () => {
+    const result = fuse({
+      catalogCandidates: [
+        marker({ id: "kakao:1", providerPlaceId: "1", name: "공개 병원", layer: "veterinary" }),
+        marker({ id: "kakao:2", providerPlaceId: "2", name: "공개 상점", layer: "pet_shop" }),
+      ],
+      selectedPlaceIds: ["kakao:1", "kakao:2"],
+    });
+
+    expect(result.candidates).toEqual([
+      expect.objectContaining({ canonicalId: "kakao:1", selectionOrigin: "user_selected" }),
+      expect.objectContaining({ canonicalId: "kakao:2", selectionOrigin: "user_selected" }),
+    ]);
+    expect(result.diagnostics.excludedByReason).toEqual({});
   });
 
   it("enriches only a published KTO identity and preserves public coordinates", () => {
@@ -46,7 +99,7 @@ describe("full public catalog candidate fusion", () => {
   it("merges a strong alias and preserves conflicting provider facts", () => {
     const result = fuse({ ktoCandidates: [detail()], catalogCandidates: [tourismMarker({ petAccessVerdict: "allowed", petConditions: "동반 가능" }), marker({ petAccessVerdict: "not_allowed", petConditions: "반려동물 동반 불가" })] });
     expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]).toMatchObject({ canonicalId: "tour:1001", petVerdict: "not_allowed", providerIdentities: [{ provider: "kto", id: "1001" }, { provider: "kakao", id: "2001" }] });
+    expect(result.candidates[0]).toMatchObject({ canonicalId: "tour:1001", petVerdict: "allowed", providerIdentities: [{ provider: "kto", id: "1001" }, { provider: "kakao", id: "2001" }] });
     expect(result.candidates[0]!.catalogEvidence).toEqual([expect.objectContaining({ provider: "kto", petAssessment: "allowed", originalText: "동반 가능" }), expect.objectContaining({ provider: "kakao", petAssessment: "not_allowed", originalText: "반려동물 동반 불가" })]);
   });
 

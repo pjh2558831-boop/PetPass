@@ -58,14 +58,15 @@ describe("homepage progressive client projection", () => {
     });
     expect(projected.markers.find(({ id }) => id === "kakao:3")).toMatchObject({
       layer: "kakao_candidate",
-      isAllowed: false,
+      isAllowed: true,
       sourceLabel: "카카오 검색 후보",
+      statusLabel: "반려동물 동반 가능",
     });
     expect(projected.cards).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "tour:1", phone: null, imageUrl: null, isAllowed: true }),
-      expect.objectContaining({ id: "kakao:3", phone: null, imageUrl: null, isAllowed: false }),
+      expect.objectContaining({ id: "kakao:3", phone: null, imageUrl: null, isAllowed: true }),
     ]));
-    expect(projected.cards.some(({ id }) => id === "tour:2")).toBe(false);
+    expect(projected.cards.some(({ id }) => id === "tour:2")).toBe(true);
   });
 
   it("merges optional markers without replacing the active base region", () => {

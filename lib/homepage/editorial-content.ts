@@ -13,7 +13,7 @@ export const WEEKENDOG_PROCESS_STEPS = [
   {
     number: 2,
     title: "동반 가능한 장소 확인",
-    description: "공식 동반 근거와 추가 확인이 필요한 후보를 구분합니다.",
+    description: "등록된 장소의 제공처와 실제 이용 조건을 함께 살펴봅니다.",
   },
   {
     number: 3,

@@ -69,13 +69,10 @@ function distanceMeters(
 
 function getPetEvidenceConfidence(place: PublicCatalogMarker, active: ReadonlySet<PlaceCategory>): number {
   const category = mapCatalogPlaceToCategory(place);
-  if (place.layer === "kakao") return 0.2;
   if (place.layer === "veterinary" || place.layer === "pet_shop") {
     return active.has(category) ? 0.55 : 0;
   }
-  if (place.publicLabel === "동반 가능") return 1;
-  if (place.publicLabel.includes("조건")) return 0.65;
-  return 0.4;
+  return 1;
 }
 
 function getCompleteness(place: PublicCatalogMarker): number {
@@ -100,15 +97,8 @@ function getFreshness(place: PublicCatalogMarker, asOf: string): number {
   return clamp(0.5 ** (ageDays / 180));
 }
 
-function getDiscoveryStrength(place: PublicCatalogMarker): number {
-  if (place.layer !== "kakao") return 0.5;
-  const matchedQueryCount = place.matchedQueryCount ?? 0;
-  const categoryQueryAgreementCount = place.categoryQueryAgreementCount ?? 0;
-  const hitStrength = clamp(matchedQueryCount / 4);
-  const agreement = matchedQueryCount > 0
-    ? clamp(categoryQueryAgreementCount / matchedQueryCount)
-    : 0;
-  return 0.7 * hitStrength + 0.3 * agreement;
+function getDiscoveryStrength(): number {
+  return 0.5;
 }
 
 export function calculateCatalogRecommendationV1(
@@ -126,7 +116,7 @@ export function calculateCatalogRecommendationV1(
   const proximity = rawDistance === null ? 0.5 : clamp(1 / (1 + rawDistance / 5_000));
   const dataCompleteness = getCompleteness(place);
   const freshness = getFreshness(place, context.asOf);
-  const discoveryStrength = getDiscoveryStrength(place);
+  const discoveryStrength = getDiscoveryStrength();
   const components = {
     categoryAndFilterFit,
     petEvidenceConfidence,

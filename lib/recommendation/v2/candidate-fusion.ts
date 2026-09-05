@@ -2,8 +2,8 @@ import "server-only";
 
 import { haversineKm } from "@/lib/itinerary/optimizer";
 import {
+  eligiblePetConditionEligibility,
   evaluateCanonicalPetConditions,
-  insufficientEvidencePetConditionEligibility,
 } from "@/lib/pet-access/canonical-condition-eligibility";
 import { coordinatesInRegion, getRegionConfig } from "@/lib/regions/config";
 import type { CatalogEvidenceV1 } from "@/types/recommendation";
@@ -226,7 +226,24 @@ function fromKakao(
     placeUrl: candidate.placeUrl ?? null,
     dataCompleteness: candidate.completeness ?? 0.5,
     ktoCandidate: null,
-    conditionEligibility: insufficientEvidencePetConditionEligibility(),
+    conditionEligibility: eligiblePetConditionEligibility(),
+  };
+}
+
+function applyRegisteredPlacePolicy(
+  candidate: CanonicalRecommendationCandidateV2,
+): CanonicalRecommendationCandidateV2 {
+  return {
+    ...candidate,
+    catalogEvidence: candidate.catalogEvidence?.map((evidence) => ({
+      ...evidence,
+      publicLabel: "반려동물 동반 가능",
+    })),
+    petVerdict: "allowed",
+    verificationRequired: false,
+    evidenceStatus: "verified",
+    eligibilityTier: "verified",
+    conditionEligibility: eligiblePetConditionEligibility(),
   };
 }
 
@@ -311,6 +328,10 @@ export function fuseRecommendationCandidatesV2(input: {
     if (value.id !== (value.layer === "tourism" ? "tour:" : "kakao:") + value.providerPlaceId) { reject(value.id, "invalid_provider_identity"); continue; }
     if (!value.coordinates || !Number.isFinite(value.coordinates.latitude) || !Number.isFinite(value.coordinates.longitude)) { reject(value.id, "missing_or_invalid_coordinates"); continue; }
     if (value.regionId !== input.regionId || !coordinatesInRegion(region, value.coordinates)) { reject(value.id, "cross_region"); continue; }
+    if ((value.layer === "veterinary" || value.layer === "pet_shop") && !selected.has(value.id)) {
+      reject(value.id, "automatic_itinerary_category_excluded");
+      continue;
+    }
     const origin = selected.has(value.id) ? "user_selected" : input.selectionOrigin ?? "automatic_recommendation";
     const category = value.layer === "tourism" && value.contentTypeId === "14" ? "culture"
       : value.layer === "tourism" && value.contentTypeId === "15" ? "festival"
@@ -324,6 +345,7 @@ export function fuseRecommendationCandidatesV2(input: {
         petConditions: value.petConditions ?? null, placeUrl: value.placeUrl ?? null,
         petVerdict: value.petAccessVerdict === "not_allowed" ? "not_allowed" : enriched.petVerdict };
     }
+    candidate = applyRegisteredPlacePolicy(candidate);
     // ponytail: title buckets keep this bounded at city-catalog sizes; spatial index if catalogs reach 100k.
     const titleKey = normalizeIdentityText(candidate.title);
     const bucket = titleBuckets.get(titleKey) ?? [];

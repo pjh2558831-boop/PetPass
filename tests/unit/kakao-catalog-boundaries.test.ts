@@ -30,15 +30,18 @@ describe("Kakao catalog security boundaries", () => {
     for (const name of forbiddenNames) expect(publicSources).not.toContain(name);
   });
 
-  it("keeps the candidate catalog outside recommendation and itinerary modules", () => {
-    const recommendationSources = contents(
-      ["lib/recommendation", "lib/itinerary"].flatMap((root) =>
-        sourceFiles(join(process.cwd(), root)),
-      ),
+  it("keeps catalog category knowledge at the single recommendation admission boundary", () => {
+    const paths = ["lib/recommendation", "lib/itinerary"].flatMap((root) =>
+      sourceFiles(join(process.cwd(), root)),
     );
+    const admission = paths.find((path) => path.endsWith(join("v2", "candidate-fusion.ts")));
+    const recommendationSources = contents(paths.filter((path) => path !== admission));
 
     expect(recommendationSources).not.toMatch(
       /pet_travel_candidate|veterinary|pet_shop|kakao\/collection|place-candidate/u,
+    );
+    expect(admission ? readFileSync(admission, "utf8") : "").toMatch(
+      /value\.layer === "veterinary"[\s\S]*value\.layer === "pet_shop"/u,
     );
   });
 });

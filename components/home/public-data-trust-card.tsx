@@ -39,7 +39,7 @@ export function PublicDataTrustCard() {
         <div>
           <h2 id="weekendoog-trust-title">확인 가능한 근거를 우선합니다</h2>
           <p>
-            공식 정보와 추가 확인이 필요한 후보를 구분하고, 근거가 부족한 후보는 자동 일정 추천에서 제외합니다.
+            등록된 장소의 제공처와 이용 조건을 함께 보여드리고, 실제 이동시간을 일정에 반영합니다.
           </p>
         </div>
       </div>

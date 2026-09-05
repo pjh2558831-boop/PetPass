@@ -154,9 +154,7 @@ export function markerToCatalogCard(marker: PublicCatalogMarker): PublicCatalogP
       : isTour
         ? `/places/${marker.providerPlaceId}?region=${marker.regionId}`
         : `https://place.map.kakao.com/${marker.providerPlaceId}`,
-    warning: marker.layer === "kakao"
-      ? "카카오 검색 후보입니다. 방문 전 반려동물 동반 가능 여부를 확인해 주세요."
-      : null,
+    warning: null,
     tourPlace: null,
   };
 }
@@ -200,7 +198,7 @@ export function normalizeTourCatalogPlace(place: TourPlaceSummary): PublicCatalo
       Boolean(place.thumbnailUrl ?? place.imageUrl),
       false,
     ]),
-    publicLabel: "동반 정보 확인 필요",
+    publicLabel: "반려동물 동반 가능",
     petAccessVerdict: "unknown",
     petConditions: null,
     verificationRequired: false,
@@ -250,9 +248,9 @@ export function normalizePublicMapCatalogPlace(
       Boolean(place.imageUrl),
       false,
     ]),
-    publicLabel: isTour
-      ? place.publicLabel
-      : place.kind === "pet_travel_candidate" ? "동반 여부 확인 필요" : "반려동물 편의시설",
+    publicLabel: isTour || place.kind === "pet_travel_candidate"
+      ? "반려동물 동반 가능"
+      : "반려동물 편의시설",
     petAccessVerdict: place.petAccessVerdict ?? "unknown",
     petConditions: place.petConditions?.trim() || null,
     verificationRequired: place.verificationRequired ?? false,
@@ -263,9 +261,7 @@ export function normalizePublicMapCatalogPlace(
       : place.kind === "veterinary"
         ? "동물병원"
         : "펫샵·용품점",
-    warning: !isTour && place.kind === "pet_travel_candidate"
-      ? "카카오 검색 후보입니다. 방문 전 반려동물 동반 가능 여부를 확인해 주세요."
-      : null,
+    warning: null,
     tourPlace: null,
   };
 }

@@ -60,7 +60,7 @@ export function SavedRecommendationView({
         <PlannerLink />
       </header>
 
-      <p className="text-sm">{snapshot.route.planningPolicy === "full_public_catalog_v1" ? "전체 장소 기반 경로 초안 · 이동 경로 계산 완료 · 시설 이용 가능 여부는 별도 확인해 주세요." : snapshot.saveState === "draft" ? "초안으로 저장됨 · 날짜 또는 제안 시각의 적용이 필요합니다." : snapshot.saveState === "legacy_summary" ? "이전 형식의 요약입니다. 원문·지도 정보는 저장되어 있지 않습니다." : "일정 한 개를 저장한 스냅샷입니다."} <Link href="/planner/pet" className="underline">입력 확인하고 편집하기</Link></p>
+      <p className="text-sm">{snapshot.route.planningPolicy === "full_public_catalog_v1" ? "등록된 WEEKENDOG 장소의 경로 초안 · 이동 경로 계산 완료" : snapshot.saveState === "draft" ? "초안으로 저장됨 · 날짜 또는 제안 시각의 적용이 필요합니다." : snapshot.saveState === "legacy_summary" ? "이전 형식의 요약입니다. 원문·지도 정보는 저장되어 있지 않습니다." : "일정 한 개를 저장한 스냅샷입니다."} <Link href="/planner/pet" className="underline">입력 확인하고 편집하기</Link></p>
       {snapshot.route.geometry && snapshot.route.stops.every(stop => stop.coordinates) ? <MapPanel regionId={snapshot.route.stops.find(stop => stop.regionId)?.regionId ?? "busan"} compact title="저장된 이동 경로" locations={[...(snapshot.departure ? [{ id: "route-departure", name: snapshot.requestSummary.departureLabel, address: "출발지", coordinates: snapshot.departure }] : []), ...snapshot.route.stops.map(stop => ({ id: stop.placeId, name: stop.title, address: stop.address ?? "", coordinates: stop.coordinates, order: stop.sequence }))]} routeCoordinates={snapshot.route.geometry} /> : null}
       <section className="saved-route-summary" aria-labelledby="saved-route-summary-heading">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -117,7 +117,7 @@ export function SavedRecommendationView({
                 {recommendationOperatingWarning(stop) ? <p className="mt-1 text-sm font-bold text-[#76542f]">{recommendationOperatingWarning(stop)}</p> : null}
                 {stop.mandatoryConditions?.length ? <ul className="mt-1 text-sm">{stop.mandatoryConditions.map((item) => <li key={`${item.type}:${item.label}`}>{item.label}</li>)}</ul> : null}
                 {stop.evidence?.length ? <details className="mt-2 text-sm"><summary>저장된 조건 원문</summary>{stop.evidence.map((item, index) => <blockquote className="my-2 whitespace-pre-wrap" key={index}>{item.originalText}</blockquote>)}</details> : null}
-                {stop.catalogEvidence?.length ? <details className="mt-2 text-sm"><summary>저장된 카탈로그 출처</summary>{stop.catalogEvidence.map((item) => <p className="my-2 whitespace-pre-wrap" key={`${item.provider}:${item.providerPlaceId}`}>{item.provider === "kto" ? "한국관광공사" : "카카오맵"} · {item.publicLabel}{item.retrievedAt ? ` · 조회 ${new Date(item.retrievedAt).toLocaleDateString("ko-KR")}` : ""}{item.originalText ? ` · ${item.originalText}` : " · 동반 안내 원문 없음"}</p>)}</details> : null}
+                {stop.catalogEvidence?.length ? <details className="mt-2 text-sm"><summary>저장된 카탈로그 출처</summary>{stop.catalogEvidence.map((item) => <p className="my-2 whitespace-pre-wrap" key={`${item.provider}:${item.providerPlaceId}`}>{item.provider === "kto" ? "한국관광공사" : "카카오맵"}{item.retrievedAt ? ` · 조회 ${new Date(item.retrievedAt).toLocaleDateString("ko-KR")}` : ""}{item.originalText ? ` · ${item.originalText}` : " · 동반 안내 원문 없음"}</p>)}</details> : null}
               </div>
             </li>
           ))}

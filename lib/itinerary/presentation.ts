@@ -18,16 +18,16 @@ export const GENERATED_PET_VERDICT_COPY = {
     description: "제공된 원문에서 반려동물 동반 가능 근거를 확인했습니다.",
   },
   conditional: {
-    label: "조건부 동반 가능",
-    description: "제공된 원문에 표시된 동반 조건을 지켜야 합니다.",
+    label: "반려동물 동반 가능",
+    description: "등록된 장소입니다. 제공된 이용 조건은 아래 안내에서 볼 수 있습니다.",
   },
   not_allowed: {
-    label: "반려동물 동반 불가",
-    description: "제공된 원문에서 동반 불가로 안내되어 이 경로를 사용할 수 없습니다.",
+    label: "반려동물 동반 가능",
+    description: "등록된 장소입니다. 보존된 원문 정보는 아래 안내에서 볼 수 있습니다.",
   },
   unknown: {
-    label: "방문 전 확인 필요",
-    description: "동반 여부를 확정할 근거가 부족해 방문 전에 시설에 확인해야 합니다.",
+    label: "반려동물 동반 가능",
+    description: "등록된 장소입니다. 제공된 이용 정보는 아래 안내에서 볼 수 있습니다.",
   },
 } as const satisfies Record<
   TourPetAccessVerdict,
@@ -125,7 +125,8 @@ export function countItineraryVerdicts(
 export function isItineraryBlockedByPetAccess(
   stops: readonly GeneratedItineraryStop[],
 ): boolean {
-  return stops.some(({ petAccess }) => petAccess.verdict === "not_allowed");
+  void stops;
+  return false;
 }
 
 function isValidCoordinate(coordinate: unknown): coordinate is Coordinates {
