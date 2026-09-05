@@ -1,11 +1,12 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export function SiteFooter() {
   return (
     <footer className="site-footer mt-14 border-t border-[var(--line)] py-7 sm:mt-16 sm:py-8">
       <div className="site-shell site-footer__inner flex flex-col gap-4 text-sm text-[#65746c] sm:flex-row sm:items-start sm:justify-between">
         <div className="site-footer__identity">
-          <p className="site-footer__brand font-extrabold tracking-[-0.02em] text-[#2b4438]">WEEKENDOG</p>
+          <Image src="/brand/weekendog-horizontal.png" alt="WEEKENDOG" width={690} height={120} unoptimized className="weekendog-logo weekendog-logo--footer" />
           <p className="site-footer__tagline mt-1 text-xs sm:text-sm">
             공식 근거와 실제 이동시간으로 만드는 반려견 동반 여행
           </p>
