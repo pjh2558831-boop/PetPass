@@ -14,7 +14,7 @@ export const avatarUrlSchema = z.union([
     .trim()
     .max(2_048)
     .url()
-    .refine((value) => new URL(value).protocol === "https:", {
+    .refine((value) => URL.canParse(value) && new URL(value).protocol === "https:", {
       message: "프로필 이미지는 HTTPS 주소만 사용할 수 있습니다.",
     }),
 ]);
@@ -54,6 +54,14 @@ export function socialProfileDefaults(metadata: Record<string, unknown>) {
     (value): value is string => typeof value === "string" && value.trim().length > 0,
   );
   const name = nameCandidate?.trim() ?? "";
-  const avatarUrl = typeof metadata.avatar_url === "string" ? metadata.avatar_url : null;
-  return { displayName: name.slice(0, 24), avatarUrl };
+  let avatarCandidate = typeof metadata.avatar_url === "string" ? metadata.avatar_url : "";
+  if (URL.canParse(avatarCandidate)) {
+    const url = new URL(avatarCandidate);
+    if (url.protocol === "http:" && url.hostname.endsWith(".kakaocdn.net")) {
+      url.protocol = "https:";
+      avatarCandidate = url.href;
+    }
+  }
+  const avatar = avatarUrlSchema.safeParse(avatarCandidate);
+  return { displayName: name.slice(0, 24), avatarUrl: avatar.success ? avatar.data || null : null };
 }

@@ -189,7 +189,7 @@ test("keeps the assessment readable without horizontal overflow", async ({ page 
   );
   expect(overflow).toBeLessThanOrEqual(1);
   const assessment = page.locator(".place-detail-assessment");
-  const intro = page.locator(".place-detail-intro");
+  const intro = page.locator(".detail-main");
   const [assessmentBox, introBox] = await Promise.all([
     assessment.boundingBox(),
     intro.boundingBox(),
@@ -227,8 +227,8 @@ test("puts the visit decision before evidence and removes dashboard-style detail
   expect(hierarchy).not.toBeNull();
   expect(hierarchy?.[0] ?? Number.POSITIVE_INFINITY).toBeLessThan(hierarchy?.[1] ?? 0);
   expect(hierarchy?.[1] ?? Number.POSITIVE_INFINITY).toBeLessThan(hierarchy?.[2] ?? 0);
-  expect(hierarchy?.[2] ?? Number.POSITIVE_INFINITY).toBeLessThan(hierarchy?.[3] ?? 0);
-  expect(hierarchy?.[3] ?? Number.POSITIVE_INFINITY).toBeLessThan(hierarchy?.[4] ?? 0);
+  expect(hierarchy?.[2] ?? Number.POSITIVE_INFINITY).toBeLessThan(hierarchy?.[4] ?? 0);
+  await expect(page.locator(".detail-sidebar #source-trust-heading")).toBeVisible();
 });
 
 test("keeps technical assessment and trust metadata in accessible disclosures", async ({
@@ -302,4 +302,17 @@ test("replaces a failed provider image with an accessible fallback", async ({
     page.getByRole("img", { name: "이미지 오류 관광지 이미지 불러오기 실패" }),
   ).toBeVisible();
   await expect(page.getByText("이미지를 불러올 수 없어요")).toBeVisible();
+});
+
+test("adds and removes the detail place from the itinerary", async ({ page }) => {
+  await page.goto("/places/3004?region=busan");
+  const add = page.getByRole("button", { name: "일정에 담기", exact: true });
+  await expect(add).toBeEnabled();
+  await add.click();
+  await expect(page.getByRole("button", { name: "일정에 담음", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.reload();
+  const selected = page.getByRole("button", { name: "일정에 담음", exact: true });
+  await expect(selected).toBeVisible();
+  await selected.click();
+  await expect(page.getByRole("button", { name: "일정에 담기", exact: true })).toHaveAttribute("aria-pressed", "false");
 });

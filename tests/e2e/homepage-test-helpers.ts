@@ -431,7 +431,23 @@ export async function fulfillInitial(
   });
 }
 
+export async function mockHomepageCardDetails(page: Page, snapshot = SNAPSHOT) {
+  await page.route("**/api/map/places/cards?**", (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    const items = (params.get("ids") ?? "").split(",").map((id) => ({
+      id, address: "부산 테스트 주소", phone: null,
+      imageUrl: snapshot.markers.find((marker) => marker.id === id)?.imageUrl ?? null,
+      placeUrl: null, contentTypeId: null,
+    }));
+    return route.fulfill({ json: { ok: true, data: {
+      contractVersion: 1, region: params.get("region"), dataset: params.get("dataset"),
+      publicationVersion: "p1-e2e", items, page: 1, pageSize: 12, totalCount: items.length,
+    } } });
+  });
+}
+
 export async function mockHomepage(page: Page, snapshot = SNAPSHOT) {
+  await mockHomepageCardDetails(page, snapshot);
   await page.route(HOMEPAGE_INITIAL_API, (route) => {
     const scope = new URL(route.request().url()).searchParams.get("scope") === "optional"
       ? "optional"

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { Plus, UserRound } from "lucide-react";
+import { Plus, UserRound, PawPrint, Lightbulb, Pencil, LogOut } from "lucide-react";
 import { redirect } from "next/navigation";
 import { signOut } from "@/app/account/actions";
 import { PET_IMAGE_BUCKET } from "@/lib/auth/pet-image";
@@ -65,26 +65,28 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             : null;
 
   return (
-    <section className="site-shell py-12 sm:py-16">
-      <div className="account-document mx-auto max-w-4xl">
+    <section className="site-shell account-redesign">
+      <div className="account-document mx-auto">
+        <div className="account-page-heading"><h1>마이페이지</h1><p>나와 반려동물의 특별한 여행을 더 편리하게 관리해보세요.</p></div>
         <header className="account-document__header">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="eyebrow">마이페이지</p>
+              
               <div className="mt-4 flex items-center gap-4">
                 <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--brand-soft)] font-black text-[var(--brand)]">
                   {profile.avatar_url ? <Image src={profile.avatar_url} alt="커뮤니티 프로필 이미지" width={64} height={64} unoptimized className="size-full object-cover" /> : <UserRound size={32} strokeWidth={1.8} aria-hidden="true" />}
                 </div>
                 <div className="min-w-0">
-                  <h1 className="break-words text-2xl font-black [overflow-wrap:anywhere]">{profile.display_name}</h1>
+                  <h2 className="break-words text-2xl font-black [overflow-wrap:anywhere]">{profile.display_name}</h2>
                   <p className="mt-1 text-sm text-[var(--muted)]">커뮤니티와 헤더에 이 이름과 이미지가 표시됩니다.</p>
                 </div>
               </div>
             </div>
-            {!isLegacyPetSchema ? <Link href="/account/profile" className="inline-flex min-h-11 items-center rounded-lg border border-[var(--line)] bg-white px-4 text-sm font-extrabold">내 프로필 수정</Link> : null}
+            {!isLegacyPetSchema ? <Link href="/account/profile" className="inline-flex min-h-11 items-center rounded-lg border border-[var(--line)] bg-white px-4 text-sm font-extrabold"><Pencil size={16} aria-hidden="true" />내 프로필 수정</Link> : null}
           </div>
         </header>
 
+        <aside className="account-pet-tip"><Lightbulb size={23} aria-hidden="true" /><p>등록한 반려동물은<br /><b>맞춤 일정</b>을 만들 때 바로 사용할 수 있어요.</p></aside>
         <section className="account-document__section" aria-labelledby="saved-pet-heading">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
@@ -92,7 +94,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               <h2 id="saved-pet-heading" className="mt-2 text-2xl font-black">등록한 반려동물</h2>
               <p className="mt-2 text-sm leading-6 text-[var(--muted)]">여행 계획 입력과 별도로 마이페이지에서 여러 마리를 관리할 수 있습니다.</p>
             </div>
-            {!isLegacyPetSchema ? <Link href="/account/pets/new" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-extrabold text-white"><Plus size={17} aria-hidden="true" />반려동물 정보 추가하기</Link> : null}
+            {!isLegacyPetSchema && pets.length > 0 ? <Link href="/account/pets/new" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-extrabold text-white"><Plus size={17} aria-hidden="true" />반려동물 정보 추가하기</Link> : null}
           </div>
 
           {isLegacyPetSchema ? <p role="note" className="account-document__notice mt-5">이전에 저장한 반려동물 정보는 현재 읽기 전용으로 표시됩니다.</p> : null}
@@ -111,15 +113,17 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               ))}
             </div>
           ) : (
-            <div className="mt-6 border-t border-[var(--line)] py-6">
+            <div className="account-pet-empty"><span className="account-pet-empty__icon"><PawPrint size={38} aria-hidden="true" /></span>
               <p className="font-extrabold">아직 등록한 반려동물이 없습니다.</p>
-              <p className="mt-1 text-sm text-[var(--muted)]">사진과 기본 정보를 등록해 보세요.</p>
+              <p className="mt-1 text-sm text-[var(--muted)]">우리 아이의 사진과 기본 정보를 등록하고 여행을 준비해 보세요.</p>
+              {!isLegacyPetSchema ? <Link href="/account/pets/new" className="account-add-pet"><Plus size={18} aria-hidden="true" />반려동물 정보 추가하기</Link> : null}
             </div>
           )}
         </section>
 
         <form action={signOut} noValidate className="account-document__footer flex justify-end">
-          <button type="submit" className="inline-flex min-h-11 items-center rounded-lg border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[#52645b]">로그아웃</button>
+          <div className="account-management-copy"><h2>계정 관리</h2><p>더 안전하고 편리한 서비스를 위해 계정을 관리할 수 있습니다.</p></div>
+          <button type="submit" className="inline-flex min-h-11 items-center rounded-lg border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[#52645b]"><LogOut size={17} aria-hidden="true" />로그아웃</button>
         </form>
       </div>
     </section>

@@ -15,11 +15,13 @@ export function PublicCatalogCard({
   onSelect,
   staticMapEnabled,
   itinerarySelection,
+  idPrefix = "place-card",
 }: {
   place: PublicCatalogPlace;
   selected: boolean;
   onSelect: () => void;
   staticMapEnabled: boolean;
+  idPrefix?: string;
   itinerarySelection?: {
     selected: boolean;
     disabledReason?: string;
@@ -37,7 +39,7 @@ export function PublicCatalogCard({
     : place.warning;
   return (
     <article
-      id={`place-card-${place.id.replace(":", "-")}`}
+      id={`${idPrefix}-${place.id.replace(":", "-")}`}
       className={`catalog-result-card ${hasImage ? "catalog-result-card--with-image" : "catalog-result-card--text-only"} ${selected ? "is-selected" : ""}`}
       aria-current={selected ? "true" : undefined}
     >
@@ -57,7 +59,7 @@ export function PublicCatalogCard({
             <p className="catalog-result-card__condition-summary">{petConditions}</p>
             <Disclosure
               label="반려견 동반 조건"
-              idPrefix={`pet-condition-${place.id.replace(":", "-")}`}
+              idPrefix={`${idPrefix}-pet-condition-${place.id.replace(":", "-")}`}
               className="catalog-result-card__condition-disclosure"
             >
               <p className="catalog-result-card__condition-full">{petConditions}</p>

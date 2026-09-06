@@ -649,3 +649,62 @@ No actionable P0, P1, or P2 differences remain. The optional category count elli
 - P3: if category names or localization become longer, revisit the 720 px desktop width and the 359 px single-column breakpoint.
 
 final result: passed
+
+## Map workspace revision — 2026-09-06
+
+Reference: user-supplied ChatGPT Image 2026년 9월 6일 오전 11_23_36.png.
+Scope: /results?tab=catalog, existing WEEKENDOG shell and live provider contracts.
+
+- Compared the supplied reference with the actual local IAB render, including
+  the selected-place preview. Left rail, edge-to-edge map, photo list, pagination
+  and right map controls reproduce the requested structure.
+- Mobile preview initially covered zoom controls; reserved a separate right
+  control lane and reran both desktop/mobile interaction checks successfully.
+- Desktop/map and mobile screenshots: test-results/full-map-explorer-matches--089b5-a-dismissible-place-preview-{chromium,mobile-chrome}/map-redesign.png.
+- Final focused browser run: 7 passed, 1 existing desktop-only skip; additional
+  Gyeonggi marker/list synchronization rerun passed. Includes map/list switching,
+  source/region/filter controls, 320–1024px overflow, popup close, zoom/satellite
+  and preservation of marker registry size.
+- npm run verify passed (typecheck, lint, 1438 unit tests, production build).
+  Final build, lint and targeted browser checks passed after follow-up changes.
+- Existing broader-suite limitation: 7 checks expect differentiated pet-access
+  labels, while HEAD's selectedItineraryVerdictLabel always returns allowed.
+  This pre-existing semantic behavior was not changed by the visual request.
+  The eighth initial failure selected the new preview instead of a list card;
+  scoping result-list assertions fixed that regression.
+- Live local KTO/snapshot requests failed during visual review; the existing
+  fallback catalog, map, explicit provider errors and missing-photo behavior
+  remained usable. Full official-photo success could not be reverified live.
+- No fictional ratings, hours, multi-image galleries, or personal account data
+  were added to match the illustration. No production deployment performed.
+
+final result: passed (requested layout and interactions); full release validation
+remains limited by the pre-existing access-label checks and live provider failure.
+
+
+## Map comment fixes — 2026-09-06
+
+- Environment / URL: local Next.js development, /results?tab=catalog&region=busan&page=1.
+- Removed the source toolbar row and the application's map watermark on the catalog map; Kakao attribution remains.
+- Selection scrolls only the results list; marker selection preserves mobile map mode. The rich preview is rendered through a React portal into the existing Kakao CustomOverlay at the selected coordinates.
+- Desktop: real Kakao map, preview selection/dismissal and zoom checked in the in-app browser; document scroll stayed at zero.
+- Mobile: existing Pixel 7 Playwright flow passed; preview and close control fit within the map.
+- Browser regression: 5 passed, 1 skipped (desktop-only tray test on mobile). Includes source/watermark absence, preview lifecycle, map controls and marker-event document-scroll preservation.
+- Console: no errors in the live browser check.
+- Network: catalog snapshot returned 503 and the existing compatibility path supplied 538 places; one upstream tourism photo returned 404. These existing provider failures were not changed.
+- Screenshots: temporary Playwright map-redesign.png artifacts inspected for desktop/mobile.
+- Test mock corrected to honor custom-overlay anchoring; marker-event regression dispatches the SDK click without Playwright auto-scrolling an offscreen mock marker.
+
+## 2026-09-06 — Four supplied page references
+
+Final result: passed for the implemented layouts and preserved flows.
+
+Targets: user references 05_35_48 (place), 05_35_49 (account), 05_35_55 (route result), 05_35_58 (generation).
+Implementation: live /places/126078?region=busan, actual AccountPage rendered with an isolated empty-account mock, and recommendation E2E states at desktop/mobile sizes.
+Evidence: verification-evidence/account-chromium.png, account-mobile-chrome.png, detail-chromium.png, detail-mobile-chrome.png, recommendation-ui-shows-co-afaa0-ithout-fake-pipeline-stages-*-redesign.png. Account reference and render, and generation reference and render were opened together for comparison. Live detail was separately checked against the supplied place image; provider photographs differ from the reference.
+
+Iteration: shortened the overly tall hero photo to 430px desktop/240px mobile; consolidated loading UI into one panel; added bordered source and condition sections; preserved the mobile single-column arrangement. Account profile/empty-state spacing and mobile wrapping checked. Source order assertions were updated for the intentional sidebar rather than the old full-width document.
+
+Intentional data differences: current brand/header/footer retained; no invented join date, account preferences, fee, image gallery count, or pet policy. No new legal links. Account capture is component-level layout evidence, not a real authenticated account/session test. Route screenshots use the existing provider/map test doubles; optional real tourism photos load through the existing card-details endpoint. Loading presents what is being checked without claiming completed server stages or an invented duration.
+
+Validation: strict TypeScript, lint (clean after removing an unused test parameter), 1439 unit tests and production build passed. Relevant E2E run: 101 passed, 2 intentional skips, 1 obsolete source-order assertion; after adapting that assertion to the requested sidebar, all 6 targeted desktop/mobile checks passed, including itinerary add/remove persistence. Earlier width assertion likewise now checks the actual main column. No production deployment performed.
