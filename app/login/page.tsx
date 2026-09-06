@@ -26,7 +26,7 @@ export default async function LoginPage({
 
   const { error, mode: requestedMode } = await searchParams;
   const mode = requestedMode === "signup" ? "signup" : "login";
-  const kakaoEnabled = process.env.KAKAO_LOGIN_ENABLED === "true";
+  const kakaoEnabled = process.env.KAKAO_LOGIN_ENABLED !== "false";
   return (
     <section className="site-shell py-12 sm:py-16">
       <div className="auth-document mx-auto max-w-lg">

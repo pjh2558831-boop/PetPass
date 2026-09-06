@@ -761,8 +761,10 @@ test("shows compact request-backed loading without fake pipeline stages", async 
   await expect(page.getByText("선택 장소 확인")).toHaveCount(0);
   await expect(page.getByText("추천 완료")).toHaveCount(0);
   await expect(page.getByText(/\d+%/u)).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath("loading-redesign.png"), fullPage: true });
   release!();
   await expect(page.getByRole("heading", { name: /에서 시작하는 2곳 일정/u })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("result-redesign.png"), fullPage: true });
 });
 
 test("shows time-limited wording and preserves confirmed input across a recoverable failure", async ({ page }, testInfo) => {

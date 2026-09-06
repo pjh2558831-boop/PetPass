@@ -17,6 +17,15 @@ describe("community profile input", () => {
     expect(displayNameSchema.safeParse("a".repeat(25)).success).toBe(false);
   });
 
+  it("normalizes Kakao HTTP avatars to HTTPS and drops unusable social defaults", () => {
+    const defaults = socialProfileDefaults({ avatar_url: "http://img1.kakaocdn.net/profile/avatar.jpg" });
+    expect(defaults.avatarUrl).toBe("https://img1.kakaocdn.net/profile/avatar.jpg");
+    expect(avatarUrlSchema.safeParse(defaults.avatarUrl).success).toBe(true);
+    for (const avatar_url of ["javascript:alert(1)", "bad-url", "http://images.example/a.jpg", "http://kakaocdn.net.evil.example/a.jpg"]) {
+      expect(socialProfileDefaults({ avatar_url }).avatarUrl).toBeNull();
+    }
+  });
+
   it("accepts only empty or HTTPS avatar URLs", () => {
     expect(avatarUrlSchema.safeParse("").success).toBe(true);
     expect(avatarUrlSchema.safeParse("https://images.example/avatar.webp").success).toBe(true);

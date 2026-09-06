@@ -7,7 +7,7 @@ import { FormErrorMessage } from "@/components/ui/form-error-message";
 
 export function OAuthLoginButtons({
   mode = "login",
-  kakaoEnabled = false,
+  kakaoEnabled = true,
 }: {
   mode?: "login" | "signup";
   kakaoEnabled?: boolean;
@@ -21,7 +21,11 @@ export function OAuthLoginButtons({
     const supabase = createAuthBrowserClient();
     const { error: signInError } = await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        // Supabase's default Kakao scopes include account_email, which this app cannot request.
+        ...(provider === "kakao" ? { queryParams: { scope: "profile_nickname profile_image" } } : {}),
+      },
     });
     if (signInError) {
       setError("로그인을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");

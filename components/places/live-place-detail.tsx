@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
+  CalendarPlus,
+  Share2,
+  ShieldCheck,
   CalendarX2,
   Car,
   Clock3,
@@ -13,6 +16,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { MapPanel } from "@/components/map/map-panel";
+import { useSelectedItinerarySelection } from "@/components/places/use-selected-itinerary-selection";
 import { PlaceImage } from "@/components/places/place-image";
 import { LicenseInformationPanel } from "@/components/places/license-information-panel";
 import {
@@ -63,6 +67,8 @@ export function LivePlaceDetail({
   regionId: RegionId;
 }) {
   const region = getRegionConfig(regionId);
+  const selection = useSelectedItinerarySelection({ regionId });
+  const [shareMessage, setShareMessage] = useState("");
   const [state, setState] = useState<DetailState>("loading");
   const [detail, setDetail] = useState<TourPlaceDetailResponse | null>(null);
   const [error, setError] = useState("");
@@ -207,13 +213,20 @@ export function LivePlaceDetail({
   ];
 
   return (
-    <div className="page-shell py-8 sm:py-12">
+    <div className="page-shell detail-redesign">
+      <div className="detail-topbar">
       <Link
         href={`/results?tab=catalog&region=${regionId}`}
         className="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-bold text-[#52665b] hover:text-[#236148]"
       >
         <ArrowLeft size={17} aria-hidden="true" /> 장소 목록으로
       </Link>
+      <button type="button" onClick={async () => {
+        try { await navigator.clipboard.writeText(window.location.href); setShareMessage("장소 링크를 복사했습니다."); }
+        catch { setShareMessage("링크를 복사하지 못했습니다. 주소창의 URL을 복사해 주세요."); }
+      }}><Share2 size={16} aria-hidden="true" />공유하기</button>
+      </div>
+      {shareMessage ? <p role="status">{shareMessage}</p> : null}
 
       {unavailableSections.length > 0 ? (
         <div className="mt-5 rounded-[8px] border border-[#e8d2bd] bg-[#fff8f1] p-4 text-sm text-[#6a5547]" role="status">
@@ -226,12 +239,13 @@ export function LivePlaceDetail({
         </div>
       ) : null}
 
-      <div className={`place-detail-intro mt-5 ${detailImageUrl ? "grid gap-7 lg:grid-cols-[minmax(320px,.72fr)_minmax(0,1.28fr)] lg:items-start" : "max-w-4xl"}`}>
-        {detailImageUrl ? <div>
+      <div className={`place-detail-intro ${detailImageUrl ? "has-photo" : ""}`}>
+        {detailImageUrl ? <div className="detail-hero-photo">
           <PlaceImage
             imageUrl={detailImageUrl}
             title={title}
             priority
+            sizes="(max-width: 900px) 100vw, 620px"
           />
         </div> : null}
         <div>
@@ -246,13 +260,14 @@ export function LivePlaceDetail({
           <h1 className="mt-4 text-3xl font-black tracking-[-0.045em] sm:text-4xl">
             {title}
           </h1>
+          <p className="detail-address"><MapPin size={16} aria-hidden="true" />{address || regionLabel}</p>
           <PetAccessDecisionSummary
             assessment={detail.petAccessAssessment}
             regionId={regionId}
           />
 
           <dl className="place-detail-facts mt-6 text-sm">
-            {informationCards.map(({ icon: Icon, label, value }) => (
+            {informationCards.slice(0, 4).map(({ icon: Icon, label, value }) => (
               <div key={label}>
                 <dt className="flex items-center gap-3 text-xs font-extrabold text-[#52635a]">
                   <Icon size={18} className="shrink-0 text-[#3d8b68]" aria-hidden="true" />
@@ -262,6 +277,14 @@ export function LivePlaceDetail({
               </div>
             ))}
           </dl>
+          <div className="detail-primary-actions">
+            <button type="button" disabled={!selection.hydrated} aria-pressed={selection.snapshot.places.some(p => p.id === `tour:${contentId}`)} onClick={() => selection.toggle({
+              id: `tour:${contentId}`, regionId, providerPlaceId: contentId, name: title, layer: "tourism", category: ["attraction", "food", "accommodation", "shopping", "leisure"].includes(detail.summary.category) ? detail.summary.category as "attraction" | "food" | "accommodation" | "shopping" | "leisure" : "other",
+              sourceLabel: "한국관광공사", publicLabel: "한국관광공사 제공 장소", petAccessVerdict: "unknown", imageUrl: detailImageUrl,
+            })}><CalendarPlus size={18} aria-hidden="true" />{selection.snapshot.places.some(p => p.id === `tour:${contentId}`) ? "일정에 담음" : "일정에 담기"}</button>
+            {coordinates ? <a href="#detail-location"><MapPin size={18} aria-hidden="true" />지도에서 보기</a> : null}
+          </div>
+          {selection.message ? <p role="status" className="text-sm mt-2">{selection.message}</p> : null}
           {detail.homepageUrl ? (
             <a
               href={detail.homepageUrl}
@@ -275,7 +298,12 @@ export function LivePlaceDetail({
         </div>
       </div>
 
-      <section className="place-detail-overview mt-10" aria-labelledby="place-overview-heading">
+      <nav className="detail-section-nav" aria-label="장소 상세 목차">
+        <a href="#place-overview-heading">장소 소개</a><a href="#pet-access-evidence-heading">동반 가능 조건</a><a href="#source-trust-heading">출처와 신뢰도</a><a href="#detail-basic">기본 정보</a>{coordinates ? <a href="#detail-location">위치</a> : null}
+      </nav>
+      <div className="detail-body-grid">
+      <div className="detail-main">
+      <section className="place-detail-overview" aria-labelledby="place-overview-heading">
         <h2 id="place-overview-heading" className="text-xl font-black tracking-[-0.03em]">
           장소 소개
         </h2>
@@ -291,9 +319,7 @@ export function LivePlaceDetail({
           />
         </div>
 
-        <div className="place-detail-source mt-10">
-          <SourceTrustPanel sourceRecords={detail.sourceRecords} trust={detail.trust} />
-        </div>
+
 
         <section
           className="place-detail-technical-layer mt-10"
@@ -323,11 +349,20 @@ export function LivePlaceDetail({
           />
       </div>
 
-      {coordinates ? (
-        <div className="mt-12">
+      </div>
+      <aside className="detail-sidebar">
+        <section id="detail-basic" className="detail-at-a-glance"><h2><ShieldCheck size={20} aria-hidden="true" />한눈에 보기</h2>
+          <dl>{informationCards.map(({label,value}) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+        </section>
+        <div className="place-detail-source mt-10">
+          <SourceTrustPanel sourceRecords={detail.sourceRecords} trust={detail.trust} />
+        </div>      {coordinates ? (
+        <section id="detail-location" className="detail-location"><h2><MapPin size={20} aria-hidden="true" />위치</h2>
           <MapPanel
             regionId={regionId}
             compact
+            showWatermark={false}
+            showLocationLabel={false}
             initialLevel={4}
             title={`${title} 위치`}
             locationLabel={regionLabel}
@@ -342,8 +377,10 @@ export function LivePlaceDetail({
               },
             ]}
           />
-        </div>
+        </section>
       ) : null}
+      </aside>
+      </div>
     </div>
   );
 }

@@ -3,6 +3,10 @@
 import Link from "next/link";
 import {
   AlertTriangle,
+  PawPrint,
+  Info,
+  Route,
+  Clock3,
   ArrowDown,
   ArrowUp,
   Check,
@@ -22,6 +26,9 @@ import {
   useRef,
   useState,
 } from "react";
+import { PlaceImage } from "@/components/places/place-image";
+import { requestMapPlaceCardDetails } from "@/lib/map-places/card-details-client";
+import type { RegionId } from "@/types/region";
 import { MapPanel } from "@/components/map/map-panel";
 import { RecommendationStopProvenance } from "@/components/itinerary/recommendation-stop-provenance";
 import { usePlannerState } from "@/components/planner/planner-state";
@@ -222,14 +229,20 @@ function LoadingResult({
         <h1>맞춤 일정을 만들고 있습니다</h1>
         <p>반려견 동반 근거와 실제 이동 경로를 확인하고 있어요.</p>
       </header>
-      <div className="recommendation-loading__progress" aria-hidden="true">
-        <span />
-      </div>
       {conditions.length > 0 ? (
         <ul className="recommendation-loading__conditions" aria-label="입력한 여행 조건">
           {conditions.map((condition) => <li key={condition}>{condition}</li>)}
         </ul>
       ) : null}
+      <div className="recommendation-loading__process">
+        <div className="recommendation-loading__activity"><LoaderCircle size={96} strokeWidth={1.5} className="animate-spin" aria-hidden="true" /><PawPrint size={32} aria-hidden="true" /><h2>동선을 계산하고 있어요</h2><p>잠시만 기다려 주세요.</p></div>
+        <ol className="recommendation-loading__checks">
+          <li><PawPrint size={20} aria-hidden="true" /><div><b>반려동물 조건 확인</b><p>입력한 조건과 장소의 동반 안내를 비교합니다.</p></div></li>
+          <li><Route size={20} aria-hidden="true" /><div><b>실제 이동 경로 계산</b><p>장소 사이의 도로와 이동 시간을 확인합니다.</p></div></li>
+          <li><Clock3 size={20} aria-hidden="true" /><div><b>방문 순서 구성</b><p>머무는 시간까지 반영해 하루 일정을 구성합니다.</p></div></li>
+        </ol>
+      </div>
+      <div className="recommendation-loading__preview-heading"><h2>추천 일정 미리보기</h2><p>결과가 준비되면 아래에서 확인할 수 있어요.</p></div>
       <ol className="recommendation-loading__stops" aria-hidden="true">
         {[1, 2, 3].map((sequence) => (
           <li key={sequence} className="recommendation-loading-stop">
@@ -238,6 +251,7 @@ function LoadingResult({
           </li>
         ))}
       </ol>
+      <p className="recommendation-loading__notice"><Info size={19} aria-hidden="true" />일정이 완성되면 이 화면에 자동으로 표시됩니다.</p>
       {slow ? <p className="recommendation-loading__slow">공개 장소와 도로 경로를 확인하는 데 시간이 조금 더 걸리고 있습니다.</p> : null}
       <Button type="button" variant="brandSecondary" onClick={onCancel}>요청 취소</Button>
     </section>
@@ -291,7 +305,9 @@ function Timeline({
   onRemove,
   onReplace,
   replacementSupported,
+  regionId,
 }: {
+  regionId: RegionId;
   route: ProductRouteV1;
   validated: boolean;
   selectedPlaceId: string | null;
@@ -301,6 +317,15 @@ function Timeline({
   onReplace: (id: string) => void;
   replacementSupported: boolean;
 }) {
+  const [photos, setPhotos] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const controller = new AbortController();
+    const ids = route.stops.filter(stop => stop.source === "tourism_service2").map(stop => stop.placeId.startsWith("tour:") ? stop.placeId : `tour:${stop.placeId}`).filter(id => /^tour:\d+$/.test(id));
+    if (ids.length) void requestMapPlaceCardDetails(regionId, "core", ids, controller.signal).then(data => {
+      if (!controller.signal.aborted) setPhotos(Object.fromEntries(data.items.filter(item => item.imageUrl).map(item => [item.id, item.imageUrl!])));
+    }).catch(() => { /* Photos are optional; keep the complete route usable. */ });
+    return () => controller.abort();
+  }, [route.stops, regionId]);
   return (
     <ol className="route-result-timeline" aria-label={`${route.label} 방문 순서`}>
       {route.stops.map((stop, index) => {
@@ -328,6 +353,7 @@ function Timeline({
               <span>{stop.sequence}</span>
               <b>{validated ? `${koreaTime(stop.arrivalAt, stop.arrivalOffsetSeconds, route.schedule)} 도착` : "경로 재계산 전"}</b>
             </span>
+            {photos[stop.placeId.startsWith("tour:") ? stop.placeId : `tour:${stop.placeId}`] ? <PlaceImage imageUrl={photos[stop.placeId.startsWith("tour:") ? stop.placeId : `tour:${stop.placeId}`]} title={stop.title} className="route-result-stop__photo" sizes="140px" /> : null}
             <h3 className="route-result-stop__title">{stop.title}</h3>
             <p className="route-result-stop__category">{CATEGORY_LABEL[stop.category]} · {stop.sourceLabel}</p>
             <dl className="route-result-stop__facts">
@@ -357,6 +383,7 @@ function Timeline({
                 {stop.mandatoryConditions.map((condition) => <li key={`${condition.type}:${condition.label}`}>· {condition.label}</li>)}
               </ul>
             ) : null}
+            {inclusion.length ? <p className="route-result-stop__reason"><Info size={17} aria-hidden="true" /><span><b>추천 이유</b>{inclusion[0]}</span></p> : null}
             <details className="route-result-stop__details">
               <summary className="cursor-pointer text-sm font-black text-[var(--brand)]">추천 근거와 이용 안내</summary>
               <div className="mt-3 grid gap-4 text-sm leading-6 sm:grid-cols-2">
@@ -895,7 +922,7 @@ export function RecommendationPlanner({
       ? `요청한 ${displayedRoute.requestedTarget ?? "목표"}곳보다 적은 ${summary.stopCount}곳으로 이동 경로를 계산했어요.`
       : null;
   return (
-    <div className="space-y-6" aria-busy={loading || revalidating}>
+    <div className="route-redesign space-y-6" aria-busy={loading || revalidating}>
       {displayedRoute.planningPolicy === "full_public_catalog_v1" ? <p className="rounded border border-[var(--line)] p-4 text-sm"><strong>전체 장소 기반 추천</strong> · 등록된 WEEKENDOG 장소로 이동 경로를 계산한 초안입니다.</p> : null}
       {loading ? <p role="status">새 일정을 확인하고 있습니다. 이전 경로를 계속 볼 수 있어요. <button type="button" className="underline" onClick={() => { controllerRef.current?.abort(); requestSequenceRef.current++; setLoading(false); setRevalidating(false); }}>요청 취소</button></p> : null}
       {response && response.status !== "ready" ? <section role="alert" className="rounded border border-[#dfccb3] bg-[#fff8ec] p-4"><p>{response.userMessage}</p><p>아래 경로는 마지막으로 성공한 입력 기준입니다.</p><Button type="button" onClick={() => void runRecommendation()}>현재 입력으로 다시 시도</Button><Link href="/planner/pet" className="ml-4 underline">입력 수정</Link></section> : null}
@@ -1010,15 +1037,15 @@ export function RecommendationPlanner({
         </section>
       ) : null}
 
-      <div role="tabpanel" id={`route-panel-${displayedRoute.id}`} aria-labelledby={`route-tab-${displayedRoute.id}`} className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(340px,.92fr)]">
+      <div role="tabpanel" id={`route-panel-${displayedRoute.id}`} aria-labelledby={`route-tab-${displayedRoute.id}`} className="route-result-columns">
         <section className="min-w-0" aria-labelledby="route-timeline-heading">
           <div className="mb-4"><p className="eyebrow">시간순 방문 일정</p><h2 id="route-timeline-heading" className="mt-1 text-2xl font-black">출발지부터 이어지는 실제 이동 순서</h2></div>
-          <Timeline route={displayedRoute} validated={!editDirty} selectedPlaceId={selectedPlaceId} onSelect={showPlaceOnMap} onMove={moveStop} onRemove={removeStop} onReplace={(id) => void runRecommendation("reroll", id)} replacementSupported={replacementSupported} />
+          <Timeline regionId={plannerRegion.id} route={displayedRoute} validated={!editDirty} selectedPlaceId={selectedPlaceId} onSelect={showPlaceOnMap} onMove={moveStop} onRemove={removeStop} onReplace={(id) => void runRecommendation("reroll", id)} replacementSupported={replacementSupported} />
           {editDirty ? <div className="route-result-edit-bar"><p className="mr-auto text-sm font-bold text-[#52665b]">순서 또는 방문지를 바꿨습니다. 실제 경로를 다시 확인해 주세요.</p><Button type="button" variant="brand" disabled={revalidating} onClick={() => void revalidate()}>{revalidating ? <LoaderCircle className="animate-spin" size={16} aria-hidden="true" /> : <Check size={16} aria-hidden="true" />} 경로 다시 계산</Button><Button type="button" variant="brandSecondary" onClick={() => { setActiveRoute(ready.route); setEditableIds(ready.route.stops.map(({ placeId }) => placeId)); setEditDirty(false); setSelectedPlaceId(ready.route.stops[0]?.placeId ?? null); setManualError(""); }}><RotateCcw size={16} aria-hidden="true" /> 원래 추천 복원</Button></div> : null}
           {manualError ? <p className="mt-3 rounded-xl border border-[#e5bdb7] bg-[#fff1ef] p-4 text-sm font-bold text-[#823f36]" role="alert">{manualError}</p> : null}
         </section>
 
-        <aside ref={mapRef} className="min-w-0 lg:sticky lg:top-24 lg:self-start" aria-label="추천 일정 지도">
+        <aside ref={mapRef} className="min-w-0 lg:sticky lg:top-24 lg:self-start" aria-label="추천 일정 지도"><h2 className="route-map-title"><MapPinned size={20} aria-hidden="true" />이동 경로</h2>
           <MapPanel regionId={plannerRegion.id} compact locations={routeLocations} routeCoordinates={editDirty ? [] : displayedRoute.geometry} selectedLocationId={selectedPlaceId} selectionFocusKey={mapFocusKey} onLocationSelect={selectPlace} viewportKey={`route:${displayedRoute.id}:${editDirty ? "draft" : "validated"}`} title="추천 일정 이동 경로" locationLabel={`${summary.stopCount}곳 방문 일정`} emptyMessage={editDirty ? "수정한 순서를 재계산하면 이동 경로를 표시합니다." : "확인된 이동 경로가 없습니다."} />
           <p className="route-result-map-note"><MapPinned className="mr-1 inline" size={14} aria-hidden="true" /> {editDirty ? "번호는 수정한 방문 순서입니다. 경로 재계산 전에는 선을 표시하지 않습니다." : "번호는 방문 순서이며 선은 확인된 최종 이동 경로입니다."}</p>
           <section className="route-result-reliability" aria-labelledby="route-reliability-heading"><h2 id="route-reliability-heading" className="flex items-center gap-2 text-sm font-black"><ShieldCheck size={17} className="text-[var(--brand)]" aria-hidden="true" /> 정보 안내</h2><p className="mt-2 text-xs leading-6 text-[var(--muted)]">한국관광공사와 카카오의 등록 장소를 출처와 이용 조건과 함께 표시합니다. 이동 경로 계산은 시설 영업을 보장하지 않으므로 운영시간 안내를 확인해 주세요.</p></section>
