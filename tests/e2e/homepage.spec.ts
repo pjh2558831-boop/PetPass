@@ -24,6 +24,7 @@ import {
   MAP_FAILURE_TEST,
   marker,
   mockHomepage,
+  mockHomepageCardDetails,
   NETWORK_TEST,
   OFFICIAL_ALLOWED,
   OFFICIAL_NEUTRAL,
@@ -50,6 +51,7 @@ async function showHomepageListMode(page: Page) {
 }
 
 test.beforeEach(async ({ page }, testInfo) => {
+  await mockHomepageCardDetails(page);
   await installHomepageImageFixture(page);
   if (testInfo.title !== NETWORK_TEST && testInfo.title !== MAP_FAILURE_TEST) {
     await installFakeMap(page);
@@ -882,18 +884,30 @@ test("searches loaded places and transfers an ordered three-place selection to t
   });
 });
 
-test("keeps homepage filter actions reachable inside the viewport", async ({ page }) => {
-  await page.setViewportSize({ width: 1_937, height: 1_272 });
+test("keeps homepage filter actions reachable inside the viewport", async ({ page }, testInfo) => {
   await mockHomepage(page);
   await page.goto("/");
   await expect(page.locator(".homepage-live-ready")).toBeVisible();
-  await page.getByRole("button", { name: "필터", exact: true }).click();
-  const panel = page.getByRole("region", { name: "지도 장소 필터" });
-  const apply = panel.getByRole("button", { name: /적용하기/u });
-  await expect(apply).toBeVisible();
-  const applyBox = await apply.boundingBox();
-  expect(applyBox).not.toBeNull();
-  expect((applyBox?.y ?? 0) + (applyBox?.height ?? 0)).toBeLessThanOrEqual(1_272);
+  for (const width of [1440, 768, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.getByRole("button", { name: "필터", exact: true }).click();
+    const panel = page.getByRole("region", { name: "지도 장소 필터" });
+    const apply = panel.getByRole("button", { name: /적용하기/u });
+    await expect(apply).toBeVisible();
+    const applyBox = await apply.boundingBox();
+    expect(applyBox).not.toBeNull();
+    expect((applyBox?.y ?? 0) + (applyBox?.height ?? 0)).toBeLessThanOrEqual(900);
+    for (const label of await panel.locator(".explorer-category-group__label").all()) {
+      const labelBox = await label.boundingBox();
+      const countBox = await label.locator("..").locator("small").boundingBox();
+      expect(labelBox).not.toBeNull();
+      expect(countBox).not.toBeNull();
+      expect((labelBox?.x ?? 0) + (labelBox?.width ?? 0)).toBeLessThanOrEqual(countBox?.x ?? 0);
+      expect(await label.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    }
+    await panel.screenshot({ path: testInfo.outputPath(`filter-${width}.png`) });
+    await page.keyboard.press("Escape");
+  }
 });
 
 test("paginates a dense home list with complete tab semantics and 44px mobile targets", async ({ page }) => {

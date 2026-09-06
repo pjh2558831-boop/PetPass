@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -21,6 +22,7 @@ import {
 import { MapPanel } from "@/components/map/map-panel";
 import { PlaceCardMedia } from "@/components/places/place-card-media";
 import { resolveHomepageCardImage } from "@/lib/homepage/homepage-card-image";
+import { requestMapPlaceCardDetails } from "@/lib/map-places/card-details-client";
 import { createHomepageMapLocations } from "@/lib/homepage/homepage-map-locations";
 import { PLACE_CATEGORY_LABELS } from "@/lib/map-places/place-categories";
 import {
@@ -275,6 +277,32 @@ export function HomePlaceWorkbench({
     activeListPage * HOME_LIST_PAGE_SIZE,
     (activeListPage + 1) * HOME_LIST_PAGE_SIZE,
   );
+  const photoIds = renderedMarkers
+    .filter((marker) => marker.layer === "official" && marker.category !== "shopping" && !marker.imageUrl)
+    .map(({ id }) => id).join(",");
+  const shoppingPhotoIds = renderedMarkers
+    .filter((marker) => marker.layer === "official" && marker.category === "shopping" && !marker.imageUrl)
+    .map(({ id }) => id).join(",");
+  const photoKey = `${regionId}:${photoIds}:${shoppingPhotoIds}`;
+  const [photos, setPhotos] = useState<{ key: string; urls: Map<string, string | null> }>({ key: "", urls: new Map() });
+  const [photoError, setPhotoError] = useState("");
+  const [photoRetry, setPhotoRetry] = useState(0);
+  useEffect(() => {
+    if (!photoIds && !shoppingPhotoIds) return;
+    const controller = new AbortController();
+    const requests = [["core", photoIds], ["shopping", shoppingPhotoIds]] as const;
+    void Promise.all(requests.filter(([, ids]) => ids).map(([dataset, ids]) =>
+      requestMapPlaceCardDetails(regionId, dataset, ids.split(","), controller.signal)))
+      .then((pages) => {
+        if (controller.signal.aborted) return;
+        setPhotos({ key: photoKey, urls: new Map(pages.flatMap((page) => page.items.map(({ id, imageUrl }) => [id, imageUrl] as const))) });
+        setPhotoError("");
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setPhotoError(photoKey);
+      });
+    return () => controller.abort();
+  }, [regionId, photoIds, shoppingPhotoIds, photoKey, photoRetry]);
 
   const showListPage = (page: number) => {
     const nextPage = Math.max(0, Math.min(page, pageCount - 1));
@@ -410,6 +438,11 @@ export function HomePlaceWorkbench({
         </div>
 
         <aside className="homepage-workbench__list" aria-label={`${regionLabel} 장소 목록`}>
+          {photoError === photoKey && (photoIds || shoppingPhotoIds) ? (
+            <p role="status" className="px-3 py-2 text-xs">
+              장소 사진을 불러오지 못했습니다. <button type="button" className="min-h-11 underline" onClick={() => setPhotoRetry((value) => value + 1)}>사진 다시 불러오기</button>
+            </p>
+          ) : null}
           <div ref={scrollerRef} className="homepage-workbench__scroller" key={listDataKey}>
             {visibleMarkers.length === 0 ? (
               <div className="homepage-workbench-empty" role="status">
@@ -453,7 +486,7 @@ export function HomePlaceWorkbench({
                   )}
                   {marker.layer === "official" ? (
                     <PlaceCardMedia
-                      image={resolveHomepageCardImage(marker, { regionId, staticMapEnabled })}
+                      image={resolveHomepageCardImage({ ...marker, imageUrl: marker.imageUrl ?? (photos.key === photoKey ? photos.urls.get(marker.id) ?? null : null) }, { regionId, staticMapEnabled })}
                       fallbackCategory={marker.category}
                       className="homepage-workbench-row__image"
                       sizes="80px"

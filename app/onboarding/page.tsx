@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { completeOnboarding } from "@/app/onboarding/actions";
 import { AvatarField } from "@/components/auth/avatar-field";
+import { OnboardingSubmitButton } from "@/components/auth/onboarding-submit-button";
 import { FormErrorMessage } from "@/components/ui/form-error-message";
 import { socialProfileDefaults } from "@/lib/auth/profile";
 import { createAuthServerClient } from "@/lib/supabase/server";
@@ -26,7 +27,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
         <AvatarField userId={userId} initialUrl={defaults.avatarUrl} />
         <label className="mt-6 block text-sm font-extrabold">커뮤니티 닉네임<input required name="displayName" defaultValue={defaults.displayName} minLength={2} maxLength={24} autoComplete="nickname" spellCheck={false} className="mt-2 min-h-12 w-full rounded-lg border border-[var(--line)] px-3" /></label>
         {error ? <FormErrorMessage id="onboarding-form-error" className="mt-4 text-sm font-bold text-red-700">{error}</FormErrorMessage> : null}
-        <button className="mt-7 min-h-12 w-full rounded-lg bg-[var(--brand)] px-4 text-sm font-extrabold text-white">프로필 확인 및 시작하기</button>
+        <OnboardingSubmitButton />
       </form>
     </section>
   );

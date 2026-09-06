@@ -205,6 +205,9 @@ describe("Kakao integration boundaries", () => {
       panTo = vi.fn();
       relayout = vi.fn();
       setBounds = vi.fn();
+      getLevel = vi.fn(() => 7);
+      setLevel = vi.fn();
+      setMapTypeId = vi.fn();
     }
     class FakeMarkerImage {
       constructor(
@@ -282,6 +285,7 @@ describe("Kakao integration boundaries", () => {
         LatLng: FakeLatLng,
         LatLngBounds: FakeBounds,
         Map: FakeMap,
+        MapTypeId: { ROADMAP: 1, HYBRID: 3 },
         CustomOverlay: FakeOverlay,
         Marker: FakeMarker,
         MarkerImage: FakeMarkerImage,
@@ -353,6 +357,14 @@ describe("Kakao integration boundaries", () => {
     });
 
     expect(clusterers).toHaveLength(1);
+    controller.zoomBy(-1);
+    expect(mapInstances[0].setLevel).toHaveBeenLastCalledWith(6);
+    controller.zoomBy(100);
+    expect(mapInstances[0].setLevel).toHaveBeenLastCalledWith(14);
+    controller.setSatellite(true);
+    expect(mapInstances[0].setMapTypeId).toHaveBeenLastCalledWith(3);
+    controller.setSatellite(false);
+    expect(mapInstances[0].setMapTypeId).toHaveBeenLastCalledWith(1);
     expect(mapInstances[0].setBounds).not.toHaveBeenCalled();
     controller.selectLocation("route-one");
     controller.focusLocation("route-one");
@@ -420,6 +432,16 @@ describe("Kakao integration boundaries", () => {
     expect(firstInfoOverlay).toBeDefined();
     controller.setShowSelectionInfo(false);
     expect(firstInfoOverlay?.setMap).toHaveBeenCalledWith(null);
+    const customContent = document.createElement("div");
+    customContent.textContent = "Selected place preview";
+    controller.setSelectionContent(customContent);
+    expect(overlays.at(-1)?.content).toBe(customContent);
+    controller.selectLocation(null);
+    expect(container.dataset.infoOverlayCount).toBe("0");
+    controller.selectLocation("one");
+    expect(overlays.at(-1)?.content).toBe(customContent);
+    controller.setSelectionContent(null);
+    expect(container.dataset.infoOverlayCount).toBe("0");
     const overlayCountWithoutInfo = overlays.length;
     controller.setShowSelectionInfo(true);
     expect(overlays.length).toBeGreaterThan(overlayCountWithoutInfo);

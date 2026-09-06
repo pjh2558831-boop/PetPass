@@ -70,9 +70,7 @@ import {
 } from "@/lib/regions/config";
 import type { ApiResult } from "@/types/api";
 import type { KakaoCurrentMapSearch } from "@/types/kakao";
-import type {
-  MapPlaceCardDetailsPage,
-} from "@/types/map-place-card-details";
+import { requestMapPlaceCardDetails } from "@/lib/map-places/card-details-client";
 import type {
   MapPlacesSnapshotDataset,
   MapPlacesSnapshotMarker,
@@ -327,32 +325,6 @@ async function requestDefaultCatalog(
   return { ...loaded.items, delivery: loaded.source };
 }
 
-async function requestMapPlaceCardDetails(
-  region: RegionId,
-  dataset: MapPlacesSnapshotDataset,
-  ids: readonly string[],
-  signal: AbortSignal,
-): Promise<MapPlaceCardDetailsPage> {
-  const params = new URLSearchParams({
-    version: "1",
-    region,
-    dataset,
-    ids: ids.join(","),
-  });
-  const response = await fetch(`/api/map/places/cards?${params}`, {
-    signal,
-    credentials: "omit",
-    headers: { Accept: "application/json" },
-  });
-  const body = await response.json() as ApiResult<MapPlaceCardDetailsPage>;
-  const responseIds = body.ok ? new Set(body.data.items.map(({ id }) => id)) : null;
-  if (!response.ok || !body.ok || body.data.region !== region ||
-    body.data.dataset !== dataset || body.data.items.length !== ids.length ||
-    ids.some((id) => !responseIds?.has(id))) {
-    throw new Error("지도 장소 카드 정보를 확인하지 못했습니다.");
-  }
-  return body.data;
-}
 
 function getVisiblePageNumbers(currentPage: number, totalPages: number): number[] {
   if (totalPages <= 3) return Array.from({ length: totalPages }, (_, index) => index + 1);
@@ -894,7 +866,6 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       : providerError
         ? "error"
         : "empty";
-  const shoppingSupported = regionConfig.mapCatalog.deferredCategories.includes("shopping");
   const shoppingLoaded = optionalLoadedFor === optionalScopeKey;
   const allPopularityInsufficient = filteredPlaces.length > 0;
   const availableCategories = regionConfig.mapCatalog.availableCategories as readonly PlaceCategory[];
@@ -1038,14 +1009,19 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     setDraftCategories(getRegionDefaultCatalogCategories(regionConfig) as PlaceCategory[]);
   };
   const [selectionFocusKey, setSelectionFocusKey] = useState(0);
-  const mapSectionRef = useRef<HTMLElement>(null);
+  const resultsListRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const list = resultsListRef.current;
+    const card = selectedId ? document.getElementById("place-card-" + selectedId.replace(":", "-")) : null;
+    if (!list || !card) return;
+    list.scrollTo({ top: list.scrollTop + card.getBoundingClientRect().top - list.getBoundingClientRect().top - (list.clientHeight - card.clientHeight) / 2, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }, [selectedId, currentPage]);
   const selectPlace = (id: string | null) => {
     setSelectedId(id);
     if (!id) return;
-    setMobileMode("list");
+    setSelectionFocusKey(value => value + 1);
     const index = placeIndex.get(id);
     if (index !== undefined) setPage(Math.floor(index / PUBLIC_CATALOG_PAGE_SIZE) + 1);
-    requestAnimationFrame(() => document.getElementById(`place-card-${id.replace(":", "-")}`)?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" }));
   };
   const toggleItineraryPlace = (place: PublicCatalogPlace) => {
     const result = toggleSelection(selectedItineraryPlaceFromCatalog(place));
@@ -1063,13 +1039,6 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const startAutomaticItinerary = () => {
     if (!regionConfig.routeCapabilities.fullyAutomaticRecommendation) return;
     router.push("/planner/pet");
-  };
-  const toggleLayer = (layer: PublicCatalogLayer) => {
-    setLayers((current) => visibleLayers.filter((value) =>
-      value === layer ? !current.includes(layer) : current.includes(value)));
-    setPage(1);
-    setSelectedId(null);
-    resetViewportScope();
   };
   const handleViewportIdle = (viewport: KakaoCurrentMapSearch, cause: KakaoViewportIdleCause) => {
     latestViewportRef.current = viewport;
@@ -1121,6 +1090,15 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   }
 
   const visiblePages = getVisiblePageNumbers(currentPage, totalPages);
+  const selectedMarker = filteredPlaces.find(({ id }) => id === selectedId);
+  const selectedPlace = selectedMarker
+    ? tourCardsById.get(selectedMarker.id) ?? markerToCatalogCard(selectedMarker)
+    : null;
+  const closePlacePreview = () => {
+    if (selectedId) document.getElementById(`place-card-${selectedId.replace(":", "-")}`)
+      ?.querySelector<HTMLButtonElement>('button[aria-label$="지도에서 보기"]')?.focus({ preventScroll: true });
+    setSelectedId(null);
+  };
   const renderFilterDropdown = (anchor: FilterAnchor) => filterAnchor === anchor ? (
     <section
       ref={filterDropdownRef}
@@ -1157,22 +1135,17 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   return (
     <div className={`full-map-explorer ${itineraryMode === "selection" ? "is-itinerary-selection" : ""}`} id="catalog-panel">
       <div className="full-map-explorer__toolbar">
-        <div className="explorer-toolbar-row explorer-mode-row" role="group" aria-label="탐색 모드">
-          <span className="explorer-toolbar-label">탐색 모드</span>
-          {itineraryMode === "selection" ? (
-            <div className="selected-itinerary-mode-label" aria-label="맞춤 일정 장소 선택">
-              <Rows3 size={16} aria-hidden="true" />
-              <span><b>장소 선택</b><small>카드에서 방문지를 담아보세요</small></span>
-            </div>
-          ) : (
+        {itineraryMode !== "selection" ? (
+          <div className="explorer-toolbar-row explorer-mode-row" role="group" aria-label="탐색 모드">
+            <span className="explorer-toolbar-label">탐색 모드</span>
             <div className="explorer-mode-tabs" role="navigation" aria-label="장소 및 추천 보기">
               <Link href={`/results?tab=catalog&region=${region}`} aria-current="page"><Rows3 size={16} aria-hidden="true" />장소 찾기</Link>
-              {regionConfig.routeCapabilities.fullyAutomaticRecommendation ? (
-                <Link href="/planner/pet"><Route size={16} aria-hidden="true" />맞춤 일정</Link>
+              {regionConfig.routeCapabilities.selectedPlaceRouting ? (
+                <Link href={`/results?tab=catalog&region=${region}&page=${currentPage}&mode=select`}><Route size={16} aria-hidden="true" />맞춤 일정</Link>
               ) : null}
             </div>
-          )}
-        </div>
+          </div>
+        ) : null}
 
         <div className="explorer-toolbar-row explorer-scope-row" role="group" aria-label="탐색 범위">
           <span className="explorer-toolbar-label">탐색 범위</span>
@@ -1237,30 +1210,12 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
             </button>
             {renderFilterDropdown("toolbar")}
           </div>
-          <label className="explorer-sort-control" htmlFor="explorer-sort">
-            <span>정렬</span>
-            <select id="explorer-sort" value={sort} onChange={(event) => { setSort(event.target.value as ExplorerSort); setPage(1); }}>
-              <option value="recommendation">추천순</option>
-              <option value="popularity">인기도순</option>
-            </select>
-          </label>
           <div className="full-map-explorer__mobile-switch" role="group" aria-label="지도 또는 목록 보기">
             <button type="button" aria-pressed={mobileMode === "list"} onClick={() => setMobileMode("list")}><List size={17} aria-hidden="true" />목록</button>
             <button type="button" aria-pressed={mobileMode === "map"} onClick={() => setMobileMode("map")}><MapIcon size={17} aria-hidden="true" />지도</button>
           </div>
         </div>
 
-        <div className="explorer-toolbar-row explorer-source-row" role="group" aria-label="장소 출처 범례">
-          <span className="explorer-toolbar-label">출처</span>
-          <div className="explorer-source-controls">
-            {visibleLayers.map((layer) => (
-              <button key={layer} type="button" aria-pressed={layers.includes(layer)} onClick={() => toggleLayer(layer)}>
-                <i data-color={LAYER_META[layer].color} aria-hidden="true" />
-                <span>{LAYER_META[layer].label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
       {itineraryMode === "selection" && !regionConfig.routeCapabilities.automaticFill ? (
@@ -1270,7 +1225,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       ) : null}
 
       <div className="full-map-explorer__main" data-mobile-mode={mobileMode}>
-        <section ref={mapSectionRef} className="full-map-explorer__map" aria-label={`${districtName} 전체 장소 지도`}>
+        <section className="full-map-explorer__map" aria-label={`${districtName} 전체 장소 지도`}>
           <MapPanel
             regionId={region}
             locations={mapLocations}
@@ -1289,6 +1244,21 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
             currentMapSearchLabel="이 지역 검색 다시하기"
             viewportKey={`catalog:${region}:${district}:${categories.join(",")}`}
             showLocationLabel={false}
+            showWatermark={false}
+            selectionContent={selectedPlace ? (
+              <section className="explorer-map-place-preview" aria-label="선택한 장소 미리보기" onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); closePlacePreview(); } }}>
+                <button type="button" className="explorer-map-place-preview__close" aria-label="장소 미리보기 닫기" onClick={closePlacePreview}><X size={18} aria-hidden="true" /></button>
+                <PublicCatalogCard
+                  place={selectedPlace}
+                  selected={false}
+                  onSelect={() => setSelectionFocusKey(value => value + 1)}
+                  staticMapEnabled={staticMapEnabled}
+                  idPrefix="map-preview"
+                />
+              </section>
+            ) : null}
+            showSelectionInfo={false}
+            showNavigationControls
             title={`${districtName} 장소 지도`}
             locationLabel={districtName}
             emptyMessage="선택한 조건에 표시할 장소가 없습니다."
@@ -1296,6 +1266,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
             showEmptyMessage={presentationState === "empty"}
             loadingPresentation="visual-only"
           />
+
           <p className="sr-only" aria-live="polite">{viewportDirty ? "지도 범위가 변경되었습니다. 이 지역 검색 다시하기를 선택하면 결과에 반영됩니다." : ""}</p>
         </section>
 
@@ -1330,9 +1301,16 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
                   ? "현재 확인된 장소를 먼저 보여드리며 추가 장소를 확인하고 있어요."
                   : presentationState === "error" && hasUsableResults
                     ? "일부 제공처를 확인하지 못했지만 현재 장소는 계속 볼 수 있어요."
-                    : "카드는 페이지당 12개 · 지도는 현재 필터의 전체 결과"}
+                    : "방문 전 장소별 동반 조건을 확인해 주세요."}
               </p> : null}
             </div>
+            <label className="explorer-sort-control" htmlFor="explorer-sort">
+              <span className="sr-only">정렬</span>
+              <select id="explorer-sort" value={sort} onChange={(event) => { setSort(event.target.value as ExplorerSort); setPage(1); }}>
+                <option value="recommendation">추천순</option>
+                <option value="popularity">인기도순</option>
+              </select>
+            </label>
           </header>
           {activeBounds ? <p className="explorer-active-bounds">지도 범위 적용 중</p> : null}
           {sort === "popularity" && allPopularityInsufficient ? <p className="explorer-popularity-notice" role="status">이용 데이터가 쌓이는 동안 추천순을 함께 반영합니다.</p> : null}
@@ -1345,13 +1323,12 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
             {catalogFreshness === "fallback" ? <div role="status"><b>호환 조회로 장소를 표시하고 있습니다.</b> 지역 스냅샷을 확인하지 못했어요.</div> : null}
             {cardDetailsError ? <div role="alert"><b>카드 상세 정보를 불러오지 못했습니다.</b> {publicProviderErrorMessage(cardDetailsError, "상세 정보 제공처 연결을 확인하지 못했습니다.")} <button type="button" onClick={() => setCardDetailsRetry((value) => value + 1)}><RefreshCw size={15} aria-hidden="true" />카드 다시 시도</button></div> : null}
             {presentationState === "partial" ? <p role="status">추가 장소를 불러오는 중입니다…</p> : null}
-            {shoppingSupported && !needsOptionalPlaces && !shoppingLoaded ? <p role="status">쇼핑은 필터에서 선택하면 불러옵니다.</p> : null}
             {needsOptionalPlaces && optionalTourState === "loading" ? <p role="status">쇼핑 장소를 불러오는 중입니다…</p> : null}
             {shoppingLoaded && optionalTourState === "ready" && categoryCounts.shopping > 0 ? <p role="status">쇼핑 장소 {categoryCounts.shopping.toLocaleString("ko-KR")}곳을 불러왔습니다.</p> : null}
             {shoppingLoaded && optionalTourState === "ready" && categoryCounts.shopping === 0 ? <p role="status">불러온 쇼핑 장소가 없습니다.</p> : null}
             {!anyReady && tourState === "error" && (!regionConfig.kakaoDiscoveryEnabled || kakaoState === "error") ? <button type="button" onClick={() => { setTourState("loading"); setKakaoState(regionConfig.kakaoDiscoveryEnabled ? "loading" : "ready"); setRetry((value) => value + 1); }}><RefreshCw size={15} aria-hidden="true" />다시 시도</button> : null}
           </div>
-          <div className="explorer-results-list">
+          <div ref={resultsListRef} className="explorer-results-list">
             {presentationState === "loading" ? <ExplorerResultsSkeleton /> : null}
             {presentationState === "empty" ? (
               <div className="explorer-empty-state" role="status"><strong>선택한 조건의 장소가 없습니다.</strong><span>지역이나 장소 유형을 조정해 다시 확인해 보세요.</span></div>
@@ -1368,7 +1345,6 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
                   setSelectedId(place.id);
                   setMobileMode("map");
                   setSelectionFocusKey(value => value + 1);
-                  requestAnimationFrame(() => mapSectionRef.current?.scrollIntoView({ block: "nearest", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
                 }}
                 staticMapEnabled={staticMapEnabled}
                 itinerarySelection={itineraryMode === "selection" && regionConfig.routeCapabilities.selectedPlaceRouting ? {

@@ -719,3 +719,15 @@ marker, rate-limits requests, keeps credentials server-side, and uses
 - Normal tests use deterministic fixtures only. Browser verification covers
   all/default category actions, every optional category, both sort modes,
   truthful image fallbacks, source labels, pagination, and responsive layouts.
+
+## Map workspace revision — 2026-09-06
+
+The supplied map reference supersedes the catalog layout above. Above 1024px,
+search, scope, source controls and the scrollable result list occupy a left
+390–488px rail; the map spans the full workspace height to its right.
+Photo cards retain original provider media, source and access labels. A selected
+place opens a dismissible map preview with existing detail navigation.
+Map controls provide fit-to-results, zoom and hybrid satellite view. Below
+1025px retain the list/map switch and reserve a clear lane beside the preview
+for touch controls. No illustrative ratings, opening hours or gallery images
+from the reference are introduced as production facts.

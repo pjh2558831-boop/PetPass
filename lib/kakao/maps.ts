@@ -20,6 +20,9 @@ interface KakaoLatLngBounds {
 }
 
 interface KakaoMapInstance {
+  getLevel?(): number;
+  setLevel?(level: number): void;
+  setMapTypeId?(type: number): void;
   getBounds(): KakaoLatLngBounds;
   getCenter(): KakaoLatLng;
   panTo(point: KakaoLatLng): void;
@@ -73,6 +76,7 @@ interface KakaoMapsEvent {
 }
 
 export interface KakaoMapsSdk {
+  MapTypeId?: { ROADMAP: number; HYBRID: number };
   load(callback: () => void): void;
   event: KakaoMapsEvent;
   LatLng: new (latitude: number, longitude: number) => KakaoLatLng;
@@ -82,6 +86,7 @@ export interface KakaoMapsSdk {
     options: { center: KakaoLatLng; level: number },
   ) => KakaoMapInstance;
   CustomOverlay: new (options: {
+    clickable?: boolean;
     map?: KakaoMapInstance;
     position: KakaoLatLng;
     content: HTMLElement;
@@ -158,6 +163,8 @@ export interface KakaoMapLocation {
 }
 
 export interface KakaoMapController {
+  zoomBy(delta: number): void;
+  setSatellite(enabled: boolean): void;
   destroy(): void;
   fitBounds(): void;
   getSearchViewport(): KakaoCurrentMapSearch | null;
@@ -166,6 +173,7 @@ export interface KakaoMapController {
   selectLocation(id: string | null, notify?: boolean): void;
   focusLocation(id: string): void;
   setShowSelectionInfo(show: boolean): void;
+  setSelectionContent(content: HTMLElement | null): void;
   updateData(
     locations: KakaoMapLocation[],
     routeCoordinates: Coordinates[],
@@ -463,6 +471,7 @@ export function createKakaoMapController(
     }
   >();
   let visiblePoints: KakaoLatLng[] = [];
+  let selectionContent: HTMLElement | null = null;
   let infoOverlay: KakaoCustomOverlay | null = null;
   let routeLine: KakaoPolyline | null = null;
   let selectedId: string | null = null;
@@ -648,6 +657,14 @@ export function createKakaoMapController(
     return true;
   };
   const controller: KakaoMapController = {
+    zoomBy(delta) {
+      if (destroyed || !map.getLevel || !map.setLevel) return;
+      map.setLevel(Math.max(1, Math.min(14, map.getLevel() + delta)));
+    },
+    setSatellite(enabled) {
+      if (destroyed || !maps.MapTypeId) return;
+      map.setMapTypeId?.(enabled ? maps.MapTypeId.HYBRID : maps.MapTypeId.ROADMAP);
+    },
     destroy() {
       if (destroyed) return;
       if (clusterer) {
@@ -714,13 +731,23 @@ export function createKakaoMapController(
       controller.fitBounds();
     },
 
+    setSelectionContent(content) {
+      if (selectionContent === content) return;
+      selectionContent = content;
+      infoOverlay?.setMap(null);
+      infoOverlay = null;
+      container.dataset.infoOverlayCount = "0";
+      const selected = selectedId ? locationPositions.get(selectedId) : null;
+      if (selected && (selectionContent || shouldShowSelectionInfo)) renderSelectionInfo(selected);
+    },
+
     setShowSelectionInfo(show) {
       if (shouldShowSelectionInfo === show) return;
       shouldShowSelectionInfo = show;
       if (!selectedId) return;
       infoOverlay?.setMap(null);
       infoOverlay = null;
-      if (!show) {
+      if (!show && !selectionContent) {
         container.dataset.infoOverlayCount = "0";
         return;
       }
@@ -748,7 +775,7 @@ export function createKakaoMapController(
         selected.sourceMarker.marker.setImage(selected.sourceMarker.selectedImage);
         selected.sourceMarker.marker.setZIndex(9);
       }
-      if (shouldShowSelectionInfo) renderSelectionInfo(selected);
+      if (shouldShowSelectionInfo || selectionContent) renderSelectionInfo(selected);
       if (notify) options.onLocationSelect?.(id);
     },
 
@@ -1088,9 +1115,10 @@ export function createKakaoMapController(
     infoOverlay = new CustomOverlayConstructor({
       map,
       position: selected.position,
-      content,
+      content: selectionContent ?? content,
+      clickable: Boolean(selectionContent),
       xAnchor: 0.5,
-      yAnchor: 1.75,
+      yAnchor: selectionContent ? 1 : 1.75,
       zIndex: 10,
     });
     container.dataset.infoOverlayCount = "1";
