@@ -197,16 +197,16 @@ describe("public Kakao map catalog route", () => {
     }));
   });
 
-  it("rejects Kakao catalog access for Jeju before querying Supabase", async () => {
-    const query = vi.fn(async () => resultPage);
+  it("allows Jeju Kakao catalog access within the explicit region", async () => {
+    const query = vi.fn(async () => ({ ...resultPage, region: { id: "jeju" as const, displayName: "제주" }, items: [], totalCount: 0 }));
     const response = await createMapPlacesHandler({ query })(
       new Request("http://localhost/api/map/places?region=jeju&providers=kakao"),
     );
-    expect(response.status).toBe(400);
-    expect(query).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({ regionId: "jeju", providers: ["kakao"] }));
   });
 
-  it("uses Seoul's authoritative district and tour-only catalog contract", async () => {
+  it("uses Seoul's authoritative district and enables Kakao catalog access", async () => {
     const seoulPlace: PublicMapPlaceDTO = {
       ...publicPlace,
       id: "tour:3800001",
@@ -258,8 +258,8 @@ describe("public Kakao map catalog route", () => {
 
     query.mockClear();
     const kakao = await handler(new Request("http://localhost/api/map/places?region=seoul&providers=kakao"));
-    expect(kakao.status).toBe(400);
-    expect(query).not.toHaveBeenCalled();
+    expect(kakao.status).toBe(200);
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({ regionId: "seoul", providers: ["kakao"] }));
   });
 
   it("rejects a repository page from a different region", async () => {

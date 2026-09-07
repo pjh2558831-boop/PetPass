@@ -72,16 +72,16 @@ describe("Seoul regional KTO foundation", () => {
       ktoCatalogEnabled: true,
       itineraryEnabled: false,
       kakaoDiscoveryEnabled: false,
-      allowedMapProviders: ["tour"],
+      allowedMapProviders: ["tour", "kakao"],
     });
     expect(SEOUL_REGION_CONFIG).toMatchObject({
       mapEnabled: true,
       ktoCatalogEnabled: true,
       itineraryEnabled: false,
-      kakaoDiscoveryEnabled: false,
-      allowedMapProviders: ["tour"],
+      kakaoDiscoveryEnabled: true,
+      allowedMapProviders: ["tour", "kakao"],
       mapCatalog: {
-        defaultProviders: ["tour"],
+        defaultProviders: ["tour", "kakao"],
         fallbackSource: "public_catalog",
         snapshotDatasets: ["core", "shopping"],
         snapshotCategories: [
@@ -116,6 +116,7 @@ describe("Seoul regional KTO foundation", () => {
       "busan",
     ]);
     expect(getKakaoDiscoveryEnabledRegionConfigs().map(({ id }) => id)).toEqual([
+      "seoul",
       "busan",
     ]);
   });

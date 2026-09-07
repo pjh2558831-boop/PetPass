@@ -34,7 +34,7 @@ export function PublicCatalogCard({
   const hasImage = image.kind !== "category_placeholder";
   const sourceLabel = place.layer === "kakao" ? "카카오맵" : place.sourceLabel;
   const petConditions = place.petConditions?.trim() || null;
-  const warning = place.warning === "카카오 검색 후보입니다. 방문 전 반려동물 동반 가능 여부를 확인해 주세요."
+  const warning = !place.verificationRequired && place.warning === "카카오 검색 후보입니다. 방문 전 반려동물 동반 가능 여부를 확인해 주세요."
     ? null
     : place.warning;
   return (
@@ -47,7 +47,7 @@ export function PublicCatalogCard({
       <div className="catalog-result-card__body">
         <div className="catalog-result-card__badges">
           <span className="catalog-result-card__label">{sourceLabel}</span>
-          <span className="catalog-result-card__label">{selectedItineraryVerdictLabel(place.petAccessVerdict ?? "unknown")}</span>
+          <span className="catalog-result-card__label">{place.verificationRequired ? place.publicLabel : selectedItineraryVerdictLabel(place.petAccessVerdict ?? "unknown")}</span>
         </div>
         <h3>{place.name}</h3>
         {warning ? (

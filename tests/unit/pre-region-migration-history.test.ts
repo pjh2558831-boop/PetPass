@@ -42,6 +42,8 @@ const expectedMigrationFiles = [
   "20260828094010_allow_empty_kto_dataset_publication.sql",
   "20260828111743_complete_nationwide_kto_registry.sql",
   "20260901124428_add_public_kakao_pet_conditions.sql",
+  "20260907095752_add_seoul_kakao_catalog.sql",
+  "20260907102956_add_jeju_kakao_catalog.sql",
 ] as const;
 
 const productionStatementHashes = {

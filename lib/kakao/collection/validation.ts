@@ -1,6 +1,7 @@
 import {
   BUSAN_REGION_CONFIG,
   coordinatesInRegion,
+  type RegionConfig,
 } from "@/lib/regions/config";
 import type { KakaoPlaceSearchResult } from "@/types/kakao";
 
@@ -15,6 +16,8 @@ export const KAKAO_COLLECTION_VALIDATION_REASONS = [
   "conflicting_districts",
   "invalid_coordinates",
   "coordinates_outside_busan",
+  "outside_region",
+  "coordinates_outside_region",
 ] as const;
 
 export type KakaoCollectionValidationReason =
@@ -37,11 +40,15 @@ function normalizeAddress(value: string | undefined): string | null {
 
 function addressDistrict(
   address: string,
-): (typeof BUSAN_REGION_CONFIG.districts)[number] | null {
-  if (!/^부산(?:광역시)?(?:\s|$)/u.test(address)) return null;
-  const tokens = new Set(address.split(" "));
+  region: RegionConfig,
+): RegionConfig["districts"][number] | null {
+  const [prefix, districtName] = address.split(" ");
+  const prefixes = region.id === "busan" ? ["부산", "부산광역시"] :
+    region.id === "seoul" ? ["서울", "서울특별시"] :
+    region.id === "jeju" ? ["제주", "제주특별자치도"] : [];
+  if (!prefixes.includes(prefix)) return null;
   return (
-    BUSAN_REGION_CONFIG.districts.find(({ name }) => tokens.has(name)) ?? null
+    region.districts.find(({ name }) => name === districtName) ?? null
   );
 }
 
@@ -58,16 +65,13 @@ function validCoordinates(result: KakaoPlaceSearchResult): boolean {
   );
 }
 
-function coordinatesInsideBusan(result: KakaoPlaceSearchResult): boolean {
-  return coordinatesInRegion(BUSAN_REGION_CONFIG, result.coordinates);
-}
-
 export function validateKakaoBusanCollectionResult(
   result: KakaoPlaceSearchResult,
   expectedDistrictCode: string,
+  region: RegionConfig = BUSAN_REGION_CONFIG,
 ): KakaoCollectionValidationResult {
   const expectedDistrict =
-    BUSAN_REGION_CONFIG.districts.find(
+    region.districts.find(
       ({ legalDongDistrictCode }) =>
         legalDongDistrictCode === expectedDistrictCode,
     ) ?? null;
@@ -81,13 +85,13 @@ export function validateKakaoBusanCollectionResult(
   if (!expectedDistrict) reasonCodes.push("unknown_district");
   if (addresses.length === 0) reasonCodes.push("missing_address");
 
-  const parsedDistricts = addresses.map(addressDistrict);
+  const parsedDistricts = addresses.map((address) => addressDistrict(address, region));
   const busanDistricts = parsedDistricts.filter(
-    (district): district is (typeof BUSAN_REGION_CONFIG.districts)[number] =>
+    (district): district is RegionConfig["districts"][number] =>
       district !== null,
   );
   if (addresses.length > 0 && busanDistricts.length !== addresses.length) {
-    reasonCodes.push("outside_busan");
+    reasonCodes.push(region.id === "busan" ? "outside_busan" : "outside_region");
   }
   const uniqueDistrictCodes = new Set(
     busanDistricts.map(({ legalDongDistrictCode }) => legalDongDistrictCode),
@@ -104,8 +108,8 @@ export function validateKakaoBusanCollectionResult(
 
   if (!validCoordinates(result)) {
     reasonCodes.push("invalid_coordinates");
-  } else if (!coordinatesInsideBusan(result)) {
-    reasonCodes.push("coordinates_outside_busan");
+  } else if (!coordinatesInRegion(region, result.coordinates)) {
+    reasonCodes.push(region.id === "busan" ? "coordinates_outside_busan" : "coordinates_outside_region");
   }
 
   return {

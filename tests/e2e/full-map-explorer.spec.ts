@@ -1297,6 +1297,32 @@ test("renders every Gyeonggi Shopping marker once and reuses its map layer", asy
   console.log(`GYEONGGI_SHOPPING_MARKER_READY ${JSON.stringify({ markerReadyMs, shoppingCount })}`);
 });
 
+test("shows Seoul Kakao candidates with verification warnings on map and cards", async ({ page, isMobile }) => {
+  await page.route("**/api/map/places/cards?**", async (route) => {
+    const snapshot = JSON.parse(snapshotBody("seoul"));
+    await route.fulfill({ json: { ok: true, data: { contractVersion: 1, region: "seoul", dataset: "core", publicationVersion: snapshot.data.publicationVersion, items: [{ id: "kakao:123456", address: "서울 종로구 검증로 1", phone: null, imageUrl: null, placeUrl: "https://place.map.kakao.com/123456", contentTypeId: null }], page: 1, pageSize: 12, totalCount: 1 }, requestId: "seoul-candidate-test" } });
+  });
+  await page.route("**/api/map/places/snapshot?**", async (route) => {
+    const body = JSON.parse(snapshotBody("seoul"));
+    body.data.items = [{ ...body.data.items[0], id: "kakao:123456", providerPlaceId: "123456", name: "서울 신규 후보", layer: "kakao", category: "cafe", publicLabel: "동반 여부 확인 필요", sourceLabel: "카카오 검색 후보", petAccessVerdict: "unknown", verificationRequired: true, placeUrl: "https://place.map.kakao.com/123456" }];
+    body.data.totalCount = 1;
+    body.data.providerCounts = { tour: 0, kakao: 1 };
+    body.data.categoryCounts = { cafe: 1 };
+    await route.fulfill({ json: body });
+  });
+  await page.goto("/results?tab=catalog&region=seoul&page=1");
+  const card = page.locator(".explorer-results-list .catalog-result-card").first();
+  await expect(card).toContainText("서울 신규 후보");
+  await expect(card).toContainText("동반 여부 확인 필요");
+  await expect(card).toContainText("방문 전");
+  await expect(card.locator(".catalog-result-card__badges")).not.toContainText("반려동물 동반 가능");
+  await card.getByRole("button", { name: "서울 신규 후보 지도에서 보기" }).click();
+  await expect(page.locator("[data-marker-registry-size]")).toHaveAttribute("data-marker-registry-size", "1");
+  await expect(card).toHaveAttribute("aria-current", "true");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  if (isMobile) await expect(page.getByRole("button", { name: "목록", exact: true })).toBeVisible();
+});
+
 test("loads Seoul core once and fetches the complete shopping dataset only on first selection", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === "mobile-chrome", "The Seoul flow explicitly verifies all required viewport widths once in desktop Chromium.");
   test.setTimeout(45_000);
@@ -1400,12 +1426,17 @@ test("loads Seoul core once and fetches the complete shopping dataset only on fi
   expect(markerApplicationMs).toBeLessThan(300);
   expect(clusteringMs).toBeLessThan(300);
 
-  const sourceFilter = page.getByRole("button", { name: "한국관광공사", exact: true });
-  await sourceFilter.click();
+  await page.evaluate(() => {
+    window.history.pushState(null, "", "/results?tab=catalog&region=seoul&page=1&layers=none");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
   await expect(page.getByRole("heading", { name: "조건에 맞는 장소가 없어요" })).toBeVisible();
   await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "0");
   await expect(page).toHaveURL(/layers=none/u);
-  await sourceFilter.click();
+  await page.evaluate(() => {
+    window.history.pushState(null, "", "/results?tab=catalog&region=seoul&page=1");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
   await expect(page.getByRole("heading", { name: "총 76곳" })).toBeVisible();
   await expect(mapRoot).toHaveAttribute("data-marker-registry-size", "76");
 
@@ -1416,7 +1447,7 @@ test("loads Seoul core once and fetches the complete shopping dataset only on fi
   await expect(categoryPanel.getByRole("button", { name: /^식당/u })).toContainText("6");
   await expect(categoryPanel.getByRole("button", { name: /^숙소/u })).toContainText("14");
   await expect(categoryPanel.getByRole("button", { name: /^쇼핑/u })).toContainText("…");
-  await expect(categoryPanel.getByRole("button", { name: /^카페/u })).toHaveCount(0);
+  await expect(categoryPanel.getByRole("button", { name: /^카페/u })).toContainText("0");
   for (const label of ["관광지", "식당", "숙소"]) {
     await categoryPanel.getByRole("button", { name: new RegExp(`^${label}`) }).click();
   }
@@ -1740,7 +1771,8 @@ test("marks stale Seoul data and retries without a legacy fallback", async ({ pa
 
   await page.reload();
   await expect(page.getByRole("heading", { name: "장소 정보를 확인하지 못했어요" })).toBeVisible();
-  await expect(page.locator('.explorer-results-status [role="alert"]')).toContainText("관광공사 장소를 불러오지 못했습니다.");
+  await expect(page.locator('.explorer-results-status [role="alert"]').filter({ hasText: "관광공사 장소를 불러오지 못했습니다." })).toBeVisible();
+  await expect(page.locator('.explorer-results-status [role="alert"]').filter({ hasText: "카카오맵 장소를 불러오지 못했습니다." })).toBeVisible();
   await expect(page.getByRole("heading", { name: "총 1곳" })).toHaveCount(0);
   expect(legacyRequests).toHaveLength(0);
   await page.getByRole("button", { name: "다시 시도" }).click();
@@ -2323,4 +2355,30 @@ test("keeps region and category popovers above the selection tray", async ({ pag
   await openExplorerFilters(page);
   await assertAboveTray("#explorer-filter-dropdown");
   await page.getByRole("region", { name: "장소 필터" }).getByRole("button", { name: "적용하기", exact: true }).click();
+});
+
+test("shows Jeju Kakao candidates with verification warnings on map and cards", async ({ page, isMobile }) => {
+  await page.route("**/api/map/places/cards?**", async (route) => {
+    const snapshot = JSON.parse(snapshotBody("jeju"));
+    await route.fulfill({ json: { ok: true, data: { contractVersion: 1, region: "jeju", dataset: "core", publicationVersion: snapshot.data.publicationVersion, items: [{ id: "kakao:123456", address: "제주 제주시 검증로 1", phone: null, imageUrl: null, placeUrl: "https://place.map.kakao.com/123456", contentTypeId: null }], page: 1, pageSize: 12, totalCount: 1 }, requestId: "jeju-candidate-test" } });
+  });
+  await page.route("**/api/map/places/snapshot?**", async (route) => {
+    const body = JSON.parse(snapshotBody("jeju"));
+    body.data.items = [{ ...body.data.items[0], id: "kakao:123456", providerPlaceId: "123456", name: "제주 신규 후보", layer: "kakao", category: "cafe", publicLabel: "동반 여부 확인 필요", sourceLabel: "카카오 검색 후보", petAccessVerdict: "unknown", verificationRequired: true, placeUrl: "https://place.map.kakao.com/123456" }];
+    body.data.totalCount = 1;
+    body.data.providerCounts = { tour: 0, kakao: 1 };
+    body.data.categoryCounts = { cafe: 1 };
+    await route.fulfill({ json: body });
+  });
+  await page.goto("/results?tab=catalog&region=jeju&page=1");
+  const card = page.locator(".explorer-results-list .catalog-result-card").first();
+  await expect(card).toContainText("제주 신규 후보");
+  await expect(card).toContainText("동반 여부 확인 필요");
+  await expect(card).toContainText("방문 전");
+  await expect(card.locator(".catalog-result-card__badges")).not.toContainText("반려동물 동반 가능");
+  await card.getByRole("button", { name: "제주 신규 후보 지도에서 보기" }).click();
+  await expect(page.locator("[data-marker-registry-size]")).toHaveAttribute("data-marker-registry-size", "1");
+  await expect(card).toHaveAttribute("aria-current", "true");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  if (isMobile) await expect(page.getByRole("button", { name: "목록", exact: true })).toBeVisible();
 });

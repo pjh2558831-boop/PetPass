@@ -154,7 +154,8 @@ export function markerToCatalogCard(marker: PublicCatalogMarker): PublicCatalogP
       : isTour
         ? `/places/${marker.providerPlaceId}?region=${marker.regionId}`
         : `https://place.map.kakao.com/${marker.providerPlaceId}`,
-    warning: null,
+    warning: marker.layer === "kakao" && marker.verificationRequired
+      ? "카카오 검색 후보입니다. 방문 전 반려동물 동반 가능 여부를 확인해 주세요." : null,
     tourPlace: null,
   };
 }
@@ -213,6 +214,7 @@ export function normalizePublicMapCatalogPlace(
   regionId: RegionId = "busan",
 ): PublicCatalogPlace {
   const isTour = place.kind === "tourism_place" || place.source === "kto_official";
+  const unverifiedCandidate = !isTour && place.kind === "pet_travel_candidate" && place.reviewStatus !== "confirmed";
   const layer: PublicCatalogLayer = isTour
     ? "tourism"
     : place.kind === "pet_travel_candidate"
@@ -248,12 +250,12 @@ export function normalizePublicMapCatalogPlace(
       Boolean(place.imageUrl),
       false,
     ]),
-    publicLabel: isTour || place.kind === "pet_travel_candidate"
+    publicLabel: !isTour && place.petConditions?.trim() ? "동반 조건 확인 필요" : unverifiedCandidate ? "동반 여부 확인 필요" : isTour || place.kind === "pet_travel_candidate"
       ? "반려동물 동반 가능"
       : "반려동물 편의시설",
     petAccessVerdict: place.petAccessVerdict ?? "unknown",
     petConditions: place.petConditions?.trim() || null,
-    verificationRequired: place.verificationRequired ?? false,
+    verificationRequired: unverifiedCandidate || (place.verificationRequired ?? false),
     sourceLabel: isTour
       ? "한국관광공사"
       : place.kind === "pet_travel_candidate"
@@ -261,7 +263,7 @@ export function normalizePublicMapCatalogPlace(
       : place.kind === "veterinary"
         ? "동물병원"
         : "펫샵·용품점",
-    warning: null,
+    warning: unverifiedCandidate ? "카카오 검색 후보입니다. 방문 전 반려동물 동반 가능 여부를 확인해 주세요." : null,
     tourPlace: null,
   };
 }

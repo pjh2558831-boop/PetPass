@@ -13,8 +13,6 @@ import type {
 import type { KakaoCollectionSummary } from "@/lib/kakao/collection/runner";
 
 const PETPASS_SUPABASE_PROJECT_REF = "inucorualcworpzqxjiu";
-const KAKAO_BUSAN_COLLECTOR_VERSION = "kakao-busan-collector-v1";
-const KAKAO_BUSAN_REGION_ID = "busan";
 
 function requiredEnvironmentValue(name: string): string {
   const value = process.env[name]?.trim();
@@ -102,7 +100,7 @@ function increment(counts: Record<string, number>, key: string): void {
   counts[key] = (counts[key] ?? 0) + 1;
 }
 
-export function createSupabaseKakaoCollectionRepository(): KakaoCollectionRepository {
+export function createSupabaseKakaoCollectionRepository(regionId: "busan" | "seoul" | "jeju" = "busan"): KakaoCollectionRepository {
   const supabase = createClient(
     petPassSupabaseUrl(),
     requiredEnvironmentValue("SUPABASE_SECRET_KEY"),
@@ -127,14 +125,14 @@ export function createSupabaseKakaoCollectionRepository(): KakaoCollectionReposi
       normalized_category: query.categoryHint ?? null,
       category_group_code: query.categoryGroupCode ?? null,
     }));
-    const startFunction = input.registryVersion === "kakao-busan-query-registry-v2"
+    const startFunction = regionId === "jeju" ? "start_kakao_jeju_catalog_run_v1" : regionId === "seoul" ? "start_kakao_seoul_catalog_run_v1" : input.registryVersion === "kakao-busan-query-registry-v2"
       ? "start_kakao_catalog_delta_run_v2"
       : "start_kakao_catalog_run_v1";
     const { data, error } = await supabase.rpc(
       startFunction,
       {
         p_registry_version: input.registryVersion,
-        p_collector_version: KAKAO_BUSAN_COLLECTOR_VERSION,
+        p_collector_version: `kakao-${regionId}-collector-v1`,
         p_queries: queryRows,
         p_is_full_catalog_run: input.isFullCatalogRun,
         p_started_at: startedAt,
@@ -169,7 +167,7 @@ export function createSupabaseKakaoCollectionRepository(): KakaoCollectionReposi
         "id,provider,status,registry_version,planned_query_count,provider_call_count,provider_429_count,timeout_count,provider_error_count",
       )
       .eq("id", requestedRunId)
-      .eq("region_id", KAKAO_BUSAN_REGION_ID)
+      .eq("region_id", regionId)
       .eq("provider", "kakao")
       .single();
     const row = record(data);
@@ -198,7 +196,7 @@ export function createSupabaseKakaoCollectionRepository(): KakaoCollectionReposi
     const { data: queryData, error: queryError } = await supabase
       .from("map_ingest_run_queries")
       .select("query_key,status")
-      .eq("region_id", KAKAO_BUSAN_REGION_ID)
+      .eq("region_id", regionId)
       .eq("collection_run_id", id);
     if (queryError || !Array.isArray(queryData)) {
       throw new CollectionRepositoryError();
@@ -232,7 +230,7 @@ export function createSupabaseKakaoCollectionRepository(): KakaoCollectionReposi
           sanitized_error_summary: null,
         })
         .eq("id", id)
-        .eq("region_id", KAKAO_BUSAN_REGION_ID)
+        .eq("region_id", regionId)
         .eq("status", row.status);
       if (updateError) throw new CollectionRepositoryError();
     }
@@ -249,7 +247,7 @@ export function createSupabaseKakaoCollectionRepository(): KakaoCollectionReposi
 
   async function checkpointQuery(input: CheckpointKakaoCollectionQueryInput) {
     const { stats } = input;
-    const { error } = await supabase.rpc("commit_kakao_catalog_query_v1", {
+    const { error } = await supabase.rpc(regionId === "jeju" ? "commit_kakao_jeju_catalog_query_v1" : regionId === "seoul" ? "commit_kakao_seoul_catalog_query_v1" : "commit_kakao_catalog_query_v1", {
       p_run_id: safeRunId(input.runId),
       p_query_key: input.query.key,
       p_candidates: toKakaoCatalogCandidatePayload(input),
@@ -284,7 +282,7 @@ export function createSupabaseKakaoCollectionRepository(): KakaoCollectionReposi
         "completed_query_count,provider_call_count,provider_result_count,accepted_result_count,duplicate_result_count,out_of_district_result_count,invalid_coordinate_result_count,classification_rejection_count,provider_429_count,timeout_count,provider_error_count,inserted_row_count,updated_row_count,deactivated_row_count,preserved_review_row_count,saturated_query_count,unique_place_count,pet_travel_count,veterinary_count,pet_shop_count",
       )
       .eq("id", safeRunId(id))
-      .eq("region_id", KAKAO_BUSAN_REGION_ID)
+      .eq("region_id", regionId)
       .single();
     const run = record(data);
     if (error || !run) throw new CollectionRepositoryError();
@@ -325,7 +323,7 @@ export function createSupabaseKakaoCollectionRepository(): KakaoCollectionReposi
     const { data: queryData, error: queryError } = await supabase
       .from("map_ingest_run_queries")
       .select("candidate_kind,classification_rejection_count")
-      .eq("region_id", KAKAO_BUSAN_REGION_ID)
+      .eq("region_id", regionId)
       .eq("collection_run_id", safeRunId(id))
       .eq("status", "completed");
     if (queryError || !Array.isArray(queryData)) {
@@ -347,7 +345,7 @@ export function createSupabaseKakaoCollectionRepository(): KakaoCollectionReposi
       const { data: placeData, error: placeError } = await supabase
         .from("map_places")
         .select("normalized_category,district_name")
-        .eq("region_id", KAKAO_BUSAN_REGION_ID)
+        .eq("region_id", regionId)
         .eq("provider", "kakao")
         .eq("last_seen_run_id", safeRunId(id))
         .range(from, from + pageSize - 1);

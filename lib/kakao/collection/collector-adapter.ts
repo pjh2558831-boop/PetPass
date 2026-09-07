@@ -6,6 +6,7 @@ import { classifyKakaoCollectionCandidate } from "@/lib/kakao/collection/classif
 import type { KakaoBusanCollectionQuery } from "@/lib/kakao/collection/query-registry-v1";
 import { validateKakaoBusanCollectionResult } from "@/lib/kakao/collection/validation";
 import { parseKakaoPlaceUrl } from "@/lib/kakao/place-url";
+import { BUSAN_REGION_CONFIG, type RegionConfig } from "@/lib/regions/config";
 
 function normalizedText(value: string | undefined): string | null {
   const normalized = value
@@ -33,6 +34,7 @@ export function mapKakaoBusanCollectionQuery(
 
 export function createKakaoBusanCollectorAdapter(
   sourceQueries: readonly KakaoBusanCollectionQuery[],
+  region: RegionConfig = BUSAN_REGION_CONFIG,
 ): {
   queries: KakaoCollectionQuery[];
   classification: KakaoCollectionClassificationAdapter;
@@ -54,6 +56,7 @@ export function createKakaoBusanCollectorAdapter(
         return validateKakaoBusanCollectionResult(
           result,
           sourceQuery(query).districtCode,
+          region,
         ).accepted;
       },
       classify(result, query) {
@@ -61,6 +64,7 @@ export function createKakaoBusanCollectorAdapter(
         const validation = validateKakaoBusanCollectionResult(
           result,
           source.districtCode,
+          region,
         );
         const classification = classifyKakaoCollectionCandidate(result, source);
         if (!validation.accepted || !validation.district || !classification) {

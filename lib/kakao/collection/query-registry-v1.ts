@@ -90,8 +90,8 @@ export const KAKAO_BUSAN_QUERY_TEMPLATES = {
 export interface KakaoBusanCollectionQuery {
   key: string;
   registryVersion: string;
-  districtCode: (typeof BUSAN_REGION_CONFIG.districts)[number]["legalDongDistrictCode"];
-  districtName: (typeof BUSAN_REGION_CONFIG.districts)[number]["name"];
+  districtCode: string;
+  districtName: string;
   family: KakaoBusanQueryFamily;
   templateIndex: number;
   queryText: string;

@@ -664,6 +664,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      commit_kakao_seoul_catalog_query_v1: Database["public"]["Functions"]["commit_kakao_catalog_query_v1"]
+      commit_kakao_jeju_catalog_query_v1: Database["public"]["Functions"]["commit_kakao_catalog_query_v1"]
+      start_kakao_jeju_catalog_run_v1: Database["public"]["Functions"]["start_kakao_catalog_run_v1"]
+      start_kakao_seoul_catalog_run_v1: Database["public"]["Functions"]["start_kakao_catalog_run_v1"]
       commit_kakao_catalog_query_v1: {
         Args: {
           p_accepted_result_count: number
