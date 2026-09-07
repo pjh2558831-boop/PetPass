@@ -38,7 +38,7 @@ function backupDirectoryName(createdAt: string): string {
   return createdAt.replace(/[-:]/gu, "").replace(/\.\d{3}Z$/u, "Z");
 }
 
-export async function runKakaoCatalogBackup(): Promise<void> {
+export async function runKakaoCatalogBackup(regionId: "busan" | "jeju" = "busan"): Promise<void> {
   const requiredNames = ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SECRET_KEY"];
   loadLocalEnvironmentIfNeeded(requiredNames);
 
@@ -65,7 +65,7 @@ export async function runKakaoCatalogBackup(): Promise<void> {
       const { data, error, count } = await client
         .from(tableName)
         .select("*", { count: "exact" })
-        .eq("region_id", "busan")
+        .eq("region_id", regionId)
         .order("id", { ascending: true })
         .range(offset, offset + PAGE_SIZE - 1);
       if (error || !Array.isArray(data) || typeof count !== "number") {
@@ -94,7 +94,7 @@ export async function runKakaoCatalogBackup(): Promise<void> {
     mapIngestRuns,
   });
   const outputDirectory = resolve(
-    BACKUP_ROOT,
+    regionId === "busan" ? BACKUP_ROOT : resolve(process.cwd(), "verification-evidence", "kakao-jeju-catalog-v1", "backup"),
     backupDirectoryName(artifacts.manifest.createdAt),
   );
 
@@ -118,7 +118,7 @@ export async function runKakaoCatalogBackup(): Promise<void> {
   }
   writeFileSync(
     resolve(outputDirectory, "manifest.json"),
-    `${JSON.stringify(artifacts.manifest, null, 2)}\n`,
+    `${JSON.stringify({ ...artifacts.manifest, regionId }, null, 2)}\n`,
     { encoding: "utf8", flag: "wx" },
   );
 

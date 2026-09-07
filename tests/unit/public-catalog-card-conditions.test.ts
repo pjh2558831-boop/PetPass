@@ -44,14 +44,15 @@ describe("public catalog card pet conditions", () => {
       petAccessVerdict: "conditional",
       petConditions: condition,
       verificationRequired: true,
+      publicLabel: "동반 조건 확인 필요",
     }));
 
-    expect(html).toContain("반려동물 동반 가능");
+    expect(html).toContain("동반 조건 확인 필요");
     expect(html).toContain("반려견 동반 조건");
     expect(html).toContain(condition);
     expect(html).not.toContain("조건부 동반");
     expect(html).not.toContain("동반 여부 미확인");
-    expect(html).not.toContain("동반 가능 여부를 확인");
+    expect(html).toContain("동반 가능 여부를 확인");
     expect(html).not.toContain("최신 동반 조건을 확인");
     expect(html).toContain('aria-expanded="false"');
     expect(html).toContain("aria-controls=");

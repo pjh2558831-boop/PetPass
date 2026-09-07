@@ -69,7 +69,7 @@ export function createLocationThumbnailHandler(dependencies: LocationThumbnailDe
       !provider ||
       !providerPlaceId ||
       !region?.mapEnabled ||
-      (provider === "kakao" && !region.kakaoDiscoveryEnabled)
+      (provider === "kakao" && !region.allowedMapProviders.includes("kakao"))
     ) {
       return Response.json({ error: "알려진 장소 ID가 아닙니다." }, {
         status: 400,

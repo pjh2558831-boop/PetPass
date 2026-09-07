@@ -27,6 +27,7 @@ import type {
 } from "@/lib/kakao/collection/repository";
 import type { KakaoPlaceSearchResult } from "@/types/kakao";
 import { BUSAN_COLLECTION_COORDINATE_BOUNDS } from "@/lib/kakao/collection/validation";
+import type { RegionConfig } from "@/lib/regions/config";
 
 export const KAKAO_COLLECTION_LIMITS = {
   concurrency: 2,
@@ -100,6 +101,8 @@ export interface ExecuteKakaoCollectionInput {
   repository?: KakaoCollectionRepository;
   resumeRunId?: KakaoCollectionRunId;
   isFullCatalogRun?: boolean;
+  coordinateBounds?: RegionConfig["mapBounds"];
+  allowResumablePlan?: boolean;
   limits?: KakaoCollectionLimits;
   sleep?: (milliseconds: number) => Promise<void>;
   now?: () => Date;
@@ -250,15 +253,15 @@ function shouldReplaceCandidate(
   return stableIncoming.localeCompare(stableExisting, "en") < 0;
 }
 
-function validCoordinates(result: KakaoPlaceSearchResult): boolean {
+function validCoordinates(result: KakaoPlaceSearchResult, bounds = BUSAN_COLLECTION_COORDINATE_BOUNDS as RegionConfig["mapBounds"]): boolean {
   const { longitude, latitude } = result.coordinates;
   return (
     Number.isFinite(longitude) &&
     Number.isFinite(latitude) &&
-    longitude >= BUSAN_COLLECTION_COORDINATE_BOUNDS.west &&
-    longitude <= BUSAN_COLLECTION_COORDINATE_BOUNDS.east &&
-    latitude >= BUSAN_COLLECTION_COORDINATE_BOUNDS.south &&
-    latitude <= BUSAN_COLLECTION_COORDINATE_BOUNDS.north
+    longitude >= bounds.west &&
+    longitude <= bounds.east &&
+    latitude >= bounds.south &&
+    latitude <= bounds.north
   );
 }
 
@@ -281,6 +284,7 @@ function validCandidate(candidate: KakaoCollectionCandidate): boolean {
 }
 
 async function collectQuery(input: {
+  coordinateBounds?: RegionConfig["mapBounds"];
   query: KakaoCollectionQuery;
   provider: KakaoCollectionProvider;
   classification: KakaoCollectionClassificationAdapter;
@@ -347,10 +351,11 @@ async function collectQuery(input: {
     });
 
     outcome.lastCompletedPage = page;
+    if (response.totalCount > input.limits.pageableResultLimit) outcome.saturated = true;
     outcome.providerResultCount += response.results.length;
     outcome.rawResultCount += response.results.length;
     response.results.forEach((result, index) => {
-      if (!validCoordinates(result)) {
+      if (!validCoordinates(result, input.coordinateBounds)) {
         outcome.invalidCoordinateCount += 1;
         outcome.invalidCoordinateResultCount += 1;
         outcome.rejectedResultCount += 1;
@@ -523,7 +528,7 @@ export async function executeKakaoCollection(
   input: ExecuteKakaoCollectionInput,
 ): Promise<KakaoCollectionSummary> {
   const limits = input.limits ?? KAKAO_COLLECTION_LIMITS;
-  assertCollectionPlanWithinCap(input.queries.length, limits);
+  if (!input.allowResumablePlan) assertCollectionPlanWithinCap(input.queries.length, limits);
   const duplicateQueryKeys = input.queries.filter(
     (query, index) =>
       input.queries.findIndex((candidate) => candidate.key === query.key) !==
@@ -602,6 +607,7 @@ export async function executeKakaoCollection(
 
       try {
         const outcome = await collectQuery({
+          coordinateBounds: input.coordinateBounds,
           query,
           provider: input.provider,
           classification: input.classification,

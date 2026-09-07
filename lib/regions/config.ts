@@ -331,9 +331,9 @@ export const JEJU_REGION_CONFIG = {
     fullyAutomaticRecommendation: false,
   },
   kakaoDiscoveryEnabled: false,
-  allowedMapProviders: ["tour"],
+  allowedMapProviders: ["tour", "kakao"],
   mapCatalog: {
-    defaultProviders: ["tour"],
+    defaultProviders: ["tour", "kakao"],
     fallbackSource: "public_catalog",
     snapshotDatasets: ["core", "shopping"],
     snapshotCategories: [
@@ -348,7 +348,7 @@ export const JEJU_REGION_CONFIG = {
     ],
     availableCategories: ["attraction", "food", "cafe", "accommodation", "shopping", "other"],
     deferredCategories: ["shopping"],
-    sourceDescription: "한국관광공사 공식 장소만 표시합니다.",
+    sourceDescription: "한국관광공사 공식 장소와 카카오 검색 후보를 표시합니다.",
     hideMissingPhoneOnDetail: true,
   },
   homepageFeaturedEnabled: false,
@@ -420,10 +420,10 @@ export const SEOUL_REGION_CONFIG = {
     automaticFill: false,
     fullyAutomaticRecommendation: false,
   },
-  kakaoDiscoveryEnabled: false,
-  allowedMapProviders: ["tour"],
+  kakaoDiscoveryEnabled: true,
+  allowedMapProviders: ["tour", "kakao"],
   mapCatalog: {
-    defaultProviders: ["tour"],
+    defaultProviders: ["tour", "kakao"],
     fallbackSource: "public_catalog",
     snapshotDatasets: ["core", "shopping"],
     snapshotCategories: [
@@ -438,7 +438,7 @@ export const SEOUL_REGION_CONFIG = {
     ],
     availableCategories: ["attraction", "food", "cafe", "accommodation", "shopping", "other"],
     deferredCategories: ["shopping"],
-    sourceDescription: "한국관광공사 공식 장소만 표시합니다.",
+    sourceDescription: "한국관광공사 공식 장소와 카카오 검색 후보를 표시합니다. 카카오 후보는 방문 전 동반 여부를 확인해 주세요.",
     hideMissingPhoneOnDetail: true,
   },
   homepageFeaturedEnabled: false,

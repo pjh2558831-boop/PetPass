@@ -125,7 +125,7 @@ describe("public catalog normalization", () => {
     expect(card.placeUrl).toBeNull();
   });
 
-  it("gives registered Kakao places the same access label without a verification warning", () => {
+  it("keeps unreviewed Kakao candidates visibly unverified", () => {
     const kakao = {
       id: "kakao:1", providerPlaceId: "1", name: "후보", kind: "pet_travel_candidate", category: "cafe",
       district: { code: "500", name: "수영구" }, address: "부산광역시 수영구", coordinates: { latitude: 35.1, longitude: 129.1 },
@@ -133,8 +133,9 @@ describe("public catalog normalization", () => {
       reviewStatus: "unreviewed", publicLabel: "동반 여부 확인 필요",
     } satisfies PublicMapPlaceDTO;
     const result = normalizeKakaoCatalogPlace(kakao);
-    expect(result.warning).toBeNull();
-    expect(result.publicLabel).toBe("반려동물 동반 가능");
+    expect(result.warning).toContain("방문 전");
+    expect(result.publicLabel).toBe("동반 여부 확인 필요");
+    expect(result.verificationRequired).toBe(true);
   });
 
   it("labels veterinary and pet-shop records as facilities without access or 24-hour claims", () => {

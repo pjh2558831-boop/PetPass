@@ -4,7 +4,7 @@ import { createLocationThumbnailHandler } from "@/app/api/places/[placeId]/locat
 const allowed = { allowed: true, limit: 60, remaining: 59, retryAfterSeconds: 60 };
 
 describe("location thumbnail route", () => {
-  it("accepts only a known ID and returns a labelled image response", async () => {
+  it.each(["busan", "jeju"])("accepts a public Kakao ID in %s without requiring live discovery", async (region) => {
     const findLocation = vi.fn(async () => ({ latitude: 35.15, longitude: 129.12 }));
     const fetchMap = vi.fn(async () => ({ body: new Uint8Array([1, 2, 3]).buffer, contentType: "image/png" as const }));
     const response = await createLocationThumbnailHandler({
@@ -12,13 +12,13 @@ describe("location thumbnail route", () => {
       findLocation,
       fetchMap,
       rateLimit: () => allowed,
-    })(new Request("http://localhost/api/places/kakao:123/location-thumbnail?region=busan"), {
+    })(new Request(`http://localhost/api/places/kakao:123/location-thumbnail?region=${region}`), {
       params: Promise.resolve({ placeId: "kakao:123" }),
     });
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("image/png");
     expect(response.headers.get("cache-control")).toContain("s-maxage=604800");
-    expect(findLocation).toHaveBeenCalledWith("busan", "123");
+    expect(findLocation).toHaveBeenCalledWith(region, "123");
   });
 
   it("resolves an official Tourism ID server-side before rendering its map", async () => {
