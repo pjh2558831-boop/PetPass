@@ -29,6 +29,22 @@ test.afterEach(async ({ page }) => {
   ).toHaveCount(0);
 });
 
+test("opens automatic planning outside Busan and offers all 17 regions", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("combobox", { name: "여행 지역" }).selectOption("seoul");
+  const recommend = page.getByRole("button", { name: "장소 없이 알아서 추천받기" });
+  await expect(recommend).toBeEnabled();
+  await recommend.focus();
+  await page.keyboard.press("Enter");
+  await continueToTrip(page);
+  const regions = page.getByLabel("여행 지역", { exact: true });
+  await expect(regions).toHaveValue("11");
+  await expect(regions.locator("option")).toHaveCount(17);
+  await regions.selectOption("51");
+  await expect(regions).toHaveValue("51");
+  await expectNoHorizontalOverflow(page);
+});
+
 test("offers explicit planning length controls while keeping the pace choice", async ({
   page,
 }) => {

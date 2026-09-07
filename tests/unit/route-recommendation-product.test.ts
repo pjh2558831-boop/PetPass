@@ -336,7 +336,7 @@ describe("Stage 5 recommendation product contract", () => {
     expect(generate).toHaveBeenCalledTimes(1);
   });
 
-  it("allows Jeju selected-place routing when unsupported automatic fill is off", async () => {
+  it("allows Jeju selected-place routing with automatic fill off", async () => {
     const generate = vi.fn(async () => READY);
     const response = await createRouteRecommendationHandler({ enabled: true, generate })(request({
       ...VALID_REQUEST,
@@ -351,7 +351,7 @@ describe("Stage 5 recommendation product contract", () => {
     expect(generate).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects only Jeju automatic fill while preserving selected-place routing", async () => {
+  it("allows Jeju automatic fill while preserving selected-place routing", async () => {
     const generate = vi.fn(async () => READY);
     const response = await createRouteRecommendationHandler({ enabled: true, generate })(request({
       ...VALID_REQUEST,
@@ -362,15 +362,11 @@ describe("Stage 5 recommendation product contract", () => {
       autoFill: true,
     }));
 
-    expect(response.status).toBe(422);
-    await expect(response.json()).resolves.toMatchObject({
-      status: "region_not_supported_for_itinerary",
-      reasonCodes: ["AUTOMATIC_FILL_NOT_SUPPORTED_FOR_REGION"],
-    });
-    expect(generate).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(generate).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects Seoul before KTO, Kakao discovery, matrix, or solver work", async () => {
+  it("passes Seoul automatic recommendations to the engine", async () => {
     const calls = {
       kto: vi.fn(),
       kakaoDiscovery: vi.fn(),
@@ -390,17 +386,10 @@ describe("Stage 5 recommendation product contract", () => {
       departure: { ...VALID_REQUEST.departure, latitude: 37.5665, longitude: 126.978 },
     }));
 
-    expect(response.status).toBe(422);
-    await expect(response.json()).resolves.toMatchObject({
-      status: "region_not_supported_for_itinerary",
-      reasonCodes: ["REGION_NOT_SUPPORTED_FOR_ITINERARY"],
-      retryable: false,
-    });
-    expect(generate).not.toHaveBeenCalled();
-    expect(calls.kto).not.toHaveBeenCalled();
-    expect(calls.kakaoDiscovery).not.toHaveBeenCalled();
-    expect(calls.matrix).not.toHaveBeenCalled();
-    expect(calls.solver).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(calls.matrix).toHaveBeenCalledTimes(1);
+    expect(calls.solver).toHaveBeenCalledTimes(1);
   });
 
   it.each([

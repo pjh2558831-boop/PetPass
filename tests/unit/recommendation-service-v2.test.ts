@@ -6,6 +6,7 @@ import { generateRouteRecommendation, validateManualRoute } from "@/lib/recommen
 import { manualRouteValidationRequestSchema, manualRouteValidationResponseSchema, routeRecommendationResponseSchema } from "@/lib/recommendation/recommendation-response";
 import { loadSavedRouteRecommendation, saveRouteRecommendation } from "@/lib/storage/recommendation-storage";
 import { loadRecommendationPublicCatalog } from "@/lib/recommendation/public-catalog";
+import { REGION_CONFIGS } from "@/lib/regions/config";
 import type { PublicMapPlaceDTO } from "@/types/public-map-place";
 import type { PublicMapCatalogQuery } from "@/lib/map-places/public-catalog";
 import type {
@@ -321,6 +322,38 @@ function dependencies(kto: DetailedEligibleCandidate[], kakao: MapPlacesSnapshot
 }
 
 describe("recommendation service V2 orchestration", () => {
+  it.each(REGION_CONFIGS)("generates automatic and selected-fill routes within $id", async region => {
+    const markers = ["9101", "9102", "9103"].map((id, index) => ({
+      ...tourMarker(id, 0),
+      regionId: region.id,
+      address: `${region.displayName} 테스트 장소`,
+      coordinates: {
+        latitude: region.defaultMapCenter.latitude + index * .001,
+        longitude: region.defaultMapCenter.longitude + index * .001,
+      },
+    }));
+    for (const selectedPlaceIds of [[], ["tour:9101"]]) {
+      const deps = dependencies([], []);
+      deps.loadCatalogSnapshot.mockImplementation(async ({ dataset }) => ({
+        ...snapshot(dataset === "core" ? markers : [], dataset), region: region.id,
+      }));
+      const result = await generateRouteRecommendation({
+        ...REQUEST,
+        departure: { ...REQUEST.departure, ...region.defaultMapCenter },
+        trip: { ...REQUEST.trip, regionId: region.id, desiredStopCount: 3 },
+        selectedPlaceIds,
+        selectedPlaceReferences: selectedPlaceIds.map(placeId => ({ placeId, regionId: region.id })),
+        autoFill: true,
+      }, deps);
+      expect(result.status).toBe("ready");
+      if (result.status !== "ready") throw new Error(result.status);
+      expect(result.route.stops.length).toBeGreaterThan(1);
+      expect(result.route.stops.every(stop => markers.some(marker => marker.id === stop.placeId))).toBe(true);
+      for (const id of selectedPlaceIds) expect(result.route.stops.some(stop => stop.placeId === id)).toBe(true);
+      expect(deps.loadCatalogSnapshot).toHaveBeenCalledWith(expect.objectContaining({ region: region.id }));
+      expect(routeRecommendationResponseSchema.safeParse(result).success).toBe(true);
+    }
+  });
   it.each(["catalog", "kakao_matrix", "final_directions"] as const)("correlates the first failed %s stage without raw provider data", async stage => {
     const log = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {

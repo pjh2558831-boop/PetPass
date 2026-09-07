@@ -190,12 +190,12 @@ describe("Incheon and Gyeonggi regional expansion", () => {
   it.each([
     [INCHEON_REGION_CONFIG, "2"],
     [GYEONGGI_REGION_CONFIG, "31"],
-  ] as const)("keeps %s map-only, KTO-only, and progressively loads Shopping", (region, legacyAreaCode) => {
+  ] as const)("enables %s itineraries, remains KTO-only, and progressively loads Shopping", (region, legacyAreaCode) => {
     expect(region).toMatchObject({
       providerCodes: { legacyTourismAreaCode: legacyAreaCode },
       mapEnabled: true,
       ktoCatalogEnabled: true,
-      itineraryEnabled: false,
+      itineraryEnabled: true,
       kakaoDiscoveryEnabled: false,
       allowedMapProviders: ["tour"],
       mapCatalog: {

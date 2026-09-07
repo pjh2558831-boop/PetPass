@@ -59,7 +59,7 @@ describe("Seoul regional KTO foundation", () => {
     expect(getRegionConfigByService2LegalDongCode("11")?.id).toBe("seoul");
   });
 
-  it("exposes the Phase 3 map-only capability matrix", () => {
+  it("enables itineraries while preserving provider capabilities", () => {
     expect(BUSAN_REGION_CONFIG).toMatchObject({
       mapEnabled: true,
       ktoCatalogEnabled: true,
@@ -70,14 +70,14 @@ describe("Seoul regional KTO foundation", () => {
     expect(JEJU_REGION_CONFIG).toMatchObject({
       mapEnabled: true,
       ktoCatalogEnabled: true,
-      itineraryEnabled: false,
+      itineraryEnabled: true,
       kakaoDiscoveryEnabled: false,
       allowedMapProviders: ["tour", "kakao"],
     });
     expect(SEOUL_REGION_CONFIG).toMatchObject({
       mapEnabled: true,
       ktoCatalogEnabled: true,
-      itineraryEnabled: false,
+      itineraryEnabled: true,
       kakaoDiscoveryEnabled: true,
       allowedMapProviders: ["tour", "kakao"],
       mapCatalog: {
@@ -112,9 +112,9 @@ describe("Seoul regional KTO foundation", () => {
       "jeonnam",
       "jeju",
     ]);
-    expect(getItineraryEnabledRegionConfigs().map(({ id }) => id)).toEqual([
-      "busan",
-    ]);
+    expect(getItineraryEnabledRegionConfigs().map(({ id }) => id)).toEqual(
+      getMapEnabledRegionConfigs().map(({ id }) => id),
+    );
     expect(getKakaoDiscoveryEnabledRegionConfigs().map(({ id }) => id)).toEqual([
       "seoul",
       "busan",

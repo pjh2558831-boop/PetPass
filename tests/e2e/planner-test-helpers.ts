@@ -60,6 +60,8 @@ export async function chooseConfirmedDeparture(
   page: Page,
   query = "부산광역시청",
 ) {
+  // The departure fixture is in Busan; nationwide planning no longer defaults there.
+  await page.getByLabel("여행 지역", { exact: true }).selectOption("26");
   const responsePromise = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return (

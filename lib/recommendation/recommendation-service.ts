@@ -7,7 +7,6 @@ import "server-only";
 import { enterRecommendationStage, recordRecommendationProviderFailure, safeProviderFailure } from "@/lib/shared/recommendation-trace";
 import { applyConditionAnswers, conditionQuestions } from "./condition-confirmation";
 
-import { BUSAN_DISCOVERY_BOUNDS } from "@/lib/kakao/discovery";
 import { KakaoMobilityProviderError } from "@/lib/kakao/directions";
 import { KakaoTravelTimeProvider } from "@/lib/kakao/travel-time-provider";
 import { getTripPaceConfig } from "@/lib/itinerary/trip-pace";
@@ -606,7 +605,7 @@ async function generateRouteRecommendationLegacy(
               normalized.scope.type === "district"
                 ? normalized.scope.districtCode
                 : null,
-            bounds: BUSAN_DISCOVERY_BOUNDS,
+            bounds: region.mapBounds,
           },
           selectedCategories: normalized.selectedCategories,
           includeShopping: normalized.includeShopping,

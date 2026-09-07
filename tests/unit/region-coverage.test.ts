@@ -63,10 +63,11 @@ describe("provider-neutral region labels", () => {
 });
 
 describe("region configuration and bounded Kakao search", () => {
-  it("supports direct selected-place routing in all 17 regions without overstating automatic capability", () => {
+  it("supports selected routing, automatic fill and recommendations in all 17 regions", () => {
     expect(REGION_CONFIGS).toHaveLength(17);
     expect(REGION_CONFIGS.every(({ routeCapabilities }) =>
-      routeCapabilities.selectedPlaceRouting)).toBe(true);
+      routeCapabilities.selectedPlaceRouting && routeCapabilities.automaticFill &&
+      routeCapabilities.fullyAutomaticRecommendation)).toBe(true);
     expect(BUSAN_REGION_CONFIG.routeCapabilities).toEqual({
       selectedPlaceRouting: true,
       automaticFill: true,
@@ -74,8 +75,8 @@ describe("region configuration and bounded Kakao search", () => {
     });
     expect(JEJU_REGION_CONFIG.routeCapabilities).toEqual({
       selectedPlaceRouting: true,
-      automaticFill: false,
-      fullyAutomaticRecommendation: false,
+      automaticFill: true,
+      fullyAutomaticRecommendation: true,
     });
   });
 
@@ -124,7 +125,7 @@ describe("region configuration and bounded Kakao search", () => {
       getItineraryEnabledRegionConfigs([BUSAN_REGION_CONFIG, JEJU_REGION_CONFIG]).map(
         ({ id }) => id,
       ),
-    ).toEqual(["busan"]);
+    ).toEqual(["busan", "jeju"]);
     expect(
       getKakaoDiscoveryEnabledRegionConfigs([BUSAN_REGION_CONFIG, JEJU_REGION_CONFIG]).map(
         ({ id }) => id,
@@ -137,7 +138,7 @@ describe("region configuration and bounded Kakao search", () => {
     });
     expect(JEJU_REGION_CONFIG).toMatchObject({
       mapEnabled: true,
-      itineraryEnabled: false,
+      itineraryEnabled: true,
       kakaoDiscoveryEnabled: false,
     });
   });
