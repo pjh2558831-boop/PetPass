@@ -44,6 +44,13 @@ const expectedMigrationFiles = [
   "20260901124428_add_public_kakao_pet_conditions.sql",
   "20260907095752_add_seoul_kakao_catalog.sql",
   "20260907102956_add_jeju_kakao_catalog.sql",
+  "20260907135618_add_capital_region_kakao_catalog.sql",
+  "20260907142623_add_gangwon_kakao_catalog.sql",
+  "20260907144147_add_chungcheong_kakao_catalog.sql",
+  "20260907145211_add_gyeongsang_kakao_catalog.sql",
+  "20260907150527_add_jeolla_kakao_catalog.sql",
+  "20260907150916_accept_current_jeonnam_kakao_address.sql",
+  "20260907152705_add_remaining_metro_kakao_catalog.sql",
 ] as const;
 
 const productionStatementHashes = {

@@ -100,7 +100,7 @@ function increment(counts: Record<string, number>, key: string): void {
   counts[key] = (counts[key] ?? 0) + 1;
 }
 
-export function createSupabaseKakaoCollectionRepository(regionId: "busan" | "seoul" | "jeju" = "busan"): KakaoCollectionRepository {
+export function createSupabaseKakaoCollectionRepository(regionId: "busan" | "seoul" | "jeju" | "gyeonggi" | "incheon" | "gangwon" | "chungbuk" | "chungnam" | "gyeongbuk" | "gyeongnam" | "jeonbuk" | "jeonnam" | "daejeon" | "daegu" | "gwangju" | "ulsan" | "sejong" = "busan"): KakaoCollectionRepository {
   const supabase = createClient(
     petPassSupabaseUrl(),
     requiredEnvironmentValue("SUPABASE_SECRET_KEY"),
@@ -125,7 +125,7 @@ export function createSupabaseKakaoCollectionRepository(regionId: "busan" | "seo
       normalized_category: query.categoryHint ?? null,
       category_group_code: query.categoryGroupCode ?? null,
     }));
-    const startFunction = regionId === "jeju" ? "start_kakao_jeju_catalog_run_v1" : regionId === "seoul" ? "start_kakao_seoul_catalog_run_v1" : input.registryVersion === "kakao-busan-query-registry-v2"
+    const startFunction = regionId === "gyeonggi" || regionId === "incheon" || regionId === "gangwon" || regionId === "chungbuk" || regionId === "chungnam" || regionId === "gyeongbuk" || regionId === "gyeongnam" || regionId === "jeonbuk" || regionId === "jeonnam" || regionId === "daejeon" || regionId === "daegu" || regionId === "gwangju" || regionId === "ulsan" || regionId === "sejong" ? `start_kakao_${regionId}_catalog_run_v1` : regionId === "jeju" ? "start_kakao_jeju_catalog_run_v1" : regionId === "seoul" ? "start_kakao_seoul_catalog_run_v1" : input.registryVersion === "kakao-busan-query-registry-v2"
       ? "start_kakao_catalog_delta_run_v2"
       : "start_kakao_catalog_run_v1";
     const { data, error } = await supabase.rpc(
@@ -247,7 +247,7 @@ export function createSupabaseKakaoCollectionRepository(regionId: "busan" | "seo
 
   async function checkpointQuery(input: CheckpointKakaoCollectionQueryInput) {
     const { stats } = input;
-    const { error } = await supabase.rpc(regionId === "jeju" ? "commit_kakao_jeju_catalog_query_v1" : regionId === "seoul" ? "commit_kakao_seoul_catalog_query_v1" : "commit_kakao_catalog_query_v1", {
+    const { error } = await supabase.rpc(regionId === "gyeonggi" || regionId === "incheon" || regionId === "gangwon" || regionId === "chungbuk" || regionId === "chungnam" || regionId === "gyeongbuk" || regionId === "gyeongnam" || regionId === "jeonbuk" || regionId === "jeonnam" || regionId === "daejeon" || regionId === "daegu" || regionId === "gwangju" || regionId === "ulsan" || regionId === "sejong" ? `commit_kakao_${regionId}_catalog_query_v1` : regionId === "jeju" ? "commit_kakao_jeju_catalog_query_v1" : regionId === "seoul" ? "commit_kakao_seoul_catalog_query_v1" : "commit_kakao_catalog_query_v1", {
       p_run_id: safeRunId(input.runId),
       p_query_key: input.query.key,
       p_candidates: toKakaoCatalogCandidatePayload(input),

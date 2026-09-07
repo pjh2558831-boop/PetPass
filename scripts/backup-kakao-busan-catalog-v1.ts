@@ -38,7 +38,7 @@ function backupDirectoryName(createdAt: string): string {
   return createdAt.replace(/[-:]/gu, "").replace(/\.\d{3}Z$/u, "Z");
 }
 
-export async function runKakaoCatalogBackup(regionId: "busan" | "jeju" = "busan"): Promise<void> {
+export async function runKakaoCatalogBackup(regionId: "busan" | "jeju" | "gyeonggi" | "incheon" | "gangwon" | "chungbuk" | "chungnam" | "gyeongbuk" | "gyeongnam" | "jeonbuk" | "jeonnam" | "daejeon" | "daegu" | "gwangju" | "ulsan" | "sejong" = "busan"): Promise<void> {
   const requiredNames = ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SECRET_KEY"];
   loadLocalEnvironmentIfNeeded(requiredNames);
 
@@ -94,7 +94,7 @@ export async function runKakaoCatalogBackup(regionId: "busan" | "jeju" = "busan"
     mapIngestRuns,
   });
   const outputDirectory = resolve(
-    regionId === "busan" ? BACKUP_ROOT : resolve(process.cwd(), "verification-evidence", "kakao-jeju-catalog-v1", "backup"),
+    regionId === "busan" ? BACKUP_ROOT : resolve(process.cwd(), "verification-evidence", `kakao-${regionId}-catalog-v1`, "backup"),
     backupDirectoryName(artifacts.manifest.createdAt),
   );
 

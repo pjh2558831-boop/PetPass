@@ -45,8 +45,23 @@ function addressDistrict(
   const [prefix, districtName] = address.split(" ");
   const prefixes = region.id === "busan" ? ["부산", "부산광역시"] :
     region.id === "seoul" ? ["서울", "서울특별시"] :
-    region.id === "jeju" ? ["제주", "제주특별자치도"] : [];
+    region.id === "jeju" ? ["제주", "제주특별자치도"] :
+    region.id === "gyeonggi" ? ["경기", "경기도"] :
+    region.id === "incheon" ? ["인천", "인천광역시"] :
+    region.id === "gangwon" ? ["강원", "강원도", "강원특별자치도"] :
+    region.id === "chungbuk" ? ["충북", "충청북도"] :
+    region.id === "chungnam" ? ["충남", "충청남도"] :
+    region.id === "gyeongbuk" ? ["경북", "경상북도"] :
+    region.id === "gyeongnam" ? ["경남", "경상남도"] :
+    region.id === "jeonbuk" ? ["전북", "전라북도", "전북특별자치도"] :
+    region.id === "jeonnam" ? ["전남", "전라남도", "전남광주통합특별시"] :
+    region.id === "daejeon" ? ["대전", "대전광역시"] :
+    region.id === "daegu" ? ["대구", "대구광역시"] :
+    region.id === "gwangju" ? ["광주", "광주광역시", "전남광주통합특별시"] :
+    region.id === "ulsan" ? ["울산", "울산광역시"] :
+    region.id === "sejong" ? ["세종", "세종특별자치시"] : [];
   if (!prefixes.includes(prefix)) return null;
+  if (region.id === "sejong" && districtName) return region.districts[0] ?? null;
   return (
     region.districts.find(({ name }) => name === districtName) ?? null
   );

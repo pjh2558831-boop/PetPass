@@ -502,8 +502,10 @@ function createProgressiveKtoMapRegion<TId extends RegionId>(input: {
   maxRawRecords: number;
   maxRawRecordsPerDistrict: number;
   maxDetailedRecords: number;
+  kakaoCatalogEnabled?: boolean;
 }) {
   const registryVersion = input.registryVersion ?? `tour-${input.id}-service2-v1`;
+  const mapProviders: RegionMapProvider[] = input.kakaoCatalogEnabled ? ["tour", "kakao"] : ["tour"];
   return {
     id: input.id,
     displayName: input.displayName,
@@ -552,9 +554,9 @@ function createProgressiveKtoMapRegion<TId extends RegionId>(input: {
       fullyAutomaticRecommendation: true,
     },
     kakaoDiscoveryEnabled: false,
-    allowedMapProviders: ["tour"],
+    allowedMapProviders: mapProviders,
     mapCatalog: {
-      defaultProviders: ["tour"],
+      defaultProviders: mapProviders,
       fallbackSource: "public_catalog",
       snapshotDatasets: ["core", "shopping"],
       snapshotCategories: [
@@ -569,7 +571,9 @@ function createProgressiveKtoMapRegion<TId extends RegionId>(input: {
       ],
       availableCategories: ["attraction", "food", "cafe", "accommodation", "shopping", "other"],
       deferredCategories: ["shopping"],
-      sourceDescription: "한국관광공사 공식 장소만 표시합니다.",
+      sourceDescription: input.kakaoCatalogEnabled
+        ? "한국관광공사 공식 장소와 카카오 검색 후보를 표시합니다."
+        : "한국관광공사 공식 장소만 표시합니다.",
       hideMissingPhoneOnDetail: true,
     },
     homepageFeaturedEnabled: false,
@@ -608,6 +612,7 @@ const INCHEON_DISTRICT_CONFIGS = [
 ] as const satisfies readonly RegionDistrictConfig[];
 
 export const INCHEON_REGION_CONFIG = createProgressiveKtoMapRegion({
+  kakaoCatalogEnabled: true,
   id: "incheon",
   displayName: "인천",
   legalDongRegionCode: "28",
@@ -689,6 +694,7 @@ const GYEONGGI_DISTRICT_CONFIGS = [
 ] as const satisfies readonly RegionDistrictConfig[];
 
 export const GYEONGGI_REGION_CONFIG = createProgressiveKtoMapRegion({
+  kakaoCatalogEnabled: true,
   id: "gyeonggi",
   displayName: "경기",
   legalDongRegionCode: "41",
@@ -714,6 +720,7 @@ function areaCodeDistricts(
 }
 
 function createAreaCodeKtoMapRegion(input: {
+  kakaoCatalogEnabled?: boolean;
   id: RegionId;
   displayName: string;
   legalDongRegionCode: string;
@@ -735,6 +742,7 @@ function createAreaCodeKtoMapRegion(input: {
 }
 
 export const DAEJEON_REGION_CONFIG = createAreaCodeKtoMapRegion({
+  kakaoCatalogEnabled: true,
   id: "daejeon", displayName: "대전", legalDongRegionCode: "30",
   legacyTourismAreaCode: "3", administrativeAddressPrefixes: ["대전", "대전광역시"],
   defaultMapCenter: { latitude: 36.3504, longitude: 127.3845 }, defaultMapLevel: 8,
@@ -743,14 +751,16 @@ export const DAEJEON_REGION_CONFIG = createAreaCodeKtoMapRegion({
 });
 
 export const DAEGU_REGION_CONFIG = createAreaCodeKtoMapRegion({
+  kakaoCatalogEnabled: true,
   id: "daegu", displayName: "대구", legalDongRegionCode: "27",
   legacyTourismAreaCode: "4", administrativeAddressPrefixes: ["대구", "대구광역시"],
   defaultMapCenter: { latitude: 35.8714, longitude: 128.6014 }, defaultMapLevel: 9,
-  mapBounds: { west: 128.32, south: 35.55, east: 129.0, north: 36.1 },
+  mapBounds: { west: 128.32, south: 35.55, east: 129.0, north: 36.5 },
   districts: [["1", "남구"], ["2", "달서구"], ["3", "달성군"], ["4", "동구"], ["5", "북구"], ["6", "서구"], ["7", "수성구"], ["8", "중구"], ["9", "군위군"]],
 });
 
 export const GWANGJU_REGION_CONFIG = createAreaCodeKtoMapRegion({
+  kakaoCatalogEnabled: true,
   id: "gwangju", displayName: "광주", legalDongRegionCode: "29",
   legacyTourismAreaCode: "5", administrativeAddressPrefixes: ["광주", "광주광역시"],
   defaultMapCenter: { latitude: 35.1595, longitude: 126.8526 }, defaultMapLevel: 8,
@@ -759,6 +769,7 @@ export const GWANGJU_REGION_CONFIG = createAreaCodeKtoMapRegion({
 });
 
 export const ULSAN_REGION_CONFIG = createAreaCodeKtoMapRegion({
+  kakaoCatalogEnabled: true,
   id: "ulsan", displayName: "울산", legalDongRegionCode: "31",
   legacyTourismAreaCode: "7", administrativeAddressPrefixes: ["울산", "울산광역시"],
   defaultMapCenter: { latitude: 35.5384, longitude: 129.3114 }, defaultMapLevel: 9,
@@ -767,6 +778,7 @@ export const ULSAN_REGION_CONFIG = createAreaCodeKtoMapRegion({
 });
 
 export const SEJONG_REGION_CONFIG = createAreaCodeKtoMapRegion({
+  kakaoCatalogEnabled: true,
   id: "sejong", displayName: "세종", legalDongRegionCode: "36",
   legacyTourismAreaCode: "8", administrativeAddressPrefixes: ["세종", "세종특별자치시"],
   defaultMapCenter: { latitude: 36.48, longitude: 127.289 }, defaultMapLevel: 9,
@@ -775,6 +787,7 @@ export const SEJONG_REGION_CONFIG = createAreaCodeKtoMapRegion({
 });
 
 export const GANGWON_REGION_CONFIG = createAreaCodeKtoMapRegion({
+  kakaoCatalogEnabled: true,
   id: "gangwon", displayName: "강원", legalDongRegionCode: "51",
   legacyTourismAreaCode: "32", administrativeAddressPrefixes: ["강원", "강원특별자치도"],
   defaultMapCenter: { latitude: 37.8228, longitude: 128.1555 }, defaultMapLevel: 11,
@@ -783,6 +796,7 @@ export const GANGWON_REGION_CONFIG = createAreaCodeKtoMapRegion({
 });
 
 export const CHUNGBUK_REGION_CONFIG = createAreaCodeKtoMapRegion({
+  kakaoCatalogEnabled: true,
   id: "chungbuk", displayName: "충북", legalDongRegionCode: "43",
   legacyTourismAreaCode: "33", administrativeAddressPrefixes: ["충북", "충청북도"],
   defaultMapCenter: { latitude: 36.8, longitude: 127.7 }, defaultMapLevel: 10,
@@ -791,6 +805,7 @@ export const CHUNGBUK_REGION_CONFIG = createAreaCodeKtoMapRegion({
 });
 
 export const CHUNGNAM_REGION_CONFIG = createAreaCodeKtoMapRegion({
+  kakaoCatalogEnabled: true,
   id: "chungnam", displayName: "충남", legalDongRegionCode: "44",
   legacyTourismAreaCode: "34", administrativeAddressPrefixes: ["충남", "충청남도"],
   defaultMapCenter: { latitude: 36.5184, longitude: 126.8 }, defaultMapLevel: 10,
@@ -799,6 +814,7 @@ export const CHUNGNAM_REGION_CONFIG = createAreaCodeKtoMapRegion({
 });
 
 export const GYEONGBUK_REGION_CONFIG = createAreaCodeKtoMapRegion({
+  kakaoCatalogEnabled: true,
   id: "gyeongbuk", displayName: "경북", legalDongRegionCode: "47",
   legacyTourismAreaCode: "35", administrativeAddressPrefixes: ["경북", "경상북도"],
   defaultMapCenter: { latitude: 36.4919, longitude: 128.8889 }, defaultMapLevel: 11,
@@ -807,6 +823,7 @@ export const GYEONGBUK_REGION_CONFIG = createAreaCodeKtoMapRegion({
 });
 
 export const GYEONGNAM_REGION_CONFIG = createAreaCodeKtoMapRegion({
+  kakaoCatalogEnabled: true,
   id: "gyeongnam", displayName: "경남", legalDongRegionCode: "48",
   legacyTourismAreaCode: "36", administrativeAddressPrefixes: ["경남", "경상남도"],
   defaultMapCenter: { latitude: 35.4606, longitude: 128.2132 }, defaultMapLevel: 10,
@@ -815,18 +832,20 @@ export const GYEONGNAM_REGION_CONFIG = createAreaCodeKtoMapRegion({
 });
 
 export const JEONBUK_REGION_CONFIG = createAreaCodeKtoMapRegion({
+  kakaoCatalogEnabled: true,
   id: "jeonbuk", displayName: "전북", legalDongRegionCode: "52",
   legacyTourismAreaCode: "37", administrativeAddressPrefixes: ["전북", "전북특별자치도"],
   defaultMapCenter: { latitude: 35.7175, longitude: 127.153 }, defaultMapLevel: 10,
-  mapBounds: { west: 126.35, south: 35.25, east: 127.95, north: 36.25 },
+  mapBounds: { west: 125.8, south: 35.25, east: 127.95, north: 36.25 },
   districts: [["1", "고창군"], ["2", "군산시"], ["3", "김제시"], ["4", "남원시"], ["5", "무주군"], ["6", "부안군"], ["7", "순창군"], ["8", "완주군"], ["9", "익산시"], ["10", "임실군"], ["11", "장수군"], ["12", "전주시"], ["13", "정읍시"], ["14", "진안군"]],
 });
 
 export const JEONNAM_REGION_CONFIG = createAreaCodeKtoMapRegion({
+  kakaoCatalogEnabled: true,
   id: "jeonnam", displayName: "전남", legalDongRegionCode: "46",
   legacyTourismAreaCode: "38", administrativeAddressPrefixes: ["전남", "전라남도"],
   defaultMapCenter: { latitude: 34.8679, longitude: 126.991 }, defaultMapLevel: 11,
-  mapBounds: { west: 125.85, south: 33.85, east: 127.9, north: 35.5 },
+  mapBounds: { west: 125.0, south: 33.85, east: 127.9, north: 35.5 },
   districts: [["1", "강진군"], ["2", "고흥군"], ["3", "곡성군"], ["4", "광양시"], ["5", "구례군"], ["6", "나주시"], ["7", "담양군"], ["8", "목포시"], ["9", "무안군"], ["10", "보성군"], ["11", "순천시"], ["12", "신안군"], ["13", "여수시"], ["16", "영광군"], ["17", "영암군"], ["18", "완도군"], ["19", "장성군"], ["20", "장흥군"], ["21", "진도군"], ["22", "함평군"], ["23", "해남군"], ["24", "화순군"]],
 });
 
