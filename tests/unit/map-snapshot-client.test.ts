@@ -89,7 +89,7 @@ describe("map snapshot browser fallback", () => {
     });
     const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       void input;
-      void init;
+      expect(init?.credentials).toBe("omit");
       return new Response(raw, {
         status: 200,
         headers: { "Content-Type": "application/json", "Content-Length": "321" },

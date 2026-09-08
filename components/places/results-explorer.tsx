@@ -731,10 +731,8 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     const offset = (currentPage - 1) * PUBLIC_CATALOG_PAGE_SIZE;
     return filteredPlaces.slice(offset, offset + PUBLIC_CATALOG_PAGE_SIZE);
   }, [currentPage, filteredPlaces]);
-  const pagedPlaces = useMemo(() => pagedMarkers.map((marker) => {
-    const card = tourCardsById.get(marker.id) ?? markerToCatalogCard(marker);
-    return mapReadyForRegion === region ? card : { ...card, imageUrl: null };
-  }), [mapReadyForRegion, pagedMarkers, region, tourCardsById]);
+  const pagedPlaces = useMemo(() => pagedMarkers.map((marker) =>
+    tourCardsById.get(marker.id) ?? markerToCatalogCard(marker)), [pagedMarkers, tourCardsById]);
 
   useEffect(() => {
     if (regionConfig.mapCatalog.fallbackSource === "public_catalog") {
@@ -757,6 +755,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
           controller.signal,
         ),
       }))).then((results) => {
+        if (controller.signal.aborted) return;
         setCardDetailsError("");
         setTourCardsById((current) => {
           const next = new Map(current);
@@ -805,6 +804,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       headers: { Accept: "application/json" },
     }).then(async (response) => {
       const body = await response.json() as ApiResult<TourPlaceList>;
+      if (controller.signal.aborted) return;
       if (!response.ok || !body.ok) return;
       if (!Array.isArray(body.data.places)) return;
       const places = body.data.places;

@@ -61,6 +61,7 @@ export async function requestMapPlacesSnapshot(
   });
   const response = await request(`/api/map/places/snapshot?${params}`, {
     signal,
+    credentials: "omit",
     headers: { Accept: "application/json" },
   });
   const rawBody = await response.text();
