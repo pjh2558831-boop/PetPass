@@ -308,13 +308,16 @@ type PendingRequest<T> = {
 export function HomepageLiveExperience({
   staticMapEnabled = false,
   regionId = "busan",
+  cardsOnly = false,
 }: {
   staticMapEnabled?: boolean;
   regionId?: RegionId;
+  cardsOnly?: boolean;
 }) {
   const router = useRouter();
   const itinerarySelection = useSelectedItinerarySelection({
     regionId,
+    enabled: !cardsOnly,
     surfaceAddLimit: 3,
   });
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
@@ -392,12 +395,12 @@ export function HomepageLiveExperience({
   const filterButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (!itinerarySelection.hydrated || itinerarySelection.snapshot.regionId === regionId) return;
+    if (cardsOnly || !itinerarySelection.hydrated || itinerarySelection.snapshot.regionId === regionId) return;
     itinerarySelection.resetRegion(regionId, {
       preserveAutoFill: true,
       message: "지역이 달라 기존 선택을 정리했습니다.",
     });
-  }, [itinerarySelection, regionId]);
+  }, [cardsOnly, itinerarySelection, regionId]);
 
   useEffect(() => {
     if (!filterOpen) return;
@@ -732,6 +735,7 @@ export function HomepageLiveExperience({
   );
 
   if (loadedInitialKey !== initialKey || loadState === "loading") {
+    if (cardsOnly) return <p role="status" className="homepage-carousel-loading">추천 장소 카드를 불러오는 중입니다.</p>;
     return (
       <HomepageLiveSkeleton
         regionId={regionId}
@@ -740,6 +744,7 @@ export function HomepageLiveExperience({
     );
   }
   if (loadState === "error" || !snapshot) {
+    if (cardsOnly) return <p role="status">추천 장소 카드를 불러오지 못했습니다. <button type="button" className="min-h-11 underline" onClick={retry}>다시 시도</button></p>;
     return (
       <HomepageLiveError
         error={error}
@@ -749,6 +754,9 @@ export function HomepageLiveExperience({
       />
     );
   }
+
+  if (cardsOnly) return <HomepagePlaceCarousel places={snapshot.cards} layers={snapshot.layers}
+    featuredState={snapshot.official.featuredState} staticMapEnabled={staticMapEnabled} />;
 
   const categoryCounts = Object.fromEntries(PLACE_CATEGORIES.map((category) => {
     const dataset = optionalDatasetByCategory.get(category);

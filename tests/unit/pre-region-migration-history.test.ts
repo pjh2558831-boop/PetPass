@@ -51,6 +51,7 @@ const expectedMigrationFiles = [
   "20260907150527_add_jeolla_kakao_catalog.sql",
   "20260907150916_accept_current_jeonnam_kakao_address.sql",
   "20260907152705_add_remaining_metro_kakao_catalog.sql",
+  "20260908082534_materialize_catalog_hit_counts.sql",
 ] as const;
 
 const productionStatementHashes = {

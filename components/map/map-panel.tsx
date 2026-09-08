@@ -51,6 +51,7 @@ export interface MapPanelProps {
     cause: KakaoViewportIdleCause,
   ) => void;
   viewportKey?: string;
+  fitOnResize?: boolean;
   layerControls?: MapLayerControl[];
   onLayerToggle?: (id: string, visible: boolean) => void;
   showLocationLabel?: boolean;
@@ -93,6 +94,7 @@ export function MapPanel({
   onCurrentMapSearch,
   onViewportIdle,
   viewportKey = "default",
+  fitOnResize = false,
   layerControls = [],
   onLayerToggle,
   showLocationLabel = true,
@@ -259,10 +261,13 @@ export function MapPanel({
     const container = mapContainerRef.current;
     const controller = controllerRef.current;
     if (!container || !controller || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => controller.relayout());
+    const observer = new ResizeObserver(() => {
+      controller.relayout();
+      if (fitOnResize) controller.fitBounds();
+    });
     observer.observe(container);
     return () => observer.disconnect();
-  }, [mapVersion]);
+  }, [fitOnResize, mapVersion]);
 
   useEffect(() => () => {
     controllerRef.current?.destroy();

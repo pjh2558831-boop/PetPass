@@ -149,7 +149,7 @@ export function HomePlaceWorkbenchLoading({
       <WorkbenchModes mode="browse" onModeChange={() => undefined} regionId={regionId} interactive={false} />
       <div className="homepage-workbench-heading" aria-live="polite" aria-busy="true">
         <div>
-          <p className="homepage-kicker">부산 장소 작업 화면</p>
+          <p className="homepage-kicker">{regionLabel} 장소 작업 화면</p>
           <h2>장소 수를 확인하고 있어요</h2>
         </div>
       </div>
@@ -185,7 +185,7 @@ export function HomePlaceWorkbenchError({
       <WorkbenchModes mode="browse" onModeChange={() => undefined} regionId={regionId} interactive={false} />
       <div className="homepage-workbench-heading">
         <div>
-          <p className="homepage-kicker">부산 장소 작업 화면</p>
+          <p className="homepage-kicker">{regionLabel} 장소 작업 화면</p>
           <h2>공식 관광 정보를 지금 불러올 수 없어요</h2>
         </div>
       </div>
@@ -223,6 +223,7 @@ export function HomePlaceWorkbench({
   onRetryCompletion,
   providerUnavailable,
   staticMapEnabled,
+  nationwide = false,
 }: {
   regionId: RegionId;
   regionLabel: string;
@@ -238,6 +239,7 @@ export function HomePlaceWorkbench({
   onRetryCompletion: () => void;
   providerUnavailable: boolean;
   staticMapEnabled: boolean;
+  nationwide?: boolean;
 }) {
   const [mode, setMode] = useState<WorkbenchMode>("browse");
   const [query, setQuery] = useState("");
@@ -260,7 +262,7 @@ export function HomePlaceWorkbench({
   );
   const resolvedSelectionId = selectedLocationId && visibleIds.has(selectedLocationId)
     ? selectedLocationId
-    : visibleMarkers[0]?.id ?? null;
+    : nationwide ? null : visibleMarkers[0]?.id ?? null;
   const selectedIds = useMemo(
     () => new Set(selectionSnapshot.places.map(({ id }) => id)),
     [selectionSnapshot.places],
@@ -277,22 +279,25 @@ export function HomePlaceWorkbench({
     activeListPage * HOME_LIST_PAGE_SIZE,
     (activeListPage + 1) * HOME_LIST_PAGE_SIZE,
   );
-  const photoIds = renderedMarkers
-    .filter((marker) => marker.layer === "official" && marker.category !== "shopping" && !marker.imageUrl)
-    .map(({ id }) => id).join(",");
-  const shoppingPhotoIds = renderedMarkers
-    .filter((marker) => marker.layer === "official" && marker.category === "shopping" && !marker.imageUrl)
-    .map(({ id }) => id).join(",");
-  const photoKey = `${regionId}:${photoIds}:${shoppingPhotoIds}`;
+  const photoKey = JSON.stringify(renderedMarkers
+    .filter((marker) => marker.layer === "official" && !marker.imageUrl)
+    .map((marker) => [marker.regionId ?? regionId, marker.category === "shopping" ? "shopping" : "core", marker.id]));
   const [photos, setPhotos] = useState<{ key: string; urls: Map<string, string | null> }>({ key: "", urls: new Map() });
   const [photoError, setPhotoError] = useState("");
   const [photoRetry, setPhotoRetry] = useState(0);
   useEffect(() => {
-    if (!photoIds && !shoppingPhotoIds) return;
+    const entries = JSON.parse(photoKey) as Array<[RegionId, "core" | "shopping", string]>;
+    if (!entries.length) return;
     const controller = new AbortController();
-    const requests = [["core", photoIds], ["shopping", shoppingPhotoIds]] as const;
-    void Promise.all(requests.filter(([, ids]) => ids).map(([dataset, ids]) =>
-      requestMapPlaceCardDetails(regionId, dataset, ids.split(","), controller.signal)))
+    const groups = new Map<string, { region: RegionId; dataset: "core" | "shopping"; ids: string[] }>();
+    for (const [region, dataset, id] of entries) {
+      const key = `${region}:${dataset}`;
+      const group = groups.get(key) ?? { region, dataset, ids: [] };
+      group.ids.push(id);
+      groups.set(key, group);
+    }
+    void Promise.all([...groups.values()].map(({ region, dataset, ids }) =>
+      requestMapPlaceCardDetails(region, dataset, ids, controller.signal)))
       .then((pages) => {
         if (controller.signal.aborted) return;
         setPhotos({ key: photoKey, urls: new Map(pages.flatMap((page) => page.items.map(({ id, imageUrl }) => [id, imageUrl] as const))) });
@@ -302,7 +307,7 @@ export function HomePlaceWorkbench({
         if (!controller.signal.aborted) setPhotoError(photoKey);
       });
     return () => controller.abort();
-  }, [regionId, photoIds, shoppingPhotoIds, photoKey, photoRetry]);
+  }, [photoKey, photoRetry]);
 
   const showListPage = (page: number) => {
     const nextPage = Math.max(0, Math.min(page, pageCount - 1));
@@ -348,7 +353,7 @@ export function HomePlaceWorkbench({
       />
       <div className="homepage-workbench-heading">
         <div>
-          <p className="homepage-kicker">부산 장소 작업 화면</p>
+          <p className="homepage-kicker">{regionLabel} 장소 작업 화면</p>
           <h2 id="homepage-map-title">함께 갈 곳을 지도와 목록에서 고르세요</h2>
         </div>
         <strong aria-live="polite">{visibleMarkers.length.toLocaleString("ko-KR")}곳</strong>
@@ -417,7 +422,8 @@ export function HomePlaceWorkbench({
           </Link>
           <div className="homepage-map-canvas-wrap">
             <MapPanel
-              regionId={regionId}
+              regionId={nationwide ? "busan" : regionId}
+              fitOnResize={nationwide}
               title={`${regionLabel} 공식·공개 장소 지도`}
               locationLabel={`${regionLabel} 전체`}
               locations={locations}
@@ -427,7 +433,7 @@ export function HomePlaceWorkbench({
                 if (id) focusLocation(id);
               }}
               onDataUpdate={onMapDataUpdate}
-              viewportKey={`homepage:${regionId}:mixed-source:${mode}:${normalizedQuery}`}
+              viewportKey={`homepage:${nationwide ? `nationwide:${listDataKey}` : regionId}:mixed-source:${mode}:${normalizedQuery}`}
               showLocationLabel={false}
               showSelectionInfo={false}
               emptyMessage={mode === "search"
@@ -438,7 +444,7 @@ export function HomePlaceWorkbench({
         </div>
 
         <aside className="homepage-workbench__list" aria-label={`${regionLabel} 장소 목록`}>
-          {photoError === photoKey && (photoIds || shoppingPhotoIds) ? (
+          {photoError === photoKey && photoKey !== "[]" ? (
             <p role="status" className="px-3 py-2 text-xs">
               장소 사진을 불러오지 못했습니다. <button type="button" className="min-h-11 underline" onClick={() => setPhotoRetry((value) => value + 1)}>사진 다시 불러오기</button>
             </p>
@@ -486,7 +492,7 @@ export function HomePlaceWorkbench({
                   )}
                   {marker.layer === "official" ? (
                     <PlaceCardMedia
-                      image={resolveHomepageCardImage({ ...marker, imageUrl: marker.imageUrl ?? (photos.key === photoKey ? photos.urls.get(marker.id) ?? null : null) }, { regionId, staticMapEnabled })}
+                      image={resolveHomepageCardImage({ ...marker, imageUrl: marker.imageUrl ?? (photos.key === photoKey ? photos.urls.get(marker.id) ?? null : null) }, { regionId: marker.regionId ?? regionId, staticMapEnabled })}
                       fallbackCategory={marker.category}
                       className="homepage-workbench-row__image"
                       sizes="80px"
