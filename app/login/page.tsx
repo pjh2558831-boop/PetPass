@@ -30,10 +30,10 @@ export default async function LoginPage({
   return (
     <section className="site-shell py-12 sm:py-16">
       <div className="auth-document mx-auto max-w-lg">
-        <Link href="/" aria-label="WEEKENDOG 홈" className="inline-flex min-h-11 items-center">
+        <Link href="/" aria-label="WEEKENDOG 홈" className="mx-auto flex min-h-11 w-fit items-center">
           <Image src="/brand/weekendog-primary.png" alt="" width={548} height={480} unoptimized className="weekendog-logo weekendog-logo--primary" />
         </Link>
-        <h1 className="mt-5 text-3xl font-black tracking-[-0.045em]">
+        <h1 className="mt-5 text-center text-3xl font-black tracking-[-0.045em]">
           {mode === "signup" ? "새 계정으로 여행을 시작하세요" : "반려견 여행을 이어가세요"}
         </h1>
         <p className="mt-3 text-sm leading-7 text-[#587064]">

@@ -1,5 +1,6 @@
 import type { HomepageFeaturedState } from "@/types/homepage";
 import type { PlaceCategory } from "@/lib/map-places/place-categories";
+import type { RegionId } from "@/types/region";
 
 export const HOMEPAGE_PLACE_LAYERS = [
   "official",
@@ -19,6 +20,7 @@ export interface HomepageLayerSnapshot {
 }
 
 export interface HomepageMapMarker {
+  regionId?: RegionId;
   id: string;
   layer: HomepagePlaceLayer;
   name: string;
