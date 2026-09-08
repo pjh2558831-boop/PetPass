@@ -508,6 +508,23 @@ test.beforeEach(async ({ page }) => {
   await mockCatalogApis(page);
 });
 
+test("loads catalog photos even when the map SDK fails", async ({ page }) => {
+  await page.addInitScript(() => { delete window.kakao; });
+  await page.route("**/dapi.kakao.com/**", (route) => route.abort());
+  await page.route("**/api/map/places/cards?**", async (route) => {
+    const body = JSON.parse(cardDetailsBody(new URL(route.request().url())));
+    for (const item of body.data.items) item.imageUrl = "https://tong.visitkorea.or.kr/test-photo.jpg";
+    await route.fulfill({ json: body });
+  });
+  await page.route("**/_next/image?**", (route) => route.fulfill({ path: path.resolve("public/og.png") }));
+  await page.goto("/results?tab=catalog&region=jeju");
+  await expect(page.getByRole("heading", { name: "총 54곳" })).toBeVisible();
+  await expect(page.locator(".catalog-result-card img").first()).toBeVisible();
+  await expect(page.locator(".catalog-result-card img").first()).toHaveJSProperty("complete", true);
+  await expect.poll(() => page.locator(".catalog-result-card img").first()
+    .evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+});
+
 async function openRegionPicker(page: Page) {
   const picker = page.getByRole("region", { name: "여행 지역 선택" });
   if (!await picker.isVisible()) {
@@ -527,6 +544,39 @@ async function selectExplorerDistrict(page: Page, regionName: string, districtNa
   await districtSearch.fill(districtName);
   await expect(districtSearch).toHaveValue(districtName);
 }
+
+test("reuses snapshot and card requests when revisiting a region", async ({ page }, testInfo) => {
+  const calls = { cards: 0, snapshots: 0 };
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/map/places/snapshot") calls.snapshots++;
+  });
+  await page.route("**/api/map/places/cards?**", async (route) => {
+    calls.cards++;
+    const body = JSON.parse(cardDetailsBody(new URL(route.request().url())));
+    for (const item of body.data.items) item.address = "카드 캐시 확인 주소";
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    await route.fulfill({ json: body });
+  });
+  await page.goto("/results?tab=catalog&region=jeju");
+  const firstCard = page.locator(".explorer-results-list .catalog-result-card").first();
+  await expect(firstCard).toContainText("카드 캐시 확인 주소");
+  const timings: number[] = [];
+  for (const [name, count] of [["서울", "76"], ["제주", "54"], ["서울", "76"]]) {
+    const picker = await openRegionPicker(page);
+    const startedAt = Date.now();
+    await picker.getByRole("option", { name, exact: true }).click();
+    await expect(page.getByRole("heading", { name: `총 ${count}곳` })).toBeVisible();
+    await expect(firstCard).toContainText("카드 캐시 확인 주소");
+    timings.push(Date.now() - startedAt);
+    await expect(page.locator("[data-marker-registry-size]")).toHaveAttribute("data-marker-registry-size", count);
+  }
+  console.log("REGION_REVISIT_METRICS", JSON.stringify({ calls, timings, cardApiDelayMs: 200 }));
+  expect(calls).toEqual({ cards: 2, snapshots: 2 });
+  expect(errors).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath("region-revisit.png") });
+});
 
 test("keeps the authored region picker tidy, searchable, and keyboard dismissible", async ({ page }) => {
   await page.goto("/results?tab=catalog&region=busan&page=1");
@@ -1384,7 +1434,8 @@ test("loads Seoul core once and fetches the complete shopping dataset only on fi
       .map((entry) => entry.startTime),
   }));
   expect(imageTiming.mapReadyAt).toBeGreaterThan(0);
-  expect(imageTiming.imageStarts.every((startedAt) => startedAt >= imageTiming.mapReadyAt)).toBe(true);
+  // Photos and map initialization are independent; SDK failures must not hide photos.
+  expect(imageTiming.imageStarts.length).toBeGreaterThan(0);
 
   const visitorRequests = apiRequests.map((value) => new URL(value));
   expect(visitorRequests.filter(({ pathname }) => pathname === "/api/map/places/snapshot"))
