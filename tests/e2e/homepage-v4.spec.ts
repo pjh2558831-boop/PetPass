@@ -36,6 +36,7 @@ test("v4 manual hero controls and responsive reference composition", async ({ pa
   page.on("pageerror", error => errors.push(error.message));
   await page.goto("/");
   await expect(page.locator(".homepage-workbench-heading strong")).toHaveText("17개 지역");
+  await expect(page.getByRole("button", { name: "위성지도", exact: true })).toHaveCount(0);
   await expect(page.getByText("여행 예시 · 데이터 출처 · 문의", { exact: true })).toHaveCount(0);
   await expect(page.getByText("전국 17개 시·도 중 17개 지역 조회 완료", { exact: true })).toHaveCount(0);
   const bottom = page.getByRole("region", { name: "데이터 출처와 문의", exact: true });

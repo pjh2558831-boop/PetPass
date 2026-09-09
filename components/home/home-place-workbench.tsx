@@ -451,6 +451,7 @@ export function HomePlaceWorkbench({
               focusBounds={regionalMap?.focusBounds}
               onViewportIdle={regionalMap?.onViewportIdle}
               showNavigationControls={Boolean(regionalMap)}
+              showSatelliteControl={false}
               showEmptyMessage={!regionalMap?.listContent}
               isDataLoading={completionState === "loading"}
               title={`${regionLabel} 공식·공개 장소 지도`}

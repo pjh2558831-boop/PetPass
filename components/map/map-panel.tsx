@@ -61,6 +61,7 @@ export interface MapPanelProps {
   selectionContent?: ReactNode;
   showWatermark?: boolean;
   showNavigationControls?: boolean;
+  showSatelliteControl?: boolean;
   currentMapSearchLabel?: string;
   showCurrentMapSearch?: boolean;
   emptyMessage?: string;
@@ -106,6 +107,7 @@ export function MapPanel({
   selectionContent,
   showWatermark = true,
   showNavigationControls = false,
+  showSatelliteControl = true,
   currentMapSearchLabel = "이 지역 검색 다시하기",
   showCurrentMapSearch = true,
   emptyMessage = "표시할 장소가 없습니다.",
@@ -308,7 +310,7 @@ export function MapPanel({
             <button type="button" disabled={loadState !== "ready"} onClick={() => controllerRef.current?.zoomBy(-1)} aria-label="지도 확대"><Plus size={21} aria-hidden="true" /></button>
             <button type="button" disabled={loadState !== "ready"} onClick={() => controllerRef.current?.zoomBy(1)} aria-label="지도 축소"><Minus size={21} aria-hidden="true" /></button>
           </div>
-          <button type="button" disabled={loadState !== "ready"} aria-pressed={satellite} onClick={() => setSatellite(!satellite)}><Layers size={20} aria-hidden="true" /><span>위성지도</span></button>
+          {showSatelliteControl && <button type="button" disabled={loadState !== "ready"} aria-pressed={satellite} onClick={() => setSatellite(!satellite)}><Layers size={20} aria-hidden="true" /><span>위성지도</span></button>}
         </div> : null}
         {showLocationLabel ? <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3 py-2 text-xs font-bold text-[#314b3f] shadow-sm"><MapPinned size={15} aria-hidden="true" />{resolvedLocationLabel}</div> : null}
         {legendLayers.length > 0 ? <div className="absolute right-3 top-3 z-10 flex max-w-[calc(100%-7rem)] flex-wrap justify-end gap-1.5 rounded-xl border border-white/90 bg-white/95 p-2 text-[10px] font-extrabold shadow-sm" aria-label="지도 마커 범례">{legendLayers.map((layer) => { const asset = getLayerMarkerAsset(layer.markerKind); return <span key={layer.id} className="inline-flex items-center gap-1.5">{asset ? <Image src={asset} width={18} height={22} alt="" aria-hidden="true" /> : <span className={`map-legend-marker map-legend-marker--${layer.markerKind}`} aria-hidden="true" />}{layer.label}<span className="font-semibold text-[#52635a]">{layer.count ?? "—"}</span></span>; })}</div> : null}
