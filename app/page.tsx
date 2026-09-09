@@ -1,4 +1,5 @@
 import { ContactCard } from "@/components/home/contact-card";
+import { HomepagePetContent } from "@/components/home/homepage-pet-content";
 import { ExampleCourseCard } from "@/components/home/example-course-card";
 import { HomepageLiveExperience } from "@/components/home/homepage-live-experience";
 import { HomepageNationwidePlaces } from "@/components/home/homepage-nationwide-places";
@@ -38,6 +39,7 @@ export default function HomePage() {
           <ContactCard />
         </div>
       </section>
+      <HomepagePetContent />
     </div>
   );
 }

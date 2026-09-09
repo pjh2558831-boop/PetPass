@@ -449,6 +449,9 @@ export async function mockHomepageCardDetails(page: Page, snapshot = SNAPSHOT) {
 
 export async function mockHomepage(page: Page, snapshot = SNAPSHOT) {
   await mockNationwideHomepage(page, snapshot);
+  await page.route("**/api/content/*", route => route.fulfill({
+    json: { ok: true, data: { state: "empty", items: [] }, requestId: "synthetic-content" },
+  }));
   await mockHomepageCardDetails(page, snapshot);
   await page.route(HOMEPAGE_INITIAL_API, (route) => {
     const scope = new URL(route.request().url()).searchParams.get("scope") === "optional"
