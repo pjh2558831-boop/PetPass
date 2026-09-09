@@ -106,14 +106,18 @@ describe("homepage content boundaries", () => {
     await getPetEventFeed();
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
-  it("keeps the public news policy closed and rejects arbitrary searches", async () => {
-    const fetcher = vi.fn();
+  it("serves API news and rejects arbitrary public searches", async () => {
+    vi.resetModules();
+    vi.stubEnv("NAVER_API_HUB_ACCESS_KEY_ID", "synthetic-id");
+    vi.stubEnv("NAVER_API_HUB_SECRET_KEY", "synthetic-secret");
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [{ title: "반려동물 뉴스", link: "https://example.com/news" }] })));
     vi.stubGlobal("fetch", fetcher);
     const { GET } = await import("@/app/api/content/pet-news/route");
     const response = await GET(new Request("https://example.com/api/content/pet-news"));
     expect(response.headers.get("Cache-Control")).toBe("no-store");
-    expect(await response.json()).toMatchObject({ ok: true, data: { state: "link_only", items: [] } });
+    expect(await response.json()).toMatchObject({ ok: true, data: { state: "ready", items: [{ title: "반려동물 뉴스" }] } });
     expect((await GET(new Request("https://example.com/api/content/pet-news?query=anything"))).status).toBe(400);
-    expect(fetcher).not.toHaveBeenCalled();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher.mock.calls[0][0].searchParams.get("display")).toBe("5");
   });
 });

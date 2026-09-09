@@ -520,21 +520,44 @@ export async function installFakeMap(page: Page) {
       getLng() { return this.longitude; }
     }
     class Bounds {
-      extend() {}
-      getNorthEast() { return new LatLng(35.3, 129.3); }
-      getSouthWest() { return new LatLng(35, 129); }
+      private points: LatLng[] = [];
+      extend(point: LatLng) { this.points.push(point); }
+      getNorthEast() { return this.points.length ? new LatLng(Math.max(...this.points.map(p => p.getLat())), Math.max(...this.points.map(p => p.getLng()))) : new LatLng(35.3, 129.3); }
+      getSouthWest() { return this.points.length ? new LatLng(Math.min(...this.points.map(p => p.getLat())), Math.min(...this.points.map(p => p.getLng()))) : new LatLng(35, 129); }
     }
     class FakeMap {
       private center: LatLng;
-      constructor(readonly container: HTMLElement, options: { center: LatLng }) {
+      private level = 8;
+      private bounds = new Bounds();
+      private idleTimer: ReturnType<typeof setTimeout> | undefined;
+      private idle() {
+        clearTimeout(this.idleTimer);
+        this.idleTimer = setTimeout(() => emit(this, "idle"), 0);
+      }
+      constructor(readonly container: HTMLElement, options: { center: LatLng; level?: number }) {
         this.center = options.center;
+        this.level = options.level ?? 8;
+        container.addEventListener("test:viewport", event => {
+          const detail = (event as CustomEvent<{ latitude: number; longitude: number; level: number }>).detail;
+          this.center = new LatLng(detail.latitude, detail.longitude);
+          this.level = detail.level;
+          emit(this, "idle");
+        });
         container.dataset.fakeMapReady = "true";
       }
-      getBounds() { return new Bounds(); }
+      getBounds() { return this.bounds; }
+      getLevel() { return this.level; }
+      setLevel(level: number) { this.level = level; emit(this, "idle"); }
       getCenter() { return this.center; }
-      panTo(value: LatLng) { this.center = value; }
+      panTo(value: LatLng) { this.center = value; this.idle(); }
       relayout() {}
-      setBounds() {}
+      setBounds(bounds: Bounds) {
+        this.bounds = bounds;
+        const ne = bounds.getNorthEast(), sw = bounds.getSouthWest();
+        this.center = new LatLng((ne.getLat() + sw.getLat()) / 2, (ne.getLng() + sw.getLng()) / 2);
+        this.level = Math.max(ne.getLat() - sw.getLat(), ne.getLng() - sw.getLng()) > 2.5 ? 12 : 9;
+        this.idle();
+      }
     }
     class Marker {
       private readonly element = document.createElement("button");

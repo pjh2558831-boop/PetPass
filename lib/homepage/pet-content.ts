@@ -51,6 +51,7 @@ export function selectEvents(items: TourItem[], today: string, checkedAt: string
       id: item.contentid, title, startDate, endDate, status,
       regionLabel: item.addr1?.trim().split(/\s+/)[0] || "지역 확인 필요",
       venueLabel: item.eventplace?.trim() || address || null,
+      imageUrl: safeContentUrl(item.firstimage),
       informationUrl: safeContentUrl(item.homepage), source: "한국관광공사", checkedAt,
     });
   }

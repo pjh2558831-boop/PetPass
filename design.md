@@ -1,5 +1,45 @@
 # WEEKENDOG Homepage Design System
 
+## ui_ver_4 homepage reference — 2026-09-09
+
+This revision applies only to this local copy. The supplied coastal-dog reference
+supersedes earlier homepage layout/spacing guidance below; provider, evidence,
+selection, authentication, and itinerary contracts remain authoritative.
+
+- Register: Korean travel landing page with the existing discovery workbench.
+- Order: header, coastal dog hero/search, three value links, region-specific
+  recommendations, nationwide map/list with selection, news/events, a disclosure
+  retaining travel examples/source/contact information, illustrated landscape,
+  existing footer. No invented news, event photographs, venue records or counts.
+- Runtime token owner: app/homepage-v4.css, imported after the existing styles
+  in app/layout.tsx. Homepage-only scope: body:has(.weekendoog-home) and
+  .weekendoog-home. White #FFFFFF, navy #101D43, green #07563F, muted #69758A,
+  borders #E3E7ED/#D5DCE7. Existing fonts/icons/brand assets are reused.
+- Width: 1280px maximum; 32px desktop and 16px mobile gutters. Controls have
+  44px minimum practical touch targets. Section/card radii 7–12px.
+- Hero: 42.4vw (390–610px), text at 45% left and 22% top; at <=600px copy,
+  landscape photo and search stack. Images switch only on user action.
+- Recommendations preserve the existing region endpoint and ordering. There is
+  no aggregate recommendation endpoint, so 부산 is the initial active chip;
+  the nationwide map retains its separate 전체 filter. No scoring was changed.
+- Native region selects and native details filter disclosure are intentional.
+  Filters expand in document flow so they never cover selectable place rows.
+  Map/list display side by side above 900px; below it the existing switch remains.
+- Search and selection owners: HeroPlannerLauncher forwards a transient request
+  through HomepageLanding to HomepageNationwidePlaces/HomePlaceWorkbench.
+  No route/query/API contract changes. Search is local to loaded markers, as
+  before; a submitted hero query also applies its selected region.
+- Selection uses useSelectedItinerarySelection, including resetRegion for clear
+  all. Source labels and conditional pet-access wording remain visible. Thumbnail
+  placeholders retain accessible descriptions and cannot overlap row controls.
+- News/event items and link-only/loading/error/empty states remain provider-owned.
+  Event contracts have no image field, so use actual dates/details, not fake art.
+- New decorative images were generated from the visual reference, not used as
+  venue photographs: coastal-dog-v4.webp and landscape-v4.webp. Other venue media
+  retain the existing provider/static-map/category fallback contract.
+- Validation and visual comparison history: design-qa.md and homepage-v4 E2E.
+
+
 ## External place search (2026-09-09)
 
 Place cards and Tourism details may offer an optional Disclosure linking to NAVER searches using the existing place name/address. This is external navigation, not embedded results, verified metadata, or venue-photo permission. Preserve all current provider labels, pet assessments, recommendation eligibility, region capabilities, and image precedence. See `docs/naver-place-integration-policy-v1.md` and `docs/naver-media-provenance-v1.md`.
@@ -762,3 +802,15 @@ and unavailable states. Reserve modest row height; avoid live announcements,
 carousels and dead “전체 보기” links. Links have visible focus, external-link labels
 and a minimum 44px height. See `docs/homepage-news-events-v1.md` for provider policy,
 budgets and live versus synthetic verification evidence.
+
+2026-09-09 사용자 코멘트 반영: 홈의 접이식 여행 예시와 조회 완료 카운터 제거. 데이터 제공처와 문의를 일러스트 아래의 연녹색 하단 영역으로 이동. 오류 및 재시도 안내 유지.
+
+2026-09-09 후속: 전 지역 추천 후보는 실제 사진 우선, 지도 미리보기 후순위. /privacy와 /terms를 푸터에 연결. 개인정보 문서는 실제 위탁·보유기간 확인 전 초안으로 표시한다.
+
+
+### 메인 지도 지역 로딩
+전국 화면은 17개 시·도 표식과 선택 목록을 먼저 표시한다. 지역을 확대/선택했을 때만 해당 지역 데이터를 조회하고 재방문은 기존 캐시를 사용한다. 지도 이동 중 요청은 250ms 지연하며, 데이터 도착만으로 사용자 지도 위치를 재설정하지 않는다. 상세 지역의 일정 선택 및 필터는 기존 동작을 유지한다.
+
+
+### 뉴스와 행사
+반려동물 뉴스는 네이버 검색 원문 제목5개를 번호 목록으로 표시한다. 축제 알리미는 관광공사를 우선하고 정상적인 빈 결과에만 네이버 검색을 사용한다. 날짜·출처가 확인되는 행사 한 건을 사진/날짜 배지/녹색 설명 카드로 보여주며, 미확인 날짜나 이미지를 만들어 넣지 않는다. 800px 이하에서는 세로 배치를 유지한다.

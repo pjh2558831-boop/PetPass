@@ -101,7 +101,7 @@ test(NETWORK_TEST, async ({ page }) => {
   expect(forbidden).toEqual([]);
   expect(consoleErrors).toEqual([]);
 });
-test("filters nationwide places from browser memory without optional dataset requests", async ({ page }) => {
+test("filters the selected region from browser memory without optional dataset requests", async ({ page }) => {
   await mockHomepage(page);
   const pageErrors: string[] = [];
   const consoleErrors: string[] = [];
@@ -115,10 +115,12 @@ test("filters nationwide places from browser memory without optional dataset req
     if (url.pathname === "/api/homepage/places/optional") optionalRequests++;
   });
   await page.goto("/");
-  await expect(page.getByText("전국 17개 시·도 중 17개 지역 조회 완료", { exact: true })).toBeVisible();
+  await expect(page.getByText("전국 17개 시·도 중 17개 지역 조회 완료", { exact: true })).toHaveCount(0);
+  await page.locator(".home-region-overview").getByRole("button", { name: "부산", exact: false }).click();
+  await page.locator(".home-map-filters summary").click();
   const mapCanvas = page.locator(".homepage-map-canvas-wrap .map-canvas");
   await expect(mapCanvas).toHaveAttribute("data-location-count", "5");
-  expect(new Set(snapshotRequests).size).toBe(17);
+  expect(new Set(snapshotRequests).size).toBe(1);
   const type = page.getByRole("combobox", { name: "홈 지도 장소 유형", exact: true });
   await expect(type.locator('option[value="shopping"]')).toHaveCount(0);
   await type.selectOption("cafe");
@@ -128,7 +130,7 @@ test("filters nationwide places from browser memory without optional dataset req
   await type.selectOption("cafe");
   await expect(mapCanvas).toHaveAttribute("data-location-count", "2");
   await expect(page.locator('.homepage-map-canvas-wrap [data-clusterer-instance-count]')).toHaveAttribute("data-clusterer-instance-count", "1");
-  expect(snapshotRequests).toHaveLength(17);
+  expect(snapshotRequests).toHaveLength(1);
   expect(optionalRequests).toBe(0);
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
@@ -476,7 +478,7 @@ test("keeps loading and provider failures truthful and retryable", async ({ page
   fail = false;
   await error.getByRole("button", { name: "다시 시도" }).click();
   await expect(page.locator(".homepage-workbench-heading strong")).toHaveText("5곳");
-  await expect(page.getByText("전국 17개 시·도 중 17개 지역 조회 완료", { exact: true })).toBeVisible();
+  await expect(page.getByText("전국 17개 시·도 중 17개 지역 조회 완료", { exact: true })).toHaveCount(0);
   expect(calls).toHaveLength(34);
   expect(new Set(calls).size).toBe(17);
 });
@@ -514,7 +516,7 @@ test("keeps search and selected places while retrying a partial completion", asy
   failSeoul = false;
   await partialNotice.getByRole("button", { name: "다시 시도" }).click();
   await expect(partialNotice).toHaveCount(0);
-  await expect(page.getByText("전국 17개 시·도 중 17개 지역 조회 완료", { exact: true })).toBeVisible();
+  await expect(page.getByText("전국 17개 시·도 중 17개 지역 조회 완료", { exact: true })).toHaveCount(0);
   expect(calls.filter(region => region === "seoul")).toHaveLength(2);
   expect(calls.filter(region => region !== "seoul")).toHaveLength(16);
   expect(cookies.every(cookie => cookie === undefined)).toBe(true);

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, ChevronUp, LockKeyhole, Route, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, LockKeyhole, Plus, Route, Trash2 } from "lucide-react";
 import { PlaceCardMedia } from "@/components/places/place-card-media";
 import type { SelectedItineraryMoveDirection } from "@/components/places/use-selected-itinerary-selection";
 import {
@@ -31,6 +31,7 @@ export function HomeSelectedItineraryTray({
   onRemove,
   onMove,
   onContinue,
+  onClear,
 }: {
   snapshot: SelectedItinerarySnapshot;
   message?: string;
@@ -38,6 +39,7 @@ export function HomeSelectedItineraryTray({
   onRemove: (placeId: string) => void;
   onMove: (placeId: string, direction: SelectedItineraryMoveDirection) => void;
   onContinue: () => void;
+  onClear?: () => void;
 }) {
   const visiblePlaces = snapshot.places.slice(0, HOME_VISIBLE_SELECTION_LIMIT);
   const overflowCount = snapshot.places.length - visiblePlaces.length;
@@ -113,6 +115,8 @@ export function HomeSelectedItineraryTray({
         </p>
       ) : null}
 
+      <Link className="home-selected-itinerary__add" href={selectionCatalogHref}><Plus size={20} aria-hidden="true" /> 장소 더 담기</Link>
+      {onClear && <button type="button" className="home-selected-itinerary__clear" onClick={onClear} disabled={!snapshot.places.length}><Trash2 size={18} aria-hidden="true" /> 전체 지우기</button>}
       <button
         type="button"
         className="home-selected-itinerary__continue"

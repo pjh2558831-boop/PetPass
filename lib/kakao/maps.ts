@@ -136,6 +136,7 @@ declare global {
 }
 
 export type KakaoMapMarkerKind =
+  | "region"
   | "catalog"
   | "departure"
   | "itinerary"
@@ -167,6 +168,7 @@ export interface KakaoMapController {
   setSatellite(enabled: boolean): void;
   destroy(): void;
   fitBounds(): void;
+  focusBounds(bounds: KakaoCurrentMapSearch["rectangle"]): void;
   getSearchViewport(): KakaoCurrentMapSearch | null;
   relayout(): void;
   resetRegion(defaultBounds?: KakaoCurrentMapSearch["rectangle"]): void;
@@ -325,6 +327,7 @@ export function createKakaoMapController(
     onViewportIdle?: (
       viewport: KakaoCurrentMapSearch,
       cause: KakaoViewportIdleCause,
+      level?: number,
     ) => void;
     showSelectionInfo?: boolean;
     markerBatchSize?: number;
@@ -360,6 +363,7 @@ export function createKakaoMapController(
   const nativeMarkerImages = new Map<KakaoMapMarkerKind, KakaoMarkerImage>();
   const nativeMarkerVisual = (kind: KakaoMapMarkerKind) => {
     const visuals: Record<KakaoMapMarkerKind, { color: string; label: string; textColor?: string; shape: "pin" | "diamond" | "circle" | "square" }> = {
+      region: { color: "#07563f", label: "지역", shape: "circle" },
       veterinary: { color: "#c84141", label: "+", shape: "circle" },
       "pet-shop": { color: "#6657a8", label: "▣", shape: "square" },
       catalog: { color: "#236148", label: "공", shape: "pin" },
@@ -591,7 +595,7 @@ export function createKakaoMapController(
       ? "programmatic"
       : "user";
     pendingProgrammaticViewport = false;
-    options.onViewportIdle?.(viewport, cause);
+    options.onViewportIdle?.(viewport, cause, map.getLevel?.());
   };
   maps.event.addListener(map, "idle", viewportIdleHandler);
   const initialViewport = readSearchViewport();
@@ -642,7 +646,7 @@ export function createKakaoMapController(
     container.dataset.activeMarkerCount = "0";
   };
 
-  let pendingCamera: "bounds" | { id: string } | null = null;
+  let pendingCamera: "bounds" | { id: string } | { rectangle: KakaoCurrentMapSearch["rectangle"] } | null = null;
   let layoutWidth = 0;
   let layoutHeight = 0;
   const ensureLayout = () => {
@@ -683,6 +687,17 @@ export function createKakaoMapController(
       delete container.dataset.kakaoMapInitialized;
     },
 
+    focusBounds(rectangle) {
+      if (destroyed) return;
+      if (!ensureLayout()) { pendingCamera = { rectangle }; return; }
+      pendingCamera = null;
+      const bounds = new maps.LatLngBounds();
+      bounds.extend(new maps.LatLng(rectangle.south, rectangle.west));
+      bounds.extend(new maps.LatLng(rectangle.north, rectangle.east));
+      pendingProgrammaticViewport = true;
+      map.setBounds(bounds, 32);
+    },
+
     fitBounds() {
       if (!ensureLayout()) { pendingCamera = "bounds"; return; }
       pendingCamera = null;
@@ -721,6 +736,7 @@ export function createKakaoMapController(
       const intent = pendingCamera;
       pendingCamera = null;
       if (intent === "bounds") controller.fitBounds();
+      else if (intent && "rectangle" in intent) controller.focusBounds(intent.rectangle);
       else if (intent) controller.focusLocation(intent.id);
     },
 
@@ -1084,7 +1100,7 @@ export function createKakaoMapController(
       container.dataset.markerUpdateMs = (performance.now() - updateStartedAt).toFixed(2);
       recordHomepageBrowserTiming("map", "cluster_update", clusterUpdateStartedAt);
       recordHomepageBrowserTiming("map", "marker_update", updateStartedAt);
-      if (pendingCamera && pendingCamera !== "bounds" && locationPositions.has(pendingCamera.id)) {
+      if (pendingCamera && pendingCamera !== "bounds" && "id" in pendingCamera && locationPositions.has(pendingCamera.id)) {
         controller.focusLocation(pendingCamera.id);
       } else if (updateOptions.fitBounds !== false) controller.fitBounds();
       if (previousSelection && locationPositions.has(previousSelection)) {

@@ -471,6 +471,14 @@ describe("Kakao integration boundaries", () => {
     expect(clusterers[0].redraw).toHaveBeenCalledTimes(2);
     expect(mapInstances[0].setBounds).toHaveBeenCalledTimes(1);
 
+    visible = false;
+    controller.focusBounds({ west: 126, south: 37, east: 128, north: 38 });
+    expect(mapInstances[0].setBounds).toHaveBeenCalledTimes(1);
+    visible = true;
+    controller.relayout();
+    expect(mapInstances[0].setBounds).toHaveBeenCalledTimes(2);
+    expect(clusterers[0].clear).not.toHaveBeenCalled();
+
     const retainedMarker = clusterers[0].markers[0];
     await controller.updateData(
       [{

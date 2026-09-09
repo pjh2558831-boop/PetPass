@@ -1,8 +1,8 @@
 "use client";
 
-import { MapPin } from "lucide-react";
+import { ArrowRight, MapPin, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePlannerState } from "@/components/planner/planner-state";
 import {
   REGION_CONFIGS,
@@ -17,7 +17,9 @@ import {
 } from "@/lib/storage/plan-draft-storage";
 import type { RegionId } from "@/types/region";
 
-export function HeroPlannerLauncher() {
+export function HeroPlannerLauncher({ onSearch }: { onSearch?: (query: string, regionId: RegionId) => void }) {
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const { preferences, setPreferences } = usePlannerState();
   const initialRegion = getRegionConfigByService2LegalDongCode(preferences.regionCode) ??
@@ -52,9 +54,11 @@ export function HeroPlannerLauncher() {
     <form
       className="hero-planner-launcher"
       aria-label="여행 만들기 빠른 시작"
+      noValidate
       onSubmit={(event) => {
         event.preventDefault();
-        openPlanner();
+        if (onSearch) onSearch(query.trim(), selectedRegion);
+        else openPlanner();
       }}
     >
       <span className="hero-planner-label">
@@ -77,11 +81,16 @@ export function HeroPlannerLauncher() {
             ))}
           </select>
         </label>
+        <div className="hero-search-field">
+          <Search size={20} aria-hidden="true" />
+          <input ref={searchRef} type="search" aria-label="여행 장소 검색" placeholder="장소, 지역, 키워드로 검색해보세요." value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && event.nativeEvent.isComposing) event.preventDefault(); }} />
+          {query && <button type="button" aria-label="여행 검색어 지우기" onClick={() => { setQuery(""); searchRef.current?.focus(); }}><X size={18} aria-hidden="true" /></button>}
+        </div>
         <button
           type="submit"
           className="hero-planner-submit"
         >
-          장소 찾아 일정 만들기
+          여행지 찾기 <ArrowRight size={18} aria-hidden="true" />
         </button>
       </div>
       <button

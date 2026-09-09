@@ -5,7 +5,7 @@
 .panel h2 { font-size: clamp(20px, 2vw, 25px); font-weight: 700; letter-spacing: -.035em; line-height: 1.45; }
 .description { margin-top: 10px; color: #65746c; font-size: 14px; line-height: 1.7; }
 .rows { min-height: 96px; margin-top: 22px; }
-.rows ul { list-style: none; padding: 0; margin: 0; }
+.rows :is(ul,ol) { list-style: none; padding: 0; margin: 0; }
 .rows li + li { border-top: 1px solid var(--line); }
 .newsLink { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 74px; padding: 14px 0; }
 .newsLink > span:first-child { min-width: 0; }
@@ -13,12 +13,6 @@
 .newsTitle { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 15px; font-weight: 600; line-height: 1.65; overflow-wrap: anywhere; }
 .metadata { display: block; font-size: 12px; color: #65746c; line-height: 1.8; overflow-wrap: anywhere; }
 .newsLink .metadata { margin-top: 4px; }
-.eventRow { display: flex; gap: 16px; padding: 14px 0; }
-.dateBlock { display: flex; flex-direction: column; justify-content: center; align-items: center; flex: 0 0 54px; height: 66px; background: #eaf0e6; border-radius: 8px; color: #35543f; font-size: 11px; }
-.dateBlock strong { font-size: 24px; line-height: 1.15; }
-.eventDetails { min-width: 0; }
-.eventDetails h3 { font-size: 15px; line-height: 1.65; font-weight: 600; overflow-wrap: anywhere; }
-.eventLink { display: inline-flex; gap: 5px; align-items: center; min-height: 44px; color: var(--brand); font-size: 12px; font-weight: 600; }
 .section a:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; border-radius: 3px; }
 .section a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .message { padding: 34px 0; color: #65746c; font-size: 14px; line-height: 1.8; }
@@ -27,3 +21,42 @@
   .section { grid-template-columns: minmax(0, 1fr); gap: 30px; padding-top: 30px; margin-top: 30px; }
   .panel + .panel { border-left: 0; border-top: 1px solid var(--line); padding-left: 0; padding-top: 30px; }
 }
+/* Reference homepage: compact news column and event panel. */
+.section { grid-template-columns:minmax(0,1.7fr) minmax(0,1fr); gap:42px; margin-top:28px; padding-top:22px; padding-bottom:0; }
+.panel + .panel { border-left:0; padding-left:0; }
+.eyebrow { display:none; }
+.panel h2 { display:flex; align-items:center; gap:12px; font-size:clamp(23px,2.4vw,30px); font-weight:850; color:#101d43; }
+.panel h2 svg { width:28px; height:28px; flex-shrink:0; }
+.description { font-size:12px; margin-top:6px; }
+.rows { margin-top:12px; }
+.newsLink { min-height:58px; padding:10px 0; }
+@media (max-width:800px) {
+  .section { grid-template-columns:minmax(0,1fr); gap:26px; }
+  .panel + .panel { padding-top:22px; border-top:1px solid var(--line); }
+}
+
+.panelHeading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.panelHeading > a { display:flex; align-items:center; gap:3px; min-height:44px; flex-shrink:0; color:#65748a; font-size:12px; }
+.newsLink { gap:12px; min-height:64px; }
+.newsNumber { display:grid; place-items:center; flex:0 0 32px; height:32px; border-radius:50%; background:#2f602f; color:white; font-size:16px; font-weight:700; }
+.rows li:nth-child(2) .newsNumber { background:#626663; }
+.rows li:nth-child(3) .newsNumber,.rows li:nth-child(4) .newsNumber { background:#789a76; }
+.rows li:nth-child(5) .newsNumber { background:#a0a7b2; }
+.newsText { min-width:0; flex:1; }
+.newsTitle { font-size:16px; color:#172848; }
+.newsLink .metadata { font-size:10px; margin-top:2px; }
+.eventCard { display:block; border-radius:12px; overflow:hidden; background:#24552d; color:white; }
+.eventPhoto { position:relative; aspect-ratio:1.65; background:#e2eddb; }
+.eventPhoto img { object-fit:cover; }
+.eventPlaceholder { height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:#416b43; background:linear-gradient(135deg,#eff5e8,#c6dcb2); font-size:13px; }
+.dateBadge { position:absolute; top:12px; left:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; width:76px; min-height:76px; padding:10px; border-radius:50%; background:#285d2e; color:white; font-size:16px; font-weight:750; line-height:1.25; }
+.dateBadge > span { font-size:11px; }
+.imageCredit { position:absolute; bottom:0; right:0; padding:3px 6px; background:#0009; color:white; font-size:9px; }
+.eventCaption { position:relative; padding:14px 62px 16px 16px; }
+.eventCaption h3 { font-size:18px; line-height:1.5; font-weight:750; overflow-wrap:anywhere; }
+.eventCaption p { font-size:11px; color:#e3efd8; margin-bottom:3px; }
+.eventCaption > div { display:flex; align-items:flex-start; gap:5px; margin-top:6px; font-size:13px; }
+.eventCaption svg { flex-shrink:0; }
+.cardArrow { position:absolute; right:16px; bottom:18px; display:grid; place-items:center; width:36px; height:36px; border:1px solid #d6e5d0; border-radius:50%; }
+.cardArrow svg { width:23px; height:23px; }
+@media(max-width:380px) { .panelHeading h2 { font-size:23px; gap:8px; } .panelHeading { gap:6px; } }

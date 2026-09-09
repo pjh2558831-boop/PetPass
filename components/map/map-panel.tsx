@@ -48,9 +48,12 @@ export interface MapPanelProps {
   onViewportIdle?: (
     viewport: KakaoCurrentMapSearch,
     cause: KakaoViewportIdleCause,
+    level?: number,
   ) => void;
   viewportKey?: string;
   fitOnResize?: boolean;
+  fitOnDataChange?: boolean;
+  focusBounds?: KakaoCurrentMapSearch["rectangle"];
   layerControls?: MapLayerControl[];
   onLayerToggle?: (id: string, visible: boolean) => void;
   showLocationLabel?: boolean;
@@ -94,6 +97,8 @@ export function MapPanel({
   onViewportIdle,
   viewportKey = "default",
   fitOnResize = false,
+  fitOnDataChange = true,
+  focusBounds,
   layerControls = [],
   onLayerToggle,
   showLocationLabel = true,
@@ -174,7 +179,7 @@ export function MapPanel({
         defaultBounds: latest.defaultBounds,
         locations: [],
         onLocationSelect: (id) => selectRef.current?.(id),
-        onViewportIdle: (viewport, cause) => viewportIdleRef.current?.(viewport, cause),
+        onViewportIdle: (viewport, cause, level) => viewportIdleRef.current?.(viewport, cause, level),
         showSelectionInfo: showSelectionInfoRef.current,
       });
       controllerRef.current = controller;
@@ -227,8 +232,8 @@ export function MapPanel({
   useEffect(() => {
     const controller = controllerRef.current;
     if (!controller) return;
-    const fitBounds = viewportKeyRef.current !== viewportKey ||
-      (locationCountRef.current === 0 && locations.length > 0);
+    const fitBounds = fitOnDataChange && (viewportKeyRef.current !== viewportKey ||
+      (locationCountRef.current === 0 && locations.length > 0));
     const updateGeneration = ++dataUpdateGenerationRef.current;
     void controller.updateData(locations, routeCoordinates, { fitBounds }).then((completed) => {
       if (!completed || controllerRef.current !== controller || updateGeneration !== dataUpdateGenerationRef.current) return;
@@ -237,7 +242,11 @@ export function MapPanel({
     });
     viewportKeyRef.current = viewportKey;
     locationCountRef.current = locations.length;
-  }, [locations, routeCoordinates, viewportKey]);
+  }, [fitOnDataChange, locations, routeCoordinates, viewportKey]);
+
+  useEffect(() => {
+    if (loadState === "ready" && focusBounds) controllerRef.current?.focusBounds(focusBounds);
+  }, [focusBounds, loadState]);
 
   useEffect(() => {
     controllerRef.current?.selectLocation(selectedLocationId);

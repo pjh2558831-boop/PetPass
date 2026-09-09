@@ -1,0 +1,256 @@
+/* Homepage reference revision: route-scoped tokens and layout. */
+body:has(.weekendoog-home) { --ui2-paper:#fff; --ui2-text:#101d43; --ui2-muted:#69758a; --ui2-brand:#07563f; --ui2-line:#e3e7ed; --ui2-line-strong:#d5dce7; --brand:#07563f; --brand-deep:#043e2d; --line:#e3e7ed; background:white; color:var(--ui2-text); }
+.weekendoog-home { --ui2-paper:#fff; --ui2-text:#101d43; --ui2-muted:#69758a; --ui2-brand:#07563f; --ui2-line:#e3e7ed; --ui2-line-strong:#d5dce7; background:white; color:var(--ui2-text); }
+.weekendoog-home .homepage-shell { width:min(1280px, calc(100% - 64px)); }
+body:has(.weekendoog-home) .site-header { position:sticky; top:0; background:white; border-bottom:1px solid #eef0f4; }
+body:has(.weekendoog-home) .site-header-inner { min-height:clamp(54px,5vw,68px); gap:16px; }
+body:has(.weekendoog-home) .site-header-navigation { margin-left:auto; margin-right:auto; gap:clamp(20px,3vw,42px); }
+body:has(.weekendoog-home) .site-header-account-slot a { border-radius:8px; min-height:44px; }
+.home-header-search { display:none; }
+body:has(.weekendoog-home) .home-header-search { display:grid; flex:0 0 44px; height:44px; place-items:center; }
+.weekendoog-home .weekendoog-hero { padding:0; background:#b5ddef; }
+.weekendoog-home .weekendoog-hero-layout { position:relative; width:100%; max-width:none; height:clamp(390px,42.4vw,610px); min-height:0; display:block; margin:0; }
+.weekendoog-home .weekendoog-hero-media { position:absolute; inset:0; width:100%; height:100%; min-height:0; margin:0; border-radius:0; }
+.weekendoog-home .weekendoog-hero-photo-frame { position:relative; width:100%; height:100%; min-height:0; margin:0; border-radius:0; overflow:hidden; }
+.weekendoog-home .weekendoog-hero-photo { object-fit:cover; object-position:center; }
+.weekendoog-home .weekendoog-hero-copy { position:absolute; left:45%; right:4%; top:22%; z-index:2; width:auto; max-width:730px; padding:0; margin:0; }
+.weekendoog-home .weekendoog-hero-copy h1 { font-size:clamp(32px,3.5vw,50px); font-weight:900; line-height:1.3; letter-spacing:-.055em; color:#080f14; text-shadow:0 1px 12px #ffffff40; }
+.weekendoog-home .weekendoog-hero-copy em { color:var(--brand); font-style:normal; }
+.weekendoog-home .weekendoog-hero-copy p { margin-top:12px; color:#122c32; font-size:clamp(13px,1.2vw,17px); font-weight:650; line-height:1.55; }
+.home-hero-note { position:absolute; z-index:2; right:5%; top:9%; transform:rotate(-9deg); color:#073e38; font-family:cursive; font-size:clamp(14px,1.5vw,22px); font-weight:700; line-height:1.7; }
+.home-hero-note svg { display:inline; margin-left:5px; }
+.weekendoog-home .weekendoog-hero-launcher { position:absolute; top:auto; bottom:13%; left:50%; right:auto; width:min(1000px,76%); transform:translateX(-50%); z-index:3; margin:0; }
+.weekendoog-home .hero-planner-launcher { position:relative; display:flex; flex-wrap:nowrap; gap:0; min-height:76px; padding:10px; border:1px solid #e3e7ed; border-radius:12px; box-shadow:0 5px 18px #162d3d18; }
+.weekendoog-home .hero-planner-label { position:absolute; top:15px; left:42px; z-index:1; font-size:11px; pointer-events:none; }
+.weekendoog-home .hero-planner-label svg { position:absolute; left:-25px; top:7px; width:21px; height:21px; }
+.weekendoog-home .hero-planner-fields { display:grid; grid-template-columns:minmax(140px,.85fr) minmax(0,1.65fr) auto; gap:10px; width:100%; }
+.weekendoog-home .hero-planner-select-label { width:100%; }
+.weekendoog-home .hero-planner-select { height:54px; min-height:54px; border-radius:7px; padding:17px 28px 0 30px; font-size:14px; }
+.hero-search-field { display:flex; align-items:center; gap:12px; min-width:0; min-height:54px; border:1px solid var(--ui2-line-strong); border-radius:7px; padding:0 14px; }
+.hero-search-field input { width:100%; min-width:0; outline:none; background:transparent; font-size:14px; color:var(--ui2-text); }
+.hero-search-field input::-webkit-search-cancel-button { appearance:none; }
+.hero-search-field > svg { flex-shrink:0; }
+.hero-search-field button { display:grid; place-items:center; min-width:44px; min-height:44px; margin-right:-10px; }
+.hero-search-field:focus-within { outline:2px solid var(--brand); outline-offset:2px; }
+.weekendoog-home .hero-planner-submit { display:flex; align-items:center; justify-content:center; gap:12px; padding:0 24px; border-radius:7px; font-size:15px; }
+.weekendoog-home .hero-planner-secondary { position:absolute; right:0; top:calc(100% + 4px); min-height:44px; border:0; background:#ffffffee; padding:0 12px; font-size:12px; }
+.weekendoog-home .hero-planner-launcher > small { position:absolute; top:calc(100% + 50px); right:0; padding:3px 8px; background:white; }
+.home-hero-pages { position:absolute; right:24px; bottom:12px; z-index:4; display:flex; gap:4px; }
+.home-hero-pages button { display:grid; width:44px; height:44px; place-items:center; color:white; border-radius:50%; background:#10232c80; font-size:13px; }
+.home-hero-pages button[aria-pressed=true] { background:#101c21; font-weight:800; }
+.home-hero-pages button:last-child { border:1px solid white; }
+.home-value-row { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); padding:12px 0; }
+.home-value-row > a { display:flex; align-items:center; justify-content:center; gap:24px; min-height:56px; padding:0 20px; }
+.home-value-row > a + a { border-left:1px solid var(--line); }
+.home-value-row svg { width:34px; height:34px; color:var(--brand); flex-shrink:0; stroke-width:1.7; }
+.home-value-row strong { display:block; font-size:19px; font-weight:850; color:#142328; }
+.home-value-row small { display:block; font-size:13px; color:#5c6470; margin-top:6px; }
+.home-value-row a:hover strong { color:var(--brand); }
+.weekendoog-home .weekendoog-live-shell { display:flex; flex-direction:column; gap:16px; padding-top:8px; }
+.home-recommendations { min-width:0; }
+.home-recommendations > h2 { font-size:clamp(26px,2.6vw,36px); font-weight:900; letter-spacing:-.045em; line-height:1.3; }
+.home-region-chips { display:flex; overflow-x:auto; gap:5px; padding:10px 0 8px; scrollbar-width:thin; }
+.home-region-chips button { flex:1 0 auto; min-width:44px; min-height:44px; padding:0 8px; border:1px solid var(--ui2-line-strong); border-radius:8px; font-size:13px; font-weight:700; }
+.home-region-chips button[aria-pressed=true] { background:#2f602f; border-color:#2f602f; color:white; }
+.home-region-chips button:hover { border-color:var(--brand); }
+.home-recommendations .homepage-section-heading { display:none; }
+.home-recommendations .homepage-places-section { border:0; padding-top:0; }
+.home-recommendations .homepage-place-scroller { gap:14px; margin-top:0; border:0; padding:0 0 10px; scroll-snap-type:x mandatory; scrollbar-color:#386b3b #e3e5e6; }
+.home-recommendations .homepage-place-card { flex:0 0 calc((100% - 56px)/5); min-width:200px; border:1px solid var(--ui2-line-strong); border-radius:8px; background:white; overflow:hidden; scroll-snap-align:start; }
+.home-recommendations .homepage-place-card > a,
+.home-recommendations .homepage-place-card > div[tabindex] { display:flex; flex-direction:column; height:100%; padding:0; gap:0; }
+.home-recommendations .homepage-place-card .homepage-place-image { display:block; width:100%; height:clamp(125px,14vw,180px); min-height:clamp(125px,14vw,180px); border-radius:0; aspect-ratio:auto; }
+.home-recommendations .homepage-place-card-body { display:flex; flex-direction:column; gap:3px; padding:10px; }
+.home-recommendations .homepage-place-card-body h3 { order:-3; font-size:16px; line-height:1.4; font-weight:850; }
+.home-recommendations .homepage-place-region { order:-2; margin:0; font-size:12px; }
+.home-recommendations .homepage-card-meta { display:none; }
+.home-recommendations .homepage-place-card__labels { gap:4px; margin:3px 0 0; flex-wrap:wrap; }
+.home-recommendations .homepage-place-card__label { font-size:10px; min-height:23px; padding:3px 5px; border-radius:5px; background:#eef5f3; color:#294b40; }
+.home-recommendations .homepage-place-phone { font-size:11px; }
+.home-recommendations .homepage-place-warning { font-size:10px; line-height:1.5; }
+.home-recommendations .homepage-carousel-loading { min-height:285px; padding:32px 0; }
+#home-discovery { scroll-margin-top:85px; }
+.weekendoog-home .homepage-live-ready { gap:12px; }
+.weekendoog-home .homepage-map-section { gap:8px; border-top:1px solid var(--line); padding-top:12px; }
+.weekendoog-home .homepage-workbench-modes { min-height:44px; order:6; margin-bottom:2px; }
+.weekendoog-home .homepage-workbench-heading { order:0; }
+.weekendoog-home .homepage-workbench-heading h2 { font-size:clamp(23px,2.5vw,34px); margin:0; color:var(--ui2-text); }
+.weekendoog-home .homepage-workbench-heading .homepage-kicker { display:none; }
+.weekendoog-home .homepage-workbench-heading > strong { font-size:24px; color:#2f602f; }
+.weekendoog-home .homepage-workbench-tools { order:1; gap:14px; }
+.weekendoog-home .homepage-place-search { border:1px solid var(--ui2-line-strong); border-radius:8px; padding-left:14px; width:62%; flex:1; }
+.weekendoog-home .homepage-workbench-notice { min-height:30px; padding:5px 10px; border-left-width:2px; font-size:11px; order:2; }
+.weekendoog-home .homepage-workbench-switch { order:4; }
+.weekendoog-home .homepage-workbench { display:grid; order:5; height:clamp(260px,28vw,400px); grid-template-columns:minmax(0,1.45fr) minmax(360px,1fr); gap:12px; border:0; border-radius:0; background:white; }
+.weekendoog-home .homepage-workbench__map { min-width:0; border:1px solid var(--ui2-line-strong); border-radius:8px; overflow:hidden; }
+.weekendoog-home .homepage-workbench__list { border:1px solid var(--ui2-line-strong); border-radius:8px; overflow:hidden; }
+.weekendoog-home .homepage-map-canvas-wrap,
+.weekendoog-home .homepage-map-canvas-wrap .map-canvas { height:100%; min-height:clamp(260px,28vw,400px); }
+.weekendoog-home .homepage-workbench__scroller { padding:0 6px; }
+.weekendoog-home .homepage-workbench-row { grid-template-columns:44px 76px minmax(0,1fr) 44px; gap:8px; height:auto; min-height:112px; padding:10px 0; }
+.weekendoog-home .homepage-workbench-row .homepage-workbench-row__image,
+.weekendoog-home .homepage-workbench-row__source { width:76px; height:76px; min-height:76px; }
+.weekendoog-home .homepage-workbench-row__focus { min-height:90px; }
+.weekendoog-home .homepage-workbench-row__focus > strong { font-size:16px; }
+.weekendoog-home .homepage-workbench-row__focus > small { font-size:13px; }
+.weekendoog-home .homepage-workbench-row__focus > i,
+.weekendoog-home .homepage-workbench-row__meta { font-size:11px; line-height:1.5; flex-wrap:wrap; gap:3px 8px; }
+.weekendoog-home .homepage-workbench--error { display:block; height:auto; }
+.weekendoog-home .home-selected-itinerary { display:grid; grid-template-columns:minmax(0,1fr) 210px; gap:8px 14px; padding:10px 0 18px; border-top:0; }
+.weekendoog-home .home-selected-itinerary__header { min-height:30px; padding:0; grid-column:1; }
+.weekendoog-home .home-selected-itinerary__header h2 { font-size:19px; }
+.weekendoog-home .home-selected-itinerary__header p { display:none; }
+.weekendoog-home .home-selected-itinerary__list { grid-column:1; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.weekendoog-home .home-selected-itinerary__item { display:grid; grid-template-columns:40px minmax(0,1fr); grid-template-rows:auto auto; gap:5px; align-content:start; border:1px solid var(--ui2-line-strong); border-radius:7px; padding:8px; }
+.weekendoog-home .home-selected-itinerary__order { display:none; }
+.weekendoog-home .home-selected-itinerary__image { grid-column:1; grid-row:1; width:40px; min-height:40px; height:40px; }
+.weekendoog-home .home-selected-itinerary__copy { grid-column:2; grid-row:1; }
+.weekendoog-home .home-selected-itinerary__copy strong { font-size:12px; }
+.weekendoog-home .home-selected-itinerary__copy span { font-size:9px; }
+.weekendoog-home .home-selected-itinerary__controls { grid-column:1/-1; grid-row:2; justify-content:flex-end; }
+.weekendoog-home .home-selected-itinerary__controls button { width:44px; height:44px; }
+.weekendoog-home .home-selected-itinerary__continue { grid-column:2; grid-row:2; min-height:48px; margin:0; align-self:start; font-size:12px; }
+.home-selected-itinerary__add,
+.home-selected-itinerary__clear { display:flex; gap:8px; justify-content:center; align-items:center; min-height:44px; border-radius:7px; font-size:13px; }
+.home-selected-itinerary__add { grid-column:1; border:1px solid var(--ui2-line-strong); }
+.home-selected-itinerary__clear { grid-column:2; grid-row:3; }
+.home-landscape { position:relative; width:100%; height:clamp(160px,19.5vw,290px); overflow:hidden; }
+.home-landscape img { object-fit:cover; object-position:bottom; }
+body:has(.weekendoog-home) .site-footer { background:#f5f8ef; }
+.weekendoog-home :is(button,a,input,select,summary):focus-visible { outline:2px solid var(--brand); outline-offset:3px; }
+@media (min-width:901px) {
+  .weekendoog-home .homepage-workbench-switch { display:none; }
+  .weekendoog-home .homepage-workbench[data-mobile-view] .homepage-workbench__map,
+  .weekendoog-home .homepage-workbench[data-mobile-view] .homepage-workbench__list { display:flex; height:400px; }
+}
+@media (max-width:1100px) {
+  .weekendoog-home .homepage-shell { width:calc(100% - 48px); }
+  .home-value-row > a { gap:14px; padding:0 12px; }
+  .home-value-row strong { font-size:17px; }
+  .home-value-row small { font-size:11px; }
+  .home-recommendations .homepage-place-card { min-width:0; }
+  .home-recommendations .homepage-place-card .homepage-place-image { height:125px; min-height:125px; }
+  .weekendoog-home .hero-planner-submit { padding-inline:16px; font-size:13px; }
+  .hero-search-field input { font-size:12px; }
+}
+@media (max-width:900px) {
+  .weekendoog-home .homepage-workbench { grid-template-columns:minmax(0,1fr); height:420px; }
+  .weekendoog-home .homepage-workbench__map,
+  .weekendoog-home .homepage-workbench__list { height:420px; }
+  .weekendoog-home .homepage-map-canvas-wrap .map-canvas { min-height:420px; }
+  .weekendoog-home .homepage-workbench-switch { display:flex; }
+  .weekendoog-home .homepage-workbench[data-mobile-view=list] .homepage-workbench__map,
+  .weekendoog-home .homepage-workbench[data-mobile-view=map] .homepage-workbench__list { display:none; }
+  .weekendoog-home .homepage-workbench-tools { flex-wrap:wrap; }
+  .weekendoog-home .homepage-place-search { flex-basis:100%; }
+  .weekendoog-home .home-selected-itinerary { grid-template-columns:minmax(0,1fr); }
+  .weekendoog-home .home-selected-itinerary__continue,
+  .weekendoog-home .home-selected-itinerary__clear { grid-column:1; grid-row:auto; }
+}
+@media (max-width:600px) {
+  .weekendoog-home .homepage-shell { width:calc(100% - 32px); }
+  body:has(.weekendoog-home) .site-header-inner { min-height:60px; gap:8px; }
+  body:has(.weekendoog-home) .site-brand { min-width:0; margin-right:auto; }
+  .weekendoog-home .weekendoog-hero-layout { height:630px; }
+  .weekendoog-home .weekendoog-hero-media { top:176px; bottom:auto; height:260px; }
+  .weekendoog-home .weekendoog-hero-copy { left:20px; right:20px; top:25px; max-width:none; }
+  .weekendoog-home .weekendoog-hero-copy h1 { font-size:clamp(26px,7.3vw,34px); }
+  .weekendoog-home .weekendoog-hero-copy p { font-size:12px; margin-top:8px; }
+  .weekendoog-home .weekendoog-hero { background:#e8f5fa; }
+  .home-hero-note { display:none; }
+  .home-hero-pages { right:12px; bottom:8px; }
+  .weekendoog-home .weekendoog-hero-launcher { bottom:auto; top:420px; width:calc(100% - 32px); }
+  .weekendoog-home .hero-planner-launcher { padding:9px; border-radius:10px; }
+  .weekendoog-home .hero-planner-fields { grid-template-columns:106px minmax(0,1fr); gap:8px; }
+  .weekendoog-home .hero-planner-select { font-size:13px; padding-left:29px; padding-right:16px; }
+  .hero-search-field { padding:0 10px; gap:6px; }
+  .hero-search-field input { font-size:12px; }
+  .hero-search-field > svg { width:17px; }
+  .weekendoog-home .hero-planner-submit { grid-column:1/-1; min-height:48px; font-size:14px; }
+  .weekendoog-home .hero-planner-secondary { right:50%; transform:translateX(50%); white-space:nowrap; background:transparent; }
+  .weekendoog-home .hero-planner-launcher > small { top:calc(100% + 40px); text-align:center; width:100%; background:transparent; right:0; }
+  .home-value-row { gap:0; padding:18px 0; }
+  .home-value-row > a { flex-direction:column; gap:8px; padding:0 8px; text-align:center; }
+  .home-value-row svg { width:27px; height:27px; }
+  .home-value-row strong { font-size:13px; }
+  .home-value-row small { font-size:10px; line-height:1.5; }
+  .home-recommendations > h2 { font-size:26px; }
+  .home-recommendations .homepage-place-card { min-width:230px; }
+  .home-recommendations .homepage-place-card .homepage-place-image { height:160px; min-height:160px; }
+  .weekendoog-home .homepage-workbench-heading { gap:12px; align-items:start; }
+  .weekendoog-home .homepage-workbench-heading h2 { font-size:23px; line-height:1.35; }
+  .weekendoog-home .homepage-workbench-heading > strong { font-size:20px; white-space:nowrap; }
+  .weekendoog-home .homepage-workbench-row { grid-template-columns:36px 64px minmax(0,1fr) 32px; gap:4px; }
+  .weekendoog-home .homepage-workbench-row .homepage-workbench-row__image,
+  .weekendoog-home .homepage-workbench-row__source { width:64px; height:64px; min-height:64px; }
+  .weekendoog-home .home-selected-itinerary__list { grid-template-columns:minmax(0,1fr); }
+  .weekendoog-home .home-selected-itinerary__item { grid-template-columns:44px minmax(0,1fr); }
+  .weekendoog-home .home-selected-itinerary__controls { justify-content:flex-start; }
+  .home-landscape { height:130px; }
+}
+@media (prefers-reduced-motion:reduce) { .weekendoog-home * { scroll-behavior:auto; transition:none; } }
+
+body:has(.weekendoog-home) .site-header-account-slot a[href="/login?mode=signup"] { background:var(--brand); color:white; border-color:var(--brand); }
+.home-recommendations .homepage-place-card { min-height:0; }
+.home-recommendations .homepage-place-card-body { min-height:0; }
+.home-recommendations .homepage-place-scroller { align-items:stretch; }
+
+body:has(.weekendoog-home) .weekendog-logo--header { width:clamp(160px,18vw,225px); }
+body:has(.weekendoog-home) .site-brand { min-width:0; }
+.home-map-filters { position:relative; z-index:40; }
+.home-map-filters summary { display:flex; align-items:center; justify-content:center; min-width:100px; min-height:44px; gap:10px; padding:0 14px; border:1px solid var(--ui2-line-strong); border-radius:8px; color:var(--brand); font-weight:800; cursor:pointer; list-style:none; }
+.home-map-filters summary::-webkit-details-marker { display:none; }
+.home-map-filters__fields { position:absolute; top:50px; right:0; width:300px; max-width:calc(100vw - 40px); padding:16px; border:1px solid var(--ui2-line-strong); border-radius:8px; background:white; box-shadow:0 6px 18px #101d4314; }
+.home-map-filters__fields label { display:flex; align-items:center; justify-content:space-between; width:100%; gap:8px; }
+.home-map-filters__fields select { min-width:190px; }
+.weekendoog-home .hero-planner-secondary { right:160px; }
+@media (max-width:600px) {
+  .weekendoog-home .hero-planner-secondary { right:50%; }
+}
+
+@media (min-width:901px) {
+ .weekendoog-home .homepage-workbench[data-mobile-view] .homepage-workbench__map,
+ .weekendoog-home .homepage-workbench[data-mobile-view] .homepage-workbench__list { height:100%; }
+}
+.weekendoog-home .home-selected-itinerary__image,
+.weekendoog-home .homepage-workbench-row__image { overflow:hidden; }
+.weekendoog-home :is(.home-selected-itinerary__image,.homepage-workbench-row__image) .catalog-card-placeholder { height:100%; min-height:0; padding:0; gap:0; }
+.weekendoog-home :is(.home-selected-itinerary__image,.homepage-workbench-row__image) .catalog-card-placeholder > :is(strong,small) { display:none; }
+.weekendoog-home :is(.home-selected-itinerary__image,.homepage-workbench-row__image) .catalog-card-placeholder__icon { width:32px; height:32px; }
+.weekendoog-home .home-selected-itinerary__controls { position:relative; }
+/* The filter disclosure expands in flow so its native selects cannot cover results. */
+.weekendoog-home .homepage-workbench-tools { align-items:flex-start; }
+.home-map-filters__fields { position:static; margin-top:8px; box-shadow:none; }
+
+.weekendoog-home .homepage-workbench-heading h2 { word-break: keep-all; overflow-wrap: normal; }
+
+.weekendoog-home .home-bottom-info { background:#f5f8ef; padding:24px 0 0; }
+.home-bottom-info .weekendoog-partner-strip { border:0; padding:12px 0 24px; gap:24px; }
+.home-bottom-info .weekendoog-partner-strip > p { font-size:13px; color:var(--ui2-brand); }
+.home-bottom-info .weekendoog-partner-row { flex:0 1 auto; gap:clamp(24px,4vw,56px); margin:0; padding:0; }
+.home-bottom-info .weekendoog-partner-item img { max-width:140px; max-height:32px; filter:none; }
+.home-bottom-info .weekendoog-contact-card { min-height:88px; padding:20px 0; border-top:1px solid #dce5d7; border-bottom:1px solid #dce5d7; }
+.home-bottom-info .weekendoog-contact-card h2 { font-size:15px; }
+.home-bottom-info .weekendoog-contact-card p { font-size:12px; }
+.home-bottom-info .weekendoog-contact-card__link { padding:0 16px; border:1px solid #cbd9c7; border-radius:8px; font-size:13px; }
+@media (max-width:600px) {
+  .home-bottom-info .weekendoog-partner-strip { flex-direction:column; align-items:flex-start; gap:18px; }
+  .home-bottom-info .weekendoog-partner-row { width:100%; justify-content:space-between; gap:14px; }
+  .home-bottom-info .weekendoog-partner-item { min-width:0; flex:1; }
+  .home-bottom-info .weekendoog-partner-item img { width:100%; max-width:120px; max-height:28px; }
+  .home-bottom-info .weekendoog-contact-card { flex-direction:column; align-items:flex-start; gap:12px; }
+  .home-bottom-info .weekendoog-contact-card__link { align-self:flex-end; }
+}
+
+.weekendoog-home .kakao-map-marker--region { min-width:38px; width:auto; height:30px; padding:0 7px; border-radius:24px; background:#07563f; border:2px solid white; color:white; box-shadow:0 2px 8px #123b3629; transform:none; font-size:11px; font-weight:800; }
+.weekendoog-home .kakao-map-marker--region span { transform:none; white-space:nowrap; }
+.home-region-navigation { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:44px; color:#07563f; font-size:13px; }
+.home-region-navigation button { min-height:44px; text-decoration:underline; text-underline-offset:4px; }
+.home-region-overview { padding:16px; color:#53665d; font-size:13px; }
+.home-region-overview > div { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:12px; }
+.home-region-overview button { display:flex; align-items:center; justify-content:space-between; min-height:44px; padding:8px 12px; background:#f1f6ef; border:1px solid #dce5d7; border-radius:8px; color:#07563f; font-weight:700; }
+
+.weekendoog-home [data-active-region] .homepage-workbench,
+.weekendoog-home [data-active-region] .homepage-workbench__map,
+.weekendoog-home [data-active-region] .homepage-workbench__list { height:600px; }
+.weekendoog-home [data-active-region] .homepage-map-canvas-wrap .map-canvas { min-height:600px; }

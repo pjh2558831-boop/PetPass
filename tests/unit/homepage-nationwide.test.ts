@@ -1,3 +1,4 @@
+import { HOMEPAGE_MAP_REGIONS, homepageRegionForViewport } from "@/lib/homepage/nationwide";
 import { describe, expect, it } from "vitest";
 import { loadNationwideSnapshots, projectNationwideMarker } from "@/lib/homepage/nationwide";
 import type { MapPlacesSnapshot, MapPlacesSnapshotMarker } from "@/types/map-places-snapshot";
@@ -36,4 +37,14 @@ describe("nationwide homepage", () => {
     expect(marker?.statusLabel).toContain("테라스만 가능");
     expect(marker?.href).toBe("https://place.map.kakao.com/123");
   });
+});
+
+
+it("selects only a zoomed region and keeps wide/nationwide views unloaded", () => {
+  for (const region of HOMEPAGE_MAP_REGIONS) {
+    const viewport = { center: region.defaultMapCenter, rectangle: region.mapBounds, radiusMeters: 10000 };
+    expect(homepageRegionForViewport(viewport, 10)).toBe(region.id);
+    expect(homepageRegionForViewport(viewport, 12)).toBeNull();
+  }
+  expect(homepageRegionForViewport({ center: { latitude: 0, longitude: 0 }, rectangle: { west: -1, east: 1, north: 1, south: -1 }, radiusMeters: 1000 }, 8)).toBeNull();
 });

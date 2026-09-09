@@ -13,6 +13,10 @@ export function SiteFooter() {
           <p className="site-footer__notice mt-2 max-w-xl text-xs leading-5">
             공식 정보 원문을 우선하며, 동반 조건은 방문 전 해당 시설에 다시 확인해 주세요. © 2026 WEEKENDOG
           </p>
+          <nav aria-label="서비스 정책" className="mt-3 flex flex-wrap gap-x-5">
+            <Link href="/privacy" className="inline-flex min-h-11 items-center text-xs font-bold underline-offset-4 hover:underline">개인정보처리방침</Link>
+            <Link href="/terms" className="inline-flex min-h-11 items-center text-xs underline-offset-4 hover:underline">이용약관</Link>
+          </nav>
         </div>
         <nav aria-label="하단 메뉴" className="site-footer__navigation flex flex-wrap gap-x-4 gap-y-1">
           <Link

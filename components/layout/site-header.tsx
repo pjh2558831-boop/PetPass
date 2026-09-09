@@ -1,3 +1,4 @@
+import { Search } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import Image from "next/image";
@@ -46,6 +47,7 @@ export function SiteHeader() {
             </Suspense>
           ))}
         </nav>
+        <Link className="home-header-search" href="/#home-discovery" aria-label="장소 검색"><Search size={22} aria-hidden="true" /></Link>
         <div className="site-header-account-slot">
           <Suspense fallback={<SiteHeaderAccount navigationItems={navigationItems} />}>
             <SiteHeaderAccountAsync navigationItems={navigationItems} />

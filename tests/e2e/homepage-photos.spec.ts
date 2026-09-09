@@ -18,6 +18,7 @@ test("loads missing workbench photos from card details and offers retry after a 
       items, page: 1, pageSize: 12, totalCount: items.length } } });
   });
   await page.goto("/");
+  await page.locator(".home-region-overview").getByRole("button", { name: "부산", exact: false }).click();
   const retry = page.getByRole("button", { name: "사진 다시 불러오기" });
   await expect(retry).toBeVisible();
   fail = false;

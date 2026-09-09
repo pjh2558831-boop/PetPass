@@ -1,7 +1,10 @@
 import { HeroPhotoCarousel } from "@/components/home/hero-photo-carousel";
 import { HeroPlannerLauncher } from "@/components/home/hero-planner-launcher";
 
-export function WeekendoogHero() {
+import { PawPrint } from "lucide-react";
+import type { RegionId } from "@/types/region";
+
+export function WeekendoogHero({ onSearch }: { onSearch?: (query: string, regionId: RegionId) => void }) {
   return (
     <section className="weekendoog-hero" aria-labelledby="weekendoog-hero-heading">
       <div className="weekendoog-shell weekendoog-hero-layout">
@@ -13,16 +16,17 @@ export function WeekendoogHero() {
           <h1 id="weekendoog-hero-heading" tabIndex={-1}>
             반려견과 함께,
             <br />
-            전국 여행을 계획해보세요
+            <em>전국 여행</em>을 계획해보세요
           </h1>
           <p>
-            공식 반려동물 동반 정보를 확인하고 실제 이동시간을 고려해
-            <br className="weekendoog-hero-copy-break" /> 우리 아이와 함께할 하루 일정을 만듭니다.
+            지도에서 찾고, 일정으로 이어지는
+            <br className="weekendoog-hero-copy-break" /> WEEKENDOG의 특별한 여행을 만들어보세요.
           </p>
         </div>
 
+        <p className="home-hero-note" aria-hidden="true">좋은 곳엔,<br />언제나 함께 <PawPrint size={23} /></p>
         <div className="weekendoog-hero-launcher">
-          <HeroPlannerLauncher />
+          <HeroPlannerLauncher onSearch={onSearch} />
         </div>
       </div>
     </section>

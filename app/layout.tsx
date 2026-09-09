@@ -5,6 +5,7 @@ import { SiteHeader } from "@/components/layout/site-header";
 import { PlannerStateProvider } from "@/components/planner/planner-state";
 import "./weekendog-globals.css";
 import "./redesigned-pages.css";
+import "./homepage-v4.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   const headerStore = await headers();
