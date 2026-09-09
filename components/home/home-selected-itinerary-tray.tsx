@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { requestMapPlaceCardDetails } from "@/lib/map-places/card-details-client";
 import { ChevronDown, ChevronUp, LockKeyhole, Plus, Route, Trash2 } from "lucide-react";
 import { PlaceCardMedia } from "@/components/places/place-card-media";
 import type { SelectedItineraryMoveDirection } from "@/components/places/use-selected-itinerary-selection";
@@ -43,6 +45,23 @@ export function HomeSelectedItineraryTray({
 }) {
   const visiblePlaces = snapshot.places.slice(0, HOME_VISIBLE_SELECTION_LIMIT);
   const overflowCount = snapshot.places.length - visiblePlaces.length;
+  const photoKey = JSON.stringify(visiblePlaces.filter(place => !place.imageUrl)
+    .map(place => [place.id, place.category === "shopping" ? "shopping" : "core"]));
+  const region = snapshot.regionId;
+  const [photos, setPhotos] = useState<{ key: string; region: string; urls: Map<string, string | null> }>();
+  useEffect(() => {
+    const entries = JSON.parse(photoKey) as Array<[string, "core" | "shopping"]>;
+    if (!entries.length) return;
+    const controller = new AbortController();
+    void Promise.all((["core", "shopping"] as const).map(async dataset => {
+      const ids = entries.filter(entry => entry[1] === dataset).map(entry => entry[0]);
+      return ids.length ? (await requestMapPlaceCardDetails(region, dataset, ids, controller.signal)).items : [];
+    })).then(pages => {
+      if (!controller.signal.aborted) setPhotos({ key: photoKey, region,
+        urls: new Map(pages.flat().map(item => [item.id, item.imageUrl])) });
+    }).catch(() => { /* Keep the existing placeholder when provider photos are unavailable. */ });
+    return () => controller.abort();
+  }, [photoKey, region]);
   const selectionCatalogHref = catalogHref ??
     `/results?tab=catalog&region=${snapshot.regionId}&mode=select`;
 
@@ -64,7 +83,7 @@ export function HomeSelectedItineraryTray({
               <li key={place.id} className="home-selected-itinerary__item">
                 <span className="home-selected-itinerary__order" aria-hidden="true">{index + 1}</span>
                 <PlaceCardMedia
-                  image={selectedPlaceImage(place)}
+                  image={selectedPlaceImage({ ...place, imageUrl: place.imageUrl ?? (photos?.key === photoKey && photos.region === region ? photos.urls.get(place.id) ?? null : null) })}
                   fallbackCategory={category}
                   className="home-selected-itinerary__image"
                   sizes="72px"
