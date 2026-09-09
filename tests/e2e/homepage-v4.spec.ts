@@ -41,7 +41,7 @@ test("v4 manual hero controls and responsive reference composition", async ({ pa
   await expect(page.getByText("전국 17개 시·도 중 17개 지역 조회 완료", { exact: true })).toHaveCount(0);
   const bottom = page.getByRole("region", { name: "데이터 출처와 문의", exact: true });
   await expect(bottom.locator(".weekendoog-partner-item")).toHaveCount(3);
-  await expect(bottom.getByRole("link", { name: "GitHub 이슈에서 문의하기 (새 창)" })).toHaveAttribute("href", "https://github.com/pjh2558831-boop/PetPass/issues");
+  await expect(bottom.getByRole("link", { name: "이메일로 문의하기" })).toHaveAttribute("href", "mailto:weekendog2@gmail.com");
   expect(await bottom.evaluate(el => el.previousElementSibling?.classList.contains("home-landscape"))).toBe(true);
   const first = page.getByRole("button", { name: "여행 이미지 1", exact: true });
   await page.getByRole("button", { name: "다음 여행 이미지", exact: true }).click();
