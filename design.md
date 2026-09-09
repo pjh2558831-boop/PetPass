@@ -735,3 +735,28 @@ Map controls provide fit-to-results, zoom and hybrid satellite view. Below
 1025px retain the list/map switch and reserve a clear lane beside the preview
 for touch controls. No illustrative ratings, opening hours or gallery images
 from the reference are introduced as production facts.
+
+## Homepage Bottom — Pet News and Events
+
+Append the homepage-only content section after the existing data-trust/contact
+section and immediately before the shared footer. Preserve all preceding sections.
+Use the existing homepage width, ivory surface, green accents and Korean typeface.
+Two balanced columns above 800px become news-first, events-second below that width;
+use a fine dividing rule, compact text rows and date blocks, without images.
+
+“반려생활 소식” supports four provider-ordered original article links, hostname and
+provider timestamp. Titles wrap to two lines. NAVER is identified as search provider.
+Embedded production news remains disabled pending the documented display/BI terms
+gate; synthetic examples are used only in tests. Never fill failure with fake news.
+
+“다가오는 반려동물 행사” shows up to three explicitly pet-related nationwide events
+with actual address/region, calendar dates and known venue. Dates/locations wrap;
+missing end dates say “종료일 확인 필요”. No invented event URL or pet-admission badge.
+The admission/schedule notice applies to the entire panel. This informational
+coverage does not change planner regions or recommendation candidates.
+
+Each panel loads once near the viewport and independently exposes loading, empty
+and unavailable states. Reserve modest row height; avoid live announcements,
+carousels and dead “전체 보기” links. Links have visible focus, external-link labels
+and a minimum 44px height. See `docs/homepage-news-events-v1.md` for provider policy,
+budgets and live versus synthetic verification evidence.
