@@ -44,6 +44,7 @@ export interface TravelPreferences {
   regionName: string;
   districtCode?: string;
   districtName?: string;
+  searchScope?: "nearby" | "district" | "region";
   tripDate: string;
   tripType: TripType;
   tripPace: TripPace;

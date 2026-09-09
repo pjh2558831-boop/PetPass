@@ -135,6 +135,9 @@ function productStopV2(
     selectionOrigin: candidate.selectionOrigin,
     operatingHoursEvidenceState: candidate.operatingHoursEvidenceState,
     operatingStatus,
+    operatingInformation: kto?.scheduleDetail?.operatingInformation ?? null,
+    restDayInformation: kto?.scheduleDetail?.restDayInformation ?? null,
+    operatingInformationRetrievedAt: kto?.scheduleDetail?.source.retrievedAt ?? null,
     ...(selectedPlaceIds ? {
       provenance: selected ? "user_selected" as const : "auto_fill" as const,
       locked: selected,

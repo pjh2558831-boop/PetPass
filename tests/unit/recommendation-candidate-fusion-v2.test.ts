@@ -14,6 +14,12 @@ function detail(overrides: Partial<DetailedEligibleCandidate> = {}): DetailedEli
 }
 
 describe("full public catalog candidate fusion", () => {
+  it("honors district scope without applying pet conditions and preserves explicit anchors", () => {
+    const outside = marker({ id: "kakao:9", providerPlaceId: "9", districtCode: "110", name: "다른 구" });
+    const result = fuse({ districtId: "350", catalogCandidates: [marker({ petAccessVerdict: "not_allowed" }), outside] });
+    expect(result.candidates.map(place => place.canonicalId)).toEqual(["kakao:2001"]);
+    expect(fuse({ districtId: "350", selectedPlaceIds: [outside.id], catalogCandidates: [outside] }).candidates).toHaveLength(1);
+  });
   it.each([
     ["conditional", false],
     ["unknown", true],
@@ -61,7 +67,7 @@ describe("full public catalog candidate fusion", () => {
     expect(fuse({ catalogCandidates: [marker({ category: "other" })] }).candidates[0]?.category).toBe("unknown");
   });
 
-  it("keeps hospitals and pet shops in catalog diagnostics but excludes them from automatic candidates", () => {
+  it("keeps pet-service places out of automatic candidates", () => {
     const result = fuse({ catalogCandidates: [tourismMarker(),
       marker({ id: "kakao:1", providerPlaceId: "1", name: "공개 병원", layer: "veterinary" }),
       marker({ id: "kakao:2", providerPlaceId: "2", name: "공개 상점", layer: "pet_shop" }),

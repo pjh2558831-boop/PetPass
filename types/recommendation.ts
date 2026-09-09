@@ -34,6 +34,7 @@ export interface RouteRecommendationRequest {
   trip: {
     regionId: RegionId;
     districtId: string | null;
+    searchScope?: "nearby" | "district" | "region";
     date: string | null;
     startTime: string | null;
     tripType: "day_trip" | "overnight";
@@ -132,6 +133,10 @@ export interface RecommendedRouteStopV1 {
   selectionOrigin?: "user_selected" | "automatic_fill" | "automatic_recommendation";
   operatingHoursEvidenceState?: "verified" | "verification_required";
   operatingStatus?: "unknown" | "reported_closed" | "reported_open";
+  /** Display-only provider text; never constrains route timing. */
+  operatingInformation?: string | null;
+  restDayInformation?: string | null;
+  operatingInformationRetrievedAt?: string | null;
   /** @deprecated Use selectionOrigin. */
   provenance?: "user_selected" | "auto_fill";
   locked?: boolean;

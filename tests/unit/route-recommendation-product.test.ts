@@ -195,6 +195,7 @@ describe("Stage 5 recommendation product contract", () => {
       trip: {
         regionId: "busan",
         districtId: "350",
+        searchScope: "district",
         date: "2026-08-15",
         startTime: "10:00",
         tripType: "day_trip",
@@ -324,6 +325,8 @@ describe("Stage 5 recommendation product contract", () => {
     ["invalid pace", { ...VALID_REQUEST, trip: { ...VALID_REQUEST.trip, tripPace: "fast" } }],
     ["unsupported category", { ...VALID_REQUEST, trip: { ...VALID_REQUEST.trip, selectedCategories: ["transportation"] } }],
     ["client limit override", { ...VALID_REQUEST, maxCandidates: 999 }],
+    ["district scope without district", { ...VALID_REQUEST, trip: { ...VALID_REQUEST.trip, searchScope: "district", districtId: null } }],
+    ["region scope with district", { ...VALID_REQUEST, trip: { ...VALID_REQUEST.trip, searchScope: "region", districtId: "350" } }],
   ])("rejects %s", (_label, value) => {
     expect(routeRecommendationRequestSchema.safeParse(value).success).toBe(false);
   });
@@ -614,6 +617,18 @@ describe("Stage 5 recommendation product contract", () => {
     expect(saved.length).toBeLessThanOrEqual(512);
     expect(saved[0]).toEqual(geometry[0]);
     expect(saved.at(-1)).toEqual(geometry.at(-1));
+  });
+
+  it("preserves display-only opening and closure text in saved routes", () => {
+    const storage = new MemoryStorage();
+    const information = {
+      operatingInformation: "09:00~18:00",
+      restDayInformation: "월요일 휴무",
+      operatingInformationRetrievedAt: "2026-09-08T00:00:00Z",
+    };
+    const route = { ...ROUTE, stops: ROUTE.stops.map(stop => ({ ...stop, ...information })) };
+    expect(saveRouteRecommendation(READY, route, storage)).toBe(true);
+    expect(loadSavedRouteRecommendation(storage)?.route.stops[0]).toMatchObject(information);
   });
 
   it("reads the actual V1 saved-summary envelope", () => {

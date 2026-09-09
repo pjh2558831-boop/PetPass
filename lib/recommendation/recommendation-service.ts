@@ -1,5 +1,6 @@
 import { loadRecommendationPublicCatalog, type RecommendationPublicCatalog } from "@/lib/recommendation/public-catalog";
 import { selectSpatialShortlistV2 } from "@/lib/recommendation/v2/spatial-shortlist";
+import { attachRouteOperatingInformation } from "@/lib/recommendation/v2/operating-information";
 import { seoulDate, departureCandidates } from "@/lib/recommendation/schedule/schedule-intent";
 import { attachRouteSchedule } from "@/lib/recommendation/schedule/route-schedule";
 import { findFeasibleSchedule } from "@/lib/recommendation/schedule/flexible-schedule";
@@ -854,6 +855,7 @@ export async function generateRouteRecommendation(
     const historyContextKey = recommendationHistoryContextKeyV2({
       regionId: request.trip.regionId,
       districtId: request.trip.districtId,
+      searchScope: request.trip.searchScope ?? "nearby",
       departure: {
         latitude: request.departure.latitude,
         longitude: request.departure.longitude,
@@ -893,9 +895,8 @@ export async function generateRouteRecommendation(
     const scopedRecentRouteSignatures = historyMatchesContext
       ? personalizationRequest.recentRouteSignatures
       : [];
-    const scopedRecentlySelectedCandidateIds = historyMatchesContext
-      ? personalizationRequest.recentlySelectedCandidateIds
-      : [];
+    // Exposure is a soft preference, not a feasibility claim: keep it across date/time changes.
+    const scopedRecentlySelectedCandidateIds = personalizationRequest.recentlySelectedCandidateIds;
     const fused = fuseRecommendationCandidatesV2({
       regionId: request.trip.regionId,
       districtId: request.trip.districtId,
@@ -1068,7 +1069,7 @@ export async function generateRouteRecommendation(
         Number(Boolean(right.locked)) - Number(Boolean(left.locked)) ||
         right.placeUtility.total - left.placeUtility.total ||
         left.node.id.localeCompare(right.node.id));
-    const spatial = selectSpatialShortlistV2({ candidates: adaptedAll, departure: request.departure, lockedPlaceIds: selectedPlaceIds, selectedCategories: usefulCategories, recentlySelectedCandidateIds: scopedRecentlySelectedCandidateIds, seed: normalized.generationSeed, rerollVariant: personalizationRequest.rerollVariant, limit: Math.min(6, Math.max(selectedPlaceIds.length, targetCapacity + 1)) });
+    const spatial = selectSpatialShortlistV2({ candidates: adaptedAll, departure: request.departure, lockedPlaceIds: selectedPlaceIds, selectedCategories: usefulCategories, recentlySelectedCandidateIds: scopedRecentlySelectedCandidateIds, seed: normalized.generationSeed, rerollVariant: personalizationRequest.rerollVariant, preferNearby: request.trip.searchScope !== "region", limit: Math.min(6, Math.max(selectedPlaceIds.length, targetCapacity + 1)) });
     let adapted = hybridMode && request.autoFill === false ? adaptedAll.filter(candidate => selectedIdSet.has(candidate.node.id)) : spatial.candidates;
     let adaptedIds = new Set(adapted.map(({ node }) => node.id));
     const candidateById = new Map(
@@ -1136,27 +1137,35 @@ export async function generateRouteRecommendation(
     };
     enterRecommendationStage("route_search", adapted.length);
     let scheduling = findFeasibleSchedule(feasibilityInput, generatedAt);
-    // One reserve attempt shares road calls, cache, cancellation, and the original search allowance.
-    if (scheduling.feasibility.maximumFeasibleStopCount < targetCapacity && spatial.reserveIds.length && !(hybridMode && request.autoFill === false) && matrixBudget.remaining >= 2) {
+    // Two incremental reserve batches share the provider budget and CPU allowance.
+    const attemptedIds = new Set(adaptedIds);
+    for (let reserveAttempt = 0; reserveAttempt < 2 && !(hybridMode && request.autoFill === false) && matrixBudget.remaining >= 2; reserveAttempt++) {
+      const desiredCoverage = Math.min(targetCapacity, new Set(tripRequest.selectedCategories).size);
+      if (scheduling.feasibility.maximumFeasibleStopCount >= targetCapacity && scheduling.feasibility.maximumRequestedCategoryCount >= desiredCoverage) break;
       const keepIds = new Set([...selectedPlaceIds, ...(scheduling.feasibility.bestRouteIds ?? [])]);
       const retryCandidates = scheduling.input.candidates.filter(candidate => keepIds.has(candidate.node.id));
       const existingIds = new Set(retryCandidates.map(candidate => candidate.node.id));
       let newPairAllowance = matrixBudget.remaining;
       for (const reserveId of spatial.reserveIds) {
-        if (retryCandidates.length >= 6) break;
+        if (attemptedIds.has(reserveId)) continue;
+        if (retryCandidates.length >= 15) break;
         const additionalPairs = (retryCandidates.length + 1) * 2;
         if (additionalPairs > newPairAllowance) break;
         const candidate = adaptedAll.find(item => item.node.id === reserveId)!;
         retryCandidates.push(candidate); newPairAllowance -= additionalPairs;
       }
       if (retryCandidates.some(candidate => !existingIds.has(candidate.node.id))) {
+        retryCandidates.forEach(candidate => attemptedIds.add(candidate.node.id));
         enterRecommendationStage("kakao_matrix", retryCandidates.length);
+        const roadStarted = performance.now();
         const retryMatrix = await travelTimeProvider.buildMatrix({ signal: dependencies.signal, providerCallBudget: matrixBudget, departure, candidates: retryCandidates.map(candidate => candidate.node), travelMode: "driving", priority: "TIME", avoid: [], requestedDepartureAt: null });
+        // Network wait must not consume the optimizer's CPU search allowance.
+        scheduling.budget.deadline += performance.now() - roadStarted;
         matrixRuns.push(retryMatrix);
         enterRecommendationStage("route_search", retryCandidates.length);
         const retry = findFeasibleSchedule({ ...scheduling.input, candidates: retryCandidates, matrix: retryMatrix }, generatedAt, scheduling.budget);
-        if (retry.feasibility.maximumFeasibleStopCount > scheduling.feasibility.maximumFeasibleStopCount) { adapted = retryCandidates; matrix = retryMatrix; adaptedIds = new Set(adapted.map(candidate => candidate.node.id)); scheduling = retry; }
-      }
+        if (retry.feasibility.maximumFeasibleStopCount > scheduling.feasibility.maximumFeasibleStopCount || (retry.feasibility.maximumFeasibleStopCount === scheduling.feasibility.maximumFeasibleStopCount && retry.feasibility.maximumRequestedCategoryCount > scheduling.feasibility.maximumRequestedCategoryCount)) { adapted = retryCandidates; matrix = retryMatrix; adaptedIds = new Set(adapted.map(candidate => candidate.node.id)); scheduling = retry; }
+      } else break;
     }
     feasibilityInput = scheduling.input;
     const feasibility = scheduling.feasibility;
@@ -1397,6 +1406,7 @@ export async function generateRouteRecommendation(
       for (let i = 0; i < evaluatedRouteOptions.length; i++) evaluatedRouteOptions[i] = attachRouteSchedule(evaluatedRouteOptions[i]!, normalized.scheduleIntent, optimizationInput.tripRequest.startTime);
     }
     const routeOptions = evaluatedRouteOptions;
+    await attachRouteOperatingInformation(routeOptions, dependencies.tourService ?? getDefaultTourService());
     const route = routeOptions[0]!;
     catalogCoverage.finalUsedIds = route.stops.map(stop => stop.placeId);
     const rerollDifference = measureRerollDifferenceV2({

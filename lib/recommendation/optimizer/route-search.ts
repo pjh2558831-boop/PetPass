@@ -129,7 +129,7 @@ function completedConstraint(input: RouteOptimizationInput, visits: ScheduledRou
       .map(({ candidate }) => candidate.category)
       .filter((category) => requestedCategories.has(category)),
   ).size;
-  if (input.tripRequest.planningPolicy !== "full_public_catalog_v1" && coveredRequestedCategories < (input.tripRequest.minimumRequestedCategoryCount ?? 0)) return false;
+  if (coveredRequestedCategories < (input.tripRequest.minimumRequestedCategoryCount ?? 0)) return false;
   if (input.tripRequest.tripType === "overnight") {
     return visits.at(-1)?.candidate.visitRole === "accommodation";
   }

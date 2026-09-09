@@ -74,6 +74,7 @@ export const routeRecommendationRequestSchema = z
       .object({
         regionId: z.enum(REGION_IDS),
         districtId: z.string().trim().min(1).max(20).nullable(),
+        searchScope: z.enum(["nearby", "district", "region"]).optional(),
         date: z.string().date().nullable().default(null),
         startTime: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/u).nullable().default(null),
         tripType: z.enum(["day_trip", "overnight"]),
@@ -94,6 +95,9 @@ export const routeRecommendationRequestSchema = z
       })
       .strict()
       .superRefine((trip, context) => {
+        if (trip.searchScope && (trip.searchScope === "district") !== Boolean(trip.districtId)) {
+          context.addIssue({ code: z.ZodIssueCode.custom, path: ["searchScope"], message: "District scope requires districtId; other scopes must omit it." });
+        }
         const region = getRegionConfig(trip.regionId);
         if (
           trip.districtId !== null &&

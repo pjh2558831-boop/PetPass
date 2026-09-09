@@ -123,6 +123,7 @@ function preferencesFromDraft(
       ? preferredCategories
       : current.preferredCategories,
     includeShopping: draft.requestedCategories.includes("shopping"),
+    searchScope: draft.searchScope,
     desiredStopCount: draft.requestedStopCount,
     planningMode: "stop_count",
     roundTrip: draft.roundTrip,
@@ -972,6 +973,7 @@ export function UnifiedPlannerForm({
                       regionName: region.displayName,
                       districtCode: undefined,
                       districtName: undefined,
+                      searchScope: "nearby",
                       departure: undefined,
                     }));
                   }}
@@ -986,12 +988,11 @@ export function UnifiedPlannerForm({
                   ))}
                 </select>
               </div>
-              {!selectedMode ? (
                 <div className="planner-field">
-                  <label htmlFor="district">세부 지역</label>
+                  <label htmlFor="district">추천 범위</label>
                   <select
                     id="district"
-                    value={preferences.districtCode ?? "all"}
+                    value={preferences.districtCode ?? (preferences.searchScope === "region" ? "all" : "nearby")}
                     onChange={(event) => {
                       const district = activeDistricts.find(
                         ({ legalDongDistrictCode }) =>
@@ -1003,10 +1004,12 @@ export function UnifiedPlannerForm({
                         regionName: activeRegion.displayName,
                         districtCode: district?.legalDongDistrictCode,
                         districtName: district?.name,
+                        searchScope: district ? "district" : event.target.value === "all" ? "region" : "nearby",
                       }));
                     }}
                   >
-                    <option value="all">{activeRegion.displayName} 전체</option>
+                    <option value="nearby">출발지와 선택 장소 가까운 곳 우선</option>
+                    <option value="all">{activeRegion.displayName} 전체로 넓히기</option>
                     {activeDistricts.map((district) => (
                       <option
                         key={district.legalDongDistrictCode}
@@ -1016,8 +1019,8 @@ export function UnifiedPlannerForm({
                       </option>
                     ))}
                   </select>
+                  <p className="text-xs text-[var(--muted)]">가까운 곳 우선은 이동거리를 중시합니다. 구·군을 고르면 해당 범위에서 추천하며, 직접 선택한 장소는 유지합니다.</p>
                 </div>
-              ) : null}
               <div className="planner-field">
                 <label htmlFor="trip-date">여행 날짜 <small>(선택)</small></label>
                 <button type="button" aria-pressed={!preferences.tripDate} onClick={() => { updatePreferences("tripDate", ""); clearError("tripDate"); }}>날짜 미정</button>

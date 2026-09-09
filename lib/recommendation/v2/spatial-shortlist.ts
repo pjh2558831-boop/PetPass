@@ -7,8 +7,8 @@ import type { RouteOptimizationCandidate } from "@/lib/recommendation/types/rout
 import type { UsefulTourCategory } from "@/lib/recommendation/types";
 import { recommendationHistoryContextKeyV2 } from "@/lib/recommendation/v2/novelty-history";
 
-/** Six places plus departure need at most 42 directed pairs, below the 48-call ceiling. */
-export const FULL_CATALOG_MATRIX_CANDIDATE_LIMIT = 6;
+/** Same 15-place ceiling as the road provider; incremental batches share its 48-call budget. */
+export const FULL_CATALOG_MATRIX_CANDIDATE_LIMIT = 15;
 
 export function selectSpatialShortlistV2(input: {
   candidates: readonly RouteOptimizationCandidate[];
@@ -19,6 +19,7 @@ export function selectSpatialShortlistV2(input: {
   seed: string;
   rerollVariant: number;
   limit?: number;
+  preferNearby?: boolean;
 }): { candidates: RouteOptimizationCandidate[]; reserveIds: string[]; scoredIds: string[] } {
   const byId = new Map(input.candidates.map(candidate => [candidate.node.id, candidate]));
   const lockedIds = new Set([
@@ -40,7 +41,7 @@ export function selectSpatialShortlistV2(input: {
     return [...byId.values()].filter(candidate => !selectedIds.has(candidate.node.id)).map(candidate => {
       const distanceKm = Math.min(...hubs.map(hub => haversineKm(hub, candidate.node)));
       // Geographic fit only chooses which real roads to query; it is never a road-time estimate.
-      const coherence = PERSONALIZATION_V2_CONFIG.scale * PERSONALIZATION_V2_CONFIG.candidateWeights.travelEfficiency / (1 + distanceKm / 8);
+      const coherence = PERSONALIZATION_V2_CONFIG.scale * PERSONALIZATION_V2_CONFIG.candidateWeights.travelEfficiency * (input.preferNearby === false ? 1 : 2) / (1 + distanceKm / 8);
       const categoryGap = preferred.has(candidate.category) && !categories.has(candidate.category)
         ? ROUTE_OBJECTIVE_V1_CONFIG.categoryCoveragePerCategory : 0;
       return { candidate, score: candidate.placeUtility.total + coherence + categoryGap };
