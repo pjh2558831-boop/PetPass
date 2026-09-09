@@ -4,11 +4,13 @@ test("shows a high-confidence lodging match through the real provider pipeline",
   page,
 }) => {
   await page.goto("/places/2001?contentTypeId=32&region=busan");
-  await expect(page.getByText("체크인", { exact: true })).toBeVisible();
-  await expect(page.getByText("15:00", { exact: true })).toBeVisible();
-  await expect(page.getByText("체크아웃", { exact: true })).toBeVisible();
-  await expect(page.getByText("11:00", { exact: true })).toBeVisible();
-  await expect(page.getByText("운영 정보 미제공", { exact: true })).toBeVisible();
+  const basicInformation = page.getByRole("complementary");
+  await expect(basicInformation.getByRole("heading", { name: "한눈에 보기" })).toBeVisible();
+  await expect(basicInformation.getByText("체크인", { exact: true })).toBeVisible();
+  await expect(basicInformation.getByText("15:00", { exact: true })).toBeVisible();
+  await expect(basicInformation.getByText("체크아웃", { exact: true })).toBeVisible();
+  await expect(basicInformation.getByText("11:00", { exact: true })).toBeVisible();
+  await expect(basicInformation.getByText("운영 정보 미제공", { exact: true })).toBeVisible();
   await expect(page.getByText("숙박 인허가 기록 일치")).toBeVisible();
   await expect(page.getByText("숙박업 인허가")).toBeVisible();
   await expect(page.getByText("확인된 세부 유형: 숙박시설")).toBeVisible();

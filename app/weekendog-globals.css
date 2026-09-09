@@ -2751,6 +2751,12 @@ select {
   transform: rotate(180deg);
 }
 
+.naver-search-disclosure { margin-top: 12px; min-width: 0; }
+.naver-search-disclosure .place-detail-disclosure__trigger { padding: 10px; gap: 8px; min-height: 44px; font-size: 12px; }
+.naver-search-disclosure .place-detail-disclosure__panel { font-size: 12px; overflow-wrap: anywhere; }
+.naver-search-disclosure a { display: flex; align-items: center; min-height: 44px; color: var(--brand); text-decoration: underline; text-underline-offset: 3px; }
+.naver-search-disclosure a:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
 .place-detail-disclosure__panel {
   border-top: 1px solid #dce6df;
   padding: 14px;
@@ -8379,13 +8385,13 @@ body:has(.weekendoog-home) .site-footer {
 }
 
 .catalog-result-card--text-only,
-.catalog-result-card:has(.catalog-card-placeholder) {
+.catalog-result-card:has(.catalog-card-placeholder):not(.catalog-result-card--with-image) {
   min-height: 76px;
   grid-template-columns: minmax(0, 1fr);
   padding-block: 9px;
 }
 
-.catalog-result-card:has(.catalog-card-placeholder) .catalog-result-card__image {
+.catalog-result-card:has(.catalog-card-placeholder):not(.catalog-result-card--with-image) .catalog-result-card__image {
   display: none;
 }
 
@@ -8408,7 +8414,10 @@ body:has(.weekendoog-home) .site-footer {
   gap: 12px;
 }
 
-.map-selection-content { padding-bottom: 36px; white-space: normal; }
+.map-panel-with-preview { display: flex; flex-direction: column; }
+.map-panel-with-preview > .map-canvas { flex: 1; height: 0; min-height: 0; }
+.map-selection-content { flex: 0 1 auto; max-height: 35%; overflow-y: auto; white-space: normal; border-top: 1px solid var(--ui2-line); background: white; }
+.map-selection-content > .explorer-map-place-preview { width: 100%; max-height: none; border: 0; border-radius: 0; box-shadow: none; }
 
 .explorer-map-place-preview {
   position: relative;

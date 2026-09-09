@@ -82,6 +82,16 @@ const request = (
 ) => ({ version: 1 as const, region, scope: "default" as const, dataset });
 
 describe("public map snapshot assembly", () => {
+  it("retains negative and unknown verdicts in the compact marker wire DTO", async () => {
+    const rows = [
+      { ...place("tour", "busan", "7000"), petAccessVerdict: "not_allowed" as const },
+      { ...place("kakao", "busan", "9101"), petAccessVerdict: "unknown" as const },
+    ];
+    const snapshot = await assembleMapPlacesSnapshot(request("busan"), { query: async () => page("busan", rows, 2) });
+    const wire = lightweightMapPlacesSnapshot(snapshot);
+    expect(wire.items.map(item => item.petAccessVerdict)).toEqual(["not_allowed", "unknown"]);
+    expect(wire.items[0]).not.toHaveProperty("pet_evidence");
+  });
   it("walks the bounded catalog once and preserves compact provider/category semantics", async () => {
     const query = vi.fn()
       .mockResolvedValueOnce(page("busan", [place("kakao", "busan", "1", "cafe")], 2, true, 41))

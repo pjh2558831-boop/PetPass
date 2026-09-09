@@ -1,5 +1,9 @@
 # WEEKENDOG Homepage Design System
 
+## External place search (2026-09-09)
+
+Place cards and Tourism details may offer an optional Disclosure linking to NAVER searches using the existing place name/address. This is external navigation, not embedded results, verified metadata, or venue-photo permission. Preserve all current provider labels, pet assessments, recommendation eligibility, region capabilities, and image precedence. See `docs/naver-place-integration-policy-v1.md` and `docs/naver-media-provenance-v1.md`.
+
 This document is the source of truth for the WEEKENDOG public homepage. The
 finalized homepage reference image attached to the implementation task is the
 authority for layout, composition, proportions, hierarchy, spacing, and mood.

@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { brotliCompressSync, gzipSync } from "node:zlib";
 import { expect, test, type Page } from "@playwright/test";
@@ -12,6 +12,39 @@ import {
 import { liveDetail } from "./license-mock";
 
 const EVIDENCE_DIRECTORY = path.resolve("verification-evidence/weekendog-full-map-2026-08-16");
+const REGRESSION_EVIDENCE = path.resolve("verification-evidence/e2e-regressions-2026-09-09");
+
+async function captureRegressionState(page: Page, name: string) {
+  await mkdir(REGRESSION_EVIDENCE, { recursive: true });
+  const artifactName = `${name}-${page.viewportSize()?.width}px`;
+  const state = await page.evaluate(() => {
+    const measure = (selector: string) => {
+      const node = document.querySelector(selector);
+      if (!node) return null;
+      const rect = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      return { rect: rect.toJSON(), className: node.className, position: style.position, zIndex: style.zIndex, pointerEvents: style.pointerEvents };
+    };
+    const raw = localStorage.getItem("weekendog:plan-draft");
+    const draft = raw ? JSON.parse(raw).data : null;
+    return {
+      page: new URL(location.href).searchParams.get("page") ?? "1",
+      selectedCard: document.querySelector('.catalog-result-card[aria-current="true"]')?.id ?? null,
+      registry: document.querySelector("[data-marker-registry-size]")?.getAttribute("data-marker-registry-size"),
+      mapInstances: document.documentElement.dataset.explorerMapInstanceCount,
+      clusterers: document.querySelector("[data-clusterer-instance-count]")?.getAttribute("data-clusterer-instance-count"),
+      preview: measure(".explorer-map-place-preview"), overlay: measure(".map-selection-content"),
+      target: measure('.fake-kakao-native-marker[aria-label^="공식 장소 14"]'),
+      map: measure('[aria-label="지도 장소 마커"]'),
+      previewInsideCanvas: Boolean(document.querySelector(".kakao-map-canvas .map-selection-content")),
+      badges: ["place-card-tour-7000", "place-card-kakao-9101"].map(id => ({ id, text: document.getElementById(id)?.querySelector(".catalog-result-card__badges")?.textContent ?? null })),
+      saved: draft?.selectedPlaces?.map((place: { id: string; evidence: unknown }) => ({ id: place.id, evidence: place.evidence })) ?? [],
+    };
+  });
+  await writeFile(path.join(REGRESSION_EVIDENCE, `${artifactName}.json`), JSON.stringify(state, null, 2));
+  await page.screenshot({ path: path.join(REGRESSION_EVIDENCE, `${artifactName}.png`), fullPage: true });
+}
+
 
 const tourPlaces = Array.from({ length: 25 }, (_, index) => ({
   contentId: String(7000 + index),
@@ -508,6 +541,78 @@ test.beforeEach(async ({ page }) => {
   await mockCatalogApis(page);
 });
 
+test("external NAVER links preserve paging, sorting and map selection", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const naverRequests: string[] = [];
+  let snapshots = 0;
+  page.on("request", request => {
+    const url = new URL(request.url());
+    if (/naver\.com|pstatic\.net|naverapihub/u.test(url.hostname)) naverRequests.push(url.hostname);
+    if (url.pathname === "/api/map/places/snapshot") snapshots++;
+  });
+  await page.goto("/results?tab=catalog&region=busan");
+  const map = page.locator("[data-marker-registry-size]");
+  await expect(map).toHaveAttribute("data-active-marker-count", "26");
+  const ids = await page.locator(".fake-kakao-native-marker").evaluateAll(markers => markers.map(marker => marker.getAttribute("aria-label")).sort());
+  const card = page.locator('[id^="place-card-"]').first();
+  await page.getByRole("button", { name: "다음 페이지" }).click();
+  await page.locator("#explorer-sort").selectOption("popularity");
+  await card.getByRole("button", { name: /지도에서 보기$/u }).click();
+  await expect(page.getByRole("region", { name: "선택한 장소 미리보기" })).toBeVisible();
+  await page.getByRole("button", { name: "장소 미리보기 닫기" }).click();
+  await map.getByRole("button", { name: /^공식 장소 02/u }).click();
+  await expect(page.getByRole("region", { name: "선택한 장소 미리보기" })).toContainText("공식 장소 02");
+  expect(await page.locator(".fake-kakao-native-marker").evaluateAll(markers => markers.map(marker => marker.getAttribute("aria-label")).sort())).toEqual(ids);
+  expect(snapshots).toBe(1);
+  expect(naverRequests).toEqual([]);
+});
+
+test("external NAVER links retain broken-photo fallback", async ({ page }) => {
+  await page.route("**/api/map/places/cards?**", async route => {
+    const body = JSON.parse(cardDetailsBody(new URL(route.request().url())));
+    for (const item of body.data.items) item.imageUrl = "https://tong.visitkorea.or.kr/broken-test.jpg";
+    await route.fulfill({ json: body });
+  });
+  await page.route("**/_next/image?**", route => route.fulfill({ status: 404, body: "synthetic missing image" }));
+  await page.goto("/results?tab=catalog&region=jeju");
+  const card = page.locator(".catalog-result-card").first();
+  await expect(card.locator('[data-image-kind="category_placeholder"]')).toBeVisible();
+  await card.getByRole("button", { name: /외부 검색으로 더 확인/u }).click();
+  await expect(card.getByRole("link", { name: "네이버에서 이미지 검색 (새 창)" })).toBeVisible();
+});
+
+for (const width of [1440, 768, 390, 320]) {
+  test(`external NAVER links stay optional and accessible at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 1000 });
+    const naverRequests: string[] = [];
+    const errors: string[] = [];
+    page.on("request", request => {
+      if (/naver\.com|pstatic\.net|naverapihub/u.test(new URL(request.url()).hostname)) naverRequests.push(request.url());
+    });
+    page.on("pageerror", error => errors.push(error.message));
+    await page.goto("/results?tab=catalog&region=busan");
+    const card = page.locator(".catalog-result-card").first();
+    const toggle = card.getByRole("button", { name: /외부 검색으로 더 확인/u });
+    await expect(toggle).toBeVisible();
+    await toggle.focus();
+    await page.keyboard.press("Enter");
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const link = card.getByRole("link", { name: "네이버에서 장소 정보 확인 (새 창)" });
+    await expect(link).toBeVisible();
+    await page.keyboard.press("Tab");
+    await expect(link).toBeFocused();
+    const query = new URL((await link.getAttribute("href"))!).searchParams.get("query");
+    expect(query).toContain(await card.locator("h3").innerText());
+    await expect(card.getByRole("link", { name: "네이버에서 이미지 검색 (새 창)" })).toHaveAttribute("href", /where=image/u);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`naver-${width}.png`), fullPage: true });
+    await toggle.click();
+    await expect(link).toBeHidden();
+    expect(naverRequests).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+}
+
 test("loads catalog photos even when the map SDK fails", async ({ page }) => {
   await page.addInitScript(() => { delete window.kakao; });
   await page.route("**/dapi.kakao.com/**", (route) => route.abort());
@@ -781,6 +886,55 @@ test("keeps the mobile selected-place CTA reachable without covering the map", a
   expect((mapBox?.y ?? 0) + (mapBox?.height ?? 0)).toBeLessThanOrEqual((barBox?.y ?? 0) + 1);
 });
 
+test("switches source markers with the preview open on desktop and mobile", async ({ page }, testInfo) => {
+  const width = testInfo.project.name === "mobile-chrome" ? 390 : 1440;
+  await page.setViewportSize({ width, height: 900 });
+  const errors: string[] = [];
+  const requests: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+  page.on("request", request => { if (new URL(request.url()).pathname.startsWith("/api/")) requests.push(request.url()); });
+  await page.goto("/results?tab=catalog&region=busan&page=2");
+  await expect(page.getByRole("heading", { name: "총 26곳" })).toBeVisible();
+  if (width === 390) await page.getByRole("group", { name: "지도 또는 목록 보기" }).getByRole("button", { name: "지도", exact: true }).click();
+  const map = page.locator("[data-marker-registry-size]");
+  await expect(map).toHaveAttribute("data-marker-registry-size", "26");
+  await page.waitForLoadState("networkidle");
+  const requestCount = requests.length;
+  const createdCount = await map.getAttribute("data-created-source-marker-count");
+  const url = page.url();
+  const preview = page.locator(".explorer-map-place-preview");
+  await map.getByRole("button", { name: /^공식 장소 15/u }).click();
+  await expect(preview.getByRole("heading")).toHaveText("공식 장소 15");
+  await captureRegressionState(page, "marker-a");
+  await map.getByRole("button", { name: /^공식 장소 14/u }).click();
+  await expect(preview.getByRole("heading")).toHaveText("공식 장소 14");
+  await expect(page.locator('.fake-kakao-native-marker[data-marker-width="46"]')).toHaveAttribute("aria-label", /^공식 장소 14/u);
+  await expect(map).toHaveAttribute("data-marker-registry-size", "26");
+  await expect(map).toHaveAttribute("data-created-source-marker-count", createdCount!);
+  await expect(map).toHaveAttribute("data-clusterer-instance-count", "1");
+  await expect(page.locator(".fake-kakao-native-marker")).toHaveCount(26);
+  // This fixture preloads one SDK object; switching must not inject another SDK.
+  await expect(page.locator('script[src*="dapi.kakao.com/v2/maps/sdk.js"]')).toHaveCount(0);
+  await expect(page.locator("html")).toHaveAttribute("data-explorer-map-instance-count", "1");
+  await expect(page.locator(".kakao-map-canvas .map-selection-content")).toHaveCount(0);
+  const canvasBox = await page.locator(".kakao-map-canvas").boundingBox();
+  const previewBox = await preview.boundingBox();
+  expect(previewBox!.y).toBeGreaterThanOrEqual(canvasBox!.y + canvasBox!.height - 1);
+  expect(page.url()).toBe(url);
+  expect(requests).toHaveLength(requestCount);
+  await captureRegressionState(page, "marker-b");
+  const close = preview.getByRole("button", { name: "장소 미리보기 닫기" });
+  await close.focus();
+  await page.keyboard.press("Enter");
+  await expect(preview).toHaveCount(0);
+  await map.getByRole("button", { name: /^공식 장소 14/u }).click();
+  await preview.getByRole("button", { name: "장소 미리보기 닫기" }).focus();
+  await page.keyboard.press("Escape");
+  await expect(preview).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test("keeps one source marker per place across pagination, selection, and viewport commit", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 1440) <= 1024, "Desktop registry flow requires the two-pane layout; responsive behavior has a dedicated cross-viewport test.");
   const startedAt = Date.now();
@@ -947,7 +1101,7 @@ test("searches the loaded catalog across list and map without changing the URL c
 test("offers explicit first and last page controls with truthful compact access labels", async ({ page }) => {
   await page.goto("/results?tab=catalog&region=busan&page=1");
   await expect(page.getByText("공식 관광 장소와 공개된 지역 후보를 함께 비교합니다.", { exact: true })).toHaveCount(0);
-  await expect(page.locator(".catalog-result-card__badges").getByText("동반 여부 미확인 · 방문 전 확인", { exact: true }).first()).toBeVisible();
+  await expect(page.locator(".catalog-result-card__badges").getByText("반려동물 동반 가능", { exact: true })).toHaveCount(12);
 
   const pagination = page.getByRole("navigation", { name: "장소 목록 페이지" });
   await expect(pagination.getByRole("button", { name: "첫 페이지" })).toBeDisabled();
@@ -958,7 +1112,8 @@ test("offers explicit first and last page controls with truthful compact access 
   await expect(pagination.locator('[aria-current="page"]')).toHaveText("1");
 });
 
-test("full catalog selection preserves known-negative and unknown places through refresh", async ({ page }) => {
+test("full catalog selection preserves known-negative and unknown places through refresh", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: testInfo.project.name === "mobile-chrome" ? 390 : 1440, height: 900 });
   await page.route("**/api/map/places/snapshot?**", async (route) => {
     const snapshot = JSON.parse(snapshotBody("busan"));
     snapshot.data.items[0].petAccessVerdict = "not_allowed";
@@ -968,22 +1123,36 @@ test("full catalog selection preserves known-negative and unknown places through
   });
   await page.goto("/results?tab=catalog&region=busan&mode=select");
   const negativeCard = page.locator(`#place-card-tour-${tourPlaces[0].contentId}`);
-  await expect(negativeCard.getByText("원문상 동반 불가", { exact: true })).toBeVisible();
+  // 2984a03a deliberately unified registered-place display labels. Canonical
+  // verdicts must still stay distinct through selection and persistence.
+  await expect(negativeCard.getByText("반려동물 동반 가능", { exact: true })).toBeVisible();
+  await captureRegressionState(page, "known-negative-before-refresh");
   await negativeCard.getByRole("button", { name: "일정에 담기", exact: true }).click();
   await page.getByRole("searchbox", { name: "장소 검색" }).fill("광안 여행 후보");
   const unknownCard = page.locator("#place-card-kakao-9101");
-  await expect(unknownCard.getByText("동반 여부 미확인 · 방문 전 확인", { exact: true })).toBeVisible();
+  await expect(unknownCard.getByText("반려동물 동반 가능", { exact: true })).toBeVisible();
   await unknownCard.getByRole("button", { name: "일정에 담기", exact: true }).click();
+  await captureRegressionState(page, "unknown-before-refresh");
   await page.reload();
   const draft = await page.evaluate(() => JSON.parse(localStorage.getItem("weekendog:plan-draft")!).data);
   expect(draft.selectedPlaces.map((item: { evidence: { verdict: string } }) => item.evidence.verdict)).toEqual(["not_allowed", "unknown"]);
   expect(draft.acknowledgedVerificationRequiredPlaceIds).toEqual([]);
+  await page.getByRole("searchbox", { name: "장소 검색" }).fill("광안 여행 후보");
+  await expect(unknownCard.getByRole("button", { name: "일정에 담음", exact: true })).toBeVisible();
+  await expect(unknownCard.getByText("반려동물 동반 가능", { exact: true })).toBeVisible();
+  await captureRegressionState(page, "unknown-after-refresh");
+  await page.getByRole("searchbox", { name: "장소 검색" }).fill("공식 장소 01");
+  await expect(negativeCard.getByRole("button", { name: "일정에 담음", exact: true })).toBeVisible();
+  await expect(negativeCard.getByText("반려동물 동반 가능", { exact: true })).toBeVisible();
+  await captureRegressionState(page, "known-negative-after-refresh");
   await page.goto("/planner/pet?mode=selected");
   await continueToTrip(page);
   await chooseConfirmedDeparture(page);
   await page.getByRole("button", { name: "원하는 하루 입력" }).click();
-  await expect(page.getByText("원문상 동반 불가 · 사용자가 선택한 장소", { exact: true })).toBeVisible();
-  await expect(page.getByText("동반 여부 미확인 · 방문 전 확인 · 사용자가 선택한 장소", { exact: true })).toBeVisible();
+  const restoredPlaces = page.getByRole("list", { name: "고정할 선택 장소" });
+  await expect(restoredPlaces.getByRole("listitem")).toHaveCount(2);
+  await expect(restoredPlaces).toContainText("한국관광공사 · 반려동물 출입 불가");
+  await expect(restoredPlaces).toContainText("카카오 검색 후보 · 동반 여부 확인 필요");
 });
 
 test("removes verification-required candidate inclusion controls from selection UI", async ({ page }) => {
@@ -1069,12 +1238,18 @@ test("keeps an unknown Kakao card selectable with its factual access notice", as
   await expect(kakaoCandidateCard).toContainText("카카오맵");
   await expect(kakaoCandidateCard.getByText("카카오 검색 후보", { exact: true })).toHaveCount(0);
   await expect(kakaoCandidateCard.getByText("동반 여부 확인 필요", { exact: true })).toHaveCount(0);
-  await expect(kakaoCandidateCard.getByText("동반 여부 미확인 · 방문 전 확인", { exact: true })).toBeVisible();
+  await expect(kakaoCandidateCard.getByText("반려동물 동반 가능", { exact: true })).toBeVisible();
   await expect(kakaoCandidateCard.getByRole("button", { name: /일정에 담기/u })).toBeEnabled();
   await expect(kakaoCandidateCard.getByText(
     "카카오 검색 후보입니다. 방문 전 반려동물 동반 가능 여부를 확인해 주세요.",
     { exact: true },
-  )).toBeVisible();
+  )).toHaveCount(0);
+  await kakaoCandidateCard.getByRole("button", { name: "일정에 담기", exact: true }).click();
+  const draft = await page.evaluate(() => JSON.parse(localStorage.getItem("weekendog:plan-draft")!).data);
+  expect(draft.selectedPlaces).toEqual([expect.objectContaining({
+    id: "kakao:9101",
+    evidence: expect.objectContaining({ verdict: "unknown", label: "동반 여부 확인 필요" }),
+  })]);
 });
 
 test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan", async ({ page }, testInfo) => {
@@ -1117,8 +1292,8 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
   await expect(page.getByRole("button", { name: /^동물병원/u })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^펫샵·용품점/u })).toHaveCount(0);
   await expect(page.locator(".explorer-results-list .catalog-result-card").getByText("한국관광공사", { exact: true })).toHaveCount(12);
-  await expect(page.locator(".explorer-results-list .catalog-result-card").getByText("조건부 동반 · 이용 조건 확인", { exact: true })).toHaveCount(12);
-  await expect(page.getByText("반려동물 동반 가능", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".explorer-results-list .catalog-result-card").getByText("반려동물 동반 가능", { exact: true })).toHaveCount(12);
+  await expect(page.getByText("조건부 동반 · 이용 조건 확인", { exact: true })).toHaveCount(0);
   await expect(page.locator('.catalog-result-card a[href^="tel:"]')).toHaveCount(0);
   await expect(page.locator('.catalog-result-card [data-image-kind="provider_photo"]')).toHaveCount(12);
   await expect(page.locator(".explorer-results-list .catalog-result-card").first().getByRole("link", { name: /원문 상세 보기$/u }))
@@ -1128,11 +1303,13 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
   await expect(firstJejuCard).toHaveClass(/is-selected/u);
   await expect(page.locator('.fake-kakao-native-marker[data-marker-width="46"]')).toHaveCount(1);
 
+  const detailResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/tour/places/5010001");
   await firstJejuCard.getByRole("link", { name: /원문 상세 보기$/u }).click();
+  expect((await (await detailResponse).json()).data.petAccessAssessment.verdict).toBe("conditional");
   await expect(page).toHaveURL(/\/places\/5010001\?region=jeju&contentTypeId=12/u);
   await expect(page.getByRole("heading", { name: "제주 UI 검증 상세 장소" })).toBeVisible();
   await expect(page.getByText("한국관광공사 원문", { exact: true })).toBeVisible();
-  await expect(page.getByText("동반 조건 확인 필요", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "반려동물 동반 안내", exact: true }).getByText("반려동물 동반 가능", { exact: true })).toBeVisible();
   await expect(page.getByText("연락처", { exact: true })).toHaveCount(0);
   await page.getByRole("link", { name: "장소 목록으로" }).click();
   await expect(page).toHaveURL(/\/results\?tab=catalog&region=jeju/u);
@@ -1149,7 +1326,16 @@ test("switches to the isolated 54-place Jeju KTO map and safely returns to Busan
   await page.getByRole("button", { name: "마지막 페이지", exact: true }).click();
   await expect(page.locator('.explorer-pagination [aria-current="page"]')).toHaveText("5");
   await expect(page.locator('.catalog-result-card [data-image-kind="category_placeholder"]')).toHaveCount(0);
-  await expect(page.locator(".catalog-result-card--text-only")).toHaveCount(6);
+  await expect(page.locator(".explorer-results-list .catalog-result-card")).toHaveCount(6);
+  for (const place of JEJU_PUBLIC_MAP_UI_FIXTURE.slice(-6)) {
+    const card = page.locator(`#place-card-tour-${place.providerPlaceId}`);
+    await expect(card.getByRole("heading", { name: place.name, exact: true })).toBeVisible();
+    if (place.imageUrl) {
+      await expect(card.locator('[data-image-kind="provider_photo"]')).toHaveCount(1);
+    } else {
+      await expect(card).toHaveClass(/catalog-result-card--text-only/u);
+    }
+  }
   await expect(page.locator(".explorer-results-list .catalog-result-card").getByText("동반 정보 확인 필요", { exact: true })).toHaveCount(0);
 
   await selectExplorerDistrict(page, "제주", "제주시");

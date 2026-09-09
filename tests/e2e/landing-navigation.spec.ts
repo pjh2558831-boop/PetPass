@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { REGION_CONFIGS } from "@/lib/regions/config";
 
 const PAGE_TITLE = "WEEKENDOG | 근거 있는 반려동물 동반 여행";
 
@@ -57,7 +58,8 @@ test("renders the landing page and reaches the existing selected-place entry", a
     .getByRole("button", { name: "장소 찾아 일정 만들기" });
   await primaryCta.click();
 
-  await expect(page).toHaveURL(/\/results\?tab=catalog&region=busan&page=1&mode=select$/u);
+  const defaultRegion = REGION_CONFIGS.find(region => region.routeCapabilities.fullyAutomaticRecommendation)!;
+  await expect(page).toHaveURL(url => url.pathname === "/results" && url.searchParams.get("tab") === "catalog" && url.searchParams.get("region") === defaultRegion.id && url.searchParams.get("page") === "1" && url.searchParams.get("mode") === "select");
   await expect(page.getByText("0 / 5곳 담음", { exact: true })).toHaveCount(2);
 });
 

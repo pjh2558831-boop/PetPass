@@ -18,6 +18,7 @@ import {
 import { MapPanel } from "@/components/map/map-panel";
 import { useSelectedItinerarySelection } from "@/components/places/use-selected-itinerary-selection";
 import { PlaceImage } from "@/components/places/place-image";
+import { NaverSearchDisclosure } from "@/components/places/naver-search-disclosure";
 import { LicenseInformationPanel } from "@/components/places/license-information-panel";
 import {
   PetAccessAssessmentPanel,
@@ -284,6 +285,7 @@ export function LivePlaceDetail({
             })}><CalendarPlus size={18} aria-hidden="true" />{selection.snapshot.places.some(p => p.id === `tour:${contentId}`) ? "일정에 담음" : "일정에 담기"}</button>
             {coordinates ? <a href="#detail-location"><MapPin size={18} aria-hidden="true" />지도에서 보기</a> : null}
           </div>
+          <NaverSearchDisclosure name={title} address={address} />
           {selection.message ? <p role="status" className="text-sm mt-2">{selection.message}</p> : null}
           {detail.homepageUrl ? (
             <a

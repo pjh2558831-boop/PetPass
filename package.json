@@ -6,6 +6,8 @@
     "node": ">=22.13.0"
   },
   "scripts": {
+    "naver:inventory": "node --conditions=react-server --import tsx scripts/registered-place-inventory.ts",
+    "media:review": "node --conditions=react-server --import tsx scripts/review-venue-media.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

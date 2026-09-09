@@ -1,4 +1,5 @@
 import type { Page, Route } from "@playwright/test";
+import { getRegionConfig } from "@/lib/regions/config";
 import type {
   HomepageLayerSnapshot,
   HomepageMapMarker,
@@ -447,6 +448,7 @@ export async function mockHomepageCardDetails(page: Page, snapshot = SNAPSHOT) {
 }
 
 export async function mockHomepage(page: Page, snapshot = SNAPSHOT) {
+  await mockNationwideHomepage(page, snapshot);
   await mockHomepageCardDetails(page, snapshot);
   await page.route(HOMEPAGE_INITIAL_API, (route) => {
     const scope = new URL(route.request().url()).searchParams.get("scope") === "optional"
@@ -466,6 +468,32 @@ export async function mockHomepage(page: Page, snapshot = SNAPSHOT) {
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({ ok: true, data: enrichmentSnapshot(snapshot), requestId: "homepage-enrichment-e2e" }),
+  }));
+}
+
+// The map now reads regional snapshots; the carousel still reads homepage APIs.
+// These fixtures intentionally contain Busan places only, not a fabricated nationwide total.
+export function nationwideHomepageSnapshot(snapshot = SNAPSHOT, region = "busan") {
+  const items = region === "busan" ? initialSnapshot(snapshot).markers.map((value) => ({
+    id: value[0], name: value[1], layer: value[2], category: value[3],
+    districtCode: getRegionConfig("busan").districts.find(district => district.name === value[4])!.legalDongDistrictCode,
+    coordinates: { latitude: value[5], longitude: value[6] },
+    petAccessVerdict: value[3] === "other" ? "unknown" : value[7],
+    publicLabel: value[3] === "other" ? "반려동물 동반 정보 확인 필요" : value[8],
+  })) : [];
+  return { ok: true, data: {
+    contractVersion: 1, region, scope: "default", dataset: "core",
+    generatedAt: RETRIEVED_AT, publicationVersion: "p1-aaaaaaaaaaaaaaaa",
+    dataVersion: "v1-aaaaaaaaaaaaaaaa", totalCount: items.length,
+    providerCounts: { tour: items.filter(item => item.layer === "tourism").length, kakao: items.filter(item => item.layer === "kakao").length },
+    categoryCounts: items.reduce<Record<string, number>>((counts, item) => { counts[item.category] = (counts[item.category] ?? 0) + 1; return counts; }, {}),
+    freshness: { status: "fresh" }, items,
+  } };
+}
+
+export async function mockNationwideHomepage(page: Page, snapshot = SNAPSHOT) {
+  await page.route("**/api/map/places/snapshot?**", route => route.fulfill({
+    json: nationwideHomepageSnapshot(snapshot, new URL(route.request().url()).searchParams.get("region") ?? "busan"),
   }));
 }
 

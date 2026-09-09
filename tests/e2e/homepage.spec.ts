@@ -2,33 +2,30 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { expect, test, type Page, type Route } from "@playwright/test";
 import type { HomepagePlacesSnapshot } from "@/types/homepage-places";
-import type { HomepageOptionalDatasetId } from "@/types/homepage-optional";
+import { REGION_CONFIGS } from "@/lib/regions/config";
 import {
   chooseConfirmedDeparture,
   continueToTrip,
 } from "./planner-test-helpers";
 import {
   cardFromMarker,
-  completedHomepageSnapshot,
   enrichmentSnapshot,
   fulfillInitial,
   GENERATE_API_PATH,
-  HOMEPAGE_COMPLETION_API,
   HOMEPAGE_ENRICHMENT_API,
   HOMEPAGE_INITIAL_API,
-  HOMEPAGE_OPTIONAL_API,
   initialSnapshot,
-  initialSnapshotWithCompletion,
   installFakeMap,
   installHomepageImageFixture,
   MAP_FAILURE_TEST,
   marker,
   mockHomepage,
+  mockNationwideHomepage,
+  nationwideHomepageSnapshot,
   mockHomepageCardDetails,
   NETWORK_TEST,
   OFFICIAL_ALLOWED,
   OFFICIAL_NEUTRAL,
-  optionalSnapshot,
   SNAPSHOT,
 } from "./homepage-test-helpers";
 
@@ -51,6 +48,7 @@ async function showHomepageListMode(page: Page) {
 }
 
 test.beforeEach(async ({ page }, testInfo) => {
+  await mockNationwideHomepage(page);
   await mockHomepageCardDetails(page);
   await installHomepageImageFixture(page);
   if (testInfo.title !== NETWORK_TEST && testInfo.title !== MAP_FAILURE_TEST) {
@@ -103,118 +101,37 @@ test(NETWORK_TEST, async ({ page }) => {
   expect(forbidden).toEqual([]);
   expect(consoleErrors).toEqual([]);
 });
-test("loads Shopping once, keeps the usable map visible, and reselects from browser memory", async ({ page }, testInfo) => {
-  let optionalRequests = 0;
-  const initialCookieHeaders: Array<string | undefined> = [];
-  const enrichmentCookieHeaders: Array<string | undefined> = [];
-  const optionalCookieHeaders: Array<string | undefined> = [];
+test("filters nationwide places from browser memory without optional dataset requests", async ({ page }) => {
+  await mockHomepage(page);
   const pageErrors: string[] = [];
   const consoleErrors: string[] = [];
-  page.on("pageerror", (error) => pageErrors.push(error.stack ?? error.message));
-  page.on("console", (message) => {
-    if (message.type() === "error") consoleErrors.push(message.text());
+  page.on("pageerror", error => pageErrors.push(error.message));
+  page.on("console", message => { if (message.type() === "error") consoleErrors.push(message.text()); });
+  const snapshotRequests: string[] = [];
+  let optionalRequests = 0;
+  page.on("request", request => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/map/places/snapshot") snapshotRequests.push(url.searchParams.get("region")!);
+    if (url.pathname === "/api/homepage/places/optional") optionalRequests++;
   });
-  let releaseShopping!: () => void;
-  const shoppingGate = new Promise<void>((resolve) => { releaseShopping = resolve; });
-  await page.route(HOMEPAGE_INITIAL_API, (route) => {
-    initialCookieHeaders.push(route.request().headers().cookie);
-    return fulfillInitial(route);
-  });
-  await page.route(HOMEPAGE_ENRICHMENT_API, (route) => {
-    enrichmentCookieHeaders.push(route.request().headers().cookie);
-    return route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        ok: true,
-        data: enrichmentSnapshot(),
-        requestId: "homepage-shopping-enrichment",
-      }),
-    });
-  });
-  await page.route(HOMEPAGE_OPTIONAL_API, async (route) => {
-    optionalRequests += 1;
-    optionalCookieHeaders.push(route.request().headers().cookie);
-    const dataset = new URL(route.request().url()).searchParams.get("dataset") as HomepageOptionalDatasetId;
-    if (dataset === "optional-kto-shopping") await shoppingGate;
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        ok: true,
-        data: optionalSnapshot(SNAPSHOT, dataset),
-        requestId: "homepage-shopping-optional",
-      }),
-    });
-  });
-
-  await page.context().addCookies([{
-    name: "petpass-test-session",
-    value: "private",
-    url: "http://localhost:3000",
-  }]);
   await page.goto("/");
+  await expect(page.getByText("전국 17개 시·도 중 17개 지역 조회 완료", { exact: true })).toBeVisible();
   const mapCanvas = page.locator(".homepage-map-canvas-wrap .map-canvas");
   await expect(mapCanvas).toHaveAttribute("data-location-count", "5");
-  await expect.poll(() => enrichmentCookieHeaders.length).toBe(1);
-  expect(initialCookieHeaders).toEqual(["petpass-test-session=private"]);
-  expect(enrichmentCookieHeaders).toEqual(["petpass-test-session=private"]);
+  expect(new Set(snapshotRequests).size).toBe(17);
+  const type = page.getByRole("combobox", { name: "홈 지도 장소 유형", exact: true });
+  await expect(type.locator('option[value="shopping"]')).toHaveCount(0);
+  await type.selectOption("cafe");
+  await expect(mapCanvas).toHaveAttribute("data-location-count", "2");
+  await type.selectOption("all");
+  await expect(mapCanvas).toHaveAttribute("data-location-count", "5");
+  await type.selectOption("cafe");
+  await expect(mapCanvas).toHaveAttribute("data-location-count", "2");
+  await expect(page.locator('.homepage-map-canvas-wrap [data-clusterer-instance-count]')).toHaveAttribute("data-clusterer-instance-count", "1");
+  expect(snapshotRequests).toHaveLength(17);
   expect(optionalRequests).toBe(0);
-
-  await showHomepageMapMode(page);
-  const filterButton = page.getByRole("button", { name: "필터", exact: true });
-  await filterButton.click();
-  const filters = page.getByRole("region", { name: "지도 장소 필터" });
-  await filters.getByRole("button", { name: /^쇼핑/u }).click();
-  await expect(filters.getByText("쇼핑 데이터를 불러오는 중", { exact: true })).toBeVisible();
-  await expect(page.locator(".homepage-live-loading")).toHaveCount(0);
-  await expect(mapCanvas).toHaveAttribute("data-location-count", "5");
-  await filters.getByRole("button", { name: "적용하기" }).click();
-  expect(optionalRequests).toBe(1);
-  expect(optionalCookieHeaders).toEqual(["petpass-test-session=private"]);
-
-  releaseShopping();
-  await expect(mapCanvas).toHaveAttribute("data-location-count", "6");
-  await filterButton.click();
-  await expect(filters.getByRole("button", { name: /^쇼핑/u })).toHaveAttribute("aria-pressed", "true");
-  await filters.getByRole("button", { name: "적용하기" }).click();
-  await expect(mapCanvas).toHaveAttribute("data-location-count", "6");
-  expect(optionalRequests).toBe(1);
-
-  await filterButton.click();
-  await filters.getByRole("button", { name: /^쇼핑/u }).click();
-  await expect(filters.getByRole("button", { name: /^쇼핑/u })).toHaveAttribute("aria-pressed", "false");
-  await filters.getByRole("button", { name: "적용하기" }).click();
-  await expect.poll(() => pageErrors).toEqual([]);
-  await expect.poll(() => consoleErrors).toEqual([]);
-  await expect(mapCanvas).toHaveAttribute("data-location-count", "5");
-  await filterButton.click();
-  await filters.getByRole("button", { name: /^쇼핑/u }).click();
-  await expect(filters.getByRole("button", { name: /^쇼핑/u })).toHaveAttribute("aria-pressed", "true");
-  await filters.getByRole("button", { name: "적용하기" }).click();
-  await expect(mapCanvas).toHaveAttribute("data-location-count", "6");
-  expect(optionalRequests).toBe(1);
-  await expect.poll(() => page.evaluate(() => {
-    const entries = performance.getEntriesByName("weekendog:homepage:filter:feedback", "measure");
-    return entries.length > 0 && entries.every((entry) => entry.duration < 150);
-  })).toBe(true);
-  const browserMetrics = await page.evaluate(() => ({
-    measures: Object.fromEntries(
-      performance.getEntriesByType("measure")
-        .filter(({ name }) => name.startsWith("weekendog:homepage:optional:") ||
-          name.startsWith("weekendog:homepage:filter:") ||
-          name.startsWith("weekendog:homepage:map:"))
-        .map(({ name, duration }) => [name, Number(duration.toFixed(2))]),
-    ),
-    markerUpdateMs: Number(
-      document.querySelector("[data-marker-update-ms]")?.getAttribute("data-marker-update-ms"),
-    ),
-  }));
-  const metrics = { ...browserMetrics, optionalRequests };
-  await testInfo.attach("homepage-shopping-metrics.json", {
-    body: JSON.stringify(metrics, null, 2),
-    contentType: "application/json",
-  });
+  expect(pageErrors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
 });
 
 test("renders the base map while KTO enrichment is delayed by ten seconds", async ({ page }, testInfo) => {
@@ -347,19 +264,20 @@ test("aborts an abandoned homepage snapshot request on navigation", async ({ pag
   await page.route(HOMEPAGE_ENRICHMENT_API, (route) => route.abort());
 
   await page.goto("/");
-  await expect(page.locator(".homepage-live-loading")).toBeVisible();
+  await expect(page.locator(".homepage-carousel-loading")).toBeVisible();
   await expect.poll(() => requested).toBe(true);
+  const beforeAbort = await page.evaluate(() => Number(sessionStorage.getItem("homepage-abort-count") ?? "0"));
   const navigation = Promise.all([
     page.waitForURL(/\/planner\/pet/u),
     page
-      .getByRole("form", { name: "여행 만들기 빠른 시작" })
-      .getByRole("button", { name: "장소 없이 알아서 추천받기" })
+      .getByRole("banner")
+      .getByRole("link", { name: "맞춤 일정", exact: true })
       .click(),
   ]);
   await page.waitForURL(/\/planner\/pet/u);
   await expect.poll(() => page.evaluate(
     () => Number(sessionStorage.getItem("homepage-abort-count") ?? "0"),
-  )).toBeGreaterThan(0);
+  )).toBeGreaterThan(beforeAbort);
   release();
   await navigation;
 });
@@ -445,7 +363,7 @@ test("uses compact hero copy and three local official partner marks", async ({ p
 
   const launcher = page.getByRole("form", { name: "여행 만들기 빠른 시작" });
   await expect(launcher.locator(".hero-planner-label").getByText("여행 지역", { exact: true })).toBeVisible();
-  await expect(launcher.getByRole("combobox", { name: "여행 지역" })).toHaveValue("busan");
+  await expect(launcher.getByRole("combobox", { name: "여행 지역" })).toHaveValue(REGION_CONFIGS.find(region => region.routeCapabilities.fullyAutomaticRecommendation)!.id);
   await expect(launcher.getByRole("button", { name: "장소 찾아 일정 만들기" })).toBeVisible();
   await expect(launcher.getByText("빠른 지역 선택", { exact: true })).toHaveCount(0);
   await expect(launcher.getByText("언제 갈까요?", { exact: true })).toHaveCount(0);
@@ -532,29 +450,20 @@ test("keeps the single hero photograph static under reduced motion", async ({ pa
 });
 
 test("keeps loading and provider failures truthful and retryable", async ({ page }) => {
-  let requestCount = 0;
+  let fail = true;
   let release!: () => void;
-  const gate = new Promise<void>((resolve) => { release = resolve; });
-  await page.route(HOMEPAGE_INITIAL_API, async (route) => {
-    requestCount += 1;
-    if (requestCount === 1) {
-      await gate;
-      await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ ok: false, error: { code: "UPSTREAM_ERROR", message: "공식 응답을 확인할 수 없습니다.", retryable: true }, requestId: "error" }) });
-      return;
-    }
-    await fulfillInitial(route);
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const calls: string[] = [];
+  await page.route("**/api/map/places/snapshot?**", async route => {
+    const region = new URL(route.request().url()).searchParams.get("region")!;
+    calls.push(region);
+    await gate;
+    await route.fulfill(fail
+      ? { status: 503, json: { ok: false } }
+      : { json: nationwideHomepageSnapshot(SNAPSHOT, region) });
   });
-  await page.route(HOMEPAGE_ENRICHMENT_API, (route) => route.fulfill({
-    status: 200,
-    contentType: "application/json",
-    body: JSON.stringify({
-      ok: true,
-      data: enrichmentSnapshot(),
-      requestId: "homepage-retry-enrichment",
-    }),
-  }));
   await page.goto("/");
-  await expect(page.getByLabel("부산 장소 작업 화면 불러오는 중")).toBeVisible();
+  await expect(page.getByLabel("전국 장소 작업 화면 불러오는 중")).toBeVisible();
   await expect(page.getByText("장소 수를 확인하고 있어요", { exact: true })).toBeVisible();
   await expect(page.locator(".homepage-workbench-row--skeleton")).toHaveCount(5);
   await expect(page.getByText("37곳", { exact: true })).toHaveCount(0);
@@ -563,59 +472,37 @@ test("keeps loading and provider failures truthful and retryable", async ({ page
   await expect(error).toBeVisible();
   await expect(page.locator(".homepage-map-section")).toBeVisible();
   await expect(page.getByText("장소 수를 확인하고 있어요")).toHaveCount(0);
-  const errorBox = await error.boundingBox();
-  expect(errorBox).not.toBeNull();
-  expect(errorBox!.height).toBeLessThanOrEqual(220);
+  expect((await error.boundingBox())!.height).toBeLessThanOrEqual(220);
+  fail = false;
   await error.getByRole("button", { name: "다시 시도" }).click();
-  await expect(page.getByRole("heading", { name: "함께 갈 곳을 지도와 목록에서 고르세요" })).toBeVisible();
-  await expect(page.getByText("5곳", { exact: true })).toBeVisible();
-  expect(requestCount).toBe(2);
+  await expect(page.locator(".homepage-workbench-heading strong")).toHaveText("5곳");
+  await expect(page.getByText("전국 17개 시·도 중 17개 지역 조회 완료", { exact: true })).toBeVisible();
+  expect(calls).toHaveLength(34);
+  expect(new Set(calls).size).toBe(17);
 });
 
 test("keeps search and selected places while retrying a partial completion", async ({ page }) => {
-  const initial = initialSnapshotWithCompletion();
-  const completionCookieHeaders: Array<string | undefined> = [];
-  let completionRequests = 0;
-  await page.context().addCookies([{
-    name: "petpass-test-session",
-    value: "private",
-    url: "http://localhost:3000",
-  }]);
-  await page.route(HOMEPAGE_INITIAL_API, (route) => route.fulfill({
-    status: 200,
-    contentType: "application/json",
-    body: JSON.stringify({ ok: true, data: initial, requestId: "homepage-partial-initial" }),
-  }));
-  await page.route(HOMEPAGE_ENRICHMENT_API, (route) => route.fulfill({
-    status: 200,
-    contentType: "application/json",
-    body: JSON.stringify({ ok: true, data: enrichmentSnapshot(), requestId: "homepage-partial-enrichment" }),
-  }));
-  await page.route(HOMEPAGE_COMPLETION_API, (route) => {
-    completionRequests += 1;
-    completionCookieHeaders.push(route.request().headers().cookie);
-    if (completionRequests === 1) {
-      return route.fulfill({
-        status: 503,
-        contentType: "application/json",
-        body: JSON.stringify({
-          ok: false,
-          error: { code: "UPSTREAM_TIMEOUT", message: "나머지 장소 응답이 지연됩니다.", retryable: true },
-          requestId: "homepage-partial-error",
-        }),
-      });
+  await mockHomepage(page);
+  const calls: string[] = [];
+  const cookies: Array<string | undefined> = [];
+  let failSeoul = true;
+  await page.route("**/api/map/places/snapshot?**", route => {
+    const region = new URL(route.request().url()).searchParams.get("region")!;
+    calls.push(region);
+    cookies.push(route.request().headers().cookie);
+    if (region === "seoul" && failSeoul) return route.fulfill({ status: 503, json: { ok: false } });
+    const response = nationwideHomepageSnapshot(SNAPSHOT, region);
+    if (region === "seoul") {
+      response.data.items = [{ id: "kakao:98001", name: "완료 응답으로 추가된 카페", layer: "kakao", category: "cafe",
+        districtCode: "110", coordinates: { latitude: 37.573, longitude: 126.979 },
+        petAccessVerdict: "unknown", publicLabel: "동반 여부 확인 필요" }];
+      response.data.totalCount = 1;
+      response.data.providerCounts = { tour: 0, kakao: 1 };
+      response.data.categoryCounts = { cafe: 1 };
     }
-    return route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        ok: true,
-        data: completedHomepageSnapshot(initial),
-        requestId: "homepage-partial-retry",
-      }),
-    });
+    return route.fulfill({ json: response });
   });
-
+  await page.context().addCookies([{ name: "petpass-test-session", value: "private", url: "http://localhost:3000" }]);
   await page.goto("/");
   const partialNotice = page.locator(".homepage-workbench-notice--warning");
   await expect(partialNotice).toBeVisible();
@@ -624,16 +511,15 @@ test("keeps search and selected places while retrying a partial completion", asy
   await search.fill("해운대");
   await page.getByRole("checkbox", { name: "해운대 달맞이 산책로 일정에 담기" }).check();
   await expect(page.getByText("선택한 장소 1곳", { exact: true })).toBeVisible();
-
+  failSeoul = false;
   await partialNotice.getByRole("button", { name: "다시 시도" }).click();
-  await expect.poll(() => completionRequests).toBe(2);
   await expect(partialNotice).toHaveCount(0);
+  await expect(page.getByText("전국 17개 시·도 중 17개 지역 조회 완료", { exact: true })).toBeVisible();
+  expect(calls.filter(region => region === "seoul")).toHaveLength(2);
+  expect(calls.filter(region => region !== "seoul")).toHaveLength(16);
+  expect(cookies.every(cookie => cookie === undefined)).toBe(true);
   await expect(search).toHaveValue("해운대");
   await expect(page.getByRole("checkbox", { name: "해운대 달맞이 산책로 일정에 담기" })).toBeChecked();
-  expect(completionCookieHeaders).toEqual([
-    "petpass-test-session=private",
-    "petpass-test-session=private",
-  ]);
   await page.getByRole("button", { name: "검색어 지우기" }).click();
   await expect(page.getByText("완료 응답으로 추가된 카페", { exact: true })).toBeVisible();
 });
@@ -659,57 +545,30 @@ test(MAP_FAILURE_TEST, async ({ page }) => {
   );
 });
 
-test("renders mixed source markers, dynamic counts, truthful selection, and facility toggles", async ({ page }) => {
+test("renders mixed source markers, dynamic counts and truthful selection through current category filters", async ({ page }) => {
   await mockHomepage(page);
   await page.goto("/");
   const mapCanvas = page.locator(".homepage-map-canvas-wrap .map-canvas");
   await expect(mapCanvas).toHaveAttribute("data-location-count", "5");
   await expect(mapCanvas).toHaveAttribute("data-route-point-count", "0");
   await expect(page.getByLabel("지도 마커 범례")).toHaveCount(0);
-  await expect(page.getByText("지도 레이어", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("BUSAN PLACE MAP", { exact: true })).toHaveCount(0);
-  await expect(page.locator(".homepage-map-filter-panel")).toHaveCount(0);
-  await showHomepageMapMode(page);
-  const filterButton = page.getByRole("button", { name: "필터", exact: true });
-  await expect(filterButton).toHaveAttribute("aria-expanded", "false");
-  await filterButton.click();
-  const mapFilters = page.getByRole("region", { name: "지도 장소 필터" });
-  await expect(mapFilters).toBeVisible();
-  const triggerBox = await filterButton.boundingBox();
-  const dropdownBox = await mapFilters.boundingBox();
-  expect(triggerBox).not.toBeNull();
-  expect(dropdownBox).not.toBeNull();
-  expect(triggerBox!.width).toBeGreaterThanOrEqual(76);
-  expect(dropdownBox!.x).toBeGreaterThanOrEqual(0);
-  expect(dropdownBox!.x + dropdownBox!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
-  await expect(mapFilters.getByText("출처", { exact: true })).toHaveCount(0);
-  await expect(mapFilters.getByRole("button", { name: /^공식 장소/u })).toHaveCount(0);
-  for (const label of ["관광지", "식당", "카페", "숙소"]) {
-    await expect(mapFilters.getByRole("button", { name: new RegExp(`^${label}`) })).toHaveAttribute("aria-pressed", "true");
-  }
-  for (const label of ["쇼핑", "동물병원", "펫샵·용품점"]) {
-    await expect(mapFilters.getByRole("button", { name: new RegExp(`^${label}`) })).toHaveAttribute("aria-pressed", "false");
-  }
-  await page.keyboard.press("Escape");
-  await expect(filterButton).toHaveAttribute("aria-expanded", "false");
-  await expect(filterButton).toBeFocused();
-  await filterButton.click();
-  await mapFilters.getByRole("button", { name: /^동물병원/u }).click();
-  await expect(mapCanvas).toHaveAttribute("data-location-count", "5");
-  await mapFilters.getByRole("button", { name: "적용하기" }).click();
-  await expect(mapCanvas).toHaveAttribute("data-location-count", "6");
-  const hospitalMarker = page.getByRole("button", { name: /부산 반려동물 동물병원 · 동물병원$/u });
-  await hospitalMarker.evaluate((element) => (element as HTMLButtonElement).click());
+  const type = page.getByRole("combobox", { name: "홈 지도 장소 유형", exact: true });
+  await expect(type).toHaveValue("all");
+  await expect(type.locator('option[value="veterinary"], option[value="pet_shop"]')).toHaveCount(0);
+  await type.selectOption("cafe");
+  await expect(mapCanvas).toHaveAttribute("data-location-count", "2");
+  await page.getByRole("button", { name: "광안리 반려견 검색 후보 지도에서 보기", exact: true }).click();
   const selected = page.locator('.homepage-workbench-row[data-map-focused="true"]');
   await expect(selected).toHaveCount(1);
-  await expect(selected).toContainText("동물병원");
-  await expect(selected).not.toContainText("동반 가능");
+  await expect(selected).toContainText("카카오 검색 후보");
+  await expect(selected).toContainText("동반 여부 확인 필요");
   await expect(selected).not.toContainText("24시간");
-
-  await showHomepageListMode(page);
+  await type.selectOption("all");
+  await expect(mapCanvas).toHaveAttribute("data-location-count", "5");
   const officialRow = page.locator(".homepage-workbench-row").filter({ hasText: "해운대 달맞이 산책로" });
   await officialRow.getByRole("button", { name: "해운대 달맞이 산책로 지도에서 보기" }).click();
   await expect(officialRow).toHaveAttribute("data-map-focused", "true");
+  await expect(officialRow).toContainText("한국관광공사");
   await expect(page.locator('.homepage-workbench-row[data-map-focused="true"]')).toHaveCount(1);
 });
 
@@ -740,10 +599,10 @@ test("collapses the selected-place area until the first real selection", async (
   await mockHomepage(page);
   await page.goto("/");
   await expect(page.locator(".home-selected-itinerary")).toHaveCount(0);
-  await expect(page.getByText("장소를 선택하면 이곳에서 일정 순서를 정할 수 있습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("장소를 지도에서 선택한 뒤 일정에 담으세요. 일정에는 같은 지역의 장소를 담을 수 있습니다.", { exact: true })).toBeVisible();
 
   await page.getByRole("checkbox", { name: "해운대 달맞이 산책로 일정에 담기" }).check();
-  await expect(page.getByText("장소를 선택하면 이곳에서 일정 순서를 정할 수 있습니다.", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("장소를 지도에서 선택한 뒤 일정에 담으세요. 일정에는 같은 지역의 장소를 담을 수 있습니다.", { exact: true })).toHaveCount(0);
   await expect(page.locator(".home-selected-itinerary")).toBeVisible();
   await expect(page.getByText("선택한 장소 1곳", { exact: true })).toBeVisible();
 });
@@ -763,11 +622,12 @@ test("keeps official data working when the stored Kakao catalog is unavailable",
   await mockHomepage(page, unavailable);
   await page.goto("/");
   await expect(page.locator(".homepage-map-section")).toBeVisible();
-  await showHomepageMapMode(page);
-  await page.getByRole("button", { name: "필터", exact: true }).click();
-  const mapFilters = page.getByRole("region", { name: "지도 장소 필터" });
-  await expect(page.getByText("일부 공개 장소 제공자와 연결되지 않았습니다.", { exact: false })).toBeVisible();
-  await expect(mapFilters.getByRole("button", { name: /동물병원\s*…/u })).toBeEnabled();
+  const rows = page.locator(".homepage-workbench-row");
+  await expect(rows).toHaveCount(2);
+  await expect(rows).toContainText(["한국관광공사", "한국관광공사"]);
+  const carousel = page.getByRole("region", { name: "부산 장소 카드" });
+  await expect(carousel).toContainText("해운대 달맞이 산책로");
+  await expect(carousel).not.toContainText("광안리 반려견 검색 후보");
   await expect(page.getByText("0곳", { exact: true })).toHaveCount(0);
 });
 
@@ -789,7 +649,7 @@ test("moves card focus and opens selection without itinerary generation", async 
   const launcher = page.getByRole("form", { name: "여행 만들기 빠른 시작" });
   await launcher.getByRole("combobox", { name: "여행 지역" }).selectOption("busan");
   await launcher.getByRole("button", { name: "장소 찾아 일정 만들기" }).click();
-  await expect(page).toHaveURL(/\/results\?tab=catalog&region=busan&mode=select/u);
+  await expect(page).toHaveURL(url => url.pathname === "/results" && url.searchParams.get("tab") === "catalog" && url.searchParams.get("region") === "busan" && url.searchParams.get("mode") === "select");
   await expect(page.getByText("0 / 5곳 담음", { exact: true })).toHaveCount(2);
   expect(generationRequests).toEqual([]);
 });
@@ -874,9 +734,7 @@ test("searches loaded places and transfers an ordered three-place selection to t
   await expect(page.getByRole("heading", { name: "원하는 하루" })).toBeVisible();
   await expect(page).toHaveURL(/\/planner\/pet\?mode=selected$/u);
   expect(generationRequests).toEqual([]);
-  await page.getByRole("button", { name: "선택한 장소로 일정 만들기" }).evaluate((node) => {
-    (node as HTMLButtonElement).click();
-  });
+  await page.getByRole("button", { name: "선택한 장소로 일정 만들기" }).click();
   await expect.poll(() => generationRequests.length).toBe(1);
   expect(generationRequests[0]).toMatchObject({
     selectedPlaceIds: ["tour:1103", "tour:1101"],
@@ -890,23 +748,22 @@ test("keeps homepage filter actions reachable inside the viewport", async ({ pag
   await expect(page.locator(".homepage-live-ready")).toBeVisible();
   for (const width of [1440, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.getByRole("button", { name: "필터", exact: true }).click();
-    const panel = page.getByRole("region", { name: "지도 장소 필터" });
-    const apply = panel.getByRole("button", { name: /적용하기/u });
-    await expect(apply).toBeVisible();
-    const applyBox = await apply.boundingBox();
-    expect(applyBox).not.toBeNull();
-    expect((applyBox?.y ?? 0) + (applyBox?.height ?? 0)).toBeLessThanOrEqual(900);
-    for (const label of await panel.locator(".explorer-category-group__label").all()) {
-      const labelBox = await label.boundingBox();
-      const countBox = await label.locator("..").locator("small").boundingBox();
-      expect(labelBox).not.toBeNull();
-      expect(countBox).not.toBeNull();
-      expect((labelBox?.x ?? 0) + (labelBox?.width ?? 0)).toBeLessThanOrEqual(countBox?.x ?? 0);
-      expect(await label.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    for (const name of ["홈 지도 지역", "홈 지도 장소 유형"]) {
+      const filter = page.getByRole("combobox", { name, exact: true });
+      await filter.scrollIntoViewIfNeeded();
+      await expect(filter).toBeVisible();
+      const box = (await filter.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+      expect(box.y + box.height).toBeLessThanOrEqual(900);
+      expect(box.height).toBeGreaterThanOrEqual(44);
     }
-    await panel.screenshot({ path: testInfo.outputPath(`filter-${width}.png`) });
-    await page.keyboard.press("Escape");
+    const category = page.getByRole("combobox", { name: "홈 지도 장소 유형", exact: true });
+    await category.selectOption("cafe");
+    await expect(page.locator(".homepage-workbench-heading strong")).toHaveText("2곳");
+    await category.selectOption("all");
+    await expect(page.locator(".homepage-workbench-heading strong")).toHaveText("5곳");
+    await page.locator(".homepage-map-section").screenshot({ path: testInfo.outputPath("filter-" + width + ".png") });
   }
 });
 
@@ -1037,13 +894,10 @@ test("preserves mobile order, map width, card snap width, and page overflow", as
   expect(mapBox).not.toBeNull();
   expect(mapBox!.width).toBeLessThanOrEqual(390);
   expect(mapBox!.height).toBeGreaterThanOrEqual(320);
-  const filterButton = page.getByRole("button", { name: "필터", exact: true });
-  await filterButton.click();
-  const dropdownBox = await page.getByRole("region", { name: "지도 장소 필터" }).boundingBox();
-  expect(dropdownBox).not.toBeNull();
-  expect(dropdownBox!.x).toBeGreaterThanOrEqual(0);
-  expect(dropdownBox!.x + dropdownBox!.width).toBeLessThanOrEqual(390);
-  await page.keyboard.press("Escape");
+  const categoryFilter = page.getByRole("combobox", { name: "홈 지도 장소 유형", exact: true });
+  const filterBox = (await categoryFilter.boundingBox())!;
+  expect(filterBox.x).toBeGreaterThanOrEqual(0);
+  expect(filterBox.x + filterBox.width).toBeLessThanOrEqual(390);
   const cardBox = await page.locator(".homepage-place-card").first().boundingBox();
   expect(cardBox).not.toBeNull();
   expect(cardBox!.width).toBeGreaterThanOrEqual(220);

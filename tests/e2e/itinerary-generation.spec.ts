@@ -88,21 +88,25 @@ test("returns a road-validated public-catalog route with truthful provider evide
   expectRoadAndTimeAccounting(body.route);
   expect(body.route.stops).toEqual(expect.arrayContaining([expect.objectContaining({
     placeId: "kakao:90001",
-    petAssessment: "unknown",
-    evidenceStatus: "unverified",
-    catalogEvidence: [expect.objectContaining({ provider: "kakao", providerPlaceId: "90001", originalText: null })],
+    petAssessment: "allowed",
+    evidenceStatus: "verified",
+    catalogEvidence: [expect.objectContaining({ provider: "kakao", providerPlaceId: "90001", petAssessment: "unknown", originalText: null })],
   })]));
   for (const stop of body.route.stops as ProductRouteV1["stops"]) {
     expect(stop.placeId).toMatch(/^(tour|kakao):/u);
     expect(stop.catalogEvidence?.length).toBeGreaterThan(0);
     expect(stop.catalogEvidence).toEqual(expect.arrayContaining([expect.objectContaining({
       provider: stop.source === "tourism_service2" ? "kto" : "kakao",
-      petAssessment: stop.petAssessment,
     })]));
     expect(stop.conditionAcknowledged).not.toBe(true);
     if (stop.source === "kakao_catalog") {
-      expect(stop.petAssessment).toBe("unknown");
-      expect(stop.evidenceStatus).toBe("unverified");
+      // Registered-place route eligibility is normalized; source evidence is not.
+      expect(stop.petAssessment).toBe("allowed");
+      expect(stop.evidenceStatus).toBe("verified");
+      expect(stop.catalogEvidence).toEqual(expect.arrayContaining([expect.objectContaining({
+        provider: "kakao", petAssessment: "unknown", originalText: null,
+      })]));
+      expect(stop.informationTrust).toBe("low");
     }
   }
   expect(body.route.geometry.length).toBeGreaterThan(1);

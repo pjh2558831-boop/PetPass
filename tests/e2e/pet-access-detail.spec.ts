@@ -1,5 +1,19 @@
 import { expect, test } from "@playwright/test";
 
+test("detail offers external NAVER search without fetching results", async ({ page }) => {
+  const requests: string[] = [];
+  page.on("request", request => {
+    if (/naver\.com|pstatic\.net|naverapihub/u.test(new URL(request.url()).hostname)) requests.push(request.url());
+  });
+  await page.goto("/places/3001?contentTypeId=38&region=busan");
+  const toggle = page.getByRole("button", { name: /외부 검색으로 더 확인/u });
+  await expect(toggle).toBeVisible();
+  await toggle.click();
+  await expect(page.getByRole("link", { name: "네이버에서 장소 정보 확인 (새 창)" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "네이버에서 이미지 검색 (새 창)" })).toHaveAttribute("target", "_blank");
+  expect(requests).toEqual([]);
+});
+
 const verdictCases = [
   {
     name: "shows explicit unrestricted pet allowance",

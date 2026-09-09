@@ -54,6 +54,24 @@ function place(
 }
 
 describe("selected itinerary storage", () => {
+  it("round-trips every canonical verdict without overwriting unrelated storage", () => {
+    const storage = new MemoryStorage();
+    storage.seed("unrelated", "keep");
+    const verdicts = ["allowed", "conditional", "not_allowed", "unknown"] as const;
+    const snapshot = { ...createSelectedItinerarySnapshot("busan"), geometry: [{ latitude: 35, longitude: 129 }], editToken: "discard-test-token", places: verdicts.map((verdict, index) => place(`tour:${8000 + index}`, { petAccessVerdict: verdict })) };
+    expect(saveSelectedItinerary(snapshot, storage)).toBe(true);
+    expect(storage.getItem("weekendog:plan-draft")).not.toMatch(/geometry|editToken|discard-test-token/u);
+    expect(JSON.parse(storage.getItem("weekendog:plan-draft")!).data.selectedPlaces.map((entry: { evidence: { verdict: string } }) => entry.evidence.verdict)).toEqual(verdicts);
+    expect(loadSelectedItinerary(storage)?.places.map(entry => entry.petAccessVerdict)).toEqual(verdicts);
+    expect(storage.getItem("unrelated")).toBe("keep");
+    for (const invalid of ["invalid", null, undefined]) {
+      const draft = JSON.parse(storage.getItem("weekendog:plan-draft")!);
+      draft.data.selectedPlaces[0].evidence.verdict = invalid;
+      storage.seed("weekendog:plan-draft", JSON.stringify(draft));
+      expect(loadSelectedItinerary(storage)).toBeNull();
+      expect(saveSelectedItinerary(snapshot, storage)).toBe(true);
+    }
+  });
   it("preserves the catalog image for the planner selected-place summary", () => {
     const catalogPlace = {
       ...place("tour:7001"),

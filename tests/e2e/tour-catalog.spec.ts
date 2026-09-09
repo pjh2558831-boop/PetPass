@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { getRegionConfig } from "@/lib/regions/config";
 import { chooseConfirmedDeparture, continueToDay, continueToTrip } from "@/tests/e2e/planner-test-helpers";
 
 const kakaoItems = [
@@ -90,12 +91,17 @@ test("starts category-first and keeps optional facility records available", asyn
   for (const label of ["쇼핑", "동물병원", "펫샵·용품점"]) {
     await expect(categoryPanel.getByRole("button", { name: new RegExp(`^${label}`) })).toHaveAttribute("aria-pressed", "false");
   }
-  await expect(page.getByLabel("장소 출처 범례")).toContainText("한국관광공사");
-  await expect(page.getByLabel("장소 출처 범례")).toContainText("카카오맵");
+  await expect(page.getByLabel("장소 출처 범례")).toHaveCount(0);
+  await expect(page.getByRole("article").filter({ has: page.getByRole("heading", { name: "광복 전망대", exact: true }) })).toContainText("한국관광공사");
+  await expect(page.getByRole("article").filter({ has: page.getByRole("heading", { name: "광안 반려 카페", exact: true }) })).toContainText("카카오맵");
   await categoryPanel.getByRole("button", { name: /^동물병원/ }).click();
   await categoryPanel.getByRole("button", { name: /^펫샵·용품점/ }).click();
   await categoryPanel.getByRole("button", { name: "적용하기" }).click();
   await showListMode(page);
+  await expect(page.getByRole("heading", { name: "총 16곳", exact: true })).toBeVisible();
+  await expect(page.getByRole("article")).toHaveCount(12);
+  await page.getByRole("button", { name: "마지막 페이지", exact: true }).click();
+  await expect(page.locator('.explorer-pagination [aria-current="page"]')).toHaveText("2");
   await expect(page.getByText("광안 동물병원", { exact: true })).toBeVisible();
   await expect(page.getByText("광안 펫샵", { exact: true })).toBeVisible();
   await expect(page.getByText("반려동물 편의시설", { exact: true })).toHaveCount(0);
@@ -108,8 +114,9 @@ test("keeps all providers visible while the category dropdown is open", async ({
   await expect(dropdown.getByText("출처", { exact: true })).toHaveCount(0);
   await expect(dropdown.getByRole("button", { name: /^한국관광공사/u })).toHaveCount(0);
   await expect(dropdown.getByRole("button", { name: /^카카오맵/u })).toHaveCount(0);
-  await expect(page.getByLabel("장소 출처 범례")).toContainText("한국관광공사");
-  await expect(page.getByLabel("장소 출처 범례")).toContainText("카카오맵");
+  await expect(page.getByLabel("장소 출처 범례")).toHaveCount(0);
+  await expect(page.getByRole("article").filter({ has: page.getByRole("heading", { name: "광복 전망대", exact: true }) })).toContainText("한국관광공사");
+  await expect(page.getByRole("article").filter({ has: page.getByRole("heading", { name: "광안 반려 카페", exact: true }) })).toContainText("카카오맵");
   await expect(page).not.toHaveURL(/layers=/u);
 });
 
@@ -195,7 +202,7 @@ test("supports all, default reset, recommendation, and popularity fallback", asy
 test("labels a non-Haeundae live detail from its address", async ({ page }) => {
   await page.goto("/places/1106?contentTypeId=12&region=busan");
   await expect(page.getByRole("heading", { name: "광안 해변길" })).toBeVisible();
-  await expect(page.getByText("부산 · 수영구", { exact: true })).toBeVisible();
+  await expect(page.locator(".detail-address")).toHaveText("부산광역시 수영구 광안해변로 1");
 });
 
 test("keeps an official planner district code in memory and uses it on results", async ({ page }) => {
@@ -206,15 +213,15 @@ test("keeps an official planner district code in memory and uses it on results",
   });
   await page.goto("/planner/pet");
   await continueToTrip(page);
-  const plannerDistrict = page.getByRole("combobox", { name: "세부 지역", exact: true });
-  await expect(plannerDistrict.locator("option")).toHaveCount(17);
-  await plannerDistrict.selectOption("230");
   await chooseConfirmedDeparture(page);
+  const plannerDistrict = page.getByRole("combobox", { name: "추천 범위", exact: true });
+  await expect(plannerDistrict.locator("option")).toHaveCount(getRegionConfig("busan").districts.length + 2);
+  await plannerDistrict.selectOption("230");
   await continueToDay(page);
   const generationResponse = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/itineraries/generate" && response.request().method() === "POST");
   await page.getByRole("button", { name: "여행 추천 받기" }).click();
   expect((await generationResponse).status()).toBe(422);
   await expect(page).toHaveURL(/\/results\?tab=recommendations/u);
-  expect(requestBody).toMatchObject({ trip: { districtId: "230" } });
+  expect(requestBody).toMatchObject({ trip: { regionId: "busan", searchScope: "district", districtId: "230" } });
   await expect(page.getByRole("alert", { name: "일정을 표시할 수 없어요" })).toBeVisible();
 });

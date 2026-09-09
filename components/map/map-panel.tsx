@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import Image from "next/image";
 import { Layers, LocateFixed, MapPinned, Minus, Plus, ScanSearch } from "lucide-react";
 import {
@@ -110,7 +109,6 @@ export function MapPanel({
   initialLevel,
   loadingPresentation = "status",
 }: MapPanelProps) {
-  const [overlayHost, setOverlayHost] = useState<HTMLElement | null>(null);
   const [satellite, setSatellite] = useState(false);
   const region = getRegionConfig(regionId);
   const resolvedInitialLevel = initialLevel ?? region.defaultMapLevel;
@@ -189,9 +187,6 @@ export function MapPanel({
         if (latest.locations.length > 0 || !latest.isDataLoading) dataUpdateRef.current?.();
       });
       viewportKeyRef.current = currentViewportKeyRef.current;
-      const host = document.createElement("div");
-      host.className = "map-selection-content";
-      setOverlayHost(host);
       setLoadState("ready");
       setLoadError("");
       setMapVersion((value) => value + 1);
@@ -252,9 +247,6 @@ export function MapPanel({
     appliedSelectionFocusKeyRef.current = selectionFocusKey;
   }, [selectedLocationId, selectionFocusKey]);
 
-  const hasSelectionContent = Boolean(selectionContent);
-  useEffect(() => { controllerRef.current?.setSelectionContent(hasSelectionContent ? overlayHost : null); }, [hasSelectionContent, overlayHost]);
-
   useEffect(() => { controllerRef.current?.setShowSelectionInfo(showSelectionInfo); }, [showSelectionInfo]);
 
   useEffect(() => {
@@ -290,7 +282,7 @@ export function MapPanel({
   const showLoadingMessage = !loadError && (loadState === "loading" || isDataLoading);
 
   return (
-    <section className="relative" aria-label={resolvedTitle}>
+    <section className={`relative${selectionContent ? " map-panel-with-preview" : ""}`} aria-label={resolvedTitle}>
       <div className={`map-canvas kakao-map-canvas ${compact ? "!min-h-[300px]" : ""}`} aria-busy={showLoadingMessage} data-location-count={validLocationCount} data-map-version={mapVersion} data-route-point-count={routeCoordinates.length} data-initial-level={resolvedInitialLevel}>
         <div ref={mapContainerRef} className="absolute inset-0" role="group" aria-label="지도 장소 마커" />
         {showLoadingMessage && loadingPresentation === "status" ? <p role="status" aria-live="polite" className="absolute inset-x-4 top-20 z-10 rounded-lg bg-white/95 p-4 text-center text-sm font-bold">지도를 불러오는 중입니다…</p> : null}
@@ -298,7 +290,6 @@ export function MapPanel({
         {loadError ? <p role="alert" data-map-error-category="sdk" className="map-public-error absolute inset-x-4 top-20 z-10"><strong>지도를 일시적으로 불러오지 못했습니다.</strong><span>장소 목록은 계속 확인할 수 있어요.</span></p> : null}
         {showEmptyMessage && loadState === "ready" && !isDataLoading && validLocationCount === 0 ? <p role="status" className="absolute inset-x-4 top-20 z-10 rounded-lg bg-white/95 p-4 text-center text-sm font-bold">{emptyMessage}</p> : null}
         {missingCoordinateCount > 0 ? <p className="absolute inset-x-4 bottom-16 z-10 rounded-xl bg-[#fff8f1]/95 p-3 text-xs font-bold text-[#7a4b2f]">좌표를 확인할 수 없는 장소 {missingCoordinateCount}곳은 지도에서 제외했습니다.</p> : null}
-        {overlayHost && selectionContent ? createPortal(selectionContent, overlayHost) : null}
         {showWatermark ? <div className="map-watermark">
           {routeCoordinates.length >= 2 ? "지도 · 실제 장소와 이동 경로" : "지도 · 실제 장소"}
         </div> : null}
@@ -316,6 +307,7 @@ export function MapPanel({
         {onCurrentMapSearch && showCurrentMapSearch ? <button type="button" onClick={() => { const viewport = controllerRef.current?.getSearchViewport(); if (viewport) currentSearchRef.current?.(viewport); }} disabled={loadState !== "ready"} className="map-current-search-button absolute bottom-4 right-4 z-10 inline-flex min-h-11 items-center gap-2 rounded-full border border-white/80 bg-white/95 px-4 text-xs font-extrabold text-[#236148] shadow-sm disabled:opacity-50" aria-label={currentMapSearchLabel}><ScanSearch size={16} aria-hidden="true" />{currentMapSearchLabel}</button> : null}
       </div>
       {layerControls.length > 0 ? <fieldset className="mt-3 rounded-lg border border-[#d8e2dc] bg-white p-3"><legend className="px-1 text-xs font-black text-[#344a40]">지도 레이어</legend><div className="mt-1 flex flex-wrap gap-2">{layerControls.map((layer) => { const asset = getLayerMarkerAsset(layer.markerKind); return <button key={layer.id} type="button" aria-pressed={layer.visible} disabled={layer.disabled} title={layer.description} onClick={() => onLayerToggle?.(layer.id, !layer.visible)} className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-3 text-xs font-extrabold transition disabled:opacity-45 ${layer.visible ? "border-[#8caf9d] bg-[#edf8f2] text-[#285c45]" : "border-[#d7e0da] bg-white text-[#68776f]"}`}>{asset ? <Image src={asset} width={18} height={22} alt="" aria-hidden="true" /> : <span className={`map-legend-marker map-legend-marker--${layer.markerKind ?? "catalog"}`} aria-hidden="true" />}<span>{layer.label}</span><span className="font-semibold text-[#52635a]">{layer.count ?? "—"}</span></button>; })}</div><p className="mt-2 text-[11px] leading-5 text-[#52635a]">레이어 수량은 표시 여부를 적용하기 전의 필터 결과이며, —는 현재 불러올 수 없음을 뜻합니다.</p></fieldset> : null}
+      {selectionContent ? <div className="map-selection-content">{selectionContent}</div> : null}
     </section>
   );
 }

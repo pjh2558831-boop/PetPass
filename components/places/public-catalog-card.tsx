@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Check, ExternalLink, LocateFixed, MapPin, Plus } from "lucide-react";
 import { PlaceCardMedia } from "@/components/places/place-card-media";
+import { NaverSearchDisclosure } from "@/components/places/naver-search-disclosure";
 import { Disclosure } from "@/components/ui/disclosure";
 import { mapCatalogPlaceToCategory, PLACE_CATEGORY_LABELS } from "@/lib/map-places/place-categories";
 import { resolvePlaceCardImage } from "@/lib/map-places/place-card-image";
@@ -66,6 +67,7 @@ export function PublicCatalogCard({
             </Disclosure>
           </>
         ) : null}
+        <NaverSearchDisclosure name={place.name} address={place.address} />
         <small>{PLACE_CATEGORY_LABELS[category]}</small>
         {itinerarySelection?.disabledReason ? <small className="catalog-result-card__disabled-reason">{itinerarySelection.disabledReason}</small> : null}
         <div className="catalog-result-card__actions">

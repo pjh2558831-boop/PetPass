@@ -1,0 +1,1367 @@
+{
+  "mode": "external_link_only",
+  "startedAt": "2026-09-09T08:51:31.873Z",
+  "finishedAt": "2026-09-09T08:52:01.245Z",
+  "complete": true,
+  "publicCount": 25667,
+  "observedPublicCount": 25667,
+  "registeredComplete": true,
+  "registered": {
+    "busan:tour": {
+      "count": 653,
+      "notInPublicScan": 614,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 653
+    },
+    "busan:kakao": {
+      "count": 1180,
+      "notInPublicScan": 151,
+      "inactive": 151,
+      "rejected": 142,
+      "hidden": 151,
+      "nonCurrent": 151,
+      "providerNotExposed": 0
+    },
+    "jeju:tour": {
+      "count": 330,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 330
+    },
+    "seoul:tour": {
+      "count": 3154,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 3154
+    },
+    "incheon:tour": {
+      "count": 515,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 515
+    },
+    "gyeonggi:tour": {
+      "count": 2565,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 2565
+    },
+    "daejeon:tour": {
+      "count": 8,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 8
+    },
+    "daegu:tour": {
+      "count": 8,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 8
+    },
+    "gwangju:tour": {
+      "count": 1,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 1
+    },
+    "ulsan:tour": {
+      "count": 29,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 29
+    },
+    "sejong:tour": {
+      "count": 2,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 2
+    },
+    "gangwon:tour": {
+      "count": 135,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 135
+    },
+    "chungbuk:tour": {
+      "count": 21,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 21
+    },
+    "chungnam:tour": {
+      "count": 28,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 28
+    },
+    "jeonbuk:tour": {
+      "count": 31,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 31
+    },
+    "jeonnam:tour": {
+      "count": 35,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 35
+    },
+    "gyeongbuk:tour": {
+      "count": 37,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 37
+    },
+    "gyeongnam:tour": {
+      "count": 23,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 23
+    },
+    "seoul:kakao": {
+      "count": 2988,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 0
+    },
+    "jeju:kakao": {
+      "count": 416,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 0
+    },
+    "gyeonggi:kakao": {
+      "count": 4322,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 0
+    },
+    "incheon:kakao": {
+      "count": 1227,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 0
+    },
+    "gangwon:kakao": {
+      "count": 1185,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 0
+    },
+    "chungbuk:kakao": {
+      "count": 530,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 0
+    },
+    "chungnam:kakao": {
+      "count": 935,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 0
+    },
+    "gyeongbuk:kakao": {
+      "count": 1122,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 0
+    },
+    "gyeongnam:kakao": {
+      "count": 1209,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 0
+    },
+    "jeonbuk:kakao": {
+      "count": 666,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 0
+    },
+    "jeonnam:kakao": {
+      "count": 842,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 0
+    },
+    "daejeon:kakao": {
+      "count": 481,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 0
+    },
+    "daegu:kakao": {
+      "count": 803,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 0
+    },
+    "gwangju:kakao": {
+      "count": 475,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 0
+    },
+    "ulsan:kakao": {
+      "count": 364,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 0
+    },
+    "sejong:kakao": {
+      "count": 112,
+      "notInPublicScan": 0,
+      "inactive": 0,
+      "rejected": 0,
+      "hidden": 0,
+      "nonCurrent": 0,
+      "providerNotExposed": 0
+    }
+  },
+  "partitions": [
+    {
+      "region": "seoul",
+      "provider": "tour",
+      "dataset": "core",
+      "status": "complete",
+      "count": 76,
+      "categories": {
+        "attraction": {
+          "count": 56,
+          "withImageUrl": 53
+        },
+        "accommodation": {
+          "count": 14,
+          "withImageUrl": 2
+        },
+        "food": {
+          "count": 6,
+          "withImageUrl": 4
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "seoul",
+      "provider": "kakao",
+      "dataset": "core",
+      "status": "complete",
+      "count": 2988,
+      "categories": {
+        "cafe": {
+          "count": 1147,
+          "withImageUrl": 0
+        },
+        "food": {
+          "count": 156,
+          "withImageUrl": 0
+        },
+        "accommodation": {
+          "count": 13,
+          "withImageUrl": 0
+        },
+        "other": {
+          "count": 1664,
+          "withImageUrl": 0
+        },
+        "attraction": {
+          "count": 5,
+          "withImageUrl": 0
+        },
+        "park_walk": {
+          "count": 3,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 15
+    },
+    {
+      "region": "seoul",
+      "provider": "tour",
+      "dataset": "shopping",
+      "status": "complete",
+      "count": 3078,
+      "categories": {
+        "shopping": {
+          "count": 3078,
+          "withImageUrl": 3075
+        }
+      },
+      "pages": 16
+    },
+    {
+      "region": "incheon",
+      "provider": "tour",
+      "dataset": "core",
+      "status": "complete",
+      "count": 45,
+      "categories": {
+        "attraction": {
+          "count": 38,
+          "withImageUrl": 34
+        },
+        "food": {
+          "count": 5,
+          "withImageUrl": 5
+        },
+        "accommodation": {
+          "count": 2,
+          "withImageUrl": 1
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "incheon",
+      "provider": "kakao",
+      "dataset": "core",
+      "status": "complete",
+      "count": 1227,
+      "categories": {
+        "cafe": {
+          "count": 413,
+          "withImageUrl": 0
+        },
+        "food": {
+          "count": 162,
+          "withImageUrl": 0
+        },
+        "accommodation": {
+          "count": 95,
+          "withImageUrl": 0
+        },
+        "other": {
+          "count": 556,
+          "withImageUrl": 0
+        },
+        "park_walk": {
+          "count": 1,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 7
+    },
+    {
+      "region": "incheon",
+      "provider": "tour",
+      "dataset": "shopping",
+      "status": "complete",
+      "count": 470,
+      "categories": {
+        "shopping": {
+          "count": 470,
+          "withImageUrl": 470
+        }
+      },
+      "pages": 3
+    },
+    {
+      "region": "daejeon",
+      "provider": "tour",
+      "dataset": "core",
+      "status": "complete",
+      "count": 8,
+      "categories": {
+        "attraction": {
+          "count": 7,
+          "withImageUrl": 7
+        },
+        "accommodation": {
+          "count": 1,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "daejeon",
+      "provider": "kakao",
+      "dataset": "core",
+      "status": "complete",
+      "count": 481,
+      "categories": {
+        "cafe": {
+          "count": 191,
+          "withImageUrl": 0
+        },
+        "food": {
+          "count": 38,
+          "withImageUrl": 0
+        },
+        "other": {
+          "count": 242,
+          "withImageUrl": 0
+        },
+        "accommodation": {
+          "count": 10,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 3
+    },
+    {
+      "region": "daejeon",
+      "provider": "tour",
+      "dataset": "shopping",
+      "status": "complete",
+      "count": 0,
+      "categories": {},
+      "pages": 1
+    },
+    {
+      "region": "daegu",
+      "provider": "tour",
+      "dataset": "core",
+      "status": "complete",
+      "count": 6,
+      "categories": {
+        "attraction": {
+          "count": 4,
+          "withImageUrl": 4
+        },
+        "accommodation": {
+          "count": 2,
+          "withImageUrl": 2
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "daegu",
+      "provider": "kakao",
+      "dataset": "core",
+      "status": "complete",
+      "count": 803,
+      "categories": {
+        "cafe": {
+          "count": 324,
+          "withImageUrl": 0
+        },
+        "accommodation": {
+          "count": 8,
+          "withImageUrl": 0
+        },
+        "food": {
+          "count": 86,
+          "withImageUrl": 0
+        },
+        "other": {
+          "count": 383,
+          "withImageUrl": 0
+        },
+        "park_walk": {
+          "count": 2,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 5
+    },
+    {
+      "region": "daegu",
+      "provider": "tour",
+      "dataset": "shopping",
+      "status": "complete",
+      "count": 2,
+      "categories": {
+        "shopping": {
+          "count": 2,
+          "withImageUrl": 2
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "gwangju",
+      "provider": "tour",
+      "dataset": "core",
+      "status": "complete",
+      "count": 1,
+      "categories": {
+        "attraction": {
+          "count": 1,
+          "withImageUrl": 1
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "gwangju",
+      "provider": "kakao",
+      "dataset": "core",
+      "status": "complete",
+      "count": 475,
+      "categories": {
+        "cafe": {
+          "count": 224,
+          "withImageUrl": 0
+        },
+        "food": {
+          "count": 31,
+          "withImageUrl": 0
+        },
+        "other": {
+          "count": 218,
+          "withImageUrl": 0
+        },
+        "accommodation": {
+          "count": 2,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 3
+    },
+    {
+      "region": "gwangju",
+      "provider": "tour",
+      "dataset": "shopping",
+      "status": "complete",
+      "count": 0,
+      "categories": {},
+      "pages": 1
+    },
+    {
+      "region": "busan",
+      "provider": "tour",
+      "dataset": "core",
+      "status": "complete",
+      "count": 39,
+      "categories": {
+        "attraction": {
+          "count": 31,
+          "withImageUrl": 29
+        },
+        "accommodation": {
+          "count": 5,
+          "withImageUrl": 2
+        },
+        "food": {
+          "count": 3,
+          "withImageUrl": 3
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "busan",
+      "provider": "kakao",
+      "dataset": "core",
+      "status": "complete",
+      "count": 1029,
+      "categories": {
+        "food": {
+          "count": 100,
+          "withImageUrl": 0
+        },
+        "cafe": {
+          "count": 369,
+          "withImageUrl": 0
+        },
+        "accommodation": {
+          "count": 27,
+          "withImageUrl": 0
+        },
+        "other": {
+          "count": 530,
+          "withImageUrl": 0
+        },
+        "attraction": {
+          "count": 1,
+          "withImageUrl": 0
+        },
+        "park_walk": {
+          "count": 1,
+          "withImageUrl": 0
+        },
+        "leisure": {
+          "count": 1,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 6
+    },
+    {
+      "region": "ulsan",
+      "provider": "tour",
+      "dataset": "core",
+      "status": "complete",
+      "count": 29,
+      "categories": {
+        "attraction": {
+          "count": 29,
+          "withImageUrl": 28
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "ulsan",
+      "provider": "kakao",
+      "dataset": "core",
+      "status": "complete",
+      "count": 364,
+      "categories": {
+        "cafe": {
+          "count": 165,
+          "withImageUrl": 0
+        },
+        "food": {
+          "count": 38,
+          "withImageUrl": 0
+        },
+        "accommodation": {
+          "count": 15,
+          "withImageUrl": 0
+        },
+        "other": {
+          "count": 146,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 2
+    },
+    {
+      "region": "ulsan",
+      "provider": "tour",
+      "dataset": "shopping",
+      "status": "complete",
+      "count": 0,
+      "categories": {},
+      "pages": 1
+    },
+    {
+      "region": "sejong",
+      "provider": "tour",
+      "dataset": "core",
+      "status": "complete",
+      "count": 2,
+      "categories": {
+        "attraction": {
+          "count": 1,
+          "withImageUrl": 1
+        },
+        "accommodation": {
+          "count": 1,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "sejong",
+      "provider": "kakao",
+      "dataset": "core",
+      "status": "complete",
+      "count": 112,
+      "categories": {
+        "cafe": {
+          "count": 44,
+          "withImageUrl": 0
+        },
+        "accommodation": {
+          "count": 4,
+          "withImageUrl": 0
+        },
+        "other": {
+          "count": 50,
+          "withImageUrl": 0
+        },
+        "food": {
+          "count": 12,
+          "withImageUrl": 0
+        },
+        "park_walk": {
+          "count": 2,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "sejong",
+      "provider": "tour",
+      "dataset": "shopping",
+      "status": "complete",
+      "count": 0,
+      "categories": {},
+      "pages": 1
+    },
+    {
+      "region": "gyeonggi",
+      "provider": "tour",
+      "dataset": "core",
+      "status": "complete",
+      "count": 118,
+      "categories": {
+        "attraction": {
+          "count": 89,
+          "withImageUrl": 78
+        },
+        "food": {
+          "count": 16,
+          "withImageUrl": 11
+        },
+        "accommodation": {
+          "count": 13,
+          "withImageUrl": 1
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "gyeonggi",
+      "provider": "kakao",
+      "dataset": "core",
+      "status": "complete",
+      "count": 4322,
+      "categories": {
+        "cafe": {
+          "count": 1470,
+          "withImageUrl": 0
+        },
+        "food": {
+          "count": 640,
+          "withImageUrl": 0
+        },
+        "accommodation": {
+          "count": 281,
+          "withImageUrl": 0
+        },
+        "park_walk": {
+          "count": 8,
+          "withImageUrl": 0
+        },
+        "other": {
+          "count": 1915,
+          "withImageUrl": 0
+        },
+        "leisure": {
+          "count": 2,
+          "withImageUrl": 0
+        },
+        "attraction": {
+          "count": 6,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 22
+    },
+    {
+      "region": "gyeonggi",
+      "provider": "tour",
+      "dataset": "shopping",
+      "status": "complete",
+      "count": 2447,
+      "categories": {
+        "shopping": {
+          "count": 2447,
+          "withImageUrl": 2446
+        }
+      },
+      "pages": 13
+    },
+    {
+      "region": "gangwon",
+      "provider": "tour",
+      "dataset": "core",
+      "status": "complete",
+      "count": 131,
+      "categories": {
+        "attraction": {
+          "count": 85,
+          "withImageUrl": 80
+        },
+        "accommodation": {
+          "count": 19,
+          "withImageUrl": 10
+        },
+        "food": {
+          "count": 27,
+          "withImageUrl": 8
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "gangwon",
+      "provider": "kakao",
+      "dataset": "core",
+      "status": "complete",
+      "count": 1185,
+      "categories": {
+        "cafe": {
+          "count": 406,
+          "withImageUrl": 0
+        },
+        "accommodation": {
+          "count": 322,
+          "withImageUrl": 0
+        },
+        "food": {
+          "count": 186,
+          "withImageUrl": 0
+        },
+        "other": {
+          "count": 268,
+          "withImageUrl": 0
+        },
+        "attraction": {
+          "count": 2,
+          "withImageUrl": 0
+        },
+        "camping": {
+          "count": 1,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 6
+    },
+    {
+      "region": "gangwon",
+      "provider": "tour",
+      "dataset": "shopping",
+      "status": "complete",
+      "count": 4,
+      "categories": {
+        "shopping": {
+          "count": 4,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "chungbuk",
+      "provider": "tour",
+      "dataset": "core",
+      "status": "complete",
+      "count": 21,
+      "categories": {
+        "attraction": {
+          "count": 17,
+          "withImageUrl": 12
+        },
+        "accommodation": {
+          "count": 3,
+          "withImageUrl": 2
+        },
+        "food": {
+          "count": 1,
+          "withImageUrl": 1
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "chungbuk",
+      "provider": "kakao",
+      "dataset": "core",
+      "status": "complete",
+      "count": 530,
+      "categories": {
+        "cafe": {
+          "count": 203,
+          "withImageUrl": 0
+        },
+        "accommodation": {
+          "count": 45,
+          "withImageUrl": 0
+        },
+        "food": {
+          "count": 56,
+          "withImageUrl": 0
+        },
+        "other": {
+          "count": 225,
+          "withImageUrl": 0
+        },
+        "park_walk": {
+          "count": 1,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 3
+    },
+    {
+      "region": "chungbuk",
+      "provider": "tour",
+      "dataset": "shopping",
+      "status": "complete",
+      "count": 0,
+      "categories": {},
+      "pages": 1
+    },
+    {
+      "region": "chungnam",
+      "provider": "tour",
+      "dataset": "core",
+      "status": "complete",
+      "count": 27,
+      "categories": {
+        "attraction": {
+          "count": 25,
+          "withImageUrl": 25
+        },
+        "accommodation": {
+          "count": 2,
+          "withImageUrl": 2
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "chungnam",
+      "provider": "kakao",
+      "dataset": "core",
+      "status": "complete",
+      "count": 935,
+      "categories": {
+        "food": {
+          "count": 107,
+          "withImageUrl": 0
+        },
+        "cafe": {
+          "count": 353,
+          "withImageUrl": 0
+        },
+        "accommodation": {
+          "count": 124,
+          "withImageUrl": 0
+        },
+        "other": {
+          "count": 350,
+          "withImageUrl": 0
+        },
+        "park_walk": {
+          "count": 1,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 5
+    },
+    {
+      "region": "chungnam",
+      "provider": "tour",
+      "dataset": "shopping",
+      "status": "complete",
+      "count": 1,
+      "categories": {
+        "shopping": {
+          "count": 1,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "gyeongbuk",
+      "provider": "tour",
+      "dataset": "core",
+      "status": "complete",
+      "count": 37,
+      "categories": {
+        "attraction": {
+          "count": 22,
+          "withImageUrl": 21
+        },
+        "accommodation": {
+          "count": 11,
+          "withImageUrl": 4
+        },
+        "food": {
+          "count": 4,
+          "withImageUrl": 4
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "gyeongbuk",
+      "provider": "kakao",
+      "dataset": "core",
+      "status": "complete",
+      "count": 1122,
+      "categories": {
+        "cafe": {
+          "count": 378,
+          "withImageUrl": 0
+        },
+        "accommodation": {
+          "count": 175,
+          "withImageUrl": 0
+        },
+        "food": {
+          "count": 128,
+          "withImageUrl": 0
+        },
+        "other": {
+          "count": 440,
+          "withImageUrl": 0
+        },
+        "park_walk": {
+          "count": 1,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 6
+    },
+    {
+      "region": "gyeongbuk",
+      "provider": "tour",
+      "dataset": "shopping",
+      "status": "complete",
+      "count": 0,
+      "categories": {},
+      "pages": 1
+    },
+    {
+      "region": "gyeongnam",
+      "provider": "tour",
+      "dataset": "core",
+      "status": "complete",
+      "count": 23,
+      "categories": {
+        "attraction": {
+          "count": 17,
+          "withImageUrl": 16
+        },
+        "accommodation": {
+          "count": 6,
+          "withImageUrl": 3
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "gyeongnam",
+      "provider": "kakao",
+      "dataset": "core",
+      "status": "complete",
+      "count": 1209,
+      "categories": {
+        "food": {
+          "count": 122,
+          "withImageUrl": 0
+        },
+        "accommodation": {
+          "count": 181,
+          "withImageUrl": 0
+        },
+        "cafe": {
+          "count": 417,
+          "withImageUrl": 0
+        },
+        "other": {
+          "count": 487,
+          "withImageUrl": 0
+        },
+        "park_walk": {
+          "count": 2,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 7
+    },
+    {
+      "region": "gyeongnam",
+      "provider": "tour",
+      "dataset": "shopping",
+      "status": "complete",
+      "count": 0,
+      "categories": {},
+      "pages": 1
+    },
+    {
+      "region": "jeonbuk",
+      "provider": "tour",
+      "dataset": "core",
+      "status": "complete",
+      "count": 31,
+      "categories": {
+        "attraction": {
+          "count": 22,
+          "withImageUrl": 20
+        },
+        "accommodation": {
+          "count": 9,
+          "withImageUrl": 3
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "jeonbuk",
+      "provider": "kakao",
+      "dataset": "core",
+      "status": "complete",
+      "count": 666,
+      "categories": {
+        "cafe": {
+          "count": 262,
+          "withImageUrl": 0
+        },
+        "accommodation": {
+          "count": 53,
+          "withImageUrl": 0
+        },
+        "food": {
+          "count": 50,
+          "withImageUrl": 0
+        },
+        "attraction": {
+          "count": 1,
+          "withImageUrl": 0
+        },
+        "other": {
+          "count": 300,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 4
+    },
+    {
+      "region": "jeonbuk",
+      "provider": "tour",
+      "dataset": "shopping",
+      "status": "complete",
+      "count": 0,
+      "categories": {},
+      "pages": 1
+    },
+    {
+      "region": "jeonnam",
+      "provider": "tour",
+      "dataset": "core",
+      "status": "complete",
+      "count": 34,
+      "categories": {
+        "attraction": {
+          "count": 17,
+          "withImageUrl": 17
+        },
+        "accommodation": {
+          "count": 15,
+          "withImageUrl": 4
+        },
+        "food": {
+          "count": 2,
+          "withImageUrl": 2
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "jeonnam",
+      "provider": "kakao",
+      "dataset": "core",
+      "status": "complete",
+      "count": 842,
+      "categories": {
+        "cafe": {
+          "count": 374,
+          "withImageUrl": 0
+        },
+        "accommodation": {
+          "count": 130,
+          "withImageUrl": 0
+        },
+        "food": {
+          "count": 83,
+          "withImageUrl": 0
+        },
+        "other": {
+          "count": 254,
+          "withImageUrl": 0
+        },
+        "park_walk": {
+          "count": 1,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 5
+    },
+    {
+      "region": "jeonnam",
+      "provider": "tour",
+      "dataset": "shopping",
+      "status": "complete",
+      "count": 1,
+      "categories": {
+        "shopping": {
+          "count": 1,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "jeju",
+      "provider": "tour",
+      "dataset": "core",
+      "status": "complete",
+      "count": 54,
+      "categories": {
+        "attraction": {
+          "count": 51,
+          "withImageUrl": 45
+        },
+        "accommodation": {
+          "count": 2,
+          "withImageUrl": 0
+        },
+        "food": {
+          "count": 1,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 1
+    },
+    {
+      "region": "jeju",
+      "provider": "kakao",
+      "dataset": "core",
+      "status": "complete",
+      "count": 416,
+      "categories": {
+        "cafe": {
+          "count": 109,
+          "withImageUrl": 0
+        },
+        "accommodation": {
+          "count": 103,
+          "withImageUrl": 0
+        },
+        "food": {
+          "count": 84,
+          "withImageUrl": 0
+        },
+        "park_walk": {
+          "count": 1,
+          "withImageUrl": 0
+        },
+        "other": {
+          "count": 119,
+          "withImageUrl": 0
+        }
+      },
+      "pages": 3
+    },
+    {
+      "region": "jeju",
+      "provider": "tour",
+      "dataset": "shopping",
+      "status": "complete",
+      "count": 276,
+      "categories": {
+        "shopping": {
+          "count": 276,
+          "withImageUrl": 276
+        }
+      },
+      "pages": 2
+    }
+  ],
+  "catalogRequests": 299,
+  "naverRequests": 0,
+  "publishedPhotos": 0,
+  "notes": [
+    "Registered status counts overlap; notInPublicScan is conclusive only when complete=true.",
+    "Image URL presence is not photo validity or rights clearance.",
+    "Read-only sequential scan; concurrent publication can require a rerun."
+  ]
+}
