@@ -112,7 +112,7 @@ describe("homepage content boundaries", () => {
     const { GET } = await import("@/app/api/content/pet-news/route");
     const response = await GET(new Request("https://example.com/api/content/pet-news"));
     expect(response.headers.get("Cache-Control")).toBe("no-store");
-    expect(await response.json()).toMatchObject({ ok: true, data: { state: "unavailable", items: [] } });
+    expect(await response.json()).toMatchObject({ ok: true, data: { state: "link_only", items: [] } });
     expect((await GET(new Request("https://example.com/api/content/pet-news?query=anything"))).status).toBe(400);
     expect(fetcher).not.toHaveBeenCalled();
   });

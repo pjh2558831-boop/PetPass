@@ -18,7 +18,7 @@ function useContent<T>(endpoint: string, ref: RefObject<HTMLDivElement | null>) 
           const envelope = await response.json();
           if (envelope.ok !== true) throw new Error("unavailable");
           const result = envelope.data as ContentFeed<T>;
-          if (!["ready", "empty", "unavailable"].includes(result.state) || !Array.isArray(result.items)) throw new Error("invalid");
+          if (!["ready", "empty", "unavailable", "link_only"].includes(result.state) || !Array.isArray(result.items)) throw new Error("invalid");
           return result;
         }).catch(() => ({ state: "unavailable" as const, items: [] }));
       void pending.current.then(result => { if (active) setFeed(result); });
@@ -60,7 +60,10 @@ export function HomepagePetContent() {
       <h2 id="pet-news-heading">반려생활 소식</h2>
       <p className={styles.description}>반려동물과 함께하는 생활에 필요한 소식을 만나보세요.</p>
       <div className={styles.rows} aria-busy={!news}>
-        {!news ? <p className={styles.message}>소식을 불러오는 중입니다.</p> : news.state === "unavailable" ? <p className={styles.message}>소식을 불러오지 못했습니다.</p> : !news.items.length ? <p className={styles.message}>현재 표시할 반려동물 소식이 없습니다.</p> :
+        {!news ? <p className={styles.message}>소식을 불러오는 중입니다.</p> : news.state === "link_only" ? <>
+          <p className={styles.metadata}>반려동물 관련 소식을 네이버 뉴스에서 확인해 보세요.</p>
+          <a className={styles.eventLink} href="https://search.naver.com/search.naver?where=news&query=%EB%B0%98%EB%A0%A4%EB%8F%99%EB%AC%BC" target="_blank" rel="noopener noreferrer">네이버 뉴스에서 보기 <ExternalMark /></a>
+        </> : news.state === "unavailable" ? <p className={styles.message}>소식을 불러오지 못했습니다.</p> : !news.items.length ? <p className={styles.message}>현재 표시할 반려동물 소식이 없습니다.</p> :
           <ul>{news.items.slice(0, 4).map(item => <li key={item.id}>
             <a className={styles.newsLink} href={item.originalUrl} target="_blank" rel="noopener noreferrer">
               <span><span className={styles.newsTitle}>{item.title}</span><span className={styles.metadata}>{item.sourceLabel}{item.providedAt && <> · <time dateTime={item.providedAt}>{new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(item.providedAt))}</time> <span>제공</span></>}</span></span>
@@ -68,7 +71,7 @@ export function HomepagePetContent() {
             </a>
           </li>)}</ul>}
       </div>
-      <p className={styles.note}>검색 제공: NAVER · 기사 출처는 각 원문에 표시됩니다.</p>
+      {news?.state === "ready" && <p className={styles.note}>검색 제공: NAVER · 기사 출처는 각 원문에 표시됩니다.</p>}
     </div>
     <div ref={eventsRef} className={styles.panel} aria-labelledby="pet-events-heading">
       <p className={styles.eyebrow}>달력에 담아둘 만남</p>

@@ -20,7 +20,7 @@ export interface PetEventItem {
 }
 
 export interface ContentFeed<T> {
-  state: "ready" | "empty" | "unavailable";
+  state: "ready" | "empty" | "unavailable" | "link_only";
   items: T[];
   coverageLimited?: boolean;
 }
