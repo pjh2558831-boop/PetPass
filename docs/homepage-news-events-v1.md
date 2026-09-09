@@ -51,7 +51,10 @@ and accept no upstream URLs. Successful empty and unavailable remain separate st
   proposed compact title-only/normalized display and current BI requirements remains
   unresolved. This is a documented uncertainty, not a blanket prohibition finding.
 - `NEWS_DISPLAY_POLICY=disabled_pending_terms` is a code-level closed boundary.
-  `/api/content/pet-news` performs **zero** upstream calls and returns unavailable.
+  `/api/content/pet-news` performs **zero** upstream calls and returns `link_only`.
+  The homepage offers an external NAVER news-search link for this normal policy
+  state; only actual request failures show unavailable. Empty/loading panels reserve
+  96px rather than 296px desktop / 220px mobile, eliminating excessive blank space.
   Credentials cannot enable it. Reopening requires reviewing the applicable full
   agreement/BI conditions and compliant display, not merely changing an environment
   variable. No news result caching, CDN retention, stale reuse, article archive,

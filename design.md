@@ -747,7 +747,9 @@ use a fine dividing rule, compact text rows and date blocks, without images.
 “반려생활 소식” supports four provider-ordered original article links, hostname and
 provider timestamp. Titles wrap to two lines. NAVER is identified as search provider.
 Embedded production news remains disabled pending the documented display/BI terms
-gate; synthetic examples are used only in tests. Never fill failure with fake news.
+gate. Its `link_only` state offers a NAVER news-search link rather than a false error.
+Synthetic examples are used only in tests. Empty/loading rows reserve 96px, growing
+with actual content rather than leaving a full list-height gap.
 
 “다가오는 반려동물 행사” shows up to three explicitly pet-related nationwide events
 with actual address/region, calendar dates and known venue. Dates/locations wrap;

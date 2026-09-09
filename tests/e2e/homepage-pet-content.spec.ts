@@ -79,3 +79,22 @@ test("independent loading, empty and failure states", async ({ page }) => {
   await page.goto("/planner/pet");
   await expect(section).toHaveCount(0);
 });
+
+test("policy-disabled news offers external search without a false error or oversized empty panel", async ({ page }) => {
+  await page.route("**/api/content/pet-news", route => route.fulfill({ json: { ok: true, data: { state: "link_only", items: [] } } }));
+  await page.goto("/");
+  const section = page.getByRole("region", { name: "반려생활 소식과 행사" });
+  await section.scrollIntoViewIfNeeded();
+  const link = section.getByRole("link", { name: /네이버 뉴스에서 보기/ });
+  await expect(link).toBeVisible();
+  await expect(link).toHaveAttribute("href", "https://search.naver.com/search.naver?where=news&query=%EB%B0%98%EB%A0%A4%EB%8F%99%EB%AC%BC");
+  await expect(section.getByText("소식을 불러오지 못했습니다.")).toHaveCount(0);
+  await expect(section.getByText("조회 기간에 확인된 반려동물 행사가 없습니다.")).toBeVisible();
+  for (const width of [1440, 768, 390, 320]) {
+    await page.setViewportSize({ width, height: 986 });
+    const bounds = await section.boundingBox();
+    expect(bounds!.height).toBeLessThan(width > 800 ? 400 : 720);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+  }
+  await section.screenshot({ path: "verification-evidence/homepage-content/link-only-fixed.png" });
+});

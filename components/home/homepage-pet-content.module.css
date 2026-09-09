@@ -4,7 +4,7 @@
 .eyebrow { color: var(--brand); font-size: 12px; font-weight: 700; margin-bottom: 10px; }
 .panel h2 { font-size: clamp(20px, 2vw, 25px); font-weight: 700; letter-spacing: -.035em; line-height: 1.45; }
 .description { margin-top: 10px; color: #65746c; font-size: 14px; line-height: 1.7; }
-.rows { min-height: 296px; margin-top: 22px; }
+.rows { min-height: 96px; margin-top: 22px; }
 .rows ul { list-style: none; padding: 0; margin: 0; }
 .rows li + li { border-top: 1px solid var(--line); }
 .newsLink { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 74px; padding: 14px 0; }
@@ -26,5 +26,4 @@
 @media (max-width: 800px) {
   .section { grid-template-columns: minmax(0, 1fr); gap: 30px; padding-top: 30px; margin-top: 30px; }
   .panel + .panel { border-left: 0; border-top: 1px solid var(--line); padding-left: 0; padding-top: 30px; }
-  .rows { min-height: 220px; }
 }
