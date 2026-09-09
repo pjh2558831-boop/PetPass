@@ -86,10 +86,6 @@ export function HomepageNationwidePlaces({ staticMapEnabled = false, searchReque
   </div> : loading ? <p className="home-region-overview" role="status">{regionLabel} 장소를 불러오는 중입니다.</p>
     : failed ? <div className="home-region-overview" role="status"><p>{regionLabel} 장소를 불러오지 못했습니다.</p><button type="button" onClick={retryFailed}>다시 시도</button></div> : undefined;
   return <div className="homepage-live-ready" data-active-region={activeRegion ?? "overview"}>
-    <div className="home-region-navigation">
-      <span>{overview ? "전국 지역 보기" : `${regionLabel} 장소 보기`}</span>
-      {!overview && <button type="button" onClick={() => chooseRegion(null)}>전국 지역 보기</button>}
-    </div>
     <HomePlaceWorkbench
       nationwide searchRequest={searchRequest}
       regionId={activeRegion ?? "busan"} regionLabel={regionLabel} markers={visible}

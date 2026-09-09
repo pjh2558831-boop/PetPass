@@ -31,8 +31,15 @@ describe("homepage content boundaries", () => {
     expect(news[0]).toMatchObject({ title: "반려동물 & 여행", sourceLabel: "paper.example", originalUrl: "https://paper.example/a" });
     expect(normalizeNews({ items: [] })).toEqual([]);
     expect(() => normalizeNews({ items: "bad" })).toThrow();
-    expect(normalizeNews({ items: [{ title: "&hellip; &copy; &#128054; &amp;lt;", link: "https://example.com" }] })[0].title).toBe("… © 🐶 &lt;");
-    expect(normalizeNews({ items: [{ title: "1", link: "https://example.com" }, { title: "2", link: "https://example.com" }] }).map(item => item.title)).toEqual(["1", "2"]);
+    expect(normalizeNews({ items: [{ title: "반려견 여행 &hellip; &copy; &#128054; &amp;lt;", link: "https://example.com" }] })[0].title).toBe("반려견 여행 … © 🐶 &lt;");
+    expect(normalizeNews({ items: [{ title: "반려견 여행", link: "https://example.com" }, { title: "고양이 건강", link: "https://example.com" }] }).map(item => item.title)).toEqual(["반려견 여행"]);
+  });
+  it("excludes incidental pet mentions and duplicate syndicated headlines", () => {
+    const titles = ["채수빈 한복 포즈", "경주국가유산야행 개막", "‘3년간 호텔 방치’ 반려견…동물 유기 아니다?", "[뉴스] 3년간 호텔 방치 반려견, 동물 유기 아니다?", "[사건의 눈] 반려동물 호텔에 맡기고 잠적…유기일까?", "고양이 예방접종 지원 확대"];
+    expect(normalizeNews({ items: titles.map((title, i) => ({ title, description: "반려동물", link: `https://example.com/${i}` })) }).map(item => item.title)).toEqual([titles[2], titles[5]]);
+  });
+  it("excludes entertainment and political comparisons that only mention pets", () => {
+    expect(normalizeNews({ items: ["이동휘, 고양이 안은 일상…영화로 관객 만난다", "태아, 반려동물보다 못하게 여겨서야"].map((title, i) => ({ title, link: `https://example.com/${i}` })) })).toEqual([]);
   });
   it.each(["javascript:alert(1)", "data:text/html,test", "https://a:b@example.com", "https://example.com\n", "//example.com"])("rejects unsafe URL %s", value => {
     expect(safeContentUrl(value)).toBeNull();
@@ -110,14 +117,14 @@ describe("homepage content boundaries", () => {
     vi.resetModules();
     vi.stubEnv("NAVER_API_HUB_ACCESS_KEY_ID", "synthetic-id");
     vi.stubEnv("NAVER_API_HUB_SECRET_KEY", "synthetic-secret");
-    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [{ title: "반려동물 뉴스", link: "https://example.com/news" }] })));
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [{ title: "반려동물 여행 뉴스", link: "https://example.com/news" }] })));
     vi.stubGlobal("fetch", fetcher);
     const { GET } = await import("@/app/api/content/pet-news/route");
     const response = await GET(new Request("https://example.com/api/content/pet-news"));
     expect(response.headers.get("Cache-Control")).toBe("no-store");
-    expect(await response.json()).toMatchObject({ ok: true, data: { state: "ready", items: [{ title: "반려동물 뉴스" }] } });
+    expect(await response.json()).toMatchObject({ ok: true, data: { state: "ready", items: [{ title: "반려동물 여행 뉴스" }] } });
     expect((await GET(new Request("https://example.com/api/content/pet-news?query=anything"))).status).toBe(400);
     expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(fetcher.mock.calls[0][0].searchParams.get("display")).toBe("5");
+    expect(fetcher.mock.calls[0][0].searchParams.get("display")).toBe("50");
   });
 });

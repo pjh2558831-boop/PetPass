@@ -79,7 +79,9 @@ test("ignores an old regional response after returning to the nationwide overvie
   await page.locator(".home-region-overview").getByRole("button", { name: "부산", exact: false }).click();
   await requested;
   await expect(page.getByText("부산 장소를 불러오는 중입니다.", { exact: true })).toBeVisible();
-  await page.locator(".home-region-navigation").getByRole("button", { name: "전국 지역 보기" }).click();
+  await expect(page.locator(".home-region-navigation")).toHaveCount(0);
+  await page.locator(".home-map-filters summary").click();
+  await page.getByLabel("홈 지도 지역", { exact: true }).selectOption("all");
   release();
   await expect(page.locator(".homepage-live-ready")).toHaveAttribute("data-active-region", "overview");
   await expect(page.locator(".homepage-workbench-row")).toHaveCount(0);

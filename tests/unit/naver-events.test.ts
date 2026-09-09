@@ -36,11 +36,11 @@ describe("Naver event search evidence", () => {
     vi.resetModules();
     vi.useFakeTimers(); vi.setSystemTime(now);
     vi.stubEnv("NAVER_API_HUB_ACCESS_KEY_ID", "synthetic-id"); vi.stubEnv("NAVER_API_HUB_SECRET_KEY", "synthetic-secret");
-    const fetcher = vi.fn(async (url: URL) => new Response(JSON.stringify(url.pathname.endsWith("webkr") ? { items: [item] } : { items: [{ title: "관계없는 사진", thumbnail: "https://example.com/wrong.jpg" }, { title: item.title, thumbnail: "https://search.pstatic.net/photo.jpg" }] })));
+    const fetcher = vi.fn(async (url: URL) => new Response(JSON.stringify(url.pathname.endsWith("webkr") ? { items: [{ ...item, title: item.title + " - 행사 혜택 안내" }] } : { items: [{ title: "2025 반려동물 박람회", thumbnail: "https://search.pstatic.net/old.jpg" }, { title: "관계없는 사진", thumbnail: "https://example.com/wrong.jpg" }, { title: item.title, thumbnail: "https://search.pstatic.net/photo.jpg", link: "https://media.s3.amazonaws.com/poster.jpg" }] })));
     vi.stubGlobal("fetch", fetcher);
     const { getNaverEventFeed } = await import("@/lib/naver/events");
     const feed = await getNaverEventFeed();
-    expect(feed).toMatchObject({ state: "ready", items: [{ imageUrl: "https://search.pstatic.net/photo.jpg", imageSourceLabel: "관련 이미지 · NAVER 검색" }] });
+    expect(feed).toMatchObject({ state: "ready", items: [{ imageUrl: "https://media.s3.amazonaws.com/poster.jpg", imageSourceLabel: "관련 이미지 · NAVER 검색" }] });
     expect(fetcher.mock.calls[0][0].searchParams.get("query")).toContain("2026 9월");
     await getNaverEventFeed(); expect(fetcher).toHaveBeenCalledTimes(2);
   });

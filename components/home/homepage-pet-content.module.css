@@ -47,7 +47,7 @@
 .newsLink .metadata { font-size:10px; margin-top:2px; }
 .eventCard { display:block; border-radius:12px; overflow:hidden; background:#24552d; color:white; }
 .eventPhoto { position:relative; aspect-ratio:1.65; background:#e2eddb; }
-.eventPhoto img { object-fit:cover; }
+.eventPhoto img { object-fit:contain; }
 .eventPlaceholder { height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:#416b43; background:linear-gradient(135deg,#eff5e8,#c6dcb2); font-size:13px; }
 .dateBadge { position:absolute; top:12px; left:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; width:76px; min-height:76px; padding:10px; border-radius:50%; background:#285d2e; color:white; font-size:16px; font-weight:750; line-height:1.25; }
 .dateBadge > span { font-size:11px; }

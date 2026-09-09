@@ -245,8 +245,6 @@ body:has(.weekendoog-home) .site-brand { min-width:0; }
 
 .weekendoog-home .kakao-map-marker--region { min-width:38px; width:auto; height:30px; padding:0 7px; border-radius:24px; background:#07563f; border:2px solid white; color:white; box-shadow:0 2px 8px #123b3629; transform:none; font-size:11px; font-weight:800; }
 .weekendoog-home .kakao-map-marker--region span { transform:none; white-space:nowrap; }
-.home-region-navigation { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:44px; color:#07563f; font-size:13px; }
-.home-region-navigation button { min-height:44px; text-decoration:underline; text-underline-offset:4px; }
 .home-region-overview { padding:16px; color:#53665d; font-size:13px; }
 .home-region-overview > div { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:12px; }
 .home-region-overview button { display:flex; align-items:center; justify-content:space-between; min-height:44px; padding:8px 12px; background:#f1f6ef; border:1px solid #dce5d7; border-radius:8px; color:#07563f; font-weight:700; }

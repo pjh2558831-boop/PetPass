@@ -41,12 +41,22 @@ export function normalizeNaverEvents(input: unknown, now = new Date()): PetEvent
 }
 
 async function eventImage(item: PetEventItem): Promise<string | null> {
-  const result = await naverSearch("image", { query: item.title, display: "5", sort: "sim" });
-  const parsed = z.object({ items: z.array(z.object({ title: z.string(), thumbnail: z.string() })).max(100) }).safeParse(result);
+  const identity = plain(item.title).split(/\s+[|–—-]\s+/u)[0].trim();
+  const result = await naverSearch("image", { query: identity, display: "10", sort: "sim" });
+  const parsed = z.object({ items: z.array(z.object({ title: z.string(), thumbnail: z.string(), link: z.string().optional() })).max(100) }).safeParse(result);
   if (!parsed.success) return null;
   const normalize = (value: string) => plain(value).replace(/[^가-힣a-z0-9]/giu, "").toLowerCase();
-  const title = normalize(item.title);
-  const match = parsed.data.items.find(image => normalize(image.title).includes(title));
+  const title = normalize(identity);
+  const match = parsed.data.items.find(image => {
+    const label = plain(image.title);
+    const years: string[] = label.match(/20\d{2}/gu) ?? [];
+    return normalize(label).includes(title) && years.includes(item.startDate.slice(0, 4)) && years.every(year => year === item.startDate.slice(0, 4));
+  });
+  const original = safeContentUrl(match?.link);
+  if (original) {
+    const url = new URL(original);
+    if (url.protocol === "https:" && /(^|\.)(pstatic\.net|s3\.amazonaws\.com)$/.test(url.hostname)) return original;
+  }
   const url = safeContentUrl(match?.thumbnail);
   if (!url) return null;
   const parsedUrl = new URL(url);
