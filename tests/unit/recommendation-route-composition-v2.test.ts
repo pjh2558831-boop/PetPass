@@ -117,11 +117,11 @@ describe("constraint-aware route composition V2", () => {
     const best = candidates[count - 1]!;
     best.placeUtility = { ...best.placeUtility, total: 2_000 };
     const shortlisted = selectSpatialShortlistV2({ candidates, departure: candidates[0].node, seed: "mixed-public", rerollVariant: 0 });
-    expect(shortlisted.candidates).toHaveLength(6);
+    expect(shortlisted.candidates).toHaveLength(15);
     expect(shortlisted.candidates[0].node.id).toBe(best.node.id);
     expect(shortlisted.scoredIds).toHaveLength(count);
     expect(new Set([...shortlisted.candidates.map(({ node }) => node.id), ...shortlisted.reserveIds])).toEqual(new Set(shortlisted.scoredIds));
-    expect(shortlisted.reserveIds).toHaveLength(count - 6);
+    expect(shortlisted.reserveIds).toHaveLength(count - shortlisted.candidates.length);
   });
 
   it("rotates equally suitable place sets beyond the first shortlist while retaining selected anchors", () => {
@@ -132,6 +132,16 @@ describe("constraint-aware route composition V2", () => {
     const firstIds = new Set(first.candidates.map(({ node }) => node.id));
     expect(second.candidates.slice(1).every(({ node }) => !firstIds.has(node.id))).toBe(true);
     expect(selectSpatialShortlistV2({ candidates: [...candidates].reverse(), departure: candidates[0].node, lockedPlaceIds: ["public-0"], seed: "replay", rerollVariant: 0 }).candidates.map(({ node }) => node.id)).toEqual(first.candidates.map(({ node }) => node.id));
+  });
+
+  it("prefers a compact area while allowing whole-region utility to win", () => {
+    const near = candidate("near");
+    const far = candidate("far");
+    far.node = { ...far.node, latitude: 35.5 };
+    far.placeUtility = { ...far.placeUtility, total: 950 };
+    const request = { candidates: [near, far], departure: near.node, seed: "scope", rerollVariant: 0, limit: 1 };
+    expect(selectSpatialShortlistV2({ ...request, preferNearby: true }).candidates[0].node.id).toBe("near");
+    expect(selectSpatialShortlistV2({ ...request, preferNearby: false }).candidates[0].node.id).toBe("far");
   });
 
   it("builds broad geographic drafts through unknown, closed, and reservation-warning venues without changing their facts", async () => {
@@ -158,11 +168,13 @@ describe("constraint-aware route composition V2", () => {
     }
   });
 
-  it("does not make broad category preferences an admission constraint", () => {
+  it("enforces feasible category coverage even for broad catalog routes", () => {
     const base = input([candidate("food", "food"), candidate("other", "shopping")], {
       planningPolicy: "full_public_catalog_v1", desiredStopCount: 2,
       selectedCategories: ["attraction"], minimumRequestedCategoryCount: 1,
     });
+    expect(searchRoutesV1(base).finalists).toHaveLength(0);
+    base.tripRequest.minimumRequestedCategoryCount = 0;
     expect(searchRoutesV1(base).finalists.length).toBeGreaterThan(0);
   });
 

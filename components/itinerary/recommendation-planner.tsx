@@ -7,6 +7,8 @@ import {
   Info,
   Route,
   Clock3,
+  Car,
+  MapPin,
   ArrowDown,
   ArrowUp,
   Check,
@@ -57,6 +59,7 @@ import {
   routeRecommendationResponseSchema,
 } from "@/lib/recommendation/recommendation-response";
 import { saveRouteRecommendation } from "@/lib/storage/recommendation-storage";
+import { loadRecommendationHistory, saveRecommendationHistory } from "@/lib/storage/recommendation-history-storage";
 import { formatScheduleTime as koreaTime } from "@/lib/recommendation/schedule/schedule-display";
 import { saveTravelPreferences } from "@/lib/storage/profile-storage";
 import { loadPlanDraft, savePlanDraft } from "@/lib/storage/plan-draft-storage";
@@ -349,30 +352,30 @@ function Timeline({
             className="route-result-stop"
             data-selected={selectedPlaceId === stop.placeId || undefined}
           >
+            <div className="route-result-stop__topline">
             <span className="route-result-stop__time">
               <span>{stop.sequence}</span>
               <b>{validated ? `${koreaTime(stop.arrivalAt, stop.arrivalOffsetSeconds, route.schedule)} 도착` : "경로 재계산 전"}</b>
             </span>
-            {photos[stop.placeId.startsWith("tour:") ? stop.placeId : `tour:${stop.placeId}`] ? <PlaceImage imageUrl={photos[stop.placeId.startsWith("tour:") ? stop.placeId : `tour:${stop.placeId}`]} title={stop.title} className="route-result-stop__photo" sizes="140px" /> : null}
-            <h3 className="route-result-stop__title">{stop.title}</h3>
-            <p className="route-result-stop__category">{CATEGORY_LABEL[stop.category]} · {stop.sourceLabel}</p>
-            <dl className="route-result-stop__facts">
-              <div><dt>예상 체류</dt><dd>{stop.dwellMinutes}분{validated ? ` · ${koreaTime(stop.departureAt, stop.departureOffsetSeconds, route.schedule)} 출발` : ""}</dd></div>
-              <div><dt>이동</dt><dd>{validated && stop.driveSecondsFromPrevious > 0 ? `이전 지점에서 ${formatDistance(stop.distanceMetersFromPrevious)} · 약 ${formatDuration(stop.driveSecondsFromPrevious)}` : validated ? "첫 방문지" : "경로 재계산 필요"}</dd></div>
-              <div><dt>반려동물</dt><dd>{recommendationPetAccessCopy(stop)}</dd></div>
-              <div><dt>출처</dt><dd>{stop.sourceLabel}{stop.retrievedAt ? ` · 확인 ${new Date(stop.retrievedAt).toLocaleDateString("ko-KR")}` : ""}</dd></div>
-            </dl>
-            {recommendationOperatingWarning(stop) ? <p className="text-sm font-bold text-[#76542f]">{recommendationOperatingWarning(stop)}</p> : null}
-            <button
-              type="button"
-              onClick={() => onSelect(stop.placeId)}
-              className="route-result-stop__select"
-              aria-label={`${stop.title} 지도에서 보기`}
-              aria-pressed={selectedPlaceId === stop.placeId}
-            >
-              <MapPinned size={16} aria-hidden="true" />
-              지도에서 보기
+            <button type="button" onClick={() => onSelect(stop.placeId)} className="route-result-stop__select" aria-label={`${stop.title} 지도에서 보기`} aria-pressed={selectedPlaceId === stop.placeId}>
+              <MapPinned size={16} aria-hidden="true" /> 지도에서 보기
             </button>
+            </div>
+            <div className="route-result-stop__overview">
+            {photos[stop.placeId.startsWith("tour:") ? stop.placeId : `tour:${stop.placeId}`] ? <PlaceImage imageUrl={photos[stop.placeId.startsWith("tour:") ? stop.placeId : `tour:${stop.placeId}`]} title={stop.title} className="route-result-stop__photo" sizes="140px" /> : null}
+            <div className="route-result-stop__body">
+            <span className="route-result-stop__tag">{CATEGORY_LABEL[stop.category]}</span>
+            <h3 className="route-result-stop__title">{stop.title}</h3>
+            <p className="route-result-stop__category">{stop.sourceLabel}</p>
+            <p className="route-result-stop__address"><MapPin size={14} aria-hidden="true" />{stop.address}</p>
+            <dl className="route-result-stop__facts">
+              <div><dt><Clock3 size={15} aria-hidden="true" />예상 체류</dt><dd>{stop.dwellMinutes}분</dd></div>
+              <div><dt><PawPrint size={15} aria-hidden="true" />반려동물</dt><dd>{recommendationPetAccessCopy(stop)}</dd></div>
+              <div><dt><Car size={15} aria-hidden="true" />이전 지점에서</dt><dd>{validated && stop.driveSecondsFromPrevious > 0 ? `${formatDistance(stop.distanceMetersFromPrevious)} · 약 ${formatDuration(stop.driveSecondsFromPrevious)}` : validated ? "첫 방문지" : "경로 재계산 필요"}</dd></div>
+            </dl>
+            </div>
+            </div>
+            {recommendationOperatingWarning(stop) ? <p className="text-sm font-bold text-[#76542f]">{recommendationOperatingWarning(stop)}</p> : null}
             <RecommendationStopProvenance
               stop={stop}
               replacementSupported={editCopy.canReplace}
@@ -384,8 +387,16 @@ function Timeline({
               </ul>
             ) : null}
             {inclusion.length ? <p className="route-result-stop__reason"><Info size={17} aria-hidden="true" /><span><b>추천 이유</b>{inclusion[0]}</span></p> : null}
+            <div className="route-result-stop__footer">
             <details className="route-result-stop__details">
               <summary className="cursor-pointer text-sm font-black text-[var(--brand)]">추천 근거와 이용 안내</summary>
+              <dl className="route-result-stop__source-facts">
+                <div><dt>출발</dt><dd>{validated ? koreaTime(stop.departureAt, stop.departureOffsetSeconds, route.schedule) : "경로 재계산 필요"}</dd></div>
+                <div><dt>운영시간</dt><dd>{stop.operatingInformation ?? "정보 없음 · 방문 전 확인"}</dd></div>
+                <div><dt>휴무일</dt><dd>{stop.restDayInformation ?? "정보 없음 · 방문 전 확인"}</dd></div>
+                <div><dt>출처</dt><dd>{stop.sourceLabel}{stop.retrievedAt ? ` · 확인 ${new Date(stop.retrievedAt).toLocaleDateString("ko-KR")}` : ""}</dd></div>
+              </dl>
+              <p className="text-xs leading-5 text-[var(--muted)]">운영시간·휴무일은 일정 계산에 반영하지 않으며 방문 전에 확인해 주세요.{stop.operatingInformationRetrievedAt ? ` · 안내 조회 ${new Date(stop.operatingInformationRetrievedAt).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })}` : ""}</p>
               <div className="mt-3 grid gap-4 text-sm leading-6 sm:grid-cols-2">
                 <div><h4 className="font-black">포함한 이유</h4><ul className="mt-1 space-y-1 text-[var(--muted)]">{inclusion.map((copy) => <li key={copy}>· {copy}</li>)}</ul></div>
                 <div><h4 className="font-black">이 위치에 둔 이유</h4>{validated ? <ul className="mt-1 space-y-1 text-[var(--muted)]">{ordering.map((copy) => <li key={copy}>· {copy}</li>)}</ul> : <p className="mt-1 text-[var(--muted)]">경로를 다시 계산한 뒤 표시합니다.</p>}</div>
@@ -398,6 +409,7 @@ function Timeline({
               <button type="button" disabled={index === 0} onClick={() => onMove(stop.placeId, -1)} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[var(--line)] px-3 text-xs font-extrabold disabled:opacity-40"><ArrowUp size={15} aria-hidden="true" /> 앞으로</button>
               <button type="button" disabled={index === route.stops.length - 1} onClick={() => onMove(stop.placeId, 1)} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[var(--line)] px-3 text-xs font-extrabold disabled:opacity-40"><ArrowDown size={15} aria-hidden="true" /> 뒤로</button>
               <button type="button" disabled={route.stops.length <= 1} onClick={() => onRemove(stop.placeId)} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[#e5bdb7] px-3 text-xs font-extrabold text-[#8d3838] disabled:opacity-40"><Trash2 size={15} aria-hidden="true" /> {editCopy.removeLabel}</button>
+            </div>
             </div>
           </li>
         );
@@ -460,6 +472,7 @@ export function RecommendationPlanner({
   const recentSignaturesRef = useRef<string[]>([]);
   const recentCandidateIdsRef = useRef<string[]>([]);
   const historyContextKeyRef = useRef<string | null>(null);
+  const historyRegionRef = useRef<RegionId | null>(null);
   const errorRef = useRef<HTMLDivElement>(null);
   const confirmationHeadingRef = useRef<HTMLHeadingElement>(null);
   const resultHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -511,6 +524,14 @@ export function RecommendationPlanner({
     applyTime?: string,
   ) => {
     if (!profileConfirmed || !preferencesConfirmed) return;
+    const requestRegionId = override?.trip.regionId ?? plannerRegion.id;
+    if (historyRegionRef.current !== requestRegionId) {
+      const history = loadRecommendationHistory(requestRegionId);
+      recentSignaturesRef.current = history?.recentRouteSignatures ?? [];
+      recentCandidateIdsRef.current = history?.recentlySelectedCandidateIds ?? [];
+      historyContextKeyRef.current = history?.historyContextKey ?? null;
+      historyRegionRef.current = requestRegionId;
+    }
     const requestSequence = requestSequenceRef.current + 1;
     requestSequenceRef.current = requestSequence;
     if (mode === "reroll") rerollVariantRef.current += 1;
@@ -527,7 +548,7 @@ export function RecommendationPlanner({
     controllerRef.current = controller;
     const slowTimer = window.setTimeout(() => setSlow(true), 8_000);
     try {
-      const request = override ?? createRouteRecommendationRequest(profile, preferences, {
+      const history = {
         rerollVariant: rerollVariantRef.current,
         recentRouteSignatures: recentSignaturesRef.current,
         recentlySelectedCandidateIds: recentCandidateIdsRef.current,
@@ -535,7 +556,10 @@ export function RecommendationPlanner({
           ? { historyContextKey: historyContextKeyRef.current }
           : {}),
         explicitlyExcludedPlaceIds: excludedRef.current,
-      }, selectionMode === "hybrid" ? (() => {
+      };
+      const request = override
+        ? { ...override, personalization: override.personalization ? { ...override.personalization, ...history } : undefined }
+        : createRouteRecommendationRequest(profile, preferences, history, selectionMode === "hybrid" ? (() => {
         const selection = hybridSelection;
         if (!selection || selection.places.length === 0) {
           throw new Error("선택한 장소를 불러오지 못했습니다. 장소를 다시 선택해 주세요.");
@@ -581,19 +605,22 @@ export function RecommendationPlanner({
           historyContextKeyRef.current &&
           parsed.data.historyContextKey !== historyContextKeyRef.current,
         );
-        const priorSignatures = contextChanged ? [] : recentSignaturesRef.current;
-        const priorCandidateIds = contextChanged ? [] : recentCandidateIdsRef.current;
         recentSignaturesRef.current = [
-          ...priorSignatures,
+          ...(contextChanged ? [] : recentSignaturesRef.current),
           ...(selected.routeSignature ? [selected.routeSignature] : []),
         ].slice(-12);
         recentCandidateIdsRef.current = [
-          ...priorCandidateIds,
+          ...recentCandidateIdsRef.current,
           ...selected.stops
             .filter(({ selectionOrigin }) => selectionOrigin !== "user_selected")
             .map(({ placeId }) => placeId),
         ].slice(-30);
         historyContextKeyRef.current = parsed.data.historyContextKey ?? null;
+        if (!saveRecommendationHistory(requestRegionId, {
+          recentRouteSignatures: recentSignaturesRef.current,
+          recentlySelectedCandidateIds: recentCandidateIdsRef.current,
+          ...(historyContextKeyRef.current ? { historyContextKey: historyContextKeyRef.current } : {}),
+        })) setManualError("최근 추천 이력을 저장하지 못해 화면을 다시 열면 같은 장소가 추천될 수 있습니다.");
         setLastReady(parsed.data);
         setLastReadyRequest(request);
         if (applyTime && selected.schedule?.state !== "adjustment_proposal") {
@@ -618,7 +645,7 @@ export function RecommendationPlanner({
       if (controllerRef.current === controller) controllerRef.current = null;
       if (requestSequenceRef.current === requestSequence) setLoading(false);
     }
-  }, [hybridSelection, preferences, preferencesConfirmed, profile, profileConfirmed, selectionMode, persistExclusions, rememberExclusion, applyTimeToPlanner]);
+  }, [hybridSelection, preferences, preferencesConfirmed, profile, profileConfirmed, selectionMode, persistExclusions, rememberExclusion, applyTimeToPlanner, plannerRegion.id]);
 
   useEffect(() => {
     if (!autoGenerate || startedRef.current) return;
@@ -1039,7 +1066,7 @@ export function RecommendationPlanner({
 
       <div role="tabpanel" id={`route-panel-${displayedRoute.id}`} aria-labelledby={`route-tab-${displayedRoute.id}`} className="route-result-columns">
         <section className="min-w-0" aria-labelledby="route-timeline-heading">
-          <div className="mb-4"><p className="eyebrow">시간순 방문 일정</p><h2 id="route-timeline-heading" className="mt-1 text-2xl font-black">출발지부터 이어지는 실제 이동 순서</h2></div>
+          <h2 id="route-timeline-heading" className="route-timeline-heading"><Route size={21} aria-hidden="true" />출발지부터 이어지는 실제 이동 순서</h2>
           <Timeline regionId={plannerRegion.id} route={displayedRoute} validated={!editDirty} selectedPlaceId={selectedPlaceId} onSelect={showPlaceOnMap} onMove={moveStop} onRemove={removeStop} onReplace={(id) => void runRecommendation("reroll", id)} replacementSupported={replacementSupported} />
           {editDirty ? <div className="route-result-edit-bar"><p className="mr-auto text-sm font-bold text-[#52665b]">순서 또는 방문지를 바꿨습니다. 실제 경로를 다시 확인해 주세요.</p><Button type="button" variant="brand" disabled={revalidating} onClick={() => void revalidate()}>{revalidating ? <LoaderCircle className="animate-spin" size={16} aria-hidden="true" /> : <Check size={16} aria-hidden="true" />} 경로 다시 계산</Button><Button type="button" variant="brandSecondary" onClick={() => { setActiveRoute(ready.route); setEditableIds(ready.route.stops.map(({ placeId }) => placeId)); setEditDirty(false); setSelectedPlaceId(ready.route.stops[0]?.placeId ?? null); setManualError(""); }}><RotateCcw size={16} aria-hidden="true" /> 원래 추천 복원</Button></div> : null}
           {manualError ? <p className="mt-3 rounded-xl border border-[#e5bdb7] bg-[#fff1ef] p-4 text-sm font-bold text-[#823f36]" role="alert">{manualError}</p> : null}

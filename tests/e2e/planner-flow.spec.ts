@@ -67,6 +67,45 @@ test("offers explicit planning length controls while keeping the pace choice", a
   await expect(page.getByRole("spinbutton", { name: "전체 일정 시간" })).toBeHidden();
 });
 
+for (const searchScope of ["nearby", "district", "region"] as const) {
+  test(`recommendation search scope ${searchScope} persists and reaches the API`, async ({ page }, testInfo) => {
+    await page.route(`**${DEPARTURE_PATH}?**`, (route) => route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ ok: true, data: [{ id: "place:scope-test", kind: "place", label: "부산광역시 연제구 중앙대로 1001", address: "부산광역시 연제구 중앙대로 1001", coordinates: { latitude: 35.1795543, longitude: 129.0756416 } }] }),
+    }));
+    await page.route(`**${GENERATE_PATH}`, (route) => route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ status: "insufficient_candidates", apiVersion: "route-recommendation-response-v1", reasonCodes: ["insufficient_candidates"], userMessage: "범위 전달 확인용 모의 응답", retryable: true }),
+    }));
+    await openPetPlanner(page, testInfo, "search-scope");
+    await continueToTrip(page);
+    await chooseConfirmedDeparture(page);
+    const scope = page.getByRole("combobox", { name: "추천 범위", exact: true });
+    await expect(scope).toHaveValue("nearby");
+    if (searchScope === "district") await scope.selectOption({ label: "연제구" });
+    if (searchScope === "region") {
+      await scope.selectOption({ label: "연제구" });
+      await scope.focus();
+      await page.keyboard.press("Home");
+      await page.keyboard.press("ArrowDown");
+      await page.keyboard.press("Tab");
+      await expect(scope).toHaveValue("all");
+    }
+    const value = await scope.inputValue();
+    await expectNoHorizontalOverflow(page);
+    if (searchScope === "region") await page.screenshot({ path: testInfo.outputPath("recommendation-search-scope.png"), fullPage: true });
+    await continueToDay(page);
+    const requestPromise = page.waitForRequest((request) => new URL(request.url()).pathname === GENERATE_PATH && request.method() === "POST");
+    await page.getByRole("button", { name: "여행 추천 받기" }).click();
+    expect((await requestPromise).postDataJSON()).toMatchObject({ trip: {
+      regionId: "busan", searchScope, districtId: searchScope === "district" ? value : null,
+    } });
+    await page.goto("/planner/pet");
+    await continueToTrip(page);
+    await expect(scope).toHaveValue(value);
+  });
+}
+
 function installFakeCoordinatePicker(page: Page) {
   return page.addInitScript(() => {
     type Listener = (...args: unknown[]) => void;
@@ -252,6 +291,7 @@ test("searches a departure by place name and generates exactly once", async ({
 }, testInfo) => {
   await open(page, testInfo);
   await continueToTrip(page);
+  await page.getByLabel("여행 지역", { exact: true }).selectOption("26");
 
   const responsePromise = page.waitForResponse((response) => {
     const url = new URL(response.url());
@@ -314,6 +354,7 @@ test("searches a departure by place name and generates exactly once", async ({
 test("uses a map-picked departure coordinate for routing", async ({ page }, testInfo) => {
   await open(page, testInfo);
   await continueToTrip(page);
+  await page.getByLabel("여행 지역", { exact: true }).selectOption("26");
 
   await page.getByRole("button", { name: "지도에서 선택" }).click();
   await page.getByRole("group", { name: "출발지 선택 지도" }).click({ position: { x: 120, y: 100 } });
@@ -348,6 +389,7 @@ test("uses the browser current location as the confirmed departure", async ({
   });
   await open(page, testInfo);
   await continueToTrip(page);
+  await page.getByLabel("여행 지역", { exact: true }).selectOption("26");
 
   await page.getByRole("button", { name: "내 위치", exact: true }).click();
   const input = page.getByRole("combobox", { name: "출발지" });

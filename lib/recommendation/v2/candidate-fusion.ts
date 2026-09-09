@@ -332,6 +332,10 @@ export function fuseRecommendationCandidatesV2(input: {
       reject(value.id, "automatic_itinerary_category_excluded");
       continue;
     }
+    if (input.districtId && value.districtCode !== input.districtId && !selected.has(value.id)) {
+      reject(value.id, "outside_requested_district");
+      continue;
+    }
     const origin = selected.has(value.id) ? "user_selected" : input.selectionOrigin ?? "automatic_recommendation";
     const category = value.layer === "tourism" && value.contentTypeId === "14" ? "culture"
       : value.layer === "tourism" && value.contentTypeId === "15" ? "festival"

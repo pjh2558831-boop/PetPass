@@ -65,6 +65,7 @@ const planDraftSchema = z.object({
   schemaVersion: z.literal(PLAN_DRAFT_SCHEMA_VERSION),
   regionId: z.enum(REGION_IDS),
   districtId: z.string().trim().min(1).max(20).nullable(),
+  searchScope: z.enum(["nearby", "district", "region"]).optional(),
   selectedPlaces: z.array(planDraftSelectedPlaceSchema).max(5),
   excludedPlaceIds: z.array(canonicalPlaceId).max(30).default([]),
   acknowledgedVerificationRequiredPlaceIds: z.array(canonicalPlaceId).max(5),
@@ -260,6 +261,7 @@ export function updatePlanDraftScope(
     ...draft,
     regionId,
     districtId,
+    searchScope: districtId ? "district" : "nearby",
     autoFill: region.routeCapabilities.automaticFill && draft.autoFill,
     includeVerificationRequired: false,
   };
@@ -280,6 +282,7 @@ export function updatePlanDraftFromPlanner(
     ...draft,
     regionId: region.id,
     districtId: input.preferences.districtCode ?? null,
+    searchScope: input.preferences.searchScope,
     petProfile: { ...input.petProfile },
     origin: input.preferences.departure ? {
       name: input.preferences.departure.label,
@@ -331,6 +334,7 @@ export function plannerInputFromPlanDraft(
       regionCode: region.providerCodes.korPetTourService2.legalDongRegionCode,
       regionName: region.displayName,
       districtCode: draft.districtId ?? undefined,
+      searchScope: draft.searchScope,
       districtName: draft.districtId
         ? getRegionConfig(draft.regionId).districts.find(
             ({ legalDongDistrictCode }) => legalDongDistrictCode === draft.districtId,

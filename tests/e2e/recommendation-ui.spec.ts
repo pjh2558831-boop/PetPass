@@ -304,6 +304,35 @@ async function generate(page: Page, testInfo: TestInfo, response: RouteRecommend
   await expect(page).toHaveURL(/\/results\?tab=recommendations&region=busan$/u);
 }
 
+test("compact timeline preserves evidence and editing at desktop and mobile widths", async ({ page }, testInfo) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.route("**/api/map/places/cards?**", route => {
+    const params = new URL(route.request().url()).searchParams;
+    return route.fulfill({ json: { ok: true, data: {
+      region: params.get("region"), dataset: params.get("dataset"),
+      items: (params.get("ids") ?? "").split(",").map(id => ({ id, imageUrl: "/images/home/hero/weekendog-busan-city-ver2.webp" })),
+    } } });
+  });
+  await generate(page, testInfo);
+  const first = page.locator(".route-result-stop").first();
+  await expect(first.locator(".route-result-stop__photo img")).toBeVisible();
+  for (const width of [1292, 768, 390, 320]) {
+    await page.setViewportSize({ width, height: 986 });
+    await expectNoHorizontalOverflow(page);
+    await expect(first.getByRole("button", { name: /지도에서 보기/u })).toBeVisible();
+    await expect(first.locator(".route-result-stop__facts")).toContainText("반려동물 동반 가능");
+    await first.screenshot({ path: testInfo.outputPath(`timeline-${width}.png`) });
+  }
+  await first.getByText("추천 근거와 이용 안내", { exact: true }).click();
+  await expect(first.getByText("해운대 공식 공원 반려동물 동반 가능", { exact: false })).toBeVisible();
+  await expect(first.locator(".route-result-stop__source-facts")).toContainText("운영시간");
+  await expect(first.getByRole("button", { name: "앞으로", exact: true })).toBeDisabled();
+  await first.getByRole("button", { name: "뒤로", exact: true }).click();
+  await expect(page.getByRole("button", { name: "경로 다시 계산", exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test("shows a deliberate empty recommendation state without a request", async ({ page }) => {
   const requests: string[] = [];
   page.on("request", (request) => { if (new URL(request.url()).pathname === GENERATE_PATH) requests.push(request.url()); });
@@ -341,7 +370,8 @@ test("submits the strict combined contract once and renders the exact provider-b
   expect(bodies[0]).not.toHaveProperty("pet.acceptsOutdoorOnlyPlaces");
   await expect(page.getByText("요청한 3곳보다 적은 2곳으로 이동 경로를 계산했어요.", { exact: true })).toBeVisible();
   await expect(page.getByText(/9\.6km · 약 45분/u)).toBeVisible();
-  await expect(page.getByText(/관광지 · 한국관광공사/u)).toBeVisible();
+  await expect(page.locator(".route-result-stop__tag").first()).toHaveText("관광지");
+  await expect(page.locator(".route-result-stop__category").first()).toHaveText("한국관광공사");
   await expect(page.getByText("반려동물 동반 가능", { exact: true })).toHaveCount(2);
   await expect(page.getByText(/목줄 착용 필수/u)).toBeVisible();
   await expect(page.getByText(/조건부 동반|동반 여부 미확인|근거 미확인/u)).toHaveCount(0);
@@ -436,6 +466,11 @@ test("reroll sends only the primary scoped history and a new deterministic varia
   expect(bodies[1]?.personalization?.historyContextKey).toBe("1".repeat(64));
   expect(bodies[1]?.personalization?.recentRouteSignatures).toEqual(["1001>2001"]);
   expect(bodies[1]?.personalization?.recentlySelectedCandidateIds).toEqual(["1001", "2001"]);
+  await expect(page.getByRole("button", { name: "새로운 장소로 다시 추천" })).toBeVisible();
+  await page.reload();
+  await expect.poll(() => bodies.length).toBe(3);
+  expect(bodies[2]?.personalization?.recentRouteSignatures).toEqual(["1001>2001", "1001>2001"]);
+  expect(bodies[2]?.personalization?.recentlySelectedCandidateIds).toEqual(["1001", "2001", "1001", "2001"]);
 });
 
 test("aborts an older reroll and prevents its late response from replacing the newer result", async ({ page }, testInfo) => {

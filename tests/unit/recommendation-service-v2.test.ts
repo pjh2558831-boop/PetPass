@@ -322,6 +322,23 @@ function dependencies(kto: DetailedEligibleCandidate[], kakao: MapPlacesSnapshot
 }
 
 describe("recommendation service V2 orchestration", () => {
+  it("tries another reserve batch when both initial and first reserve roads fail", async () => {
+    const deps = dependencies(Array.from({ length: 18 }, (_, i) => ktoCandidate(String(9500 + i), i / 10000)), []);
+    const complete = deps.provider.buildMatrix.getMockImplementation()!;
+    let attempts = 0;
+    deps.provider.buildMatrix.mockImplementation(async input => {
+      const result = await complete(input);
+      if (++attempts <= 2) for (const row of Object.values(result.edges)) for (const edge of Object.values(row)) {
+        Object.assign(edge, { status: "unresolved", durationSeconds: null, distanceMeters: null });
+      }
+      return result;
+    });
+    const result = await generateRouteRecommendation(REQUEST, deps);
+    expect(result.status).toBe("ready");
+    expect(attempts).toBe(3);
+    const batches = deps.provider.buildMatrix.mock.calls.map(([input]) => input.candidates.map(place => place.id));
+    expect(batches[2]!.every(id => !batches[0]!.includes(id) && !batches[1]!.includes(id))).toBe(true);
+  });
   it.each(REGION_CONFIGS)("generates automatic and selected-fill routes within $id", async region => {
     const markers = ["9101", "9102", "9103"].map((id, index) => ({
       ...tourMarker(id, 0),

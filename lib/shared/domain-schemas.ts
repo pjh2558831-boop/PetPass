@@ -30,6 +30,7 @@ export const travelPreferencesSchema = z.object({
   regionCode: z.string().min(1),
   regionName: z.string().min(1),
   districtCode: z.string().min(1).optional(),
+  searchScope: z.enum(["nearby", "district", "region"]).optional(),
   districtName: z.string().min(1).optional(),
   tripDate: z.union([z.string().date(), z.literal("")]),
   tripType: z.enum(["DAY_TRIP", "OVERNIGHT"]),
