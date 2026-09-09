@@ -51,6 +51,11 @@ test("v4 manual hero controls and responsive reference composition", async ({ pa
   for (const width of [1440, 1280, 951, 768, 390, 320]) {
     await page.setViewportSize({ width, height: width === 951 ? 1654 : 950 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+    const primary = await page.locator(".hero-planner-submit").boundingBox();
+    const secondary = await page.locator(".hero-planner-secondary").boundingBox();
+    expect(secondary!.x).toBeGreaterThanOrEqual(primary!.x + primary!.width);
+    expect(Math.abs(primary!.y - secondary!.y)).toBeLessThan(1);
+    expect((await page.locator(".hero-planner-select").boundingBox())!.width).toBeLessThanOrEqual(140);
     const hero = await page.locator(".weekendoog-hero").boundingBox();
     const recommendations = await page.locator(".home-recommendations").boundingBox();
     const map = await page.locator("#home-discovery").boundingBox();

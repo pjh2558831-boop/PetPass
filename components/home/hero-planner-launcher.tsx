@@ -86,13 +86,13 @@ export function HeroPlannerLauncher({ onSearch }: { onSearch?: (query: string, r
           <input ref={searchRef} type="search" aria-label="여행 장소 검색" placeholder="장소, 지역, 키워드로 검색해보세요." value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && event.nativeEvent.isComposing) event.preventDefault(); }} />
           {query && <button type="button" aria-label="여행 검색어 지우기" onClick={() => { setQuery(""); searchRef.current?.focus(); }}><X size={18} aria-hidden="true" /></button>}
         </div>
+        <div className="hero-planner-actions">
         <button
           type="submit"
           className="hero-planner-submit"
         >
           여행지 찾기 <ArrowRight size={18} aria-hidden="true" />
         </button>
-      </div>
       <button
         type="button"
         disabled={!region.routeCapabilities.fullyAutomaticRecommendation}
@@ -113,6 +113,8 @@ export function HeroPlannerLauncher({ onSearch }: { onSearch?: (query: string, r
       >
         장소 없이 알아서 추천받기
       </button>
+        </div>
+      </div>
       {!region.routeCapabilities.fullyAutomaticRecommendation ? (
         <small>{region.displayName}은 선택 장소 경로부터 이용할 수 있어요.</small>
       ) : null}
