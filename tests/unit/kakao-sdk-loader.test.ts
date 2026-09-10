@@ -50,6 +50,23 @@ afterEach(() => {
 });
 
 describe("canonical Kakao Maps SDK loader", () => {
+  it("retries failed script loading without restarting other page data", async () => {
+    const { loadKakaoMapsSdk } = await import("@/lib/kakao/sdk-loader");
+    const first = loadKakaoMapsSdk();
+    const rejected = expect(first).rejects.toMatchObject({ code: "SCRIPT_REQUEST_FAILED" });
+    const failed = sdkScripts()[0];
+    failed.dispatchEvent(new Event("error"));
+    await rejected;
+    const retry = loadKakaoMapsSdk();
+    expect(retry).not.toBe(first);
+    expect(loadKakaoMapsSdk()).toBe(retry);
+    expect(sdkScripts()).toHaveLength(1);
+    expect(sdkScripts()[0]).not.toBe(failed);
+    setMaps(fullMaps());
+    sdkScripts()[0].dispatchEvent(new Event("load"));
+    await expect(retry).resolves.toBe(window.kakao?.maps);
+  });
+
   it("builds one stable URL with autoload, services and clusterer only", async () => {
     const { getKakaoMapsSdkUrl } = await import("@/lib/kakao/sdk-loader");
     const urlString = getKakaoMapsSdkUrl("javascript-test-key");

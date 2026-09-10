@@ -3,9 +3,10 @@ import { installFakeMap, mockHomepage } from "./homepage-test-helpers";
 
 // Synthetic evidence only. No actual article text or event payload is persisted.
 const news = { state: "ready", items: Array.from({ length: 5 }, (_, i) => ({ id: String(i), title: `합성 테스트 ${i + 1} 반려동물과 함께하는 생활 안전 소식과 길게 이어지는 제목`, originalUrl: `https://example.com/news/${i}`, sourceLabel: "example.com", providedAt: "2026-09-09T01:00:00Z" })) };
-const events = { state: "ready", items: Array.from({ length: 3 }, (_, i) => ({ id: String(i), title: `합성 테스트 ${i + 1} 반려동물 박람회`, startDate: "2099-09-10", endDate: i === 1 ? null : "2099-09-12", regionLabel: "부산광역시", venueLabel: "부산광역시 해운대구 합성 테스트로 100", imageUrl: i === 0 ? "/images/home/hero/01-corgi-tulips.png" : null, informationUrl: i === 0 ? "https://example.com/event" : null, status: "upcoming", source: "한국관광공사", checkedAt: "2026-09-09T01:00:00Z" })) };
+const events = { state: "ready", items: Array.from({ length: 3 }, (_, i) => ({ id: String(i), title: `합성 테스트 ${i + 1} 반려동물 박람회`, startDate: "2026-09-12", endDate: i === 1 ? null : "2026-09-14", regionLabel: "부산광역시", venueLabel: "부산광역시 해운대구 합성 테스트로 100", imageUrl: i === 0 ? "/images/home/hero/01-corgi-tulips.png" : null, informationUrl: i === 0 ? "https://example.com/event" : null, status: "upcoming", source: "한국관광공사", checkedAt: "2026-09-09T01:00:00Z" })) };
 
 test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-09-10T03:00:00Z"));
   await installFakeMap(page);
   await mockHomepage(page);
 });
@@ -23,12 +24,14 @@ for (const width of [1440, 768, 390, 320]) {
     expect(calls).toEqual({ news: 0, events: 0 });
     const section = page.getByRole("region", { name: "반려동물 뉴스와 행사" });
     await section.scrollIntoViewIfNeeded();
-    await expect(section.locator("li")).toHaveCount(6);
+    await expect(section.locator("ol > li")).toHaveCount(5);
+    const carousel = section.getByRole("region", { name: "30일 이내 반려동물 행사" });
+    await expect(carousel.getByRole("group", { name: "1 / 3", exact: true })).toBeVisible();
+    await expect(carousel.getByRole("heading", { name: events.items[0].title, exact: true })).toBeVisible();
     await expect(section.getByRole("heading", { name: "반려동물 뉴스", exact: true })).toBeVisible();
     expect(calls).toEqual({ news: 1, events: 1 });
-    const panels = section.locator(":scope > div");
-    const left = await panels.nth(0).boundingBox();
-    const right = await panels.nth(1).boundingBox();
+    const left = await section.locator('[aria-labelledby="pet-news-heading"]').boundingBox();
+    const right = await section.locator('[aria-labelledby="pet-events-heading"]').boundingBox();
     expect(left && right).toBeTruthy();
     if (width > 800) expect(left!.y).toBe(right!.y);
     else expect(right!.y).toBeGreaterThan(left!.y + left!.height);
@@ -60,7 +63,7 @@ test("independent loading, empty and failure states", async ({ page }) => {
   const section = page.getByRole("region", { name: "반려동물 뉴스와 행사" });
   await section.scrollIntoViewIfNeeded();
   await expect(section.getByText("소식을 불러오는 중입니다.")).toBeVisible();
-  await expect(section.locator("li")).toHaveCount(1);
+  await expect(section.getByRole("region", { name: "30일 이내 반려동물 행사" }).getByRole("heading", { name: events.items[0].title, exact: true })).toBeVisible();
   release();
   await expect(section.getByText("소식을 불러오지 못했습니다.")).toBeVisible();
   await section.screenshot({ path: "verification-evidence/homepage-content/synthetic-news-failure.png" });

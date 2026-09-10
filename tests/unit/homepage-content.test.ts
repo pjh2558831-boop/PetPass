@@ -52,8 +52,8 @@ describe("homepage content boundaries", () => {
       { ...event, contentid: "4", eventstartdate: "20270101", eventenddate: "" },
       { ...event, contentid: "5", eventstartdate: "20260701", eventenddate: "20261001" },
     ], today, "checked");
-    expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ endDate: null, status: "upcoming" });
+    expect(items).toHaveLength(2);
+    expect(items.find(item => item.id === "1")).toMatchObject({ endDate: null, status: "upcoming" });
   });
   it("requires credentials without calling upstream", async () => {
     const fetcher = vi.fn();

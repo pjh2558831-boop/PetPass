@@ -60,3 +60,7 @@
 .cardArrow { position:absolute; right:16px; bottom:18px; display:grid; place-items:center; width:36px; height:36px; border:1px solid #d6e5d0; border-radius:50%; }
 .cardArrow svg { width:23px; height:23px; }
 @media(max-width:380px) { .panelHeading h2 { font-size:23px; gap:8px; } .panelHeading { gap:6px; } }
+
+.carouselControls { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:8px; padding-top:10px; font-size:12px; color:#07563f; }
+.carouselControls button { min-width:44px; min-height:44px; padding:8px 12px; border:1px solid #cbd9c7; border-radius:8px; background:white; cursor:pointer; }
+.carouselControls button:focus-visible { outline:2px solid #07563f; outline-offset:2px; }

@@ -16,9 +16,14 @@ describe("Naver event search evidence", () => {
   });
   it.each([
     "2025.09.08 ~ 09.10", "9월 8일 ~ 10일", "2026.09.09 게시, 오늘 진행 중", "2026.02.30 ~ 2026.09.10", "2026.09.08 ~ 09.10 행사 취소",
-    "2026.09.08 ~ 09.10 / 다음 행사 2026.09.11 ~ 09.13", "2026.09.10 ~ 09.08",
+    "2026.09.08 ~ 09.10 / 다음 행사 2026.09.11 ~ 09.13", "2026.09.10 ~ 09.08", "2026.09.10 ~ 09.12 대행 용역 입찰",
   ])("excludes expired, unknown, ambiguous or cancelled dates: %s", description => {
     expect(normalizeNaverEvents({ items: [{ ...item, description }] }, now)).toEqual([]);
+  });
+  it("keeps every matching event through day 30 without the former three-item cap", () => {
+    const rows = Array.from({ length: 5 }, (_, i) => ({ ...item, title: `2026 반려동물 박람회 ${i}`, link: `https://example.com/${i}`, description: "2026.10.09 ~ 10.10" }));
+    const result = normalizeNaverEvents({ items: [...rows, { ...item, description: "2026.10.10 ~ 10.11" }] }, now);
+    expect(result).toHaveLength(5);
   });
   it("rejects invalid contracts, non-pet results and unsafe links", () => {
     expect(() => normalizeNaverEvents({ items: "bad" }, now)).toThrow();
@@ -42,7 +47,7 @@ describe("Naver event search evidence", () => {
     const feed = await getNaverEventFeed();
     expect(feed).toMatchObject({ state: "ready", items: [{ imageUrl: "https://media.s3.amazonaws.com/poster.jpg", imageSourceLabel: "관련 이미지 · NAVER 검색" }] });
     expect(fetcher.mock.calls[0][0].searchParams.get("query")).toContain("2026 9월");
-    await getNaverEventFeed(); expect(fetcher).toHaveBeenCalledTimes(2);
+    await getNaverEventFeed(); expect(fetcher).toHaveBeenCalledTimes(3);
   });
 });
 

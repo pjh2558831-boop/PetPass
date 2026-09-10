@@ -296,5 +296,13 @@ export function loadKakaoMapsSdk(): Promise<KakaoMapsSdk> {
     }
   });
 
-  return sdkLoadPromise;
+  const attempt = sdkLoadPromise;
+  void attempt.catch((error: unknown) => {
+    if (sdkLoadPromise !== attempt || !(error instanceof KakaoMapsSdkLoadError) ||
+      error.code !== "SCRIPT_REQUEST_FAILED" || hasActiveMapInstance()) return;
+    document.querySelectorAll<HTMLScriptElement>(KAKAO_SDK_SELECTOR).forEach((script) => script.remove());
+    mapsLoadInvoked = false;
+    sdkLoadPromise = null;
+  });
+  return attempt;
 }

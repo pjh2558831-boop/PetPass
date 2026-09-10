@@ -1,7 +1,7 @@
 import "server-only";
 
 import { deriveRegionLabel } from "@/lib/regions/label";
-import { BUSAN_REGION_CONFIG } from "@/lib/regions/config";
+import { BUSAN_REGION_CONFIG, getRegionConfigByService2LegalDongCode } from "@/lib/regions/config";
 import { TOUR_CATEGORY_LABELS } from "@/lib/shared/format";
 import { collectTourHomepageSnapshot } from "@/lib/tour-api/homepage-catalog";
 import type { PublicMapCatalogQuery } from "@/lib/map-places/public-catalog";
@@ -115,10 +115,11 @@ function hasCoordinates(place: TourPlaceSummary): place is TourPlaceSummary & {
 }
 
 function tourHref(place: TourPlaceSummary): string {
-  const query = place.contentTypeId
-    ? `?contentTypeId=${encodeURIComponent(place.contentTypeId)}`
-    : "";
-  return `/places/${encodeURIComponent(place.contentId)}${query}`;
+  const query = new URLSearchParams();
+  if (place.contentTypeId) query.set("contentTypeId", place.contentTypeId);
+  const region = getRegionConfigByService2LegalDongCode(place.legalRegionCode);
+  if (region) query.set("region", region.id);
+  return `/places/${encodeURIComponent(place.contentId)}${query.size ? `?${query}` : ""}`;
 }
 
 function tourDistrict(place: TourPlaceSummary): string | null {

@@ -29,8 +29,14 @@ import {
   SNAPSHOT,
 } from "./homepage-test-helpers";
 
+async function chooseHomepageRegion(page: Page) {
+  await page.locator(".home-region-overview").getByRole("button", { name: "부산", exact: true }).click();
+  await page.locator(".home-map-filters summary").click();
+  await expect(page.getByRole("combobox", { name: "홈 지도 지역", exact: true })).toHaveValue("busan");
+}
+
 async function showHomepageMapMode(page: Page) {
-  if ((page.viewportSize()?.width ?? 1_024) >= 1_180) return;
+  if ((page.viewportSize()?.width ?? 1_024) > 900) return;
   await page
     .getByRole("group", { name: "홈 장소 지도 또는 목록 보기" })
     .getByRole("button", { name: "지도", exact: true })
@@ -39,7 +45,7 @@ async function showHomepageMapMode(page: Page) {
 }
 
 async function showHomepageListMode(page: Page) {
-  if ((page.viewportSize()?.width ?? 1_024) >= 1_180) return;
+  if ((page.viewportSize()?.width ?? 1_024) > 900) return;
   await page
     .getByRole("group", { name: "홈 장소 지도 또는 목록 보기" })
     .getByRole("button", { name: "목록", exact: true })
@@ -157,6 +163,7 @@ test("renders the base map while KTO enrichment is delayed by ten seconds", asyn
   });
 
   await page.goto("/");
+  await chooseHomepageRegion(page);
   await expect(page.locator(".homepage-live-ready")).toBeVisible();
   await expect(page.locator(".homepage-map-canvas-wrap .map-canvas")).toHaveAttribute(
     "data-location-count",
@@ -204,6 +211,7 @@ test("renders initial markers without waiting for images", async ({ page }) => {
   await mockHomepage(page);
 
   await page.goto("/", { waitUntil: "domcontentloaded" });
+  await chooseHomepageRegion(page);
   await expect.poll(() => imageRequested).toBe(true);
   await expect(page.locator(".homepage-live-ready")).toBeVisible();
   await expect(page.locator(".homepage-map-canvas-wrap [data-marker-registry-size]")).toHaveAttribute(
@@ -230,6 +238,7 @@ test("keeps stored markers visible when KTO enrichment fails", async ({ page }) 
   }));
 
   await page.goto("/");
+  await chooseHomepageRegion(page);
   await expect(page.locator(".homepage-live-ready")).toBeVisible();
   await expect(page.locator(".homepage-map-canvas-wrap .map-canvas")).toHaveAttribute(
     "data-location-count",
@@ -329,12 +338,12 @@ test("aborts and ignores late enrichment after navigation", async ({ page }, tes
   await expect(page.getByRole("heading", { name: "여행 정보 입력" })).toBeVisible();
 });
 
-test("uses one eager static Busan hero image without carousel controls", async ({ page }) => {
+test("uses one eager coastal hero image with explicit manual carousel controls", async ({ page }) => {
   const requestedFeaturedImages = new Set<string>();
   page.on("request", (request) => {
     const url = new URL(request.url());
     const source = url.searchParams.get("url") ?? url.pathname;
-    if (source.includes("weekendog-busan-city-ver2")) {
+    if (source.includes("coastal-dog-v4.webp")) {
       requestedFeaturedImages.add(source);
     }
   });
@@ -342,11 +351,12 @@ test("uses one eager static Busan hero image without carousel controls", async (
   await page.goto("/");
   const heroPhoto = page.locator(".weekendoog-hero-photo-frame");
   await expect(heroPhoto.locator("img")).toHaveCount(1);
-  await expect(heroPhoto.locator("img")).toHaveAttribute("alt", /부산 해변과 광안대교/u);
+  await expect(heroPhoto.locator("img")).toHaveAttribute("alt", "차창 밖으로 얼굴을 내민 골든리트리버와 푸른 해안도로 여행 풍경");
   await expect(heroPhoto.locator("img")).toHaveAttribute("loading", "eager");
-  await expect(heroPhoto.getByText("부산 해변과 해안 도심", { exact: true })).toBeVisible();
+  await expect(heroPhoto.getByRole("group", { name: "여행 이미지 선택" }).getByRole("button", { name: /^여행 이미지 [12]$/u })).toHaveCount(2);
   await expect.poll(() => requestedFeaturedImages.size).toBe(1);
-  await expect(heroPhoto.getByRole("button")).toHaveCount(0);
+  await expect(heroPhoto.getByRole("button", { name: "여행 이미지 1", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(heroPhoto.getByRole("button", { name: "다음 여행 이미지", exact: true })).toBeVisible();
   await expect(page.locator(".weekendoog-hero-slide")).toHaveCount(0);
 });
 
@@ -356,17 +366,17 @@ test("uses compact hero copy and three local official partner marks", async ({ p
 
   const hero = page.locator(".weekendoog-hero");
   await expect(hero).toContainText(
-    "공식 반려동물 동반 정보를 확인하고 실제 이동시간을 고려해",
+    "지도에서 찾고, 일정으로 이어지는",
   );
   await expect(hero).toContainText(
-    "우리 아이와 함께할 하루 일정을 만듭니다.",
+    "WEEKENDOG의 특별한 여행을 만들어보세요.",
   );
   await expect(hero.getByText("공식 데이터 기반 반려동물 여행", { exact: true })).toHaveCount(0);
 
   const launcher = page.getByRole("form", { name: "여행 만들기 빠른 시작" });
   await expect(launcher.locator(".hero-planner-label").getByText("여행 지역", { exact: true })).toBeVisible();
   await expect(launcher.getByRole("combobox", { name: "여행 지역" })).toHaveValue(REGION_CONFIGS.find(region => region.routeCapabilities.fullyAutomaticRecommendation)!.id);
-  await expect(launcher.getByRole("button", { name: "장소 찾아 일정 만들기" })).toBeVisible();
+  await expect(launcher.getByRole("button", { name: "여행지 찾기" })).toBeVisible();
   await expect(launcher.getByText("빠른 지역 선택", { exact: true })).toHaveCount(0);
   await expect(launcher.getByText("언제 갈까요?", { exact: true })).toHaveCount(0);
   await expect(launcher.getByText("누구와 함께?", { exact: true })).toHaveCount(0);
@@ -392,6 +402,8 @@ test("uses compact hero copy and three local official partner marks", async ({ p
   await expect(trust).toContainText("관광 장소와 반려동물 동반 정보");
   await expect(trust).toContainText("지도 표시와 실제 이동시간");
   await expect(trust.locator(".weekendoog-partner-row")).toHaveCount(1);
+  await trust.scrollIntoViewIfNeeded();
+  await expect.poll(() => marks.evaluateAll(images => images.every(image => (image as HTMLImageElement).naturalWidth > 0))).toBe(true);
   const partnerAspectRatios = await marks.evaluateAll((images) => images.map((image) => {
     const element = image as HTMLImageElement;
     return Number((element.naturalWidth / element.naturalHeight).toFixed(2));
@@ -400,7 +412,7 @@ test("uses compact hero copy and three local official partner marks", async ({ p
   expect(new Set(partnerAspectRatios).size).toBeGreaterThan(1);
 });
 
-test("crosses the desktop launcher over the hero edge and keeps annotated dimensions", async ({ page }, testInfo) => {
+test("keeps the desktop launcher inside the hero and sources below discovery", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "Desktop annotation only");
   await page.setViewportSize({ width: 1403, height: 986 });
   await mockHomepage(page);
@@ -419,23 +431,20 @@ test("crosses the desktop launcher over the hero edge and keeps annotated dimens
   expect(launcherBox).not.toBeNull();
   expect(trustBox).not.toBeNull();
   expect(contactBox).not.toBeNull();
-  expect(launcherBox!.width).toBeCloseTo(720, 0);
+  expect(launcherBox!.width).toBeCloseTo(1000, 0);
   expect(launcherBox!.x).toBeGreaterThan(layoutBox!.x);
   expect(launcherBox!.y).toBeGreaterThanOrEqual(copyBox!.y + copyBox!.height);
   expect(launcherBox!.y).toBeLessThan(layoutBox!.y + layoutBox!.height);
-  expect(launcherBox!.y + launcherBox!.height).toBeGreaterThan(layoutBox!.y + layoutBox!.height);
-  expect(trustBox!.height).toBeGreaterThanOrEqual(140);
-  expect(trustBox!.height).toBeLessThanOrEqual(180);
-  expect(contactBox!.height).toBeGreaterThanOrEqual(60);
-  expect(contactBox!.height).toBeLessThanOrEqual(90);
+  expect(launcherBox!.y + launcherBox!.height).toBeLessThanOrEqual(layoutBox!.y + layoutBox!.height);
+  expect(trustBox!.y).toBeGreaterThan(layoutBox!.y + layoutBox!.height);
+  expect(contactBox!.y).toBeGreaterThanOrEqual(trustBox!.y + trustBox!.height);
+  expect(contactBox!.height).toBeGreaterThanOrEqual(88);
   await expect(page.getByText(
     "실제 개인화 결과가 아니며 장소·시간은 조건에 따라 달라집니다.",
     { exact: true },
-  )).toHaveCount(1);
-  await expect(page.getByRole("link", { name: /이 조건으로 내 일정 만들기/u })).toHaveAttribute(
-    "href",
-    "/planner/pet",
-  );
+  )).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /이 조건으로 내 일정 만들기/u })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "이메일로 문의하기" })).toHaveAttribute("href", "mailto:weekendog2@gmail.com");
 });
 
 test("keeps the single hero photograph static under reduced motion", async ({ page }) => {
@@ -465,25 +474,26 @@ test("keeps loading and provider failures truthful and retryable", async ({ page
       : { json: nationwideHomepageSnapshot(SNAPSHOT, region) });
   });
   await page.goto("/");
-  await expect(page.getByLabel("전국 장소 작업 화면 불러오는 중")).toBeVisible();
-  await expect(page.getByText("장소 수를 확인하고 있어요", { exact: true })).toBeVisible();
-  await expect(page.locator(".homepage-workbench-row--skeleton")).toHaveCount(5);
+  await chooseHomepageRegion(page);
+  await expect(page.getByText("부산 장소를 불러오는 중입니다.", { exact: true })).toBeVisible();
+  await expect(page.locator(".homepage-workbench-heading strong")).toHaveText("불러오는 중");
+  await expect(page.locator(".homepage-workbench-row--skeleton")).toHaveCount(0);
   await expect(page.getByText("37곳", { exact: true })).toHaveCount(0);
   release();
-  const error = page.locator(".homepage-workbench-error");
+  const error = page.getByRole("status").filter({ hasText: "부산 장소를 불러오지 못했습니다." });
   await expect(error).toBeVisible();
   await expect(page.locator(".homepage-map-section")).toBeVisible();
-  await expect(page.getByText("장소 수를 확인하고 있어요")).toHaveCount(0);
+  await expect(page.getByText("부산 장소를 불러오는 중입니다.")).toHaveCount(0);
+  await expect(page.locator(".homepage-workbench-heading strong")).toHaveText("조회 실패");
   expect((await error.boundingBox())!.height).toBeLessThanOrEqual(220);
   fail = false;
   await error.getByRole("button", { name: "다시 시도" }).click();
   await expect(page.locator(".homepage-workbench-heading strong")).toHaveText("5곳");
   await expect(page.getByText("전국 17개 시·도 중 17개 지역 조회 완료", { exact: true })).toHaveCount(0);
-  expect(calls).toHaveLength(34);
-  expect(new Set(calls).size).toBe(17);
+  expect(calls).toEqual(["busan", "busan"]);
 });
 
-test("keeps search and selected places while retrying a partial completion", async ({ page }) => {
+test("keeps search and selected places through a regional failure and cache return", async ({ page }) => {
   await mockHomepage(page);
   const calls: string[] = [];
   const cookies: Array<string | undefined> = [];
@@ -506,30 +516,38 @@ test("keeps search and selected places while retrying a partial completion", asy
   });
   await page.context().addCookies([{ name: "petpass-test-session", value: "private", url: "http://localhost:3000" }]);
   await page.goto("/");
-  const partialNotice = page.locator(".homepage-workbench-notice--warning");
-  await expect(partialNotice).toBeVisible();
+  await chooseHomepageRegion(page);
   await page.getByRole("tab", { name: "검색", exact: true }).click();
   const search = page.getByRole("searchbox", { name: "불러온 장소 검색" });
   await search.fill("해운대");
   await page.getByRole("checkbox", { name: "해운대 달맞이 산책로 일정에 담기" }).check();
+  await expect(page.getByText("선택한 장소 1곳", { exact: true })).toBeVisible();
+  const region = page.getByRole("combobox", { name: "홈 지도 지역", exact: true });
+  await region.selectOption("seoul");
+  const partialNotice = page.getByRole("status").filter({ hasText: "서울 장소를 불러오지 못했습니다." });
+  await expect(partialNotice).toBeVisible();
+  await expect(search).toHaveValue("해운대");
   await expect(page.getByText("선택한 장소 1곳", { exact: true })).toBeVisible();
   failSeoul = false;
   await partialNotice.getByRole("button", { name: "다시 시도" }).click();
   await expect(partialNotice).toHaveCount(0);
   await expect(page.getByText("전국 17개 시·도 중 17개 지역 조회 완료", { exact: true })).toHaveCount(0);
   expect(calls.filter(region => region === "seoul")).toHaveLength(2);
-  expect(calls.filter(region => region !== "seoul")).toHaveLength(16);
+  expect(calls.filter(region => region !== "seoul")).toEqual(["busan"]);
   expect(cookies.every(cookie => cookie === undefined)).toBe(true);
   await expect(search).toHaveValue("해운대");
-  await expect(page.getByRole("checkbox", { name: "해운대 달맞이 산책로 일정에 담기" })).toBeChecked();
   await page.getByRole("button", { name: "검색어 지우기" }).click();
   await expect(page.getByText("완료 응답으로 추가된 카페", { exact: true })).toBeVisible();
+  await region.selectOption("busan");
+  await expect(page.getByRole("checkbox", { name: "해운대 달맞이 산책로 일정에 담기" })).toBeChecked();
+  expect(calls).toEqual(["busan", "seoul", "seoul"]);
 });
 
 test(MAP_FAILURE_TEST, async ({ page }) => {
   await mockHomepage(page);
   await page.route("https://dapi.kakao.com/v2/maps/sdk.js**", (route) => route.abort("failed"));
   await page.goto("/");
+  await chooseHomepageRegion(page);
 
   await showHomepageMapMode(page);
   await expect(page.locator("[data-map-error-category]")).toBeVisible();
@@ -550,6 +568,7 @@ test(MAP_FAILURE_TEST, async ({ page }) => {
 test("renders mixed source markers, dynamic counts and truthful selection through current category filters", async ({ page }) => {
   await mockHomepage(page);
   await page.goto("/");
+  await chooseHomepageRegion(page);
   const mapCanvas = page.locator(".homepage-map-canvas-wrap .map-canvas");
   await expect(mapCanvas).toHaveAttribute("data-location-count", "5");
   await expect(mapCanvas).toHaveAttribute("data-route-point-count", "0");
@@ -589,7 +608,11 @@ test("keeps supporting discovery truthful without a duplicate filter system or l
   await expect(carousel.getByRole("link", { name: /광안리 반려견 검색 후보 카카오 장소 정보/u })).toHaveAttribute("href", "https://place.map.kakao.com/101");
   await expect(page.getByRole("group", { name: "장소 출처 필터" })).toHaveCount(0);
   await expect(carousel.locator(".homepage-place-card--text-only")).toHaveCount(4);
-  await expect(carousel.locator(".catalog-card-placeholder")).toHaveCount(0);
+  await expect(carousel.locator(".catalog-card-placeholder")).toHaveCount(4);
+  for (const placeholder of await carousel.locator(".catalog-card-placeholder").all()) {
+    await expect(placeholder).toBeHidden();
+    expect(await placeholder.boundingBox()).toBeNull();
+  }
   const cards = carousel.locator(".homepage-place-card");
   for (let index = 0; index < await cards.count(); index += 1) {
     expect(await cards.nth(index).locator(".homepage-place-card__label").count()).toBeLessThanOrEqual(2);
@@ -600,11 +623,12 @@ test("keeps supporting discovery truthful without a duplicate filter system or l
 test("collapses the selected-place area until the first real selection", async ({ page }) => {
   await mockHomepage(page);
   await page.goto("/");
+  await chooseHomepageRegion(page);
   await expect(page.locator(".home-selected-itinerary")).toHaveCount(0);
-  await expect(page.getByText("장소를 지도에서 선택한 뒤 일정에 담으세요. 일정에는 같은 지역의 장소를 담을 수 있습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("지역에서 장소를 선택해 일정에 담으세요. 일정에는 같은 지역의 장소를 담을 수 있습니다.", { exact: true })).toBeVisible();
 
   await page.getByRole("checkbox", { name: "해운대 달맞이 산책로 일정에 담기" }).check();
-  await expect(page.getByText("장소를 지도에서 선택한 뒤 일정에 담으세요. 일정에는 같은 지역의 장소를 담을 수 있습니다.", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("지역에서 장소를 선택해 일정에 담으세요. 일정에는 같은 지역의 장소를 담을 수 있습니다.", { exact: true })).toHaveCount(0);
   await expect(page.locator(".home-selected-itinerary")).toBeVisible();
   await expect(page.getByText("선택한 장소 1곳", { exact: true })).toBeVisible();
 });
@@ -623,6 +647,7 @@ test("keeps official data working when the stored Kakao catalog is unavailable",
   };
   await mockHomepage(page, unavailable);
   await page.goto("/");
+  await chooseHomepageRegion(page);
   await expect(page.locator(".homepage-map-section")).toBeVisible();
   const rows = page.locator(".homepage-workbench-row");
   await expect(rows).toHaveCount(2);
@@ -650,8 +675,12 @@ test("moves card focus and opens selection without itinerary generation", async 
 
   const launcher = page.getByRole("form", { name: "여행 만들기 빠른 시작" });
   await launcher.getByRole("combobox", { name: "여행 지역" }).selectOption("busan");
-  await launcher.getByRole("button", { name: "장소 찾아 일정 만들기" }).click();
-  await expect(page).toHaveURL(url => url.pathname === "/results" && url.searchParams.get("tab") === "catalog" && url.searchParams.get("region") === "busan" && url.searchParams.get("mode") === "select");
+  await launcher.getByRole("button", { name: "여행지 찾기" }).click();
+  await expect(page).toHaveURL(url => url.pathname === "/");
+  await expect(page.locator(".homepage-live-ready")).toHaveAttribute("data-active-region", "busan");
+  await expect(page.locator(".homepage-workbench-row")).toHaveCount(5);
+  await page.getByRole("region", { name: "WEEKENDOG 여행 안내" }).getByRole("link", { name: /^우리만의 일정/u }).click();
+  await expect(page).toHaveURL(url => url.pathname === "/results" && url.searchParams.get("tab") === "catalog" && url.searchParams.get("region") === REGION_CONFIGS[0].id && url.searchParams.get("mode") === "select");
   await expect(page.getByText("0 / 5곳 담음", { exact: true })).toHaveCount(2);
   expect(generationRequests).toEqual([]);
 });
@@ -672,6 +701,7 @@ test("searches loaded places and transfers an ordered three-place selection to t
   const enrichmentReady = page.waitForResponse((response) =>
     new URL(response.url()).pathname === "/api/homepage/places/enrichment");
   await page.goto("/");
+  await chooseHomepageRegion(page);
   await enrichmentReady;
   await expect(page.locator(".homepage-live-ready")).toBeVisible();
   await expect(page.locator(".homepage-workbench-row").first().locator("[data-image-kind]")).toBeVisible();
@@ -747,6 +777,7 @@ test("searches loaded places and transfers an ordered three-place selection to t
 test("keeps homepage filter actions reachable inside the viewport", async ({ page }, testInfo) => {
   await mockHomepage(page);
   await page.goto("/");
+  await chooseHomepageRegion(page);
   await expect(page.locator(".homepage-live-ready")).toBeVisible();
   for (const width of [1440, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
@@ -806,6 +837,7 @@ test("paginates a dense home list with complete tab semantics and 44px mobile ta
   await page.setViewportSize({ width: 390, height: 844 });
   await mockHomepage(page, denseSnapshot);
   await page.goto("/");
+  await chooseHomepageRegion(page);
   await expect(page.locator(".homepage-live-ready")).toBeVisible();
 
   const skipLink = page.getByRole("link", { name: "본문으로 건너뛰기" });
@@ -872,6 +904,7 @@ test("preserves mobile order, map width, card snap width, and page overflow", as
   await page.setViewportSize({ width: 390, height: 844 });
   await mockHomepage(page);
   await page.goto("/");
+  await chooseHomepageRegion(page);
   await expect(page.locator(".homepage-live-ready")).toBeVisible();
   const copyBox = await page.locator(".weekendoog-hero-copy").boundingBox();
   const launcherBox = await page.locator(".weekendoog-hero-launcher").boundingBox();
@@ -920,11 +953,12 @@ test("keeps the live homepage inside all required viewport boundaries", async ({
   await page.setViewportSize(viewports[0]);
   await mockHomepage(page);
   await page.goto("/");
+  await chooseHomepageRegion(page);
   await expect(page.locator(".homepage-live-ready")).toBeVisible();
 
   for (const viewport of viewports) {
     await page.setViewportSize(viewport);
-    if (viewport.width < 1_180) {
+    if (viewport.width <= 900) {
       const switcher = page.getByRole("group", { name: "홈 장소 지도 또는 목록 보기" });
       await expect(switcher).toBeVisible();
       const listButton = switcher.getByRole("button", { name: "목록" });

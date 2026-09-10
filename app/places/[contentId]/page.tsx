@@ -57,7 +57,7 @@ export default async function PlaceDetailPage({
   const place = regionId === "busan" ? getDemoPlace(contentId) : undefined;
   if (!place) {
     return (
-      <LivePlaceDetail contentId={contentId} contentTypeId={contentTypeId} regionId={regionId} />
+      <LivePlaceDetail contentId={contentId} contentTypeId={contentTypeId} regionId={selectedRegion?.mapEnabled ? selectedRegion.id : undefined} />
     );
   }
 

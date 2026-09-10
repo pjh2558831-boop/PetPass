@@ -7,6 +7,7 @@ export type MapExplorerMetric =
   | "react_commit"
   | "first_useful_cards"
   | "warm_filter_feedback"
+  | "filter_results"
   | "warm_region_revisit";
 
 function metricAttribute(metric: MapExplorerMetric): string {

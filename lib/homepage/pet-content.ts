@@ -41,7 +41,7 @@ export function selectEvents(items: TourItem[], today: string, checkedAt: string
     const endDate = calendarDate(item.eventenddate);
     if (!item.contentid || !title || !PET_EVENT_TERMS.test(title) || !startDate || (item.eventenddate && !endDate)) continue;
     if (item.contenttypeid && item.contenttypeid !== "15") continue;
-    if (startDate < offsetDate(today, -30) || startDate > offsetDate(today, 90)) continue;
+    if (startDate > offsetDate(today, 30)) continue;
     if (/취소|연기/u.test(item.progresstype ?? "")) continue;
     const status = eventStatus(startDate, endDate, today);
     if (!status || unique.has(item.contentid)) continue;

@@ -18,7 +18,7 @@ export function normalizeNaverEvents(input: unknown, now = new Date()): PetEvent
     const title = plain(item.title), sourceText = plain(item.description);
     const text = `${title} ${sourceText}`;
     const informationUrl = safeContentUrl(item.link);
-    if (!title || !informationUrl || !PET_EVENT_TERMS.test(title) || /취소|연기/u.test(text)) continue;
+    if (!title || !informationUrl || !PET_EVENT_TERMS.test(title) || /취소|연기|입찰|대행\s*용역|협상에\s*의한\s*계약/u.test(text)) continue;
     // ponytail: accept one explicit year-qualified date range only; ambiguous search snippets stay out.
     const ranges = [...text.matchAll(/(20\d{2})[.\/년-]\s*(\d{1,2})[.\/월-]\s*(\d{1,2})[.일]?(?:\s*\([^)]{1,5}\))?\s*[~∼～–—-]\s*(?:(20\d{2})[.\/년-]\s*)?(?:(\d{1,2})[.\/월-]\s*)?(\d{1,2})[.일]?/gu)];
     const dates = new Map<string, [string, string]>();
@@ -30,14 +30,15 @@ export function normalizeNaverEvents(input: unknown, now = new Date()): PetEvent
     if (dates.size !== 1) continue;
     const [startDate, endDate] = [...dates.values()][0];
     const status = eventStatus(startDate, endDate, today);
-    if (!status || startDate > offsetDate(today, 90)) continue;
-    const key = `${title}:${startDate}:${endDate}`;
+    if (!status || startDate > offsetDate(today, 30)) continue;
+    const identity = title.split(/\s+[|–—-]\s+/u)[0].replace(/[^가-힣a-z0-9]/giu, "").toLowerCase();
+    const key = `${identity}:${startDate}:${endDate}`;
     if (unique.has(key)) continue;
     unique.set(key, { id: `naver:${informationUrl}`, title, startDate, endDate, status,
       regionLabel: "지역 확인 필요", venueLabel: sourceText.match(/장소\s*[:：]\s*([^/|;\n.]{2,65})/u)?.[1].trim() ?? null,
       informationUrl, source: "네이버 검색", sourceText, checkedAt: now.toISOString() });
   }
-  return [...unique.values()].sort((a, b) => Number(b.status === "ongoing") - Number(a.status === "ongoing") || a.startDate.localeCompare(b.startDate)).slice(0, 3);
+  return [...unique.values()].sort((a, b) => Number(b.status === "ongoing") - Number(a.status === "ongoing") || a.startDate.localeCompare(b.startDate));
 }
 
 async function eventImage(item: PetEventItem): Promise<string | null> {
@@ -67,11 +68,28 @@ export async function getNaverEventFeed(): Promise<ContentFeed<PetEventItem>> {
   try {
     const now = new Date();
     const today = kstToday(now);
-    const items = normalizeNaverEvents(await naverSearch("webkr", { query: `${today.slice(0, 4)} ${Number(today.slice(5, 7))}월 반려동물 박람회 행사`, display: "30" }), now);
-    if (items[0]) {
-      items[0].imageUrl = await eventImage(items[0]).catch(() => null);
-      if (items[0].imageUrl) items[0].imageSourceLabel = "관련 이미지 · NAVER 검색";
+    const months = [...new Set([today.slice(0, 7), offsetDate(today, 30).slice(0, 7)])];
+    const searches = await Promise.allSettled(months.map(month => naverSearch("webkr", {
+      query: `${month.slice(0, 4)} ${Number(month.slice(5, 7))}월 반려동물 박람회 행사`, display: "100",
+    })));
+    const unique = new Map<string, PetEventItem>();
+    for (const result of searches) {
+      if (result.status !== "fulfilled") continue;
+      for (const item of normalizeNaverEvents(result.value, now)) {
+        const key = `${item.title.split(/\s+[|–—-]\s+/u)[0].replace(/\s/g, "")}:${item.startDate}:${item.endDate}`;
+        if (!unique.has(key)) unique.set(key, item);
+      }
     }
-    return { state: items.length ? "ready" : "empty", items };
+    const items = [...unique.values()].sort((a, b) => a.startDate.localeCompare(b.startDate));
+    // ponytail: two workers bound image requests while enriching every returned event.
+    let next = 0;
+    await Promise.all([0, 1].map(async () => {
+      while (next < items.length) {
+        const item = items[next++];
+        item.imageUrl = await eventImage(item).catch(() => null);
+        if (item.imageUrl) item.imageSourceLabel = "관련 이미지 · NAVER 검색";
+      }
+    }));
+    return { state: items.length ? "ready" : searches.every(result => result.status === "rejected") ? "unavailable" : "empty", items, coverageLimited: true };
   } catch { return { state: "unavailable", items: [] }; }
 }

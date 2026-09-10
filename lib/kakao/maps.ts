@@ -320,6 +320,7 @@ export function createKakaoMapController(
   options: {
     defaultCenter: Coordinates;
     defaultLevel?: number;
+    initialViewport?: { center: Coordinates; level: number };
     defaultBounds?: KakaoCurrentMapSearch["rectangle"];
     locations: KakaoMapLocation[];
     routeCoordinates?: Coordinates[];
@@ -353,12 +354,12 @@ export function createKakaoMapController(
   const CustomOverlayConstructor = maps.CustomOverlay;
 
   const defaultCenter = new maps.LatLng(
-    options.defaultCenter.latitude,
-    options.defaultCenter.longitude,
+    (options.initialViewport?.center ?? options.defaultCenter).latitude,
+    (options.initialViewport?.center ?? options.defaultCenter).longitude,
   );
   const map = new maps.Map(container, {
     center: defaultCenter,
-    level: options.defaultLevel ?? 8,
+    level: options.initialViewport?.level ?? options.defaultLevel ?? 8,
   });
   const nativeMarkerImages = new Map<KakaoMapMarkerKind, KakaoMarkerImage>();
   const nativeMarkerVisual = (kind: KakaoMapMarkerKind) => {
@@ -482,6 +483,7 @@ export function createKakaoMapController(
   let shouldShowSelectionInfo = options.showSelectionInfo !== false;
   let destroyed = false;
   let pendingProgrammaticViewport = false;
+  let userMoved = false;
   const clustererResetCount = 0;
   let clusterRedrawCount = 0;
   let createdSourceMarkerCount = 0;
@@ -491,15 +493,10 @@ export function createKakaoMapController(
   let currentDefaultBounds = options.defaultBounds;
   let updateGeneration = 0;
   const markerBatchSize = Math.max(1, options.markerBatchSize ?? 300);
+  let cancelScheduledBatch: (() => void) | null = null;
   const scheduleMarkerBatch = options.scheduleMarkerBatch ?? ((callback: () => void) => {
-    const browserScheduler = (globalThis as typeof globalThis & {
-      scheduler?: { postTask?: (task: () => void, options?: { priority?: string }) => Promise<unknown> };
-    }).scheduler;
-    if (browserScheduler?.postTask) {
-      void browserScheduler.postTask(callback, { priority: "user-visible" });
-      return;
-    }
-    setTimeout(callback, 0);
+    const timer = setTimeout(() => { cancelScheduledBatch = null; callback(); }, 0);
+    cancelScheduledBatch = () => { clearTimeout(timer); cancelScheduledBatch = null; callback(); };
   });
 
   container.dataset.kakaoMapInitialized = "true";
@@ -595,11 +592,16 @@ export function createKakaoMapController(
       ? "programmatic"
       : "user";
     pendingProgrammaticViewport = false;
+    if (cause === "user") userMoved = true;
     options.onViewportIdle?.(viewport, cause, map.getLevel?.());
   };
   maps.event.addListener(map, "idle", viewportIdleHandler);
   const initialViewport = readSearchViewport();
-  if (initialViewport) options.onViewportIdle?.(initialViewport, "initial");
+  if (initialViewport) options.onViewportIdle?.(initialViewport, "initial", map.getLevel?.());
+  const userInteractionHandler = () => { userMoved = true; pendingProgrammaticViewport = false; pendingCamera = null; };
+  maps.event.addListener(map, "dragstart", userInteractionHandler);
+  const zoomStartHandler = () => { if (!pendingProgrammaticViewport) userInteractionHandler(); };
+  maps.event.addListener(map, "zoom_start", zoomStartHandler);
 
   const syncClusteredCatalogOverlays = (clustersValue: unknown) => {
     if (destroyed) return;
@@ -663,6 +665,7 @@ export function createKakaoMapController(
   const controller: KakaoMapController = {
     zoomBy(delta) {
       if (destroyed || !map.getLevel || !map.setLevel) return;
+      userInteractionHandler();
       map.setLevel(Math.max(1, Math.min(14, map.getLevel() + delta)));
     },
     setSatellite(enabled) {
@@ -671,6 +674,9 @@ export function createKakaoMapController(
     },
     destroy() {
       if (destroyed) return;
+      destroyed = true;
+      updateGeneration += 1;
+      cancelScheduledBatch?.();
       if (clusterer) {
         maps.event.removeListener(
           clusterer,
@@ -681,6 +687,8 @@ export function createKakaoMapController(
       clearLayers();
       maps.event.removeListener(map, "click", mapClickHandler);
       maps.event.removeListener(map, "idle", viewportIdleHandler);
+      maps.event.removeListener(map, "dragstart", userInteractionHandler);
+      maps.event.removeListener(map, "zoom_start", zoomStartHandler);
       destroyed = true;
       container.replaceChildren();
       delete container.dataset.clustererReady;
@@ -741,6 +749,7 @@ export function createKakaoMapController(
     },
 
     resetRegion(defaultBounds) {
+      userMoved = false;
       currentDefaultBounds = defaultBounds;
       pendingCamera = null;
       clearLayers();
@@ -804,7 +813,10 @@ export function createKakaoMapController(
     },
 
     async updateData(locations, routeCoordinates, updateOptions = {}) {
+      if (destroyed) return false;
       const generation = ++updateGeneration;
+      cancelScheduledBatch?.();
+      container.dataset.markerRegistrationPending = "true";
       const updateStartedAt = performance.now();
       if (clusterer && pendingClusterSourceIds.size > 0) {
         const pendingMarkers = [...pendingClusterSourceIds]
@@ -1009,9 +1021,16 @@ export function createKakaoMapController(
         }
       };
 
-      for (let index = 0; index < locations.length; index += markerBatchSize) {
-        const batch = locations.slice(index, index + markerBatchSize);
-        batch.forEach(renderLocation);
+      let longestSliceMs = 0;
+      for (let index = 0; index < locations.length;) {
+        const sliceStarted = performance.now();
+        const batch: KakaoMapLocation[] = [];
+        do {
+          const location = locations[index++];
+          batch.push(location);
+          renderLocation(location);
+        } while (index < locations.length && batch.length < markerBatchSize && performance.now() - sliceStarted < 6);
+        longestSliceMs = Math.max(longestSliceMs, performance.now() - sliceStarted);
         if (clusterer && locations.length > markerBatchSize) {
           const batchIds = batch.map(({ id }) => id)
             .filter((id) =>
@@ -1024,7 +1043,7 @@ export function createKakaoMapController(
           batchIds.forEach((id) => pendingClusterSourceIds.add(id));
         }
         container.dataset.createdSourceMarkerCount = String(createdSourceMarkerCount);
-        if (index + markerBatchSize < locations.length) {
+        if (index < locations.length) {
           await new Promise<void>((resolve) => scheduleMarkerBatch(resolve));
           if (destroyed || generation !== updateGeneration) return false;
         }
@@ -1085,6 +1104,17 @@ export function createKakaoMapController(
         });
       }
 
+      let inactiveToEvict = sourceMarkerRegistry.size - desiredSourceIds.size - 2048;
+      for (const [id, record] of sourceMarkerRegistry) {
+        if (inactiveToEvict <= 0) break;
+        if (desiredSourceIds.has(id)) continue;
+        record.listenerCleanup();
+        record.marker.setMap(null);
+        sourceMarkerRegistry.delete(id);
+        inactiveToEvict -= 1;
+      }
+      container.dataset.markerRegistrationPending = "false";
+      container.dataset.longestMarkerSliceMs = longestSliceMs.toFixed(2);
       container.dataset.catalogMarkerCount = String(desiredSourceIds.size);
       container.dataset.interactiveMarkerCount = String(interactiveMarkerCount);
       container.dataset.markerRegistrySize = String(desiredSourceIds.size);
@@ -1102,7 +1132,7 @@ export function createKakaoMapController(
       recordHomepageBrowserTiming("map", "marker_update", updateStartedAt);
       if (pendingCamera && pendingCamera !== "bounds" && "id" in pendingCamera && locationPositions.has(pendingCamera.id)) {
         controller.focusLocation(pendingCamera.id);
-      } else if (updateOptions.fitBounds !== false) controller.fitBounds();
+      } else if (updateOptions.fitBounds !== false && !userMoved) controller.fitBounds();
       if (previousSelection && locationPositions.has(previousSelection)) {
         controller.selectLocation(previousSelection);
       }
@@ -1118,8 +1148,21 @@ export function createKakaoMapController(
   ) {
     const content = document.createElement("div");
     content.className = "kakao-map-info";
+    content.setAttribute("role", "region");
+    content.setAttribute("aria-label", "선택한 장소 미리보기");
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "kakao-map-info__close";
+    close.setAttribute("aria-label", "장소 미리보기 닫기");
+    close.textContent = "×";
+    const dismiss = () => { controller.selectLocation(null, true); };
+    close.addEventListener("click", event => { event.stopPropagation(); dismiss(); });
+    content.addEventListener("keydown", event => { if (event.key === "Escape") { event.stopPropagation(); dismiss(); } });
+    content.append(close);
     const name = document.createElement("strong");
     name.textContent = selected.location.name;
+    name.setAttribute("role", "heading");
+    name.setAttribute("aria-level", "3");
     const address = document.createElement("span");
     address.textContent = selected.location.address;
     content.append(name, address);
@@ -1132,7 +1175,7 @@ export function createKakaoMapController(
       map,
       position: selected.position,
       content: selectionContent ?? content,
-      clickable: Boolean(selectionContent),
+      clickable: true,
       xAnchor: 0.5,
       yAnchor: selectionContent ? 1 : 1.75,
       zIndex: 10,
@@ -1140,6 +1183,6 @@ export function createKakaoMapController(
     container.dataset.infoOverlayCount = "1";
   }
 
-  void controller.updateData(options.locations, options.routeCoordinates ?? []);
+  void controller.updateData(options.locations, options.routeCoordinates ?? [], { fitBounds: !options.initialViewport });
   return controller;
 }

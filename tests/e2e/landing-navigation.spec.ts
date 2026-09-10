@@ -1,6 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import { REGION_CONFIGS } from "@/lib/regions/config";
 
+import { installFakeMap, mockHomepage } from "./homepage-test-helpers";
+
 const PAGE_TITLE = "WEEKENDOG | 근거 있는 반려동물 동반 여행";
 
 async function mockUnavailableHomepageData(page: Page) {
@@ -22,6 +24,8 @@ async function mockUnavailableHomepageData(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
+  await installFakeMap(page);
+  await mockHomepage(page);
   await mockUnavailableHomepageData(page);
 });
 
@@ -55,10 +59,13 @@ test("renders the landing page and reaches the existing selected-place entry", a
 
   const primaryCta = main
     .getByRole("form", { name: "여행 만들기 빠른 시작" })
-    .getByRole("button", { name: "장소 찾아 일정 만들기" });
+    .getByRole("button", { name: "여행지 찾기" });
   await primaryCta.click();
 
-  const defaultRegion = REGION_CONFIGS.find(region => region.routeCapabilities.fullyAutomaticRecommendation)!;
+  await expect(page).toHaveURL(url => url.pathname === "/");
+  await expect(page.locator(".homepage-live-ready")).toHaveAttribute("data-active-region", REGION_CONFIGS[0].id);
+  await page.getByRole("region", { name: "WEEKENDOG 여행 안내" }).getByRole("link", { name: /^우리만의 일정/u }).click();
+  const defaultRegion = REGION_CONFIGS[0];
   await expect(page).toHaveURL(url => url.pathname === "/results" && url.searchParams.get("tab") === "catalog" && url.searchParams.get("region") === defaultRegion.id && url.searchParams.get("page") === "1" && url.searchParams.get("mode") === "select");
   await expect(page.getByText("0 / 5곳 담음", { exact: true })).toHaveCount(2);
 });

@@ -1,3 +1,114 @@
+# E2E recovery review — 2026-09-10 (completed)
+
+This section audits only changes since this task began in UI_VER_4. Earlier dirty
+files are user-owned. Entry tests were copied to the task TEMP folder and their
+hashes recorded before edits. No product code has been changed.
+
+## E1: explicit region entry and current regional state
+
+| Changed E2E | Old expectation/setup | New expectation/setup | Product evidence | Why not weakening |
+|---|---|---|---|---|
+| delayed enrichment; initial markers/images; failed enrichment | immediately5 venue markers | click Busan region, still exactly5 venue markers | design.md:812; homepage-nationwide unit; current overview17 | retains delay/image independence and complete venue count |
+| mixed sources; unavailable Kakao; map failure | immediately available venue rows | explicit Busan entry, native filter disclosure | on-demand region contract | same source counts, selection, list usability and API invariants |
+| ordered three-place selection; dense pagination | initial venue list | explicit region entry | same contract; existing storage schema | retains3-place order/removal/planner submission and12-card pagination |
+| loading/retry | global loading skeleton5,17-region fanout,34 requests | local Busan status/count,0 fake venue rows,2 Busan requests | latest HomepageNationwidePlaces + design-qa on-demand amendment | proves error is not empty success and retry is scoped; no eager nationwide requirement |
+| regional failure/cache return (renamed from partial completion) | implicit17-region aggregate with partial warning | select Busan/save/search, select failing Seoul, retry only Seoul, return cached Busan | latest single-region loader; existing selection hook and cache | preserves search and saved choice, adds no-refetch return check; obsolete aggregate state removed |
+| selection area | old guidance sentence | exact current regional guidance | HomepageNationwidePlaces + on-demand wording | same before/after tray absence/presence and selected count |
+| filter/mobile/all-width boundaries | hidden filters; old1180 breakpoint | open native details;900 breakpoint | design.md v4 and app/homepage-v4.css | same44px, keyboard/tab, map/list, viewport/overflow assertions |
+
+Flags so far: removed global5 skeleton assertion replaced by truthful local state;
+34-request nationwide assumption replaced by exact2 scoped requests;16 other-region
+requests replaced by1 Busan request. No assertions about actual source count,
+selection order, refresh, saved verdicts or provider truth were removed.
+No new skip, force click, positional selector, timeout increase or easier provider
+fixture. Existing first/last/nth uses are unchanged and audited later separately.
+
+E1 representative:RED1, thenGREEN6 (3 per project). Cluster first run20PASS/8FAIL;
+remaining4 stale state/copy/breakpoint cases fixed,24/24 repeatPASS. Canonical
+homepage-nationwide unit3PASS. Full milestone1:369PASS/23FAIL/44SKIP.
+
+## B1 / C1 / D1: current-contract audit
+
+All rows change E2E only; product code changed: **no**.
+
+| Changed E2E | Old expectation | New expectation | Product evidence | Why not weakening |
+|---|---|---|---|---|
+| uses one eager coastal hero image (renamed) | Busan first photo, no controls | exact coastal alt, one eager image/request,2 named image buttons plus next and selected state | hero-photo-carousel.tsx; design.md v4;5f44390 | Tests current manual controls; unchanged reduced-motion no-autoplay test remains |
+| uses compact hero copy | historical copy/CTA | exact v4 copy/travel search; scroll source logos into view and await naturalWidth | HeroPlannerLauncher, HomepageLanding; lazy Image contract | Still3 exact local logos and distinct valid aspect ratios; real load state replaces premature read |
+| keeps desktop launcher inside hero (renamed) |720px straddling edge; old source/contact heights; sample trip |1000px inside hero; source/contact ordered below; contact>=88; removed sample absent; exact mailto | design.md:807 and v4 CSS; design-qa removal amendment | Superseded geometry replaced by current non-overlap bounds; removed feature asserted absent |
+| moves card focus and opens selection | hero immediately opens results with Busan | hero applies Busan locally with5 rows; current itinerary link opens select route with config default | HomepageLanding onSearch; catalog-url REGION_CONFIGS[0] fallback | Keeps Home/End keyboard, selection entry, two empty trays and zero generation requests; adds local-search check |
+| landing selected-place entry | obsolete hero CTA opens results | current local search then current itinerary link; config default | same current contracts; existing header route assertion | Keeps metadata, result query/page/mode and trays; existing offline503 maintained; shared fake SDK prevents live dependence |
+| supporting discovery | placeholder DOM count0 |4 hidden placeholders, each has null layout box | weekendog-globals.css:8712; PlaceCardMedia missing state | Proves actual no-large-placeholder UX rather than banning hidden implementation nodes; source/card checks unchanged |
+| synthetic content layout at1440/768/390/320 |6 li including old event row;2099 date |5 news li plus visible1/3 carousel group/title; fixed2026-09-10 clock and Sept12–14 dates | existing EventCarousel, eventStatus/offsetDate; event-carousel.spec.ts | All3 fixtures, nullable endDate/URL/image and source variants preserved; correct30-day window |
+| independent loading/empty/failure |1 event li | current event heading visible while news pending | same carousel contract | Reloads, independent failure/empty states and requests preserved |
+| search event image failure |2099 fixture excluded before target | current-window same source/error-image fixture | same date contract | Exact source, image fallback and news assertions unchanged |
+
+Flag audit: no newly added skips, force clicks, positional selectors, waitForTimeout,
+timeout increases, deleted refresh, deleted destination or easier provider payload.
+Removed assertions are explicitly replaced above (old copy/layout/count/aggregate state).
+New anchored name regex identifies precisely the two image buttons and the current
+itinerary link; no existing assertion regex was broadened. Existing Home/End
+first/last selectors are meaningful positional contracts and unchanged. Existing
+arbitrary card-loop nth remains pre-existing; content panel nth0/1 were removed in
+favor of aria-labelledby scope. Clock freezes Date only, not timers, so carousel
+pause/rotation tests still run. No fixture category, evidence or unavailable variant
+was removed. The5-repeat logo gate and70-repeat content gate passed without retries.
+
+## Exact changed-body inventory (22 bodies/templates)
+
+Each row inherits its cluster rationale above; product changed: no. The shared
+content clock/date also affects the unchanged image-error test body. Landing
+beforeEach now mocks SDK/data for all existing landing tests.
+
+| File | Current test title | Audit cluster |
+|---|---|---|
+| homepage.spec.ts | renders the base map while KTO enrichment is delayed by ten seconds | E1 |
+| homepage.spec.ts | renders initial markers without waiting for images | E1 |
+| homepage.spec.ts | keeps stored markers visible when KTO enrichment fails | E1 |
+| homepage.spec.ts | uses one eager coastal hero image with explicit manual carousel controls | B1 |
+| homepage.spec.ts | uses compact hero copy and three local official partner marks | B1 |
+| homepage.spec.ts | keeps the desktop launcher inside the hero and sources below discovery | B1 |
+| homepage.spec.ts | keeps loading and provider failures truthful and retryable | E1 |
+| homepage.spec.ts | keeps search and selected places through a regional failure and cache return | E1 |
+| homepage.spec.ts | MAP_FAILURE_TEST | E1 |
+| homepage.spec.ts | renders mixed source markers, dynamic counts and truthful selection through current category filters | E1 |
+| homepage.spec.ts | keeps supporting discovery truthful without a duplicate filter system or large placeholders | C1 |
+| homepage.spec.ts | collapses the selected-place area until the first real selection | E1 |
+| homepage.spec.ts | keeps official data working when the stored Kakao catalog is unavailable | E1 |
+| homepage.spec.ts | moves card focus and opens selection without itinerary generation | B1 |
+| homepage.spec.ts | searches loaded places and transfers an ordered three-place selection to the existing selected planner | E1 |
+| homepage.spec.ts | keeps homepage filter actions reachable inside the viewport | E1 |
+| homepage.spec.ts | paginates a dense home list with complete tab semantics and 44px mobile targets | E1 |
+| homepage.spec.ts | preserves mobile order, map width, card snap width, and page overflow | E1 |
+| homepage.spec.ts | keeps the live homepage inside all required viewport boundaries | E1 |
+| homepage-pet-content.spec.ts | synthetic content layout at ${width}px | D1 |
+| homepage-pet-content.spec.ts | independent loading, empty and failure states | D1 |
+| landing-navigation.spec.ts | renders the landing page and reaches the existing selected-place entry | B1 |
+
+## F1: recommendation shared card fixture audit
+
+`recommendation-ui.spec.ts` now reuses existing `mockHomepageCardDetails` in
+beforeEach. All current specialized per-test routes still register afterwards and
+override it. No provider fixture fields or route semantics are removed.
+The saved-restore test additionally waits for the actual card response and asserts
+200 before saving. Old behavior raced an unmocked optional photo request against
+navigation; new behavior fully establishes deterministic generation before testing
+zero-request restoration. Product evidence: Timeline useEffect in
+recommendation-planner.tsx; card-details-client schema; saved storage contract.
+Product code changed: no. Assertions removed:0. Refresh removed:0. Error filters:0.
+Timeout change:0.5 consecutive saved-route passes, no retries. The direct body
+inventory is now23 bodies/templates across4 files, plus shared-hook effects.
+
+## Final verification
+
+Final392PASS/0FAIL/44SKIP,flaky0. Non-E2E verify PASS: typecheck/lint/1585unit/build.
+Final report and repeat evidence: verification-evidence/e2e-recovery-2026-09-10/.
+No product changes or external actions. All44 skip reason counts match baseline.
+
+---
+
+## Historical recovery (2026-09-09; unchanged record)
+
 # E2E recovery review v1
 
 2026-09-09. 범위: 기존 deterministic E2E 복구. 이 작업에서 production 코드, 정책, 의존성, Playwright 설정은 변경하지 않는다. 아래 표는 이번 작업의 변경만 다룬다. 이미 존재하던 NAVER/뉴스·행사/마커 preview/저장 복원 변경은 별도 작업이다.

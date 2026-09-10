@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import Image from "next/image";
 import { ArrowUpRight, CalendarDays, MapPin, Megaphone } from "lucide-react";
-import { eventStatus, kstToday } from "@/lib/homepage/pet-content";
+import { eventStatus, kstToday, offsetDate } from "@/lib/homepage/pet-content";
 import type { ContentFeed, PetEventItem, PetNewsItem } from "@/types/pet-content";
 import styles from "./homepage-pet-content.module.css";
 
@@ -58,6 +58,40 @@ function EventCard({ item }: { item: PetEventItem }) {
   return item.informationUrl ? <a href={item.informationUrl} target="_blank" rel="noopener noreferrer" className={styles.eventCard}>{content}</a> : <div className={styles.eventCard}>{content}</div>;
 }
 
+function EventCarousel({ items }: { items: PetEventItem[] }) {
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [interacting, setInteracting] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(true);
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReducedMotion(media.matches);
+    update(); media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  useEffect(() => {
+    if (items.length < 2 || paused || interacting || reducedMotion) return;
+    const timer = setInterval(() => {
+      if (!document.hidden) setIndex(value => (value + 1) % items.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [items.length, paused, interacting, reducedMotion]);
+  const active = index % items.length;
+  return <div className={styles.carousel} role="region" aria-roledescription="캐러셀" aria-label="30일 이내 반려동물 행사"
+    onMouseEnter={() => setInteracting(true)} onMouseLeave={() => setInteracting(false)}
+    onFocusCapture={() => setInteracting(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setInteracting(false); }}>
+    <div role="group" aria-roledescription="슬라이드" aria-label={`${active + 1} / ${items.length}`}>
+      <EventCard key={items[active].id} item={items[active]} />
+    </div>
+    {items.length > 1 && <div className={styles.carouselControls}>
+      <button type="button" aria-label="이전 행사" onClick={() => setIndex((active + items.length - 1) % items.length)}>←</button>
+      <span>{active + 1} / {items.length}개 행사</span>
+      <button type="button" aria-label="다음 행사" onClick={() => setIndex((active + 1) % items.length)}>→</button>
+      {!reducedMotion && <button type="button" onClick={() => setPaused(value => !value)}>{paused ? "자동 넘김 재생" : "자동 넘김 일시정지"}</button>}
+    </div>}
+  </div>;
+}
+
 export function HomepagePetContent() {
   const newsRef = useRef<HTMLDivElement>(null);
   const eventsRef = useRef<HTMLDivElement>(null);
@@ -72,8 +106,8 @@ export function HomepagePetContent() {
   }, []);
   const eventItems = events?.items.flatMap(item => {
     const status = today ? eventStatus(item.startDate, item.endDate, today) : item.status;
-    return status ? [{ ...item, status }] : [];
-  }).slice(0, 1) ?? [];
+    return status && (!today || item.startDate <= offsetDate(today, 30)) ? [{ ...item, status }] : [];
+  }) ?? [];
 
   return <section className={`homepage-shell ${styles.section}`} aria-label="반려동물 뉴스와 행사">
     <div ref={newsRef} className={styles.panel} aria-labelledby="pet-news-heading">
@@ -97,10 +131,10 @@ export function HomepagePetContent() {
       <p className={styles.eyebrow}>달력에 담아둘 만남</p>
       <div className={styles.panelHeading}><h2 id="pet-events-heading"><CalendarDays aria-hidden="true" /> 축제 알리미</h2>
         {events?.state === "ready" && <a href="https://search.naver.com/search.naver?query=반려동물+박람회+일정" target="_blank" rel="noopener noreferrer">더보기 <ExternalMark /></a>}</div>
-      <p className={styles.description}>전국의 반려동물 관련 행사 일정을 확인해 보세요.</p>
+      <p className={styles.description}>오늘부터 30일 이내 진행되는 반려동물 행사를 확인해 보세요.</p>
       <div className={styles.rows} aria-busy={!events}>
         {!events ? <p className={styles.message}>행사 정보를 불러오는 중입니다.</p> : events.state === "unavailable" ? <p className={styles.message}>행사 정보를 불러오지 못했습니다.</p> : !eventItems.length ? <p className={styles.message}>조회 기간에 확인된 반려동물 행사가 없습니다.</p> :
-          <ul>{eventItems.map(item => <li key={item.id}><EventCard item={item} /></li>)}</ul>}
+          <EventCarousel items={eventItems} />}
       </div>
       <p className={styles.note}>{events?.items[0]?.source === "네이버 검색" ? "NAVER 검색 · 검색 결과에 표시된 일정 기준" : "한국관광공사 우선 · 행사 미조회 시 NAVER 검색"}{events?.coverageLimited ? " · 일부 조회 결과" : ""}</p>
       <p className={styles.note}>반려동물 입장 조건과 일정 변경 여부는 행사 안내를 확인해 주세요.</p>

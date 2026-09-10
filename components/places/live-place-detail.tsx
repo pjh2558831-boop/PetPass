@@ -34,7 +34,7 @@ import { Button } from "@/components/ui/button";
 import { ProductState } from "@/components/ui/product-state";
 import { TOUR_CATEGORY_LABELS } from "@/lib/shared/format";
 import { deriveRegionLabel } from "@/lib/regions/label";
-import { getRegionConfig } from "@/lib/regions/config";
+import { getRegionConfig, getRegionConfigByService2LegalDongCode } from "@/lib/regions/config";
 import type { ApiError, ApiResult } from "@/types/api";
 import type { TourPlaceDetailResponse } from "@/types/place";
 import type { RegionId } from "@/types/region";
@@ -61,17 +61,18 @@ function publicDetailErrorMessage(code: ApiError["code"]): string {
 export function LivePlaceDetail({
   contentId,
   contentTypeId,
-  regionId,
+  regionId: requestedRegionId,
 }: {
   contentId: string;
   contentTypeId?: string;
-  regionId: RegionId;
+  regionId?: RegionId;
 }) {
-  const region = getRegionConfig(regionId);
-  const selection = useSelectedItinerarySelection({ regionId });
   const [shareMessage, setShareMessage] = useState("");
   const [state, setState] = useState<DetailState>("loading");
   const [detail, setDetail] = useState<TourPlaceDetailResponse | null>(null);
+  const regionId = requestedRegionId ?? getRegionConfigByService2LegalDongCode(detail?.summary.legalRegionCode)?.id ?? "busan";
+  const region = getRegionConfig(regionId);
+  const selection = useSelectedItinerarySelection({ regionId });
   const [error, setError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
 
@@ -79,7 +80,7 @@ export function LivePlaceDetail({
     const controller = new AbortController();
     const load = async () => {
       const query = new URLSearchParams({
-        region: regionId,
+        ...(requestedRegionId ? { region: requestedRegionId } : {}),
         ...(contentTypeId ? { contentTypeId } : {}),
       });
       try {
@@ -95,9 +96,9 @@ export function LivePlaceDetail({
               : "장소 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
           );
         }
-        const requestedRegion = getRegionConfig(regionId);
+        const requestedRegion = getRegionConfig(requestedRegionId);
         if (
-          body.data.summary.legalRegionCode &&
+          requestedRegion && body.data.summary.legalRegionCode &&
           body.data.summary.legalRegionCode !== requestedRegion.providerCodes.korPetTourService2.legalDongRegionCode
         ) {
           throw new PublicDetailLoadError("선택한 지역에서 이 장소를 확인할 수 없습니다.");
@@ -117,7 +118,7 @@ export function LivePlaceDetail({
     };
     void load();
     return () => controller.abort();
-  }, [contentId, contentTypeId, regionId, retryCount]);
+  }, [contentId, contentTypeId, requestedRegionId, retryCount]);
 
   if (state === "loading") {
     return (

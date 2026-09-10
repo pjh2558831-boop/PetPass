@@ -52,7 +52,7 @@ describe("public catalog card pet conditions", () => {
     expect(html).toContain(condition);
     expect(html).not.toContain("조건부 동반");
     expect(html).not.toContain("동반 여부 미확인");
-    expect(html).toContain("동반 가능 여부를 확인");
+    expect(html).not.toContain("카카오 검색 후보입니다.");
     expect(html).not.toContain("최신 동반 조건을 확인");
     expect(html).toContain('aria-expanded="false"');
     expect(html).toContain("aria-controls=");

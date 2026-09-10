@@ -743,8 +743,9 @@ static map, or category placeholder. They never infer provenance from URL text.
    labelled `위치 미리보기`, and controlled only by the server flag
    `KAKAO_STATIC_MAP_THUMBNAILS_ENABLED`. It may be enabled only after a
    bounded official API/configuration test. Failure falls through safely.
-4. A local polished category illustration is the universal fallback and says
-   `장소 사진 준비 중`; it is not a broken-image panel or venue photograph.
+4. Missing photographs use the category fallback labelled `제공된 장소 사진 없음`.
+   This is finished content, not a pending photograph. Failed URLs retain the
+   image region and an explicit retry; a static map remains `위치 미리보기`.
 
 No implementation scrapes or hotlinks Kakao place pages, galleries, Naver,
 blogs, or search results. A future thumbnail handler, when enabled, accepts a
@@ -814,3 +815,37 @@ budgets and live versus synthetic verification evidence.
 
 ### 뉴스와 행사
 반려동물 뉴스는 네이버 검색 원문 제목5개를 번호 목록으로 표시한다. 축제 알리미는 관광공사를 우선하고 정상적인 빈 결과에만 네이버 검색을 사용한다. 날짜·출처가 확인되는 행사 한 건을 사진/날짜 배지/녹색 설명 카드로 보여주며, 미확인 날짜나 이미지를 만들어 넣지 않는다. 800px 이하에서는 세로 배치를 유지한다.
+
+
+## Perceived performance v1 — 2026-09-10
+
+- Navigation and filters, SDK/base map, the authoritative current card page,
+  and photographs become usable independently. Existing regional snapshot
+  ranking still waits for the complete active dataset; never present a partial
+  subset as the globally ranked first page.
+- Requested category/page/sort/search state and displayed query are distinct
+  while optional data is pending. Retain compatible rows with `이전 결과 · 업데이트 중`;
+  counts and pagination describe those displayed rows. Incompatible region,
+  district, source, or committed bounds never reuse another scope's rows.
+- Failed refreshes retain only permitted existing successful content with an
+  error notice. New successful publications clear enriched cards; canonical
+  marker source/policy fields always come from the current snapshot.
+- Map membership excludes card page and sort. Preserve the one SDK/map/clusterer
+  lifecycle, 6ms creation slices, generation cancellation and exact active IDs.
+  Native cluster redraw is synchronous and must not be described as preempted.
+  Inactive marker cache is bounded at 2,048; evictions remove selection listeners.
+- Keep the selected preview outside the canvas and error/retry controls reachable
+  in mobile map mode. User movement stops automatic fitting during updates.
+- Photo state is missing/loading/loaded/failed. Missing URLs are finished compact
+  content. Pending/failed valid URLs preserve dimensions and leave card actions
+  usable. URL failures last 60 seconds in tab memory (128 entries), with explicit
+  retry; no image-rights or provenance changes.
+- Detail Back restores current URL filters/page/sort plus tab-memory search,
+  committed bounds, selected ID, camera and list scroll. View memory is 20 scopes
+  for 5 minutes, contains no place records or credentials, and survives only
+  client navigation within the same tab. Saved itinerary storage is unchanged.
+- Discretionary prefetch is only the likely next public-catalog card page on
+  hover/focus, maximum one in flight. Wait for foreground metadata, markers and
+  images; skip hidden documents/Save-Data/2g. Share the existing 60-second,
+  48-page cache and transport with normal navigation; fetch no photographs.
+- Validation and remaining structural limits: `docs/perceived-performance-v1.md`.
