@@ -849,3 +849,7 @@ budgets and live versus synthetic verification evidence.
   images; skip hidden documents/Save-Data/2g. Share the existing 60-second,
   48-page cache and transport with normal navigation; fetch no photographs.
 - Validation and remaining structural limits: `docs/perceived-performance-v1.md`.
+
+
+### 2026-09-10 행사 슬라이드 보완
+오늘부터30일 이내 진행되는 확인된 반려동물 행사를 건수 제한 없이5초 자동 슬라이드로 표시한다. 현재 월과30일 뒤 월의 박람회·펫페어·캣쇼·펫쇼 검색 결과를 합치고 동일 행사명/기간을 중복 제거한다. 사전등록 기간과 구분된 명시적 전시기간을 사용하며 날짜가 모호한 결과는 제외한다. 관광공사 우선/정상 빈 결과에만 NAVER 검색이라는 출처 계약은 유지한다. 검색의 완전성은 보장하지 않으므로 일부 조회 결과 표기를 유지한다. 이전/다음·일시정지와 마우스/키보드 상호작용 시 정지, reduced-motion 동작은 유지한다.

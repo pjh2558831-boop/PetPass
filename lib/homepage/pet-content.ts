@@ -31,7 +31,7 @@ export function eventStatus(start: string, end: string | null, today: string): P
 }
 
 // pet-event-relevance-v1: explicit Korean pet terms only; never a bare '펫'.
-export const PET_EVENT_TERMS = /반려\s*(?:동물|견|묘)|애견|펫\s*페어|펫\s*박람회/u;
+export const PET_EVENT_TERMS = /반려\s*(?:동물|견|묘)|애견|펫\s*페어|펫\s*박람회|펫\s*쇼|캣\s*쇼/u;
 
 export function selectEvents(items: TourItem[], today: string, checkedAt: string): PetEventItem[] {
   const unique = new Map<string, PetEventItem>();
