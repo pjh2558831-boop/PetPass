@@ -37,6 +37,32 @@ describe("Naver event search evidence", () => {
     expect(result).toHaveLength(1);
     expect(result[0].venueLabel).toBe("송도컨벤시아");
   });
+  it("includes cat and pet shows and uses explicitly labelled exhibition dates instead of registration dates", () => {
+    const rows = [
+      { ...item, title: "2026 부산캣쇼", description: "사전등록기간: 2026.08.01 ~ 09.10; 전시기간: 2026.09.11 ~ 09.13; 개최장소: 벡스코" },
+      { ...item, title: "2026 서울펫쇼", link: "https://example.com/show", description: "2026.10.02 ~ 10.04" },
+    ];
+    const result = normalizeNaverEvents({ items: rows }, now);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({ startDate: "2026-09-11", endDate: "2026-09-13", venueLabel: "벡스코" });
+  });
+  it("deduplicates the same named fair and date across search title variants", () => {
+    const rows = [
+      { ...item, title: "2026 케이펫페어 송도 - 행사 안내" },
+      { ...item, title: "-2026 케이펫페어 송도 K-PET FAIR SONGDO", link: "https://example.com/second" },
+      { ...item, title: "2026 케이펫페어 수원", link: "https://example.com/other-city" },
+    ];
+    expect(normalizeNaverEvents({ items: rows }, now)).toHaveLength(2);
+  });
+  it("uses the event name adjacent to its explicit date when a search title is a generic schedule", () => {
+    const rows = [
+      { ...item, title: "케이펫페어 2026 일정", description: "케이펫페어 대구 시즌2 2026년 10월 2일 ~ 10월 4일" },
+      { ...item, title: "2026 케이펫페어 대구", description: "2026.10.02 ~ 10.04" },
+    ];
+    const result = normalizeNaverEvents({ items: rows }, now);
+    expect(result).toHaveLength(1);
+    expect(result[0].title).toBe("2026 케이펫페어 대구 시즌2");
+  });
   it("fetches current-month search and only matching provider thumbnails", async () => {
     vi.resetModules();
     vi.useFakeTimers(); vi.setSystemTime(now);
@@ -47,7 +73,11 @@ describe("Naver event search evidence", () => {
     const feed = await getNaverEventFeed();
     expect(feed).toMatchObject({ state: "ready", items: [{ imageUrl: "https://media.s3.amazonaws.com/poster.jpg", imageSourceLabel: "관련 이미지 · NAVER 검색" }] });
     expect(fetcher.mock.calls[0][0].searchParams.get("query")).toContain("2026 9월");
-    await getNaverEventFeed(); expect(fetcher).toHaveBeenCalledTimes(3);
+    const queries = fetcher.mock.calls.map(([url]) => url).filter(url => url.pathname.endsWith("webkr")).map(url => url.searchParams.get("query"));
+    expect(queries).toHaveLength(8);
+    expect(queries.some(query => query?.includes("9월 국내 캣쇼"))).toBe(true);
+    expect(queries.some(query => query?.includes("10월 국내 펫페어"))).toBe(true);
+    await getNaverEventFeed(); expect(fetcher).toHaveBeenCalledTimes(9);
   });
 });
 
