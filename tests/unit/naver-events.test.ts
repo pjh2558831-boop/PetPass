@@ -100,3 +100,44 @@ it("isolates a disabled web search API from working news and image searches", as
   await expect(naverSearch("webkr", { query: "test", display: "1" })).rejects.toThrow();
   expect(fetcher).toHaveBeenCalledTimes(3);
 });
+
+
+it("normalizes a verbose exhibition title and matches its city, year and edition", async () => {
+  vi.resetModules(); vi.useFakeTimers(); vi.setSystemTime(now);
+  vi.stubEnv("NAVER_API_HUB_ACCESS_KEY_ID", "synthetic-id");
+  vi.stubEnv("NAVER_API_HUB_SECRET_KEY", "synthetic-secret");
+  const title = "-2026 케이펫페어 청주 시즌2 K-PET FAIR CHEONGJU 2 2026 (사)한국펫사료";
+  const fetcher = vi.fn(async (url: URL) => new Response(JSON.stringify(url.pathname.endsWith("webkr")
+    ? { items: [{ ...item, title }] }
+    : { items: [
+      { title: "2025 케이펫페어 청주 시즌2", thumbnail: "https://search.pstatic.net/old.jpg" },
+      { title: "2026 케이펫페어 부산 시즌2", thumbnail: "https://search.pstatic.net/other-city.jpg" },
+      { title: "2026 케이펫페어 청주 시즌1", thumbnail: "https://search.pstatic.net/other-edition.jpg" },
+      { title: "케이펫페어 청주 시즌2 2026", thumbnail: "https://search.pstatic.net/correct.jpg" },
+    ] })));
+  vi.stubGlobal("fetch", fetcher);
+  const { getNaverEventFeed } = await import("@/lib/naver/events");
+  expect((await getNaverEventFeed()).items[0]).toMatchObject({ title: "2026 케이펫페어 청주 시즌2", imageUrl: "https://search.pstatic.net/correct.jpg" });
+  expect(fetcher.mock.calls.find(([url]) => url.pathname.endsWith("image"))?.[0].searchParams.get("query")).toBe("2026 케이펫페어 청주 시즌2");
+});
+
+it.each([
+  ["https://showala.com/ex/ex_detail.php?idx=3191", "https://showala.com/data/ex/poster", "https://showala.com/data/ex/poster", 1],
+  ["https://showala.com/ex/ex_detail.php?idx=3191", "https://other.example/poster", null, 1],
+  ["https://showala.com.evil.example/ex/ex_detail.php?idx=3191", "https://showala.com/data/ex/poster", null, 0],
+  ["https://showala.com/ex/ex_detail.php?idx=wrong", "https://showala.com/data/ex/poster", null, 0],
+])("only uses the linked exhibition's own poster: %s / %s", async (link, poster, expected, pageRequests) => {
+  vi.resetModules(); vi.useFakeTimers(); vi.setSystemTime(now);
+  vi.stubEnv("NAVER_API_HUB_ACCESS_KEY_ID", "synthetic-id");
+  vi.stubEnv("NAVER_API_HUB_SECRET_KEY", "synthetic-secret");
+  const fetcher = vi.fn(async (url: URL) => url.hostname === "showala.com"
+    ? new Response(`<div class="exb_img_wrap" style="background-image:url('${poster}');">`)
+    : new Response(JSON.stringify({ items: url.pathname.endsWith("webkr") ? [{ ...item, link }] : [] })));
+  vi.stubGlobal("fetch", fetcher);
+  const { getNaverEventFeed } = await import("@/lib/naver/events");
+  const feed = await getNaverEventFeed();
+  expect(feed.items[0].imageUrl).toBe(expected);
+  if (expected) expect(feed.items[0].imageSourceLabel).toBe("행사 포스터 · SHOWALA");
+  await getNaverEventFeed();
+  expect(fetcher.mock.calls.filter(([url]) => url.hostname === "showala.com")).toHaveLength(pageRequests);
+});

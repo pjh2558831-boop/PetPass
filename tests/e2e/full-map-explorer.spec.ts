@@ -911,10 +911,12 @@ test("switches source markers with the preview open on desktop and mobile", asyn
   // This fixture preloads one SDK object; switching must not inject another SDK.
   await expect(page.locator('script[src*="dapi.kakao.com/v2/maps/sdk.js"]')).toHaveCount(0);
   await expect(page.locator("html")).toHaveAttribute("data-explorer-map-instance-count", "1");
-  await expect(page.locator(".kakao-map-canvas .map-selection-content")).toHaveCount(0);
+  await expect(page.locator(".kakao-map-canvas .map-selection-content")).toHaveCount(1);
   const canvasBox = await page.locator(".kakao-map-canvas").boundingBox();
   const previewBox = await preview.boundingBox();
-  expect(previewBox!.y).toBeGreaterThanOrEqual(canvasBox!.y + canvasBox!.height);
+  expect(previewBox!.y).toBeGreaterThanOrEqual(canvasBox!.y);
+  expect(previewBox!.y + previewBox!.height).toBeLessThan(canvasBox!.y + canvasBox!.height);
+  expect(previewBox!.width).toBeLessThanOrEqual(280);
   expect(page.url()).toBe(url);
   expect(requests).toHaveLength(requestCount);
   await captureRegressionState(page, "marker-b");
@@ -1035,12 +1037,12 @@ test("keeps one source marker per place across pagination, selection, and viewpo
   const secondPageCard = page.locator(`[id="${await page.locator('[id^="place-card-"]').nth(1).getAttribute("id")}"]`);
   const secondPagePlaceName = await secondPageCard.getByRole("heading").innerText();
   const escapedSecondPagePlaceName = secondPagePlaceName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  await mapRoot.getByRole("button", { name: new RegExp(`^${escapedSecondPagePlaceName}`, "u") }).click();
+  await mapRoot.getByRole("button", { name: new RegExp(`^${escapedSecondPagePlaceName} ·`, "u") }).click();
   await expect(secondPageCard).toHaveAttribute("aria-current", "true");
   await expect(page.locator('.explorer-results-list article').first()).toHaveAttribute("id", (await secondPageCard.getAttribute("id"))!);
   await expect.poll(() => page.locator(".explorer-results-list").evaluate(el => el.scrollTop)).toBe(0);
   await page.locator(".explorer-results-list").evaluate(el => { el.scrollTop = 300; });
-  await mapRoot.getByRole("button", { name: new RegExp(`^${escapedSecondPagePlaceName}`, "u") }).click();
+  await mapRoot.getByRole("button", { name: new RegExp(`^${escapedSecondPagePlaceName} ·`, "u") }).click();
   await expect.poll(() => page.locator(".explorer-results-list").evaluate(el => el.scrollTop)).toBe(0);
   await expect(pageTwoCard).not.toHaveAttribute("aria-current", "true");
 
@@ -2865,7 +2867,9 @@ test("perceived Back restores real explorer selection, page, search, scroll and 
     await page.getByRole("group", { name: "지도 또는 목록 보기" }).getByRole("button", { name: "지도", exact: true }).click();
     const canvas = await page.locator(".kakao-map-canvas").boundingBox();
     const preview = await page.getByRole("region", { name: "선택한 장소 미리보기" }).boundingBox();
-    expect(preview!.y).toBeGreaterThanOrEqual(canvas!.y + canvas!.height);
+    expect(preview!.y).toBeGreaterThanOrEqual(canvas!.y);
+    expect(preview!.y + preview!.height).toBeLessThan(canvas!.y + canvas!.height);
+    expect(preview!.width).toBeLessThanOrEqual(280);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: "verification-evidence/perceived/after-390-selected-preview.png", fullPage: true });
   }

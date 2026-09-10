@@ -4,10 +4,15 @@ import { decodeHTML } from "entities";
 import { TourProviderError } from "@/lib/tour-api/errors";
 import { calendarDate, eventStatus, kstToday, offsetDate, PET_EVENT_TERMS, safeContentUrl } from "@/lib/homepage/pet-content";
 import type { ContentFeed, PetEventItem } from "@/types/pet-content";
+import { contentRequest } from "@/lib/homepage/content-request";
+import { TourRequestCache } from "@/lib/tour-api/cache";
 import { naverSearch } from "./search";
 
 const schema = z.object({ items: z.array(z.object({ title: z.string().max(1000), description: z.string().max(10000), link: z.string() })).max(100) });
 const plain = (value: string) => decodeHTML(value.replace(/<[^>]*>/g, "")).trim();
+
+const posterCache = new TourRequestCache();
+const namedEvent = (title: string) => title.match(/(?:케이펫페어|마이펫페어)\s+[가-힣]+(?:\s+시즌\d+)?|(?:냥냥펀치\s+)?[가-힣]+캣쇼(?:\s+AT\b)?|[가-힣]+펫쇼/u)?.[0];
 
 function eventKey(item: Pick<PetEventItem, "title" | "startDate" | "endDate">): string {
   const name = item.title.match(/(?:케이펫페어|마이펫페어)\s+[가-힣]+|[가-힣]*캣쇼(?:\s+[A-Za-z]+)?|[가-힣]*펫쇼/u)?.[0]
@@ -42,8 +47,8 @@ export function normalizeNaverEvents(input: unknown, now = new Date()): PetEvent
     const status = eventStatus(startDate, endDate, today);
     if (!status || startDate > offsetDate(today, 30)) continue;
     const datedName = sourceText.match(/((?:케이펫페어|마이펫페어)\s+[가-힣]+(?:\s+시즌\d+)?)\s+20\d{2}[년.\/-]/u)?.[1];
-    const displayTitle = datedName && !/(?:케이펫페어|마이펫페어)\s+[가-힣]+/u.test(title)
-      ? `${startDate.slice(0, 4)} ${datedName}` : title;
+    const name = namedEvent(title) ?? datedName;
+    const displayTitle = name ? `${startDate.slice(0, 4)} ${name}` : title;
     const key = eventKey({ title: displayTitle, startDate, endDate });
     if (unique.has(key)) continue;
     unique.set(key, { id: `naver:${informationUrl}`, title: displayTitle, startDate, endDate, status,
@@ -59,11 +64,13 @@ async function eventImage(item: PetEventItem): Promise<string | null> {
   const parsed = z.object({ items: z.array(z.object({ title: z.string(), thumbnail: z.string(), link: z.string().optional() })).max(100) }).safeParse(result);
   if (!parsed.success) return null;
   const normalize = (value: string) => plain(value).replace(/[^가-힣a-z0-9]/giu, "").toLowerCase();
-  const title = normalize(identity);
+  const title = normalize(identity.replace(/20\d{2}/gu, ""));
   const match = parsed.data.items.find(image => {
     const label = plain(image.title);
     const years: string[] = label.match(/20\d{2}/gu) ?? [];
-    return normalize(label).includes(title) && years.includes(item.startDate.slice(0, 4)) && years.every(year => year === item.startDate.slice(0, 4));
+    const expectedSeason = identity.match(/시즌\s*(\d+)/u)?.[1];
+    const imageSeason = label.match(/시즌\s*(\d+)/u)?.[1];
+    return (!imageSeason || imageSeason === expectedSeason) && normalize(label).includes(title) && years.includes(item.startDate.slice(0, 4)) && years.every(year => year === item.startDate.slice(0, 4));
   });
   const original = safeContentUrl(match?.link);
   if (original) {
@@ -74,6 +81,21 @@ async function eventImage(item: PetEventItem): Promise<string | null> {
   if (!url) return null;
   const parsedUrl = new URL(url);
   return parsedUrl.protocol === "https:" && /(^|\.)pstatic\.net$/.test(parsedUrl.hostname) ? url : null;
+}
+
+async function exhibitionPoster(informationUrl: string | null): Promise<string | null> {
+  if (!informationUrl) return null;
+  const source = new URL(informationUrl);
+  // Only the exact exhibition page and its own poster directory are eligible; never crawl arbitrary search links.
+  if (source.origin !== "https://showala.com" || source.pathname !== "/ex/ex_detail.php" || !/^\d+$/.test(source.searchParams.get("idx") ?? "")) return null;
+  const url = new URL(`https://showala.com/ex/ex_detail.php?idx=${source.searchParams.get("idx")}`);
+  return posterCache.getOrLoad(url.href, 30 * 60 * 1000, async () => {
+    const response = await contentRequest(url, { signal: AbortSignal.timeout(6000) }, fetch);
+    const html = await response.text();
+    if (html.length > 2_000_000) return null;
+    const poster = html.match(/<div\s+class="exb_img_wrap"[^>]*background-image:url\(['"](https:\/\/showala\.com\/data\/ex\/[a-zA-Z0-9._-]+)['"]\)/u)?.[1];
+    return poster ?? null;
+  });
 }
 
 export async function getNaverEventFeed(): Promise<ContentFeed<PetEventItem>> {
@@ -101,6 +123,10 @@ export async function getNaverEventFeed(): Promise<ContentFeed<PetEventItem>> {
         const item = items[next++];
         item.imageUrl = await eventImage(item).catch(() => null);
         if (item.imageUrl) item.imageSourceLabel = "관련 이미지 · NAVER 검색";
+        else {
+          item.imageUrl = await exhibitionPoster(item.informationUrl).catch(() => null);
+          if (item.imageUrl) item.imageSourceLabel = "행사 포스터 · SHOWALA";
+        }
       }
     }));
     return { state: items.length ? "ready" : searches.every(result => result.status === "rejected") ? "unavailable" : "empty", items, coverageLimited: true };

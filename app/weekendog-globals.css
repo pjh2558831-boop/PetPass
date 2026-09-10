@@ -8419,15 +8419,13 @@ body:has(.weekendoog-home) .site-footer {
   gap: 12px;
 }
 
-.map-panel-with-preview { display: flex; flex-direction: column; }
-.map-panel-with-preview > .map-canvas { flex: 1; height: 0; min-height: 0; }
-.map-selection-content { flex: 0 1 auto; max-height: 35%; overflow-y: auto; white-space: normal; border-top: 1px solid var(--ui2-line); background: white; }
-.map-selection-content > .explorer-map-place-preview { width: 100%; max-height: none; border: 0; border-radius: 0; box-shadow: none; }
+.map-selection-content { padding-bottom: 48px; white-space: normal; pointer-events: none; }
+.map-selection-content :is(button, a) { pointer-events: auto; }
 
 .explorer-map-place-preview {
   position: relative;
   z-index: 20;
-  width: min(340px, calc(100vw - 48px));
+  width: min(280px, calc(100vw - 48px));
   max-height: 36dvh;
   overflow-y: auto;
   border: 1px solid var(--ui2-line);
@@ -8487,19 +8485,15 @@ body:has(.weekendoog-home) .site-footer {
   display: flex;
   flex-direction: column;
   border: 0;
-  padding: 16px;
+  padding: 12px;
   content-visibility: visible;
 }
 
-.explorer-map-place-preview .catalog-result-card__image {
-  width: 100%;
-  height: 136px;
-  min-height: 136px;
-}
-
-.explorer-map-place-preview .catalog-result-card__badges {
-  padding-right: 30px;
-}
+.explorer-map-place-preview .catalog-result-card__badges { padding-right: 30px; font-size: 10px; }
+.explorer-map-place-preview .catalog-result-card__body { gap: 4px; }
+.explorer-map-place-preview .catalog-result-card h3 { font-size: 16px; padding-right: 28px; }
+.explorer-map-place-preview .catalog-result-card p { font-size: 12px; }
+.explorer-map-place-preview .catalog-result-card__actions { margin-top: 4px; }
 
 @media (min-width: 1025px) {
   .results-route-shell:has(#catalog-panel) {
@@ -8841,7 +8835,7 @@ body:has(.weekendoog-home) .site-footer {
 
 @media (max-width: 1024px) {
   .explorer-map-place-preview {
-    width: min(300px, calc(100vw - 48px));
+    width: min(280px, calc(100vw - 48px));
     max-height: 30dvh;
   }
 

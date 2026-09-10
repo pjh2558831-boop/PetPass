@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type RefObject } from "react";
 import Image from "next/image";
-import { ArrowUpRight, CalendarDays, MapPin, Megaphone } from "lucide-react";
+import { ArrowUpRight, CalendarDays, ChevronLeft, ChevronRight, MapPin, Megaphone, Pause, Play } from "lucide-react";
 import { eventStatus, kstToday, offsetDate } from "@/lib/homepage/pet-content";
 import type { ContentFeed, PetEventItem, PetNewsItem } from "@/types/pet-content";
 import styles from "./homepage-pet-content.module.css";
@@ -84,10 +84,10 @@ function EventCarousel({ items }: { items: PetEventItem[] }) {
       <EventCard key={items[active].id} item={items[active]} />
     </div>
     {items.length > 1 && <div className={styles.carouselControls}>
-      <button type="button" aria-label="이전 행사" onClick={() => setIndex((active + items.length - 1) % items.length)}>←</button>
-      <span>{active + 1} / {items.length}개 행사</span>
-      <button type="button" aria-label="다음 행사" onClick={() => setIndex((active + 1) % items.length)}>→</button>
-      {!reducedMotion && <button type="button" onClick={() => setPaused(value => !value)}>{paused ? "자동 넘김 재생" : "자동 넘김 일시정지"}</button>}
+      <button type="button" aria-label="이전 행사" onClick={() => setIndex((active + items.length - 1) % items.length)}><ChevronLeft size={18} aria-hidden="true" /></button>
+      <span className={styles.carouselCount}><strong>{String(active + 1).padStart(2, "0")}</strong><span> / </span>{String(items.length).padStart(2, "0")}<span className="sr-only">개 행사</span></span>
+      <button type="button" aria-label="다음 행사" onClick={() => setIndex((active + 1) % items.length)}><ChevronRight size={18} aria-hidden="true" /></button>
+      {!reducedMotion && <button type="button" className={styles.carouselPause} aria-label={paused ? "자동 넘김 재생" : "자동 넘김 일시정지"} onClick={() => setPaused(value => !value)}>{paused ? <Play size={15} aria-hidden="true" /> : <Pause size={15} aria-hidden="true" />}</button>}
     </div>}
   </div>;
 }
