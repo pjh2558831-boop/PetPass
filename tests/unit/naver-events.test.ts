@@ -63,6 +63,9 @@ describe("Naver event search evidence", () => {
     expect(result).toHaveLength(1);
     expect(result[0].title).toBe("2026 케이펫페어 대구 시즌2");
   });
+  it("rejects a historical event title paired with a different year's date", () => {
+    expect(normalizeNaverEvents({ items: [{ ...item, title: "2025 춘천 반려동물 페스티벌", description: "2026.10.09 ~ 10.11" }] }, now)).toEqual([]);
+  });
   it("fetches current-month search and only matching provider thumbnails", async () => {
     vi.resetModules();
     vi.useFakeTimers(); vi.setSystemTime(now);

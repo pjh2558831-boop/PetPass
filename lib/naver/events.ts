@@ -37,6 +37,8 @@ export function normalizeNaverEvents(input: unknown, now = new Date()): PetEvent
     }
     if (dates.size !== 1) continue;
     const [startDate, endDate] = [...dates.values()][0];
+    const titleYears = title.match(/20\d{2}/gu) ?? [];
+    if (titleYears.some(year => year !== startDate.slice(0, 4) && year !== endDate.slice(0, 4))) continue;
     const status = eventStatus(startDate, endDate, today);
     if (!status || startDate > offsetDate(today, 30)) continue;
     const datedName = sourceText.match(/((?:케이펫페어|마이펫페어)\s+[가-힣]+(?:\s+시즌\d+)?)\s+20\d{2}[년.\/-]/u)?.[1];
