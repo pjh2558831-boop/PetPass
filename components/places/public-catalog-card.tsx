@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { Check, ExternalLink, LocateFixed, MapPin, Plus } from "lucide-react";
 import { PlaceCardMedia } from "@/components/places/place-card-media";
-import { NaverSearchDisclosure } from "@/components/places/naver-search-disclosure";
 import { Disclosure } from "@/components/ui/disclosure";
 import { mapCatalogPlaceToCategory, PLACE_CATEGORY_LABELS } from "@/lib/map-places/place-categories";
 import { resolvePlaceCardImage } from "@/lib/map-places/place-card-image";
@@ -35,7 +34,7 @@ export function PublicCatalogCard({
   const hasImage = image.kind !== "category_placeholder";
   const sourceLabel = place.layer === "kakao" ? "카카오맵" : place.sourceLabel;
   const petConditions = place.petConditions?.trim() || null;
-  const warning = !place.verificationRequired && place.warning === "카카오 검색 후보입니다. 방문 전 반려동물 동반 가능 여부를 확인해 주세요."
+  const warning = place.warning === "카카오 검색 후보입니다. 방문 전 반려동물 동반 가능 여부를 확인해 주세요."
     ? null
     : place.warning;
   return (
@@ -47,6 +46,7 @@ export function PublicCatalogCard({
       {hasImage ? <PlaceCardMedia image={image} fallbackCategory={category} className="catalog-result-card__image" /> : null}
       <div className="catalog-result-card__body">
         <div className="catalog-result-card__badges">
+          {selected && <span className="catalog-result-card__selected-label">선택한 장소</span>}
           <span className="catalog-result-card__label">{sourceLabel}</span>
           <span className="catalog-result-card__label">{place.verificationRequired ? place.publicLabel : selectedItineraryVerdictLabel(place.petAccessVerdict ?? "unknown")}</span>
         </div>
@@ -67,7 +67,6 @@ export function PublicCatalogCard({
             </Disclosure>
           </>
         ) : null}
-        <NaverSearchDisclosure name={place.name} address={place.address} />
         <small>{PLACE_CATEGORY_LABELS[category]}</small>
         {itinerarySelection?.disabledReason ? <small className="catalog-result-card__disabled-reason">{itinerarySelection.disabledReason}</small> : null}
         <div className="catalog-result-card__actions">

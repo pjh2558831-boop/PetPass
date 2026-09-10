@@ -1,3 +1,86 @@
+# E2E recovery — 2026-09-10 (completed)
+
+Baseline: clean canonical localhost:3000 dev server, CI=1, retries=0.
+341 PASS /51 FAIL /44 intentional SKIP,436 total,9.0min. Full non-E2E baseline:
+typecheck/lint/1585 unit tests/build PASS. The prior3195 run294/92/44 predates
+six additional cases and used a different server configuration; it is historical,
+not this baseline. Actual report counts override subtraction from old totals.
+
+| Cluster | Fail count | Representative tests | Root cause | Current contract | Product bug? | Test stale? | Fix target |
+|---|---:|---|---|---|---|---|---|
+| E1 NAVIGATION_OR_STATE_SETUP_DRIFT |28| delayed enrichment; three-place selection; dense list | Tests assume region data on initial nationwide overview; filter disclosure closed | design.md current region-loading amendment; homepage-nationwide unit/E2E:17 region pins, load selected region only | No; corrected-entry flows pass | Setup stale | Explicit region intent and current loading/retry surfaces |
+| B1 STALE_PRODUCT_EXPECTATION |9| static Busan hero; launcher geometry; landing selected entry | v4 image/manual controls/copy/in-hero launcher/local search superseded old launcher | design.md ui_ver_4 section; design-qa.md;5f44390,e5a2700; homepage-v4 E2E | No | Yes | Current exact copy/layout/navigation assertions |
+| C1 STALE_OR_AMBIGUOUS_LOCATOR |2| supporting discovery | Counts CSS-hidden placeholder DOM as visible large media | Typed image rules, existing missing-only CSS and card unit contracts | No | Locator measures DOM existence instead of layout | Assert missing state and zero rendered area |
+| D1 FIXTURE_DRIFT + STALE_PRODUCT_EXPECTATION |12| synthetic content layouts; independent feed failure |2099 dates outside current30-day window; event is accessible carousel, not li | Existing event-carousel E2E; eventStatus/offsetDate; current user-owned EventCarousel | No; fixture dates outside current window | Yes | Fixed test clock/current-window fixtures and semantic slide assertions |
+
+A ACTUAL_PRODUCT_REGRESSION and G RESPONSIVE_ONLY_REGRESSION: none established.
+F TIMING_OR_RACE: no initial-baseline cluster; F1 surfaced at milestone3 below. H ENVIRONMENT_OR_LIVE_PROVIDER_GATING: previous3195
+provider502/port assertion failures do not reproduce on clean canonical server.
+I duplicate project failures are counted in their root clusters, not separate bugs.
+J unknown remains the fallback until representative reproduction confirms each fix.
+
+Contracts are checked against their latest explicit amendment and current canonical
+unit/config. Historical Busan-only/Tourism-only prose below newer amendments is not
+restored. Assessment verdicts, source labels, stored evidence, engine eligibility,
+map loader/clusterer/registry and provider truth are untouched.
+
+E1 representative: independent RED (expected5, actual17), then only actual Busan
+button selection added;3 repeats in each project PASS6. Full milestone1/half-count
+checkpoint:369 PASS /23 FAIL /44 SKIP (7.2min).28 failures removed. No product change.
+B1: representative6PASS; remaining cases35PASS/5 existing SKIP over5 repeats.
+C1:6PASS across3 repeats. D1:70PASS across5 repeats including existing event-carousel.
+Milestone3:391 PASS /1 FAIL /44 SKIP,5.5min. All51 original failures resolved;
+one previously intermittent saved-route console503 surfaced (F1 below).
+
+Baseline failure manifest:verification-evidence/e2e-recovery-2026-09-10.
+Canonical reporter did not capture actual URL/viewport for every failure; null
+means unmeasured, not guessed. Reproductions supply targeted screenshots.
+
+## Previously reported examples, checked against this baseline
+
+- Historical pet-access labels: no canonical-baseline failure. Current label unit
+  contracts distinguish public label from internal verdict. No assertion changed.
+- Homepage5 versus15: not the current reproduction. Initial overview has17 region
+  pins; explicit Busan loads exactly5 fixture venues. Neither marker cap nor
+  fixture place count changed.
+- Busan versus Seoul: config/URL fallback is REGION_CONFIGS[0]; selected homepage
+  search is local state. Tests now verify Busan search locally and config-derived
+  separate selection entry. Planner region submission tests remain unchanged.
+- Duplicate check-in / district options / itinerary evidence / refresh: no failure
+  on canonical clean-server baseline. Existing tests pass, so no speculative fix.
+- Marker preview / delayed results / request race / cache / Back: canonical baseline
+  passes these cases. Dedicated unchanged repeats and final suite remain the gate.
+- Homepage content: current30-day presentation intentionally excludes2099 fixture;
+  only test dates/selectors changed. No news/event/NAVER integration changed.
+
+No new product decision, provider configuration, schema migration, or live-provider
+call is necessary for these deterministic repairs.
+
+## F1: missing deterministic photo fixture, exposed by request cancellation timing
+
+| Cluster | Fail count | Representative tests | Root cause | Current contract | Product bug? | Test stale? | Fix target |
+|---|---:|---|---|---|---|---|---|
+| F1 TIMING_OR_RACE + FIXTURE_DRIFT |1 new milestone3 failure| recommendation-ui: restores a saved recommendation directly and after refresh without provider requests | Timeline requests optional card photos before saving; no route mock; fast save aborts request, slower save receives503 from offline provider | Timeline optional enrichment; strict card DTO; restoration must make0 provider requests | No | Deterministic fixture incomplete | Reuse mockHomepageCardDetails in recommendation beforeEach; wait for pre-save card response200 |
+
+Unmodified isolated test passed5/5, which was not accepted as proof of stability.
+Waiting for the actual pre-save card response reproduced503 and the original
+console-error assertion failure. Diagnostic logged status/path only:
+`503 /api/map/places/cards`. After shared fixture:5/5 saved-route repeats PASS,
+existing viewport-only skips5 unchanged; card client/DTO units9PASS. Entire
+recommendation cluster56PASS/2 existingSKIP; high-value gate72PASS/18 existingSKIP. No console error was filtered or ignored.
+The zero-provider-request restore, refresh, evidence and storage parse checks remain.
+This is a pre-save fixture boundary, not a change to saved-route persistence.
+
+## Final verification
+
+Final392PASS/0FAIL/44SKIP,flaky0. Non-E2E verify PASS: typecheck/lint/1585unit/build.
+Final report and repeat evidence: verification-evidence/e2e-recovery-2026-09-10/.
+No product changes or external actions. All44 skip reason counts match baseline.
+
+---
+
+## Historical recovery (2026-09-09; unchanged record)
+
 # Full E2E failure triage v1
 
 2026-09-09 기준선: canonical `playwright.config.ts`, 깨끗한 서버(`CI=1`), retries 0. 310 PASS / 50 FAIL / 40 SKIP, 8.1분. 변경 전 verify: 168 files / 1,553 unit PASS, typecheck/lint/build PASS.

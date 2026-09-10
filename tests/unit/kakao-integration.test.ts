@@ -6,6 +6,7 @@ import {
 } from "@/lib/kakao/local";
 import {
   createKakaoMapController,
+  type KakaoMapsSdk,
 } from "@/lib/kakao/maps";
 import { KAKAO_CURRENT_MAP_MAX_RADIUS_METERS } from "@/lib/kakao/search-area";
 import {
@@ -471,6 +472,14 @@ describe("Kakao integration boundaries", () => {
     expect(clusterers[0].redraw).toHaveBeenCalledTimes(2);
     expect(mapInstances[0].setBounds).toHaveBeenCalledTimes(1);
 
+    visible = false;
+    controller.focusBounds({ west: 126, south: 37, east: 128, north: 38 });
+    expect(mapInstances[0].setBounds).toHaveBeenCalledTimes(1);
+    visible = true;
+    controller.relayout();
+    expect(mapInstances[0].setBounds).toHaveBeenCalledTimes(2);
+    expect(clusterers[0].clear).not.toHaveBeenCalled();
+
     const retainedMarker = clusterers[0].markers[0];
     await controller.updateData(
       [{
@@ -552,6 +561,7 @@ describe("Kakao integration boundaries", () => {
     expect(jejuContainer.dataset.markerCacheSize).toBe("0");
     jejuController.destroy();
 
+    window.kakao!.maps!.MarkerClusterer = FakeClusterer as unknown as KakaoMapsSdk["MarkerClusterer"];
     const scheduledBatches: Array<() => void> = [];
     const batchedContainer = document.createElement("div");
     const batchedController = createKakaoMapController(batchedContainer, {
@@ -591,6 +601,71 @@ describe("Kakao integration boundaries", () => {
     await expect(staleUpdate).resolves.toBe(false);
     expect(batchedContainer.dataset.catalogMarkerCount).toBe("1");
     expect(batchedContainer.dataset.activeMarkerCount).toBe("1");
+    const destroyedUpdate = batchedController.updateData(largeLocations, []);
     batchedController.destroy();
+    while (scheduledBatches.length > 0) { scheduledBatches.shift()?.(); await Promise.resolve(); }
+    await expect(destroyedUpdate).resolves.toBe(false);
+    expect(clusterers.at(-1)?.markers).toHaveLength(0);
+    await expect(batchedController.updateData(largeLocations, [])).resolves.toBe(false);
+    expect(scheduledBatches).toHaveLength(0);
+
+    const restoredContainer = document.createElement("div");
+    vi.spyOn(restoredContainer, "getBoundingClientRect").mockReturnValue({ width: 800, height: 600 } as DOMRect);
+    const restoredIdle = vi.fn();
+    const restored = createKakaoMapController(restoredContainer, {
+      defaultCenter: BUSAN_REGION_CONFIG.defaultMapCenter,
+      defaultBounds: BUSAN_REGION_CONFIG.mapBounds,
+      initialViewport: { center: { latitude: 35.2, longitude: 129.2 }, level: 7 },
+      locations: [],
+      markerBatchSize: 2,
+      scheduleMarkerBatch: (callback) => scheduledBatches.push(callback),
+      onViewportIdle: restoredIdle,
+    });
+    const restoredMap = mapInstances.at(-1)!;
+    expect(restoredMap.getCenter().getLat()).toBe(35.2);
+    expect(restoredIdle).toHaveBeenCalledWith(expect.anything(), "initial", 7);
+    expect(restoredMap.setBounds).not.toHaveBeenCalled();
+    const interactiveUpdate = restored.updateData(largeLocations, []);
+    expect(restoredContainer.dataset.markerRegistrationPending).toBe("true");
+    emit(restoredMap, "dragstart");
+    while (scheduledBatches.length > 0) { scheduledBatches.shift()?.(); await Promise.resolve(); }
+    await expect(interactiveUpdate).resolves.toBe(true);
+    expect(restoredContainer.dataset.markerRegistrationPending).toBe("false");
+    expect(restoredMap.setBounds).not.toHaveBeenCalled();
+    expect(clusterers.at(-1)?.markers.map((marker) => marker.options.title)).toEqual(largeLocations.map((place) => `${place.name} · 한국관광공사 장소`));
+    const historicalLocations = Array.from({ length: 1824 }, (_, index) => ({ ...largeLocations[0], id: `historical-${index}` }));
+    const populate = restored.updateData(historicalLocations, [], { fitBounds: false });
+    while (scheduledBatches.length > 0) { scheduledBatches.shift()?.(); await Promise.resolve(); }
+    await populate;
+    const createdBeforeToggle = restoredContainer.dataset.createdSourceMarkerCount;
+    await restored.updateData([historicalLocations[0]], [], { fitBounds: false });
+    const repeat = restored.updateData(historicalLocations, [], { fitBounds: false });
+    while (scheduledBatches.length > 0) { scheduledBatches.shift()?.(); await Promise.resolve(); }
+    await repeat;
+    expect(restoredContainer.dataset.createdSourceMarkerCount).toBe(createdBeforeToggle);
+    expect(clusterers.at(-1)?.markers).toHaveLength(1824);
+    const cacheLocations = Array.from({ length: 2056 }, (_, index) => ({ ...largeLocations[0], id: `cache-${index}` }));
+    const cacheUpdate = restored.updateData(cacheLocations, [], { fitBounds: false });
+    while (scheduledBatches.length > 0) { scheduledBatches.shift()?.(); await Promise.resolve(); }
+    await cacheUpdate;
+    const cleanupBeforeEviction = removeListener.mock.calls.length;
+    await restored.updateData([cacheLocations[0]], [], { fitBounds: false });
+    expect(Number(restoredContainer.dataset.markerCacheSize)).toBe(2049);
+    expect(removeListener.mock.calls.length).toBeGreaterThan(cleanupBeforeEviction);
+    expect(clusterers.at(-1)?.markers).toHaveLength(1);
+    restored.destroy();
+    expect(listeners.get(restoredMap)?.get("dragstart")?.size ?? 0).toBe(0);
+
+    vi.useFakeTimers();
+    try {
+      const timed = createKakaoMapController(document.createElement("div"), {
+        defaultCenter: BUSAN_REGION_CONFIG.defaultMapCenter, locations: [], markerBatchSize: 2,
+      });
+      const pending = timed.updateData(largeLocations, []);
+      expect(vi.getTimerCount()).toBe(1);
+      timed.destroy();
+      expect(vi.getTimerCount()).toBe(0);
+      await expect(pending).resolves.toBe(false);
+    } finally { vi.useRealTimers(); }
   });
 });

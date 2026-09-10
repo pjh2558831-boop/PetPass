@@ -15,12 +15,15 @@ export interface PetEventItem {
   venueLabel: string | null;
   informationUrl: string | null;
   status: "upcoming" | "ongoing";
-  source: "한국관광공사";
+  source: "한국관광공사" | "네이버 검색";
+  imageUrl?: string | null;
+  imageSourceLabel?: string;
+  sourceText?: string;
   checkedAt: string;
 }
 
 export interface ContentFeed<T> {
-  state: "ready" | "empty" | "unavailable" | "link_only";
+  state: "ready" | "empty" | "unavailable";
   items: T[];
   coverageLimited?: boolean;
 }

@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { getMapEnabledRegionConfigs } from "@/lib/regions/config";
-import { installFakeMap, mockHomepage } from "./homepage-test-helpers";
+import { installFakeMap, mockHomepage, nationwideHomepageSnapshot } from "./homepage-test-helpers";
 
-test("nationwide home keeps regional successes, retries failures and synchronizes filters and selection", async ({ page }) => {
+test("nationwide home loads only the zoomed region, caches revisits and preserves selection", async ({ page }) => {
   await installFakeMap(page);
   await mockHomepage(page);
   const regions = getMapEnabledRegionConfigs();
@@ -33,26 +33,57 @@ test("nationwide home keeps regional successes, retries failures and synchronize
   });
   await page.goto("/");
   const workbench = page.locator(".homepage-map-section");
-  await expect(page.getByText("전국 17개 시·도 중 16개 지역 조회 완료", { exact: false })).toBeVisible();
-  await expect(workbench.locator(".homepage-workbench-heading strong")).toHaveText("32곳");
-  await expect(workbench.locator(".homepage-workbench-row")).toHaveCount(12);
+  await expect(workbench.locator(".homepage-workbench-heading strong")).toHaveText("17개 지역");
+  await expect(workbench.locator(".kakao-map-marker--region")).toHaveCount(17);
+  expect(calls).toEqual([]);
+  await page.locator(".home-region-overview").getByRole("button", { name: "부산", exact: false }).click();
+  await expect(workbench.locator(".homepage-workbench-row")).toHaveCount(2);
+  expect(calls).toEqual(["busan"]);
+  await expect(workbench.locator(".map-canvas")).toHaveAttribute("data-location-count", "2");
+  const seoul = regions.find(region => region.id === "seoul")!;
+  await workbench.locator('[data-fake-map-ready="true"]').evaluate((node, detail) => node.dispatchEvent(new CustomEvent("test:viewport", { detail })), { ...seoul.defaultMapCenter, level: 9 });
+  await expect(page.getByText("서울 장소를 불러오지 못했습니다.", { exact: true })).toBeVisible();
+  expect(calls).toEqual(["busan", "seoul"]);
   failSeoul = false;
   await workbench.getByRole("button", { name: "다시 시도", exact: true }).click();
-  await expect(page.getByText("전국 17개 시·도 중 17개 지역 조회 완료", { exact: true })).toBeVisible();
-  expect(calls.filter((id) => id !== "seoul")).toHaveLength(16);
-  await page.getByLabel("홈 지도 지역", { exact: true }).selectOption("seoul");
   await expect(workbench.locator(".homepage-workbench-row")).toHaveCount(2);
+  expect(calls).toEqual(["busan", "seoul", "seoul"]);
+  await page.locator(".home-map-filters summary").click();
   await page.getByLabel("홈 지도 장소 유형", { exact: true }).selectOption("cafe");
   await expect(workbench.locator(".homepage-workbench-row")).toHaveCount(1);
-  await expect(workbench.getByText("조건 확인 필요 · 테라스만 가능 · 방문 전 확인 필요", { exact: true })).toBeVisible();
-  await workbench.getByRole("button", { name: "서울 조건부 카페 지도에서 보기", exact: true }).click();
-  await expect(workbench.locator('[data-map-focused="true"]')).toHaveCount(1);
-  await expect(workbench.getByRole("checkbox", { name: "서울 조건부 카페 일정에 담기" })).toBeVisible();
   await workbench.getByRole("checkbox", { name: "서울 조건부 카페 일정에 담기" }).check();
   await expect(page.locator(".home-selected-itinerary")).toBeVisible();
-  if ((page.viewportSize()?.width ?? 1440) < 1180) {
-    await page.getByRole("group", { name: "홈 장소 지도 또는 목록 보기" }).getByRole("button", { name: "지도", exact: true }).click();
-  }
-  await expect(workbench.locator('[data-kakao-map-initialized="true"]')).toBeVisible();
+  await workbench.locator('[data-fake-map-ready="true"]').evaluate((node, detail) => node.dispatchEvent(new CustomEvent("test:viewport", { detail })), { ...seoul.defaultMapCenter, level: 12 });
+  await expect(workbench.locator(".homepage-workbench-heading strong")).toHaveText("17개 지역");
+  await expect(workbench.locator(".kakao-map-marker--region")).toHaveCount(17);
+  await expect(page.locator(".home-selected-itinerary__item")).toHaveCount(1);
+  await page.locator(".home-region-overview").getByRole("button", { name: "부산", exact: false }).click();
+  await expect(workbench.locator(".homepage-workbench-row")).toHaveCount(1);
+  expect(calls.filter(id => id === "busan")).toHaveLength(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+  console.log(JSON.stringify({ initialSnapshotRequests: 0, overviewMarkers: 17, regionalMarkers: 2, loadedRegions: [...new Set(calls)] }));
+});
+
+
+test("ignores an old regional response after returning to the nationwide overview", async ({ page }) => {
+  await installFakeMap(page);
+  await mockHomepage(page);
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/api/map/places/snapshot?**", async route => {
+    await gate;
+    await route.fulfill({ json: nationwideHomepageSnapshot() }).catch(() => undefined);
+  });
+  await page.goto("/");
+  const requested = page.waitForRequest("**/api/map/places/snapshot?**");
+  await page.locator(".home-region-overview").getByRole("button", { name: "부산", exact: false }).click();
+  await requested;
+  await expect(page.getByText("부산 장소를 불러오는 중입니다.", { exact: true })).toBeVisible();
+  await expect(page.locator(".home-region-navigation")).toHaveCount(0);
+  await page.locator(".home-map-filters summary").click();
+  await page.getByLabel("홈 지도 지역", { exact: true }).selectOption("all");
+  release();
+  await expect(page.locator(".homepage-live-ready")).toHaveAttribute("data-active-region", "overview");
+  await expect(page.locator(".homepage-workbench-row")).toHaveCount(0);
+  await expect(page.locator(".home-region-overview button")).toHaveCount(17);
 });

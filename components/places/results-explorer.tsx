@@ -50,6 +50,7 @@ import {
   explorerBoundsAreEquivalent,
   getExplorerCategoryCounts,
   getExplorerCollections,
+  getExplorerMapPlaces,
   isInsideExplorerBounds,
   type ExplorerSort,
 } from "@/lib/map-places/explorer-collections";
@@ -100,6 +101,8 @@ import {
   requiresSelectionRegionClear,
   selectedItineraryPlaceFromCatalog,
 } from "@/lib/storage/selected-itinerary-storage";
+
+import { readExplorerView, saveExplorerView, type ExplorerView } from "@/lib/map-places/explorer-view-memory";
 
 type ExplorerTab = "catalog" | "recommendations";
 type ProviderState = "loading" | "ready" | "error";
@@ -259,6 +262,7 @@ interface DefaultCatalogResult {
   kakao: PublicCatalogMarker[];
   delivery: "snapshot" | "fallback";
   freshness: "fresh" | "stale" | null;
+  publicationVersion?: string;
   tourError?: string;
   kakaoError?: string;
 }
@@ -287,6 +291,7 @@ async function requestDefaultCatalog(
         tour: markers.filter(({ layer }) => layer === "tourism"),
         kakao: markers.filter(({ layer }) => layer === "kakao"),
         freshness: snapshot.freshness.status,
+        publicationVersion: snapshot.publicationVersion,
       };
   };
   if (region.mapCatalog.fallbackSource === "public_catalog") {
@@ -356,6 +361,16 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   itineraryMode?: "browse" | "selection" | "hybrid";
 }) {
   const router = useRouter();
+  // App Router can restore a cached route tree whose original props predate pushState filters.
+  const [startingCatalogState] = useState(() => typeof window === "undefined"
+    ? initialCatalogState
+    : parsePublicCatalogUrlState(Object.fromEntries(new URLSearchParams(window.location.search))) ?? initialCatalogState);
+  const [restoredView] = useState(() => readExplorerView(
+    `${serializeResultsUrl(initialTab, startingCatalogState)}:${itineraryMode}`,
+  ));
+  const cameraRef = useRef<ExplorerView["camera"]>(restoredView?.camera ?? null);
+  const scrollRef = useRef(restoredView?.listScroll ?? 0);
+  const restoreScrollRef = useRef(restoredView?.listScroll ?? null);
   const {
     generationRequested,
     consumeGenerationRequest,
@@ -363,7 +378,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     preferencesConfirmed,
     confirmPlannerAndRequestGeneration,
   } = usePlannerState();
-  const [region, setRegion] = useState<RegionId>(initialCatalogState.region);
+  const [region, setRegion] = useState<RegionId>(startingCatalogState.region);
   const regionConfig = getRegionConfig(region);
   const [activeTab, setActiveTab] = useState<ExplorerTab>(() =>
     itineraryMode === "selection"
@@ -373,19 +388,19 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
         : initialTab === "recommendations" && !regionConfig.routeCapabilities.fullyAutomaticRecommendation
       ? "catalog"
       : initialTab);
-  const [district, setDistrict] = useState(initialCatalogState.district);
+  const [district, setDistrict] = useState(startingCatalogState.district);
   const [districtQuery, setDistrictQuery] = useState(() =>
-    getPublicCatalogDistrictName(initialCatalogState.region, initialCatalogState.district));
-  const [categories, setCategories] = useState<PlaceCategory[]>(initialCatalogState.categories);
-  const [layers, setLayers] = useState<PublicCatalogLayer[]>(initialCatalogState.layers);
-  const [draftCategories, setDraftCategories] = useState<PlaceCategory[]>(initialCatalogState.categories);
+    getPublicCatalogDistrictName(startingCatalogState.region, startingCatalogState.district));
+  const [categories, setCategories] = useState<PlaceCategory[]>(startingCatalogState.categories);
+  const [layers, setLayers] = useState<PublicCatalogLayer[]>(startingCatalogState.layers);
+  const [draftCategories, setDraftCategories] = useState<PlaceCategory[]>(startingCatalogState.categories);
   const [filterAnchor, setFilterAnchor] = useState<FilterAnchor | null>(null);
   const [isFilterPending, startFilterTransition] = useTransition();
   const filterOpen = filterAnchor !== null;
-  const [page, setPage] = useState(initialCatalogState.page);
-  const [sort, setSort] = useState<ExplorerSort>(initialCatalogState.sort);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [mobileMode, setMobileMode] = useState<MobileExplorerMode>("list");
+  const [page, setPage] = useState(startingCatalogState.page);
+  const [sort, setSort] = useState<ExplorerSort>(startingCatalogState.sort);
+  const [searchQuery, setSearchQuery] = useState(restoredView?.searchQuery ?? "");
+  const [mobileMode, setMobileMode] = useState<MobileExplorerMode>(restoredView?.mobileMode ?? "list");
   const [tourPlaces, setTourPlaces] = useState<PublicCatalogMarker[]>([]);
   const [kakaoPlaces, setKakaoPlaces] = useState<PublicCatalogMarker[]>([]);
   const [optionalTourPlaces, setOptionalTourPlaces] = useState<PublicCatalogMarker[]>([]);
@@ -399,14 +414,16 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     regionConfig.kakaoDiscoveryEnabled ? "loading" : "ready");
   const [tourError, setTourError] = useState("");
   const [kakaoError, setKakaoError] = useState("");
+  const [publicationVersion, setPublicationVersion] = useState<string | undefined>();
+  const prefetchRef = useRef<AbortController | null>(null);
   const [catalogFreshness, setCatalogFreshness] = useState<"fresh" | "stale" | "fallback" | null>(null);
   const [tourCardsById, setTourCardsById] = useState<Map<string, PublicCatalogPlace>>(() => new Map());
   const [cardDetailsError, setCardDetailsError] = useState("");
   const [cardDetailsRetry, setCardDetailsRetry] = useState(0);
   const [retry, setRetry] = useState(0);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(restoredView?.selectedId ?? null);
   const [mapReadyForRegion, setMapReadyForRegion] = useState<RegionId | null>(null);
-  const [activeBounds, setActiveBounds] = useState<KakaoCurrentMapSearch["rectangle"] | null>(null);
+  const [activeBounds, setActiveBounds] = useState<KakaoCurrentMapSearch["rectangle"] | null>(restoredView?.activeBounds ?? null);
   const [viewportDirty, setViewportDirty] = useState(false);
   const {
     snapshot: selectionSnapshot,
@@ -427,7 +444,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   } | null>(null);
   const latestViewportRef = useRef<KakaoCurrentMapSearch | null>(null);
   const viewportBaselineRef = useRef<KakaoCurrentMapSearch["rectangle"] | null>(null);
-  const activeBoundsRef = useRef<KakaoCurrentMapSearch["rectangle"] | null>(null);
+  const activeBoundsRef = useRef<KakaoCurrentMapSearch["rectangle"] | null>(restoredView?.activeBounds ?? null);
   const filterDropdownRef = useRef<HTMLElement>(null);
   const mapFilterButtonRef = useRef<HTMLButtonElement>(null);
   const hasSynchronizedUrlRef = useRef(false);
@@ -435,8 +452,9 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const requestStartedAtRef = useRef<number | null>(null);
   const stateUpdateStartedAtRef = useRef<number | null>(null);
   const filterStartedAtRef = useRef<number | null>(null);
+  const filterFeedbackFrameRef = useRef<number | null>(null);
   const revisitStartedAtRef = useRef<number | null>(null);
-  const visitedRegionsRef = useRef(new Set<RegionId>([initialCatalogState.region]));
+  const visitedRegionsRef = useRef(new Set<RegionId>([startingCatalogState.region]));
   const catalogRequestRef = useRef<{
     key: string;
     controller: AbortController;
@@ -449,7 +467,20 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     promise: Promise<{ tour: PublicCatalogMarker[]; kakao: PublicCatalogMarker[] }>;
     abortTimer: ReturnType<typeof setTimeout> | null;
   } | null>(null);
-  const [rankingAsOf] = useState(() => new Date().toISOString());
+  const [rankingAsOf] = useState(() => restoredView?.rankingAsOf ?? new Date().toISOString());
+  const viewRef = useRef<{ key: string; view: ExplorerView } | null>(null);
+  useEffect(() => {
+    if (activeTab !== "catalog") return;
+    viewRef.current = {
+      key: `${serializeResultsUrl(activeTab, { region, district, categories, layers, page, sort })}:${itineraryMode}`,
+      view: { searchQuery, selectedId, activeBounds, camera: null, listScroll: 0, mobileMode, rankingAsOf },
+    };
+  }, [activeTab, activeBounds, categories, district, itineraryMode, layers, mobileMode, page, rankingAsOf, region, searchQuery, selectedId, sort]);
+  useEffect(() => () => {
+    if (filterFeedbackFrameRef.current !== null) cancelAnimationFrame(filterFeedbackFrameRef.current);
+    const entry = viewRef.current;
+    if (entry) saveExplorerView(entry.key, { ...entry.view, camera: cameraRef.current, listScroll: scrollRef.current });
+  }, []);
 
   useEffect(() => {
     if (
@@ -522,6 +553,8 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     void pending.promise.then((result) => {
       if (!active) return;
       stateUpdateStartedAtRef.current = performance.now();
+      setPublicationVersion(result.publicationVersion);
+      setTourCardsById(new Map());
       setTourPlaces(result.tour);
       setKakaoPlaces(result.kakao);
       setTourState(result.tourError ? "error" : "ready");
@@ -672,6 +705,16 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     applyingBrowserHistoryRef.current = false;
   }, [activeTab, categories, district, itineraryMode, layers, page, region, sort]);
 
+  const requestedQuery = useMemo(() => ({ categories, page, sort, searchQuery }), [categories, page, sort, searchQuery]);
+  const displayScope = JSON.stringify([region, district, layers, activeBounds]);
+  const [displayedQuery, setDisplayedQuery] = useState({ scope: displayScope, query: requestedQuery });
+  const waitingForOptional = needsOptionalPlaces && optionalLoadedFor !== optionalScopeKey;
+  if (displayedQuery.scope !== displayScope || (!waitingForOptional && displayedQuery.query !== requestedQuery)) {
+    setDisplayedQuery({ scope: displayScope, query: requestedQuery });
+  }
+  const previousResults = displayedQuery.scope === displayScope && displayedQuery.query !== requestedQuery;
+  const resultQuery = displayedQuery.scope === displayScope ? displayedQuery.query : requestedQuery;
+
   const allPlaces = useMemo(() => {
     const unique = new Map<string, PublicCatalogMarker>();
     const optionalPlaces = optionalLoadedFor === optionalScopeKey
@@ -683,8 +726,8 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     return [...unique.values()];
   }, [kakaoPlaces, optionalKakaoPlaces, optionalLoadedFor, optionalScopeKey, optionalTourPlaces, region, tourPlaces]);
   const searchedPlaces = useMemo(
-    () => filterCatalogPlacesByQuery(allPlaces, searchQuery),
-    [allPlaces, searchQuery],
+    () => filterCatalogPlacesByQuery(allPlaces, resultQuery.searchQuery),
+    [allPlaces, resultQuery.searchQuery],
   );
 
   const rankingCenter = useMemo(() => activeBounds ? ({
@@ -713,20 +756,16 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       ? ["kakao" as const, "veterinary" as const, "pet_shop" as const]
       : []),
   ], [regionConfig]);
+  const mapPlaces = useMemo(() => getExplorerMapPlaces({
+    places: searchedPlaces, regionId: region, district, categories: resultQuery.categories,
+    layers: layers.filter((layer) => visibleLayers.includes(layer)), activeBounds,
+  }), [activeBounds, district, layers, region, resultQuery.categories, searchedPlaces, visibleLayers]);
   const filteredCollections = useMemo(() => getExplorerCollections({
-    places: searchedPlaces,
-    regionId: region,
-    district,
-    categories,
-    layers: layers.filter((layer) => visibleLayers.includes(layer)),
-    activeBounds,
-    page: 1,
-    sort,
-    rankingAsOf,
-    rankingCenter,
-  }), [activeBounds, categories, district, layers, rankingAsOf, rankingCenter, region, searchedPlaces, sort, visibleLayers]);
-  const { filteredPlaces, mapPlaces, totalPages } = filteredCollections;
-  const currentPage = Math.min(Math.max(1, page), totalPages);
+    places: searchedPlaces, regionId: region, district, categories: resultQuery.categories,
+    layers, activeBounds, page: 1, sort: resultQuery.sort, rankingAsOf, rankingCenter,
+  }, mapPlaces), [activeBounds, district, layers, mapPlaces, rankingAsOf, rankingCenter, region, resultQuery.categories, resultQuery.sort, searchedPlaces]);
+  const { filteredPlaces, totalPages } = filteredCollections;
+  const currentPage = Math.min(Math.max(1, resultQuery.page), totalPages);
   const pagedMarkers = useMemo(() => {
     const offset = (currentPage - 1) * PUBLIC_CATALOG_PAGE_SIZE;
     return filteredPlaces.slice(offset, offset + PUBLIC_CATALOG_PAGE_SIZE);
@@ -753,6 +792,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
           dataset,
           markers.map(({ id }) => id),
           controller.signal,
+          publicationVersion,
         ),
       }))).then((results) => {
         if (controller.signal.aborted) return;
@@ -805,9 +845,14 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     }).then(async (response) => {
       const body = await response.json() as ApiResult<TourPlaceList>;
       if (controller.signal.aborted) return;
-      if (!response.ok || !body.ok) return;
-      if (!Array.isArray(body.data.places)) return;
+      if (!response.ok || !body.ok || !Array.isArray(body.data.places)) {
+        throw new Error("카드 상세 정보를 확인하지 못했습니다.");
+      }
+      setCardDetailsError("");
       const places = body.data.places;
+      if (missingIds.some((id) => !places.some((place) => place.contentId === id))) {
+        throw new Error("일부 카드 상세 정보를 확인하지 못했습니다.");
+      }
       setTourCardsById((current) => {
         const next = new Map(current);
         for (const place of places) {
@@ -825,9 +870,11 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
         }
         return next;
       });
-    }).catch(() => undefined);
+    }).catch((error: unknown) => {
+      if (!controller.signal.aborted) setCardDetailsError(error instanceof Error ? error.message : "카드 상세 정보를 확인하지 못했습니다.");
+    });
     return () => controller.abort();
-  }, [cardDetailsRetry, district, pagedMarkers, region, regionConfig.mapCatalog.fallbackSource, tourCardsById]);
+  }, [cardDetailsRetry, district, pagedMarkers, region, regionConfig.mapCatalog.fallbackSource, tourCardsById, publicationVersion]);
   const mapLocations = useMemo<KakaoMapLocation[]>(() => mapPlaces.map((place) => ({
     id: place.id,
     name: place.name,
@@ -853,7 +900,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const providerError = tourState === "error" ||
     (regionConfig.kakaoDiscoveryEnabled && kakaoState === "error") ||
     (needsOptionalPlaces && optionalTourState === "error");
-  const hasUsableResults = filteredPlaces.length > 0;
+  const hasUsableResults = filteredPlaces.length > 0 && (!waitingForOptional || previousResults);
   // Presentation-only state: provider, URL, sorting, pagination, and map semantics stay unchanged.
   const presentationState: ExplorerPresentationState = hasUsableResults
     ? providerError
@@ -861,7 +908,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       : providerLoading
         ? "partial"
         : "ready"
-    : providerLoading
+    : providerLoading || (waitingForOptional && optionalTourState !== "error")
       ? "loading"
       : providerError
         ? "error"
@@ -884,19 +931,40 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       recordMapExplorerMetric("first_useful_cards", requestStartedAtRef.current);
       requestStartedAtRef.current = null;
     }
-    if (filterStartedAtRef.current !== null) {
-      recordMapExplorerMetric("warm_filter_feedback", filterStartedAtRef.current);
+    if (filterStartedAtRef.current !== null && !previousResults && !providerLoading) {
+      recordMapExplorerMetric("filter_results", filterStartedAtRef.current);
       filterStartedAtRef.current = null;
     }
     if (anyReady && revisitStartedAtRef.current !== null) {
       recordMapExplorerMetric("warm_region_revisit", revisitStartedAtRef.current);
       revisitStartedAtRef.current = null;
     }
-  }, [anyReady, filteredPlaces, pagedPlaces.length]);
-  const resetViewportScope = () => {
+  }, [anyReady, filteredPlaces, pagedPlaces.length, previousResults, providerLoading]);
+  useEffect(() => () => {
+    prefetchRef.current?.abort();
+    prefetchRef.current = null;
+  }, [mapPlaces, region, resultQuery.sort]);
+  const prefetchNextPage = () => {
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+    if (resultsListRef.current?.querySelector('[data-image-state="loading"]') ||
+      document.querySelector('.full-map-explorer [data-marker-registration-pending="true"]') ||
+      document.hidden || connection?.saveData || ["slow-2g", "2g"].includes(connection?.effectiveType ?? "") ||
+      providerLoading || previousResults || cardDetailsError || prefetchRef.current || currentPage >= totalPages ||
+      regionConfig.mapCatalog.fallbackSource !== "public_catalog" ||
+      pagedMarkers.some(({ id, category }) => category !== "shopping" && !tourCardsById.has(id))) return;
+    const next = filteredPlaces.slice(currentPage * PUBLIC_CATALOG_PAGE_SIZE, (currentPage + 1) * PUBLIC_CATALOG_PAGE_SIZE);
+    if (!next.length || next.some(({ dataset, category }) => dataset === "shopping" || category === "shopping")) return;
+    const controller = new AbortController();
+    prefetchRef.current = controller;
+    void requestMapPlaceCardDetails(region, "core", next.map(({ id }) => id), controller.signal, publicationVersion)
+      .catch(() => undefined)
+      .finally(() => { if (prefetchRef.current === controller) prefetchRef.current = null; });
+  };
+
+  const resetViewportScope = (preserveViewport = true) => {
     activeBoundsRef.current = null;
-    viewportBaselineRef.current = null;
-    latestViewportRef.current = null;
+    viewportBaselineRef.current = preserveViewport ? latestViewportRef.current?.rectangle ?? null : null;
+    if (!preserveViewport) latestViewportRef.current = null;
     setActiveBounds(null);
     setViewportDirty(false);
   };
@@ -909,6 +977,9 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       visitedRegionsRef.current.add(nextRegion);
       revisitStartedAtRef.current = null;
     }
+    cameraRef.current = null;
+    restoreScrollRef.current = null;
+    scrollRef.current = 0;
     setRegion(nextRegion);
     setActiveTab("catalog");
     setDistrict("all");
@@ -937,7 +1008,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     setCatalogFreshness(null);
     setTourState("loading");
     setKakaoState(nextConfig.kakaoDiscoveryEnabled ? "loading" : "ready");
-    resetViewportScope();
+    resetViewportScope(false);
     const draft = loadPlanDraft() ?? createPlanDraft(nextRegion);
     savePlanDraft(updatePlanDraftScope(draft, nextRegion, null));
   };
@@ -998,6 +1069,14 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const applyFilters = (startedAt: number) => {
     filterStartedAtRef.current = startedAt;
     closeFilters();
+    if (filterFeedbackFrameRef.current !== null) cancelAnimationFrame(filterFeedbackFrameRef.current);
+    // Measure the first painted acknowledgement separately from completed data.
+    filterFeedbackFrameRef.current = requestAnimationFrame(() => {
+      filterFeedbackFrameRef.current = requestAnimationFrame(() => {
+        recordMapExplorerMetric("warm_filter_feedback", startedAt);
+        filterFeedbackFrameRef.current = null;
+      });
+    });
     startFilterTransition(() => {
       setCategories([...draftCategories]);
       setPage(1);
@@ -1012,10 +1091,17 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   const resultsListRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const list = resultsListRef.current;
-    const card = selectedId ? document.getElementById("place-card-" + selectedId.replace(":", "-")) : null;
-    if (!list || !card) return;
-    list.scrollTo({ top: list.scrollTop + card.getBoundingClientRect().top - list.getBoundingClientRect().top - (list.clientHeight - card.clientHeight) / 2, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-  }, [selectedId, currentPage]);
+    if (!list || !selectedId || restoreScrollRef.current !== null) return;
+    list.scrollTo({ top: 0, behavior: "auto" });
+  }, [selectedId, currentPage, selectionFocusKey]);
+  useEffect(() => {
+    if (!hasUsableResults || restoreScrollRef.current === null) return;
+    const frame = requestAnimationFrame(() => {
+      if (resultsListRef.current) resultsListRef.current.scrollTop = restoreScrollRef.current ?? 0;
+      restoreScrollRef.current = null;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [hasUsableResults, currentPage, pagedPlaces]);
   const selectPlace = (id: string | null) => {
     setSelectedId(id);
     if (!id) return;
@@ -1040,7 +1126,8 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     if (!regionConfig.routeCapabilities.fullyAutomaticRecommendation) return;
     router.push("/planner/pet");
   };
-  const handleViewportIdle = (viewport: KakaoCurrentMapSearch, cause: KakaoViewportIdleCause) => {
+  const handleViewportIdle = (viewport: KakaoCurrentMapSearch, cause: KakaoViewportIdleCause, level?: number) => {
+    if (level !== undefined) cameraRef.current = { center: viewport.center, level };
     latestViewportRef.current = viewport;
     if (!viewportBaselineRef.current || cause === "initial") {
       viewportBaselineRef.current = viewport.rectangle;
@@ -1224,10 +1311,21 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
         </p>
       ) : null}
 
+      {mobileMode === "map" && (providerLoading || providerError || cardDetailsError || previousResults) ? (
+        <div className="explorer-mobile-status" role="status">
+          <p>{providerError || cardDetailsError ? "일부 장소 정보를 확인하지 못했습니다." : previousResults ? "이전 결과 · 업데이트 중" : "장소를 불러오는 중"}</p>
+          {tourState === "error" || kakaoState === "error" ? <button type="button" onClick={() => { setTourState("loading"); setKakaoState(regionConfig.kakaoDiscoveryEnabled ? "loading" : "ready"); setRetry(value => value + 1); }}>장소 다시 시도</button> : null}
+          {needsOptionalPlaces && optionalTourState === "error" ? <button type="button" onClick={() => { setOptionalTourState("loading"); setOptionalRetry(value => value + 1); }}>쇼핑 다시 시도</button> : null}
+          {cardDetailsError ? <button type="button" onClick={() => setCardDetailsRetry(value => value + 1)}>카드 다시 시도</button> : null}
+        </div>
+      ) : null}
+
       <div className="full-map-explorer__main" data-mobile-mode={mobileMode}>
         <section className="full-map-explorer__map" aria-label={`${districtName} 전체 장소 지도`}>
           <MapPanel
             regionId={region}
+            initialViewport={region === startingCatalogState.region ? restoredView?.camera ?? undefined : undefined}
+            fitOnDataChange={!restoredView?.camera}
             locations={mapLocations}
             selectedLocationId={selectedId}
             selectionFocusKey={selectionFocusKey}
@@ -1242,7 +1340,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
             onCurrentMapSearch={commitCurrentViewport}
             showCurrentMapSearch={viewportDirty}
             currentMapSearchLabel="이 지역 검색 다시하기"
-            viewportKey={`catalog:${region}:${district}:${categories.join(",")}`}
+            viewportKey={`catalog:${region}:${district}:${resultQuery.categories.join(",")}`}
             showLocationLabel={false}
             showWatermark={false}
             selectionContent={selectedPlace ? (
@@ -1315,7 +1413,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
           {activeBounds ? <p className="explorer-active-bounds">지도 범위 적용 중</p> : null}
           {sort === "popularity" && allPopularityInsufficient ? <p className="explorer-popularity-notice" role="status">이용 데이터가 쌓이는 동안 추천순을 함께 반영합니다.</p> : null}
           <div className="explorer-results-status">
-            {isFilterPending ? <p role="status">필터 결과를 반영하는 중입니다…</p> : null}
+            {previousResults ? <p role="status">{optionalTourState === "error" ? "이전 결과 · 일부 장소 정보를 확인하지 못했습니다" : "이전 결과 · 업데이트 중"}</p> : isFilterPending ? <p role="status">결과 업데이트 중</p> : null}
             {tourState === "error" ? <div role="alert"><b>관광공사 장소를 불러오지 못했습니다.</b> {publicProviderErrorMessage(tourError, "공식 장소 제공처 연결을 확인하지 못했습니다.")}</div> : null}
             {regionConfig.kakaoDiscoveryEnabled && kakaoState === "error" ? <div role="alert"><b>카카오맵 장소를 불러오지 못했습니다.</b> {publicProviderErrorMessage(kakaoError, "장소 제공처 연결을 확인하지 못했습니다.")}</div> : null}
             {needsOptionalPlaces && optionalTourState === "error" ? <div role="alert"><b>쇼핑 장소를 불러오지 못했습니다.</b> {publicProviderErrorMessage(optionalTourError, "쇼핑 장소 제공처 연결을 확인하지 못했습니다.")} <button type="button" onClick={() => { setOptionalTourState("loading"); setOptionalRetry((value) => value + 1); }}><RefreshCw size={15} aria-hidden="true" />쇼핑 다시 시도</button></div> : null}
@@ -1326,9 +1424,9 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
             {needsOptionalPlaces && optionalTourState === "loading" ? <p role="status">쇼핑 장소를 불러오는 중입니다…</p> : null}
             {shoppingLoaded && optionalTourState === "ready" && categoryCounts.shopping > 0 ? <p role="status">쇼핑 장소 {categoryCounts.shopping.toLocaleString("ko-KR")}곳을 불러왔습니다.</p> : null}
             {shoppingLoaded && optionalTourState === "ready" && categoryCounts.shopping === 0 ? <p role="status">불러온 쇼핑 장소가 없습니다.</p> : null}
-            {!anyReady && tourState === "error" && (!regionConfig.kakaoDiscoveryEnabled || kakaoState === "error") ? <button type="button" onClick={() => { setTourState("loading"); setKakaoState(regionConfig.kakaoDiscoveryEnabled ? "loading" : "ready"); setRetry((value) => value + 1); }}><RefreshCw size={15} aria-hidden="true" />다시 시도</button> : null}
+            {(tourState === "error" || kakaoState === "error") ? <button type="button" onClick={() => { setTourState("loading"); setKakaoState(regionConfig.kakaoDiscoveryEnabled ? "loading" : "ready"); setRetry((value) => value + 1); }}><RefreshCw size={15} aria-hidden="true" />다시 시도</button> : null}
           </div>
-          <div ref={resultsListRef} className="explorer-results-list">
+          <div ref={resultsListRef} className="explorer-results-list" onScroll={(event) => { scrollRef.current = event.currentTarget.scrollTop; }}>
             {presentationState === "loading" ? <ExplorerResultsSkeleton /> : null}
             {presentationState === "empty" ? (
               <div className="explorer-empty-state" role="status"><strong>선택한 조건의 장소가 없습니다.</strong><span>지역이나 장소 유형을 조정해 다시 확인해 보세요.</span></div>
@@ -1336,7 +1434,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
             {presentationState === "error" && !hasUsableResults ? (
               <div className="explorer-empty-state is-error" role="alert"><strong>지금은 장소 목록을 표시할 수 없습니다.</strong><span>잠시 후 다시 시도해 주세요.</span></div>
             ) : null}
-            {presentationState !== "loading" && presentationState !== "empty" && pagedPlaces.map((place) => (
+            {presentationState !== "loading" && presentationState !== "empty" && [...pagedPlaces].sort((a, b) => Number(b.id === selectedId) - Number(a.id === selectedId)).map((place) => (
               <PublicCatalogCard
                 key={place.id}
                 place={place}
@@ -1363,7 +1461,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
             <button type="button" disabled={currentPage === 1} onClick={() => { setPage(1); setSelectedId(null); }} aria-label="첫 페이지"><ChevronsLeft size={17} aria-hidden="true" /></button>
             <button type="button" disabled={currentPage === 1} onClick={() => { setPage(currentPage - 1); setSelectedId(null); }} aria-label="이전 페이지"><ChevronLeft size={17} aria-hidden="true" /></button>
             {visiblePages.map((pageNumber) => <button key={pageNumber} type="button" aria-current={pageNumber === currentPage ? "page" : undefined} onClick={() => { setPage(pageNumber); setSelectedId(null); }}>{pageNumber}</button>)}
-            <button type="button" disabled={currentPage === totalPages} onClick={() => { setPage(currentPage + 1); setSelectedId(null); }} aria-label="다음 페이지"><ChevronRight size={17} aria-hidden="true" /></button>
+            <button type="button" disabled={currentPage === totalPages} onMouseEnter={prefetchNextPage} onFocus={prefetchNextPage} onClick={() => { setPage(currentPage + 1); setSelectedId(null); }} aria-label="다음 페이지"><ChevronRight size={17} aria-hidden="true" /></button>
             <button type="button" disabled={currentPage === totalPages} onClick={() => { setPage(totalPages); setSelectedId(null); }} aria-label="마지막 페이지"><ChevronsRight size={17} aria-hidden="true" /></button>
           </nav> : null}
         </aside>

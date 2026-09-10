@@ -8371,11 +8371,16 @@ body:has(.weekendoog-home) .site-footer {
 }
 
 .catalog-result-card.is-selected {
-  border-color: var(--ui2-line);
-  border-left: 3px solid var(--ui2-brand);
-  background: #f1f7f3;
-  padding-left: 7px;
+  border:1px solid var(--ui2-brand);
+  content-visibility:visible;
+  background: #f3f8f5;
+  box-shadow: inset 0 0 0 1px var(--ui2-brand);
 }
+.catalog-result-card__selected-label { display:inline-block; margin-left:8px; border-radius:5px; padding:3px 6px; background:#e0eee5; color:#07563f; font-size:10px; font-weight:600; vertical-align:middle; }
+.full-map-explorer .kakao-map-info { width:260px; max-width:calc(100vw - 48px); background:#fff; padding:14px 16px; border-radius:12px; white-space:normal; }
+.full-map-explorer .kakao-map-info strong { color:#07563f; font-size:16px; }
+.full-map-explorer .kakao-map-info span { font-size:12px; }
+.full-map-explorer .kakao-map-info small { font-size:10px; color:#66736d; }
 
 .catalog-result-card .catalog-result-card__image {
   width: 112px;
@@ -8704,12 +8709,12 @@ body:has(.weekendoog-home) .site-footer {
   border-radius: 0;
 }
 
-.homepage-place-card:has(.catalog-card-placeholder) .homepage-place-image {
+.homepage-place-card:has([data-image-state="missing"] .catalog-card-placeholder) .homepage-place-image {
   display: none;
 }
 
-.homepage-place-card:has(.catalog-card-placeholder) > a,
-.homepage-place-card:has(.catalog-card-placeholder) > div[tabindex] {
+.homepage-place-card:has([data-image-state="missing"] .catalog-card-placeholder) > a,
+.homepage-place-card:has([data-image-state="missing"] .catalog-card-placeholder) > div[tabindex] {
   display: block;
 }
 
@@ -9045,3 +9050,18 @@ body:has(.weekendoog-home) .site-footer {
   }
 }
 
+
+.kakao-map-info { position:relative; }
+.kakao-map-info__close { position:absolute; right:3px; top:3px; width:32px; height:32px; border:0; background:transparent; color:#07563f; cursor:pointer; }
+.kakao-map-info strong { padding-right:22px; }
+.kakao-map-info::after { content:""; position:absolute; left:calc(50% - 6px); bottom:-6px; width:12px; height:12px; background:white; transform:rotate(45deg); }
+
+.photo-retry { position: absolute; bottom: 0; inset-inline: 0; min-height: 44px; padding: 6px; background: #fff; color: #075843; font-size: 12px; }
+.kakao-map-info__close { min-width: 44px; min-height: 44px; }
+
+/* Local status remains reachable when the mobile results sidebar is hidden. */
+.explorer-mobile-status { display: none; }
+@media (max-width: 800px) {
+  .explorer-mobile-status { display: block; padding: 8px 16px; color: #344a40; font-size: 13px; }
+  .explorer-mobile-status button { min-height: 44px; padding: 8px 12px; text-decoration: underline; }
+}

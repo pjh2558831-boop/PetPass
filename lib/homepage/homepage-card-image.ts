@@ -26,3 +26,10 @@ export function resolveHomepageCardImage(
     alt: `${place.name} 장소 사진 준비 중`,
   };
 }
+
+export function compareHomepageCardPhotos(
+  left: Pick<HomepagePlaceCard, "imageUrl">,
+  right: Pick<HomepagePlaceCard, "imageUrl">,
+): number {
+  return Number(Boolean(right.imageUrl)) - Number(Boolean(left.imageUrl));
+}

@@ -1,4 +1,5 @@
 "use client";
+import type { KakaoMapLocation } from "@/lib/kakao/maps";
 
 import Link from "next/link";
 import {
@@ -19,7 +20,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import { MapPanel } from "@/components/map/map-panel";
+import { MapPanel, type MapPanelProps } from "@/components/map/map-panel";
 import { PlaceCardMedia } from "@/components/places/place-card-media";
 import { resolveHomepageCardImage } from "@/lib/homepage/homepage-card-image";
 import { requestMapPlaceCardDetails } from "@/lib/map-places/card-details-client";
@@ -32,6 +33,7 @@ import {
 } from "@/lib/storage/selected-itinerary-storage";
 import type { ApiError } from "@/types/api";
 import type { HomepageMapMarker } from "@/types/homepage-places";
+import type { HomeSearchRequest } from "./homepage-landing";
 import type { RegionId } from "@/types/region";
 
 const EMPTY_ROUTE_COORDINATES: [] = [];
@@ -224,6 +226,8 @@ export function HomePlaceWorkbench({
   providerUnavailable,
   staticMapEnabled,
   nationwide = false,
+  searchRequest,
+  regionalMap,
 }: {
   regionId: RegionId;
   regionLabel: string;
@@ -240,12 +244,32 @@ export function HomePlaceWorkbench({
   providerUnavailable: boolean;
   staticMapEnabled: boolean;
   nationwide?: boolean;
+  searchRequest?: HomeSearchRequest;
+  regionalMap?: {
+    overviewLocations?: KakaoMapLocation[];
+    onRegionSelect: (id: string) => void;
+    onViewportIdle: MapPanelProps["onViewportIdle"];
+    focusBounds: MapPanelProps["focusBounds"];
+    countLabel?: string;
+    listContent?: ReactNode;
+  };
 }) {
-  const [mode, setMode] = useState<WorkbenchMode>("browse");
-  const [query, setQuery] = useState("");
+  const [mode, setMode] = useState<WorkbenchMode>(searchRequest ? "search" : "browse");
+  const [query, setQuery] = useState(searchRequest?.query ?? "");
+  const [appliedSearch, setAppliedSearch] = useState(searchRequest);
+  if (searchRequest && appliedSearch !== searchRequest) {
+    setAppliedSearch(searchRequest);
+    setQuery(searchRequest.query);
+    setMode("search");
+  }
   const [mobileView, setMobileView] = useState<"list" | "map">("list");
   const [listPage, setListPage] = useState({ key: "", page: 0 });
   const composingRef = useRef(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!searchRequest) return;
+    searchRef.current?.focus({ preventScroll: true });
+  }, [searchRequest]);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const normalizedQuery = normalizeSearchValue(query);
   const visibleMarkers = useMemo(() => {
@@ -356,7 +380,7 @@ export function HomePlaceWorkbench({
           <p className="homepage-kicker">{regionLabel} 장소 작업 화면</p>
           <h2 id="homepage-map-title">함께 갈 곳을 지도와 목록에서 고르세요</h2>
         </div>
-        <strong aria-live="polite">{visibleMarkers.length.toLocaleString("ko-KR")}곳</strong>
+        <strong aria-live="polite">{regionalMap?.countLabel ?? `${visibleMarkers.length.toLocaleString("ko-KR")}곳`}</strong>
       </div>
 
       <div
@@ -365,29 +389,28 @@ export function HomePlaceWorkbench({
         role="tabpanel"
         aria-labelledby={`homepage-workbench-${mode}-tab`}
       >
-        {mode === "search" ? (
+        {(
           <div className="homepage-place-search" role="search">
             <Search size={18} aria-hidden="true" />
             <input
+              ref={searchRef}
               type="search"
               name="homepage-place-search"
               value={query}
               aria-label="불러온 장소 검색"
               placeholder="이름, 지역, 카테고리 검색…"
               autoComplete="off"
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => { setQuery(event.target.value); setMode("search"); }}
               onKeyDown={handleSearchKeyDown}
               onCompositionStart={() => { composingRef.current = true; }}
               onCompositionEnd={() => { composingRef.current = false; }}
             />
             {query ? (
-              <button type="button" onClick={() => setQuery("")} aria-label="검색어 지우기">
+              <button type="button" onClick={() => { setQuery(""); searchRef.current?.focus(); }} aria-label="검색어 지우기">
                 <X size={17} aria-hidden="true" />
               </button>
             ) : null}
           </div>
-        ) : (
-          <p>현재 불러온 장소를 유형별로 살펴보고 일정에 담을 수 있어요.</p>
         )}
         {filterControl}
       </div>
@@ -423,17 +446,25 @@ export function HomePlaceWorkbench({
           <div className="homepage-map-canvas-wrap">
             <MapPanel
               regionId={nationwide ? "busan" : regionId}
-              fitOnResize={nationwide}
+              fitOnResize={nationwide && !regionalMap}
+              fitOnDataChange={!regionalMap}
+              focusBounds={regionalMap?.focusBounds}
+              onViewportIdle={regionalMap?.onViewportIdle}
+              showNavigationControls={Boolean(regionalMap)}
+              showSatelliteControl={false}
+              showEmptyMessage={!regionalMap?.listContent}
+              isDataLoading={completionState === "loading"}
               title={`${regionLabel} 공식·공개 장소 지도`}
               locationLabel={`${regionLabel} 전체`}
-              locations={locations}
+              locations={regionalMap?.overviewLocations ?? locations}
               routeCoordinates={EMPTY_ROUTE_COORDINATES}
               selectedLocationId={resolvedSelectionId}
               onLocationSelect={(id) => {
-                if (id) focusLocation(id);
+                if (id?.startsWith("region:")) regionalMap?.onRegionSelect(id.slice(7));
+                else if (id) focusLocation(id);
               }}
               onDataUpdate={onMapDataUpdate}
-              viewportKey={`homepage:${nationwide ? `nationwide:${listDataKey}` : regionId}:mixed-source:${mode}:${normalizedQuery}`}
+              viewportKey={regionalMap ? "homepage:regional" : `homepage:${nationwide ? `nationwide:${listDataKey}` : regionId}:mixed-source:${mode}:${normalizedQuery}`}
               showLocationLabel={false}
               showSelectionInfo={false}
               emptyMessage={mode === "search"
@@ -450,7 +481,7 @@ export function HomePlaceWorkbench({
             </p>
           ) : null}
           <div ref={scrollerRef} className="homepage-workbench__scroller" key={listDataKey}>
-            {visibleMarkers.length === 0 ? (
+            {regionalMap?.listContent ?? (visibleMarkers.length === 0 ? (
               <div className="homepage-workbench-empty" role="status">
                 <Search size={22} aria-hidden="true" />
                 <strong>{mode === "search" ? "검색 결과가 없습니다" : "선택한 유형의 장소가 없습니다"}</strong>
@@ -530,7 +561,7 @@ export function HomePlaceWorkbench({
                   ) : null}
                 </article>
               );
-            })}
+            }))}
             {visibleMarkers.length > HOME_LIST_PAGE_SIZE ? (
               <nav className="homepage-workbench-pager" aria-label="홈 장소 목록 페이지">
                 <button

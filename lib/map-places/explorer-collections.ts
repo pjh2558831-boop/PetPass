@@ -67,16 +67,19 @@ export function getExplorerCategoryCounts(
   return counts;
 }
 
-export function getExplorerCollections(input: ExplorerCollectionInput): {
+export function getExplorerMapPlaces(input: ExplorerScopeInput & Pick<ExplorerCollectionInput, "categories">): PublicCatalogMarker[] {
+  const categorySet = new Set(input.categories);
+  return getScopedExplorerPlaces(input)
+    .filter((place) => categorySet.has(mapCatalogPlaceToCategory(place)));
+}
+
+export function getExplorerCollections(input: ExplorerCollectionInput, matchedPlaces = getExplorerMapPlaces(input)): {
   filteredPlaces: PublicCatalogMarker[];
   mapPlaces: PublicCatalogMarker[];
   pagedPlaces: PublicCatalogMarker[];
   currentPage: number;
   totalPages: number;
 } {
-  const categorySet = new Set(input.categories);
-  const matchedPlaces = getScopedExplorerPlaces(input)
-    .filter((place) => categorySet.has(mapCatalogPlaceToCategory(place)));
   const filteredPlaces = rankCatalogPlaces(matchedPlaces, {
     activeCategories: input.categories,
     districtSelected: input.district !== "all",

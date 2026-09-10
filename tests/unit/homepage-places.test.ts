@@ -160,6 +160,7 @@ describe("provider-neutral homepage place snapshot", () => {
       isAllowed: true,
       sourceLabel: "한국관광공사",
       imageUrl: "https://example.com/official.jpg",
+      href: expect.stringContaining("region=busan"),
     });
     expect(result.cards.filter(({ layer }) => layer !== "official")).toEqual(
       expect.arrayContaining([

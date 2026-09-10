@@ -1,5 +1,4 @@
 import Image from "next/image";
-import { ShieldCheck } from "lucide-react";
 import {
   WEEKENDOG_PUBLIC_DATA_SOURCES,
   type PublicDataSourceIcon,
@@ -31,19 +30,7 @@ const PARTNER_ASSETS: Record<PublicDataSourceIcon, PartnerAsset> = {
 
 export function PublicDataTrustCard() {
   return (
-    <section className="weekendoog-public-data" aria-labelledby="weekendoog-trust-title">
-      <div className="weekendoog-trust-principle">
-        <span className="weekendoog-trust-principle__icon" aria-hidden="true">
-          <ShieldCheck size={20} />
-        </span>
-        <div>
-          <h2 id="weekendoog-trust-title">확인 가능한 근거를 우선합니다</h2>
-          <p>
-            등록된 장소의 제공처와 이용 조건을 함께 보여드리고, 실제 이동시간을 일정에 반영합니다.
-          </p>
-        </div>
-      </div>
-
+    <section className="weekendoog-public-data" aria-label="데이터 제공처">
       <div className="weekendoog-partner-strip">
         <p>함께 확인하는 데이터 제공처</p>
         <ul className="weekendoog-partner-row" aria-label="WEEKENDOG 데이터 제공 기관">

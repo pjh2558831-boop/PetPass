@@ -12,7 +12,7 @@ export async function fetchPetEvents(environment: NodeJS.ProcessEnv = process.en
   if (!environment.TOUR_API_SERVICE_KEY?.trim()) throw new TourProviderError("CONFIGURATION", "행사 설정 필요");
   const today = kstToday(now);
   const windowStart = offsetDate(today, -30);
-  const windowEnd = offsetDate(today, 90);
+  const windowEnd = offsetDate(today, 30);
   const signal = AbortSignal.timeout(20000);
   const items: TourItem[] = [];
   let requests = 0;
@@ -39,12 +39,12 @@ export async function getPetEventFeed(): Promise<ContentFeed<PetEventItem>> {
   if (Date.now() < blockedUntil) return { state: "unavailable", items: [] };
   try {
     // ponytail: process-local cache; shared storage only if multi-instance traffic requires it.
-    const result = await cache.getOrLoad("pet-events-v1", 6 * 60 * 60 * 1000, () => fetchPetEvents());
+    const result = await cache.getOrLoad("pet-events-30-days-v2", 6 * 60 * 60 * 1000, () => fetchPetEvents());
     const today = kstToday(now);
     const items = result.items.flatMap(item => {
       const status = eventStatus(item.startDate, item.endDate, today);
       return status ? [{ ...item, status }] : [];
-    }).slice(0, 3);
+    });
     return { state: items.length ? "ready" : "empty", items, coverageLimited: result.coverageLimited };
   } catch (error) {
     const code = error instanceof TourProviderError ? error.code : error instanceof Error && /TimeoutError|AbortError/.test(error.name) ? "TIMEOUT" : "INVALID_RESPONSE";

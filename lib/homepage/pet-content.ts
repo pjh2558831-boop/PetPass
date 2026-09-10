@@ -41,7 +41,7 @@ export function selectEvents(items: TourItem[], today: string, checkedAt: string
     const endDate = calendarDate(item.eventenddate);
     if (!item.contentid || !title || !PET_EVENT_TERMS.test(title) || !startDate || (item.eventenddate && !endDate)) continue;
     if (item.contenttypeid && item.contenttypeid !== "15") continue;
-    if (startDate < offsetDate(today, -30) || startDate > offsetDate(today, 90)) continue;
+    if (startDate > offsetDate(today, 30)) continue;
     if (/취소|연기/u.test(item.progresstype ?? "")) continue;
     const status = eventStatus(startDate, endDate, today);
     if (!status || unique.has(item.contentid)) continue;
@@ -51,6 +51,7 @@ export function selectEvents(items: TourItem[], today: string, checkedAt: string
       id: item.contentid, title, startDate, endDate, status,
       regionLabel: item.addr1?.trim().split(/\s+/)[0] || "지역 확인 필요",
       venueLabel: item.eventplace?.trim() || address || null,
+      imageUrl: safeContentUrl(item.firstimage),
       informationUrl: safeContentUrl(item.homepage), source: "한국관광공사", checkedAt,
     });
   }

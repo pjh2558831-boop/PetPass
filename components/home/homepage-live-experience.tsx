@@ -755,7 +755,7 @@ export function HomepageLiveExperience({
     );
   }
 
-  if (cardsOnly) return <HomepagePlaceCarousel places={snapshot.cards} layers={snapshot.layers}
+  if (cardsOnly) return <HomepagePlaceCarousel regionId={regionId} places={snapshot.cards} layers={snapshot.layers}
     featuredState={snapshot.official.featuredState} staticMapEnabled={staticMapEnabled} />;
 
   const categoryCounts = Object.fromEntries(PLACE_CATEGORIES.map((category) => {

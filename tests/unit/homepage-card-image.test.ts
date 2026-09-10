@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveHomepageCardImage } from "@/lib/homepage/homepage-card-image";
+import { compareHomepageCardPhotos, resolveHomepageCardImage } from "@/lib/homepage/homepage-card-image";
 import type { HomepagePlaceCard } from "@/types/homepage-places";
 
 const base: HomepagePlaceCard = {
@@ -57,4 +57,17 @@ describe("homepage place card image hierarchy", () => {
       staticMapEnabled: false,
     })).toMatchObject({ kind: "category_placeholder", category: "cafe" });
   });
+});
+
+it("puts all available photos before location previews without changing ties or input", () => {
+  const cards = [
+    { ...base, id: "kakao:1" },
+    { ...base, id: "tour:2", imageUrl: "https://example.com/2.jpg" },
+    { ...base, id: "tour:3" },
+    { ...base, id: "kakao:4", imageUrl: "https://example.com/4.jpg" },
+  ];
+  expect([...cards].sort(compareHomepageCardPhotos).map(card => card.id)).toEqual([
+    "tour:2", "kakao:4", "kakao:1", "tour:3",
+  ]);
+  expect(cards.map(card => card.id)).toEqual(["kakao:1", "tour:2", "tour:3", "kakao:4"]);
 });

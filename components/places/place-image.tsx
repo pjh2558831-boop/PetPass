@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { usePlacePhotoState } from "@/lib/places/use-place-photo-state";
 import { MissingImage } from "@/components/ui/missing-image";
 
 export function PlaceImage({
@@ -17,25 +17,27 @@ export function PlaceImage({
   className?: string;
   sizes?: string;
 }) {
-  const [failedUrl, setFailedUrl] = useState<string | null>(null);
-  const wrapperClassName = `relative min-h-24 overflow-hidden rounded-lg bg-[#eef3ef] ${className}`;
-  if (!imageUrl) return <MissingImage label={title} className={className} />;
-  if (failedUrl === imageUrl) {
-    return (
-      <MissingImage label={title} mode="load-error" className={className} />
-    );
-  }
+  const photo = usePlacePhotoState(imageUrl);
   return (
-    <div className={wrapperClassName}>
-      <Image
-        src={imageUrl}
-        alt={`${title} 제공 이미지`}
-        fill
-        priority={priority}
-        sizes={sizes}
-        className="object-cover"
-        onError={() => setFailedUrl(imageUrl)}
-      />
+    <div className={`relative min-h-24 overflow-hidden rounded-lg bg-[#eef3ef] ${className}`} data-image-state={photo.state}>
+      {!imageUrl || photo.state === "failed" ? (
+        <>
+          <MissingImage label={title} mode={photo.state === "failed" ? "load-error" : "missing"} className="h-full" />
+          {photo.state === "failed" ? <button type="button" className="photo-retry" onClick={photo.retry} onKeyDown={(event) => event.stopPropagation()}>사진 다시 시도</button> : null}
+        </>
+      ) : (
+        <Image
+          key={imageUrl}
+          src={imageUrl}
+          alt={`${title} 제공 이미지`}
+          fill
+          priority={priority}
+          sizes={sizes}
+          className="object-cover"
+          onLoad={photo.onLoad}
+          onError={photo.onError}
+        />
+      )}
     </div>
   );
 }

@@ -1,4 +1,6 @@
 "use client";
+import { requestMapPlaceCardDetails } from "@/lib/map-places/card-details-client";
+import { MAP_PLACE_CARD_PAGE_SIZE } from "@/types/map-place-card-details";
 
 import Link from "next/link";
 import {
@@ -8,14 +10,16 @@ import {
   Phone,
   ShieldCheck,
 } from "lucide-react";
-import { useRef, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { PlaceCardMedia } from "@/components/places/place-card-media";
-import { resolveHomepageCardImage } from "@/lib/homepage/homepage-card-image";
+import { compareHomepageCardPhotos, resolveHomepageCardImage } from "@/lib/homepage/homepage-card-image";
 import type {
   HomepageLayerSnapshot,
   HomepagePlaceCard,
   HomepagePlaceLayer,
 } from "@/types/homepage-places";
+import type { RegionId } from "@/types/region";
+import { getRegionConfig } from "@/lib/regions/config";
 import type { HomepageFeaturedState } from "@/types/homepage";
 
 export function HomepagePlaceCarousel({
@@ -23,15 +27,42 @@ export function HomepagePlaceCarousel({
   layers,
   featuredState,
   staticMapEnabled,
+  regionId = "busan",
 }: {
   places: HomepagePlaceCard[];
   layers: Record<HomepagePlaceLayer, HomepageLayerSnapshot>;
   featuredState: HomepageFeaturedState;
   staticMapEnabled: boolean;
+  regionId?: RegionId;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef(new Map<string, HTMLElement>());
-  const visiblePlaces = places;
+  const [photos, setPhotos] = useState<{ region: RegionId; images: Map<string, string>; failed: boolean } | null>(null);
+  const photoRequestKey = places.filter(place => !place.imageUrl && (place.layer === "official" || place.layer === "kakao_candidate"))
+    .map(place => place.id).sort().join(",");
+  useEffect(() => {
+    if (!photoRequestKey) return;
+    const controller = new AbortController();
+    const ids = photoRequestKey.split(",");
+    const requests = [];
+    for (let offset = 0; offset < ids.length; offset += MAP_PLACE_CARD_PAGE_SIZE) {
+      requests.push(requestMapPlaceCardDetails(regionId, "core", ids.slice(offset, offset + MAP_PLACE_CARD_PAGE_SIZE), controller.signal));
+    }
+    void Promise.allSettled(requests).then(results => {
+      if (controller.signal.aborted) return;
+      const images = new Map<string, string>();
+      for (const result of results) {
+        if (result.status === "fulfilled") for (const item of result.value.items) {
+          if (item.imageUrl) images.set(item.id, item.imageUrl);
+        }
+      }
+      setPhotos({ region: regionId, images, failed: results.some(result => result.status === "rejected") });
+    });
+    return () => controller.abort();
+  }, [photoRequestKey, regionId]);
+  const visiblePlaces = places.map(place => ({ ...place,
+    imageUrl: place.imageUrl ?? (photos?.region === regionId ? photos.images.get(place.id) : null) ?? null,
+  })).sort(compareHomepageCardPhotos);
 
   const moveCarousel = (direction: -1 | 1) => {
     const scroller = scrollerRef.current;
@@ -82,7 +113,7 @@ export function HomepagePlaceCarousel({
         ? "공식 장소 정보를 지금 불러올 수 없습니다."
         : null;
 
-  if (places.length === 0) return null;
+  if (places.length === 0) return <p className="homepage-inline-status" role="status">현재 이 지역에서 추천할 장소가 없습니다. 다른 지역을 선택해 보세요.</p>;
 
   return (
     <section className="homepage-places-section" aria-labelledby="homepage-places-title">
@@ -118,6 +149,7 @@ export function HomepagePlaceCarousel({
         </div>
       </div>
 
+      {photos?.region === regionId && photos.failed ? <p className="homepage-inline-status" role="status">일부 장소 사진을 불러오지 못해 위치 미리보기를 표시합니다.</p> : null}
       {officialStatus ? (
         <p className="homepage-inline-status" role="status">{officialStatus}</p>
       ) : null}
@@ -133,24 +165,22 @@ export function HomepagePlaceCarousel({
           className="homepage-place-scroller"
           role="region"
           aria-roledescription="캐러셀"
-          aria-label="부산 장소 카드"
+          aria-label={`${getRegionConfig(regionId).displayName} 장소 카드`}
         >
           {visiblePlaces.map((place, index) => {
             const image = resolveHomepageCardImage(place, {
-              regionId: "busan",
+              regionId,
               staticMapEnabled,
             });
             const hasImage = image.kind === "provider_photo" || image.kind === "approved_upload";
             const cardContent = (
               <>
-                {hasImage ? (
-                  <PlaceCardMedia
+                <PlaceCardMedia
                     image={image}
                     fallbackCategory={place.category}
                     className="homepage-place-image"
-                    sizes="(max-width: 767px) 96px, (max-width: 1179px) 104px, 112px"
-                  />
-                ) : null}
+                    sizes="(max-width: 600px) 240px, 260px"
+                />
                 <div className="homepage-place-card-body">
                   <div className="homepage-card-meta">
                     <span>{place.categoryLabel}</span>

@@ -1,4 +1,5 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import { mockHomepageCardDetails } from "./homepage-test-helpers";
 import type { RouteRecommendationReadyResponseV1 } from "../../types/recommendation";
 import {
   chooseConfirmedDeparture,
@@ -10,6 +11,10 @@ import {
   futureTripDate,
   openPetPlanner,
 } from "./planner-test-helpers";
+
+test.beforeEach(async ({ page }) => {
+  await mockHomepageCardDetails(page);
+});
 
 const stop = (id: string, sequence: number, title: string, category: "attraction" | "food") => ({
   placeId: id,
@@ -310,8 +315,9 @@ test("compact timeline preserves evidence and editing at desktop and mobile widt
   await page.route("**/api/map/places/cards?**", route => {
     const params = new URL(route.request().url()).searchParams;
     return route.fulfill({ json: { ok: true, data: {
+      contractVersion: 1, publicationVersion: "p1-timeline-fixture", page: 1, pageSize: 12, totalCount: (params.get("ids") ?? "").split(",").length,
       region: params.get("region"), dataset: params.get("dataset"),
-      items: (params.get("ids") ?? "").split(",").map(id => ({ id, imageUrl: "/images/home/hero/weekendog-busan-city-ver2.webp" })),
+      items: (params.get("ids") ?? "").split(",").map(id => ({ id, address: "부산광역시 공식로 1", phone: null, placeUrl: null, contentTypeId: null, imageUrl: "/images/home/hero/weekendog-busan-city-ver2.webp" })),
     } } });
   });
   await generate(page, testInfo);
@@ -653,7 +659,10 @@ test("restores a saved recommendation directly and after refresh without provide
       return value;
     } as typeof JSON.parse;
   });
+  const cardResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/map/places/cards");
   await generate(page, testInfo);
+  const observedCards = await cardResponse;
+  expect(observedCards.status()).toBe(200);
   await page.getByRole("button", { name: "일정 저장" }).click();
   await expect(page.getByRole("status")).toContainText("현재 일정을 이 브라우저에 저장했습니다");
   const storageBytes = await page.evaluate(() =>
