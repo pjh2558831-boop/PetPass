@@ -16,12 +16,14 @@ export function PublicCatalogCard({
   staticMapEnabled,
   itinerarySelection,
   idPrefix = "place-card",
+  compact = false,
 }: {
   place: PublicCatalogPlace;
   selected: boolean;
   onSelect: () => void;
   staticMapEnabled: boolean;
   idPrefix?: string;
+  compact?: boolean;
   itinerarySelection?: {
     selected: boolean;
     disabledReason?: string;
@@ -31,7 +33,7 @@ export function PublicCatalogCard({
   const isExternal = place.placeUrl?.startsWith("http") ?? false;
   const category = mapCatalogPlaceToCategory(place);
   const image = resolvePlaceCardImage(place, { staticMapEnabled });
-  const hasImage = image.kind !== "category_placeholder";
+  const hasImage = !compact && image.kind !== "category_placeholder";
   const sourceLabel = place.layer === "kakao" ? "카카오맵" : place.sourceLabel;
   const petConditions = place.petConditions?.trim() || null;
   const warning = place.warning === "카카오 검색 후보입니다. 방문 전 반려동물 동반 가능 여부를 확인해 주세요."
@@ -55,7 +57,7 @@ export function PublicCatalogCard({
           <p className="catalog-result-card__warning">{warning}</p>
         ) : null}
         <p><MapPin size={13} aria-hidden="true" />{place.address}</p>
-        {petConditions ? (
+        {petConditions && !compact ? (
           <>
             <p className="catalog-result-card__condition-summary">{petConditions}</p>
             <Disclosure

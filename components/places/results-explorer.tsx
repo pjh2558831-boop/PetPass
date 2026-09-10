@@ -1352,6 +1352,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
                   onSelect={() => setSelectionFocusKey(value => value + 1)}
                   staticMapEnabled={staticMapEnabled}
                   idPrefix="map-preview"
+                  compact
                 />
               </section>
             ) : null}
