@@ -86,8 +86,8 @@ export function PublicCatalogCard({
               {itinerarySelection.selected ? "일정에 담음" : "일정에 담기"}
             </button>
           ) : null}
-          <button type="button" onClick={onSelect} aria-label={`${place.name} 지도에서 보기`}><LocateFixed size={14} aria-hidden="true" />지도</button>
-          {place.placeUrl ? <Link aria-label={`${place.name} 원문 상세 보기`} href={place.placeUrl} target={isExternal ? "_blank" : undefined} rel={isExternal ? "noreferrer" : undefined}>상세 보기 <ExternalLink size={14} aria-hidden="true" /></Link> : null}
+          <button type="button" style={compact ? { pointerEvents: "auto" } : undefined} onClick={onSelect} aria-label={`${place.name} 지도에서 보기`}><LocateFixed size={14} aria-hidden="true" />지도</button>
+          {place.placeUrl ? <Link style={compact ? { pointerEvents: "auto" } : undefined} aria-label={`${place.name} 원문 상세 보기`} href={place.placeUrl} target={isExternal ? "_blank" : undefined} rel={isExternal ? "noreferrer" : undefined}>상세 보기 <ExternalLink size={14} aria-hidden="true" /></Link> : null}
         </div>
       </div>
     </article>

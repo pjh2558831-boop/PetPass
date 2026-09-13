@@ -916,6 +916,7 @@ test("switches source markers with the preview open on desktop and mobile", asyn
   const previewBox = await preview.boundingBox();
   expect(previewBox!.y).toBeGreaterThanOrEqual(canvasBox!.y);
   expect(previewBox!.y + previewBox!.height).toBeLessThan(canvasBox!.y + canvasBox!.height);
+  expect(previewBox!.width).toBeGreaterThanOrEqual(270);
   expect(previewBox!.width).toBeLessThanOrEqual(280);
   expect(page.url()).toBe(url);
   expect(requests).toHaveLength(requestCount);
