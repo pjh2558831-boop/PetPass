@@ -12,7 +12,7 @@ import type { RegionId } from "@/types/region";
 export type HomeSearchRequest = { query: string; regionId: RegionId };
 
 export function HomepageLanding({ staticMapEnabled }: { staticMapEnabled: boolean }) {
-  const [region, setRegion] = useState<RegionId>("busan");
+  const [region, setRegion] = useState<RegionId>("seoul");
   const [searchRequest, setSearchRequest] = useState<HomeSearchRequest>();
   return <>
     <WeekendoogHero onSearch={(query, regionId) => {
