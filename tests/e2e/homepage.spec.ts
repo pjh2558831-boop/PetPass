@@ -35,6 +35,12 @@ async function chooseHomepageRegion(page: Page) {
   await expect(page.getByRole("combobox", { name: "홈 지도 지역", exact: true })).toHaveValue("busan");
 }
 
+async function chooseRecommendedRegion(page: Page, name = "부산") {
+  await page.getByRole("group", { name: "추천 장소 지역" })
+    .getByRole("button", { name, exact: true })
+    .click();
+}
+
 async function showHomepageMapMode(page: Page) {
   if ((page.viewportSize()?.width ?? 1_024) > 900) return;
   await page
@@ -63,6 +69,7 @@ test.beforeEach(async ({ page }, testInfo) => {
 });
 test(NETWORK_TEST, async ({ page }) => {
   let initialRequests = 0;
+  const initialRegions: string[] = [];
   let enrichmentRequests = 0;
   let optionalRequests = 0;
   const sdkRequests: string[] = [];
@@ -73,7 +80,10 @@ test(NETWORK_TEST, async ({ page }) => {
   });
   page.on("request", (request) => {
     const url = new URL(request.url());
-    if (url.pathname === "/api/homepage/places/initial" && url.searchParams.get("scope") === "default") initialRequests += 1;
+    if (url.pathname === "/api/homepage/places/initial" && url.searchParams.get("scope") === "default") {
+      initialRequests += 1;
+      initialRegions.push(url.searchParams.get("region") ?? "");
+    }
     if (url.pathname === "/api/homepage/places/enrichment") enrichmentRequests += 1;
     if (url.pathname === "/api/homepage/places/optional") optionalRequests += 1;
     if (url.hostname === "dapi.kakao.com" && url.pathname === "/v2/maps/sdk.js") sdkRequests.push(url.toString());
@@ -88,7 +98,9 @@ test(NETWORK_TEST, async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".homepage-live-ready")).toBeVisible();
   await expect.poll(() => initialRequests).toBe(1);
-  await expect.poll(() => enrichmentRequests).toBe(1);
+  expect(initialRegions).toEqual(["seoul"]);
+  await expect(page.getByRole("group", { name: "추천 장소 지역" }).getByRole("button", { name: "서울", exact: true })).toHaveAttribute("aria-pressed", "true");
+  expect(enrichmentRequests).toBe(0);
   expect(optionalRequests).toBe(0);
   await expect.poll(() => sdkRequests.length).toBe(1);
   await expect.poll(() => page.evaluate(() =>
@@ -163,6 +175,7 @@ test("renders the base map while KTO enrichment is delayed by ten seconds", asyn
   });
 
   await page.goto("/");
+  await chooseRecommendedRegion(page);
   await chooseHomepageRegion(page);
   await expect(page.locator(".homepage-live-ready")).toBeVisible();
   await expect(page.locator(".homepage-map-canvas-wrap .map-canvas")).toHaveAttribute(
@@ -324,6 +337,7 @@ test("aborts and ignores late enrichment after navigation", async ({ page }, tes
   });
 
   await page.goto("/");
+  await chooseRecommendedRegion(page);
   await expect(page.locator(".homepage-live-ready")).toBeVisible();
   await expect.poll(() => enrichmentRequested).toBe(true);
   await page
@@ -596,6 +610,7 @@ test("renders mixed source markers, dynamic counts and truthful selection throug
 test("keeps supporting discovery truthful without a duplicate filter system or large placeholders", async ({ page }) => {
   await mockHomepage(page);
   await page.goto("/");
+  await chooseRecommendedRegion(page);
   const carousel = page.getByRole("region", { name: "부산 장소 카드" });
   await expect(carousel.locator(".homepage-place-card")).toHaveCount(4);
   await expect(carousel).toContainText("해운대 달맞이 산책로");
@@ -647,6 +662,7 @@ test("keeps official data working when the stored Kakao catalog is unavailable",
   };
   await mockHomepage(page, unavailable);
   await page.goto("/");
+  await chooseRecommendedRegion(page);
   await chooseHomepageRegion(page);
   await expect(page.locator(".homepage-map-section")).toBeVisible();
   const rows = page.locator(".homepage-workbench-row");
@@ -665,6 +681,7 @@ test("moves card focus and opens selection without itinerary generation", async 
   });
   await mockHomepage(page);
   await page.goto("/");
+  await chooseRecommendedRegion(page);
   const carousel = page.getByRole("region", { name: "부산 장소 카드" });
   const links = carousel.getByRole("link");
   await links.first().focus();
@@ -701,6 +718,7 @@ test("searches loaded places and transfers an ordered three-place selection to t
   const enrichmentReady = page.waitForResponse((response) =>
     new URL(response.url()).pathname === "/api/homepage/places/enrichment");
   await page.goto("/");
+  await chooseRecommendedRegion(page);
   await chooseHomepageRegion(page);
   await enrichmentReady;
   await expect(page.locator(".homepage-live-ready")).toBeVisible();

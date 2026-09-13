@@ -19,6 +19,7 @@ import {
   type HomepageOptionalDatasetId,
   type HomepageOptionalSnapshot,
 } from "@/types/homepage-optional";
+import type { RegionId } from "@/types/region";
 
 export const HOMEPAGE_INITIAL_API = "**/api/homepage/places/initial?**";
 export const HOMEPAGE_ENRICHMENT_API = "**/api/homepage/places/enrichment?**";
@@ -190,6 +191,7 @@ export function initialLayer(layer: HomepagePlaceLayer): HomepageInitialLayer {
 export function initialSnapshot(
   snapshot = SNAPSHOT,
   scope: "default" | "optional" = "default",
+  region: RegionId = "busan",
 ): HomepageInitialPlacesSnapshot {
   const includedLayers: HomepagePlaceLayer[] = scope === "default"
     ? ["official", "kakao_candidate"]
@@ -236,7 +238,7 @@ export function initialSnapshot(
   );
   return {
     contractVersion: 1,
-    region: "busan",
+    region,
     scope,
     providers: scope === "default" ? "default" : "kakao",
     generatedAt: snapshot.official.retrievedAt,
@@ -425,10 +427,11 @@ export async function fulfillInitial(
   snapshot = SNAPSHOT,
   scope: "default" | "optional" = "default",
 ) {
+  const region = new URL(route.request().url()).searchParams.get("region") as RegionId;
   await route.fulfill({
     status: 200,
     contentType: "application/json",
-    body: JSON.stringify({ ok: true, data: initialSnapshot(snapshot, scope), requestId: "homepage-initial-e2e" }),
+    body: JSON.stringify({ ok: true, data: initialSnapshot(snapshot, scope, region), requestId: "homepage-initial-e2e" }),
   });
 }
 
