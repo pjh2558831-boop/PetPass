@@ -1344,8 +1344,8 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
             showLocationLabel={false}
             showWatermark={false}
             selectionContent={selectedPlace ? (
-              <section className="explorer-map-place-preview" aria-label="선택한 장소 미리보기" onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); closePlacePreview(); } }}>
-                <button type="button" className="explorer-map-place-preview__close" aria-label="장소 미리보기 닫기" onClick={closePlacePreview}><X size={18} aria-hidden="true" /></button>
+              <section className="explorer-map-place-preview" style={{ width: "100%", maxHeight: "none", overflow: "hidden", border: "1px solid var(--ui2-line)", borderRadius: 14, boxShadow: "0 8px 28px rgb(19 32 27 / 18%)", pointerEvents: "none" }} aria-label="선택한 장소 미리보기" onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); closePlacePreview(); } }}>
+                <button type="button" className="explorer-map-place-preview__close" style={{ pointerEvents: "auto" }} aria-label="장소 미리보기 닫기" onClick={closePlacePreview}><X size={18} aria-hidden="true" /></button>
                 <PublicCatalogCard
                   place={selectedPlace}
                   selected={false}

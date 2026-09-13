@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  deploymentId: process.env.VERCEL_GIT_COMMIT_SHA,
   allowedDevOrigins: ["127.0.0.1"],
   experimental: {
     serverActions: {

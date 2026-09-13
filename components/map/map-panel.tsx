@@ -123,6 +123,15 @@ export function MapPanel({
     if (typeof document === "undefined") return null;
     const element = document.createElement("div");
     element.className = "map-selection-content";
+    Object.assign(element.style, {
+      width: "min(280px, calc(100vw - 48px))",
+      maxHeight: "none",
+      overflow: "visible",
+      paddingBottom: "48px",
+      border: "0",
+      background: "transparent",
+      pointerEvents: "none",
+    });
     return element;
   });
   const [satellite, setSatellite] = useState(false);
