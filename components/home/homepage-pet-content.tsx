@@ -137,7 +137,6 @@ export function HomepagePetContent() {
           <EventCarousel items={eventItems} />}
       </div>
       <p className={styles.note}>{events?.items[0]?.source === "네이버 검색" ? "NAVER 검색 · 검색 결과에 표시된 일정 기준" : "한국관광공사 우선 · 행사 미조회 시 NAVER 검색"}{events?.coverageLimited ? " · 일부 조회 결과" : ""}</p>
-      <p className={styles.note}>반려동물 입장 조건과 일정 변경 여부는 행사 안내를 확인해 주세요.</p>
     </div>
   </section>;
 }

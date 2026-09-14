@@ -29,6 +29,7 @@ for (const width of [1440, 768, 390, 320]) {
     await expect(carousel.getByRole("group", { name: "1 / 3", exact: true })).toBeVisible();
     await expect(carousel.getByRole("heading", { name: events.items[0].title, exact: true })).toBeVisible();
     await expect(section.getByRole("heading", { name: "반려동물 뉴스", exact: true })).toBeVisible();
+    await expect(section.getByText("반려동물 입장 조건과 일정 변경 여부는 행사 안내를 확인해 주세요.", { exact: true })).toHaveCount(0);
     expect(calls).toEqual({ news: 1, events: 1 });
     const left = await section.locator('[aria-labelledby="pet-news-heading"]').boundingBox();
     const right = await section.locator('[aria-labelledby="pet-events-heading"]').boundingBox();
