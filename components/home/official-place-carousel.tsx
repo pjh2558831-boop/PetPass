@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { PlaceCardMedia } from "@/components/places/place-card-media";
-import { compareHomepageCardPhotos, resolveHomepageCardImage } from "@/lib/homepage/homepage-card-image";
+import { resolveHomepageCardImage } from "@/lib/homepage/homepage-card-image";
 import type {
   HomepageLayerSnapshot,
   HomepagePlaceCard,
@@ -62,7 +62,8 @@ export function HomepagePlaceCarousel({
   }, [photoRequestKey, regionId]);
   const visiblePlaces = places.map(place => ({ ...place,
     imageUrl: place.imageUrl ?? (photos?.region === regionId ? photos.images.get(place.id) : null) ?? null,
-  })).sort(compareHomepageCardPhotos);
+  })).filter(place => Boolean(place.imageUrl))
+    .sort((left, right) => Number(right.layer === "official") - Number(left.layer === "official"));
 
   const moveCarousel = (direction: -1 | 1) => {
     const scroller = scrollerRef.current;
@@ -121,7 +122,7 @@ export function HomepagePlaceCarousel({
         <div>
           <p className="homepage-kicker">장소 둘러보기</p>
           <h2 id="homepage-places-title">함께 살펴볼 장소</h2>
-          <p>WEEKENDOG 등록 장소와 이용 조건을 데이터 제공처와 함께 보여드려요.</p>
+          <p>한국관광공사 제공 장소를 먼저, 이미지가 확인된 장소만 보여드려요.</p>
         </div>
         <div className="homepage-heading-actions">
           <Link href="/results?tab=catalog" className="homepage-text-link">
@@ -149,7 +150,7 @@ export function HomepagePlaceCarousel({
         </div>
       </div>
 
-      {photos?.region === regionId && photos.failed ? <p className="homepage-inline-status" role="status">일부 장소 사진을 불러오지 못해 위치 미리보기를 표시합니다.</p> : null}
+      {photos?.region === regionId && photos.failed ? <p className="homepage-inline-status" role="status">일부 장소 사진을 불러오지 못해 이미지가 확인된 장소만 보여드려요.</p> : null}
       {officialStatus ? (
         <p className="homepage-inline-status" role="status">{officialStatus}</p>
       ) : null}
@@ -157,7 +158,9 @@ export function HomepagePlaceCarousel({
         <p className="homepage-inline-status homepage-inline-status--warning" role="status">
           일부 지역 장소 후보를 지금 불러올 수 없어요. 공식 장소는 계속 확인할 수 있습니다.
         </p>
-      ) : null}
+      ) : (
+        <p className="homepage-inline-status" role="status">현재 이 지역에서 이미지가 확인된 추천 장소가 없습니다. 다른 지역을 선택해 보세요.</p>
+      )}
 
       {visiblePlaces.length > 0 ? (
         <div
