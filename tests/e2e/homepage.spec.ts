@@ -622,12 +622,9 @@ test("keeps supporting discovery truthful without a duplicate filter system or l
   )).toHaveCount(0);
   await expect(carousel.getByRole("link", { name: /광안리 반려견 검색 후보 카카오 장소 정보/u })).toHaveAttribute("href", "https://place.map.kakao.com/101");
   await expect(page.getByRole("group", { name: "장소 출처 필터" })).toHaveCount(0);
-  await expect(carousel.locator(".homepage-place-card--text-only")).toHaveCount(4);
-  await expect(carousel.locator(".catalog-card-placeholder")).toHaveCount(4);
-  for (const placeholder of await carousel.locator(".catalog-card-placeholder").all()) {
-    await expect(placeholder).toBeHidden();
-    expect(await placeholder.boundingBox()).toBeNull();
-  }
+  await expect(carousel.locator(".homepage-place-card--with-image")).toHaveCount(4);
+  await expect(carousel.locator(".homepage-place-card--text-only")).toHaveCount(0);
+  await expect(carousel.locator(".homepage-place-card").first()).toContainText("한국관광공사");
   const cards = carousel.locator(".homepage-place-card");
   for (let index = 0; index < await cards.count(); index += 1) {
     expect(await cards.nth(index).locator(".homepage-place-card__label").count()).toBeLessThanOrEqual(2);

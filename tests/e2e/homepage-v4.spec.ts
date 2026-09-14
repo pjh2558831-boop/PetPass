@@ -103,12 +103,15 @@ test("v4 prioritizes photos for every region and opens footer policies", async (
   for (const region of REGION_CONFIGS.filter(region => region.mapEnabled)) {
     await page.getByRole("group", { name: "추천 장소 지역" }).getByRole("button", { name: region.displayName, exact: true }).click();
     const cards = page.locator(".homepage-place-scroller .homepage-place-card");
+    await expect(cards).toHaveCount(2);
     await expect(cards.first()).toContainText(region.id);
+    await expect(cards.first()).toContainText("한국관광공사");
+    await expect(cards.last()).toContainText("카카오 검색 후보");
     await expect(cards.first()).toHaveClass(/homepage-place-card--with-image/);
     const photoFlags = await cards.evaluateAll(cards => cards.map(card => card.classList.contains("homepage-place-card--with-image")));
-    expect(photoFlags).toEqual([...photoFlags].sort((a, b) => Number(b) - Number(a)));
-    expect(photoFlags).toContain(true);
-    expect(photoFlags).toContain(false);
+    expect(photoFlags.length).toBeGreaterThan(0);
+    expect(photoFlags.every(Boolean)).toBe(true);
+    await expect(page.locator(".homepage-place-scroller .homepage-place-card--text-only")).toHaveCount(0);
   }
   const policies = page.getByRole("navigation", { name: "서비스 정책", exact: true });
   await policies.getByRole("link", { name: "개인정보처리방침", exact: true }).click();

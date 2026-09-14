@@ -94,7 +94,7 @@ export const OFFICIAL_ALLOWED = marker(
   "official",
   "해운대 달맞이 산책로",
   { latitude: 35.1587, longitude: 129.16 },
-  { isAllowed: true, statusLabel: "동반 가능" },
+  { isAllowed: true, statusLabel: "동반 가능", imageUrl: "https://tong.visitkorea.or.kr/test-photo.jpg" },
 );
 export const OFFICIAL_NEUTRAL = marker(
   "tour:1102",
@@ -112,6 +112,7 @@ export const OFFICIAL_CAFE = marker(
     district: "수영구",
     isAllowed: true,
     statusLabel: "동반 가능",
+    imageUrl: "https://tong.visitkorea.or.kr/test-photo.jpg",
   },
 );
 export const OFFICIAL_STAY = marker(
@@ -124,6 +125,7 @@ export const OFFICIAL_STAY = marker(
     district: "기장군",
     isAllowed: true,
     statusLabel: "동반 가능",
+    imageUrl: "https://tong.visitkorea.or.kr/test-photo.jpg",
   },
 );
 export const KAKAO_CANDIDATE = marker(
@@ -131,7 +133,7 @@ export const KAKAO_CANDIDATE = marker(
   "kakao_candidate",
   "광안리 반려견 검색 후보",
   { latitude: 35.1532, longitude: 129.1187 },
-  { category: "cafe", district: "수영구" },
+  { category: "cafe", district: "수영구", imageUrl: "https://tong.visitkorea.or.kr/test-photo.jpg" },
 );
 export const VETERINARY = marker(
   "kakao:102",
