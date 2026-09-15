@@ -1,7 +1,6 @@
 import { HeroPhotoCarousel } from "@/components/home/hero-photo-carousel";
 import { HeroPlannerLauncher } from "@/components/home/hero-planner-launcher";
 
-import { PawPrint } from "lucide-react";
 import type { RegionId } from "@/types/region";
 
 export function WeekendoogHero({ onSearch }: { onSearch?: (query: string, regionId: RegionId) => void }) {
@@ -24,7 +23,6 @@ export function WeekendoogHero({ onSearch }: { onSearch?: (query: string, region
           </p>
         </div>
 
-        <p className="home-hero-note" aria-hidden="true">좋은 곳엔,<br />언제나 함께 <PawPrint size={23} /></p>
         <div className="weekendoog-hero-launcher">
           <HeroPlannerLauncher onSearch={onSearch} />
         </div>
