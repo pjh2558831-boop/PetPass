@@ -265,9 +265,7 @@ export function HomepagePlaceCarousel({
             );
           })}
         </div>
-      ) : (
-        <p className="homepage-inline-status" role="status">현재 이 지역에서 이미지가 확인된 추천 장소가 없습니다. 다른 지역을 선택해 보세요.</p>
-      )}
+      ) : null}
     </section>
   );
 }
