@@ -112,6 +112,7 @@ test("v4 prioritizes photos for every region and opens footer policies", async (
     expect(photoFlags.length).toBeGreaterThan(0);
     expect(photoFlags.every(Boolean)).toBe(true);
     await expect(page.locator(".homepage-place-scroller .homepage-place-card--text-only")).toHaveCount(0);
+    await expect(page.getByText("현재 이 지역에서 이미지가 확인된 추천 장소가 없습니다. 다른 지역을 선택해 보세요.", { exact: true })).toHaveCount(0);
   }
   const policies = page.getByRole("navigation", { name: "서비스 정책", exact: true });
   await policies.getByRole("link", { name: "개인정보처리방침", exact: true }).click();
