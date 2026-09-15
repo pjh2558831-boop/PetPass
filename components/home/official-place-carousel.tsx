@@ -158,9 +158,7 @@ export function HomepagePlaceCarousel({
         <p className="homepage-inline-status homepage-inline-status--warning" role="status">
           일부 지역 장소 후보를 지금 불러올 수 없어요. 공식 장소는 계속 확인할 수 있습니다.
         </p>
-      ) : (
-        <p className="homepage-inline-status" role="status">현재 이 지역에서 이미지가 확인된 추천 장소가 없습니다. 다른 지역을 선택해 보세요.</p>
-      )}
+      ) : null}
 
       {visiblePlaces.length > 0 ? (
         <div
@@ -267,7 +265,9 @@ export function HomepagePlaceCarousel({
             );
           })}
         </div>
-      ) : null}
+      ) : (
+        <p className="homepage-inline-status" role="status">현재 이 지역에서 이미지가 확인된 추천 장소가 없습니다. 다른 지역을 선택해 보세요.</p>
+      )}
     </section>
   );
 }
