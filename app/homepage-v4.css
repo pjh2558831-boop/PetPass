@@ -116,8 +116,8 @@ body:has(.weekendoog-home) .home-header-search { display:grid; flex:0 0 44px; he
 .home-selected-itinerary__clear { display:flex; gap:8px; justify-content:center; align-items:center; min-height:44px; border-radius:7px; font-size:13px; }
 .home-selected-itinerary__add { grid-column:1; border:1px solid var(--ui2-line-strong); }
 .home-selected-itinerary__clear { grid-column:2; grid-row:3; }
-.home-landscape { position:relative; width:100%; aspect-ratio:1922/818; overflow:hidden; }
-.home-landscape img { display:block; position:absolute; inset:0; width:100%; height:100%; object-fit:contain; object-position:center; }
+.home-landscape { position:relative; width:100%; aspect-ratio:3.3; overflow:hidden; }
+.home-landscape img { display:block; position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center bottom; }
 body:has(.weekendoog-home) .site-footer { background:#f5f8ef; }
 .weekendoog-home :is(button,a,input,select,summary):focus-visible { outline:2px solid var(--brand); outline-offset:3px; }
 @media (min-width:901px) {
@@ -192,7 +192,7 @@ body:has(.weekendoog-home) .site-footer { background:#f5f8ef; }
   .weekendoog-home .home-selected-itinerary__item { grid-template-columns:64px minmax(0,1fr); }
   .weekendoog-home .home-selected-itinerary__image { width:64px; min-height:64px; height:64px; }
   .weekendoog-home .home-selected-itinerary__controls { justify-content:flex-start; }
-  .home-landscape { aspect-ratio:1922/818; }
+  .home-landscape { aspect-ratio:2.8; }
 }
 @media (prefers-reduced-motion:reduce) { .weekendoog-home * { scroll-behavior:auto; transition:none; } }
 
