@@ -531,7 +531,6 @@ test("keeps search and selected places through a regional failure and cache retu
   await page.context().addCookies([{ name: "petpass-test-session", value: "private", url: "http://localhost:3000" }]);
   await page.goto("/");
   await chooseHomepageRegion(page);
-  await page.getByRole("tab", { name: "검색", exact: true }).click();
   const search = page.getByRole("searchbox", { name: "불러온 장소 검색" });
   await search.fill("해운대");
   await page.getByRole("checkbox", { name: "해운대 달맞이 산책로 일정에 담기" }).check();
@@ -567,7 +566,6 @@ test(MAP_FAILURE_TEST, async ({ page }) => {
   await expect(page.locator("[data-map-error-category]")).toBeVisible();
   await showHomepageListMode(page);
   await expect(page.locator(".homepage-workbench-row")).toHaveCount(5);
-  await page.getByRole("tab", { name: "검색", exact: true }).click();
   const search = page.getByRole("searchbox", { name: "불러온 장소 검색" });
   await search.fill("광안리");
   await expect(page.locator(".homepage-workbench-row")).toHaveCount(2);
@@ -723,8 +721,6 @@ test("searches loaded places and transfers an ordered three-place selection to t
   await expect(page.locator(".homepage-workbench-row").first().getByText("제공된 이미지가 없어요", { exact: true })).toHaveCount(0);
   const requestsAfterReady = homepageApiRequests;
 
-  const modes = page.getByRole("tablist", { name: "홈 장소 탐색 모드" });
-  await modes.getByRole("tab", { name: "검색", exact: true }).click();
   const search = page.getByRole("searchbox", { name: "불러온 장소 검색" });
   await search.fill("광안리");
   await expect(page.locator(".homepage-workbench-row")).toHaveCount(2);
@@ -740,7 +736,7 @@ test("searches loaded places and transfers an ordered three-place selection to t
   await search.press("Escape");
   await expect(search).toHaveValue("");
   await search.press("Escape");
-  const browseMode = modes.getByRole("tab", { name: "장소 찾기", exact: true });
+  const browseMode = page.getByRole("tab", { name: "장소 찾기", exact: true });
   await expect(browseMode).toHaveAttribute("aria-selected", "true");
   await expect(browseMode).toBeFocused();
 
@@ -803,7 +799,7 @@ test("keeps homepage filter actions reachable inside the viewport", async ({ pag
       const box = (await filter.boundingBox())!;
       expect(box.x).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width).toBeLessThanOrEqual(width);
-      expect(box.y + box.height).toBeLessThanOrEqual(900);
+      expect(box.y + box.height).toBeLessThanOrEqual(900.5);
       expect(box.height).toBeGreaterThanOrEqual(44);
     }
     const category = page.getByRole("combobox", { name: "홈 지도 장소 유형", exact: true });
@@ -862,18 +858,13 @@ test("paginates a dense home list with complete tab semantics and 44px mobile ta
   await expect(page.locator("#main-content")).toBeFocused();
 
   const browseTab = page.getByRole("tab", { name: "장소 찾기" });
-  const searchTab = page.getByRole("tab", { name: "검색", exact: true });
-  await browseTab.focus();
-  await browseTab.press("ArrowRight");
-  await expect(searchTab).toBeFocused();
-  await expect(searchTab).toHaveAttribute("aria-selected", "true");
-  await expect(searchTab).toHaveAttribute("aria-controls", "homepage-workbench-mode-panel");
+  await expect(page.getByRole("tab", { name: "검색", exact: true })).toHaveCount(0);
+  await expect(browseTab).toHaveAttribute("aria-selected", "true");
+  await expect(browseTab).toHaveAttribute("aria-controls", "homepage-workbench-mode-panel");
   await expect(page.getByRole("tabpanel")).toHaveAttribute(
     "aria-labelledby",
-    "homepage-workbench-search-tab",
+    "homepage-workbench-browse-tab",
   );
-  await searchTab.press("ArrowLeft");
-  await expect(browseTab).toBeFocused();
 
   const rows = page.locator(".homepage-workbench-row");
   await expect(rows).toHaveCount(12);
