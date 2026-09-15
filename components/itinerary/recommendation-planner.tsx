@@ -954,7 +954,7 @@ export function RecommendationPlanner({
       {loading ? <p role="status">새 일정을 확인하고 있습니다. 이전 경로를 계속 볼 수 있어요. <button type="button" className="underline" onClick={() => { controllerRef.current?.abort(); requestSequenceRef.current++; setLoading(false); setRevalidating(false); }}>요청 취소</button></p> : null}
       {response && response.status !== "ready" ? <section role="alert" className="rounded border border-[#dfccb3] bg-[#fff8ec] p-4"><p>{response.userMessage}</p><p>아래 경로는 마지막으로 성공한 입력 기준입니다.</p><Button type="button" onClick={() => void runRecommendation()}>현재 입력으로 다시 시도</Button><Link href="/planner/pet" className="ml-4 underline">입력 수정</Link></section> : null}
       {excludedIds.length ? <div className="text-sm">이번 여행에서 {excludedIds.length}곳 제외 <button type="button" className="ml-3 min-h-11 underline disabled:opacity-50" disabled={!canUndoExclusion} onClick={undoExclusion}>마지막 제외 실행 취소</button><button type="button" className="ml-3 min-h-11 underline" onClick={() => { rememberExclusion(); persistExclusions([]); }}>이번 여행 제외 초기화</button></div> : null}
-      {displayedRoute.schedule ? <section className="rounded border border-[var(--line)] p-4" aria-label="일정 상태">
+      {displayedRoute.schedule && (displayedRoute.schedule.requested.date || displayedRoute.schedule.state === "adjustment_proposal") ? <section className="rounded border border-[var(--line)] p-4" aria-label="일정 상태">
         <p>{displayedRoute.schedule.requested.date ?? "날짜 미정"} · 요청 출발 {displayedRoute.schedule.requested.startTime ?? "시간 미정"}</p>
         {displayedRoute.schedule.state === "adjustment_proposal" ? <><p>입력한 시간 대신 {displayedRoute.schedule.effective.startTime} 출발을 제안합니다. 적용 전까지 원래 입력이 유지됩니다.</p><Button type="button" variant="brand" disabled={loading || revalidating} onClick={() => {
           if (!lastReadyRequest || !displayedRoute.schedule?.effective.startTime) return;
@@ -965,6 +965,7 @@ export function RecommendationPlanner({
         {!displayedRoute.schedule.requested.date ? <p>날짜 미정 초안입니다. 요일·날짜별 운영 여부는 아직 확인하지 않았습니다.</p> : null}
         {displayedRoute.schedule.operatingAvailability === "requires_confirmation" ? <p>운영시간 미상 장소가 있습니다. 영업을 확정한 결과가 아닙니다.</p> : null}
       </section> : null}
+      {displayedRoute.schedule?.operatingAvailability === "requires_confirmation" && !displayedRoute.schedule.requested.date && displayedRoute.schedule.state !== "adjustment_proposal" ? <p className="text-sm text-[#76542f]">운영시간 미상 장소가 있습니다. 영업을 확정한 결과가 아닙니다.</p> : null}
       <header className="route-result-header">
         <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
           <div className="min-w-0">

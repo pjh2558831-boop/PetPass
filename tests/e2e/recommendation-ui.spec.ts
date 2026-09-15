@@ -932,7 +932,7 @@ for (const mode of [
     await expect(page.getByRole("heading", { name: /에서 시작하는 2곳 일정/u })).toBeVisible();
     expect(bodies[0]).toMatchObject({ requestVersion: 2, trip: { date: mode.date, startTime: mode.time } });
     expect(bodies[0]).not.toHaveProperty("pet.availableEquipment");
-    if (!mode.date) await expect(page.getByLabel("일정 상태")).toContainText("날짜 미정 초안");
+    if (!mode.date) await expect(page.getByLabel("일정 상태")).toHaveCount(0);
     if (!mode.date && !mode.time) await expect(page.locator("#recommended-stop-tour\\:1001")).toContainText("출발 후 15분");
     if (!mode.date && mode.time) await expect(page.locator("#recommended-stop-tour\\:1001")).toContainText("10:15 (예시)");
     if (mode.date && !mode.time) await expect(page.getByLabel("일정 상태")).toContainText("추천 출발 시간: 09:00");
