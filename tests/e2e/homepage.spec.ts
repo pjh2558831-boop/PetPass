@@ -352,12 +352,12 @@ test("aborts and ignores late enrichment after navigation", async ({ page }, tes
   await expect(page.getByRole("heading", { name: "여행 정보 입력" })).toBeVisible();
 });
 
-test("uses one eager coastal hero image with explicit manual carousel controls", async ({ page }) => {
+test("uses the supplied travel hero images with explicit manual carousel controls", async ({ page }) => {
   const requestedFeaturedImages = new Set<string>();
   page.on("request", (request) => {
     const url = new URL(request.url());
     const source = url.searchParams.get("url") ?? url.pathname;
-    if (source.includes("coastal-dog-v4.webp")) {
+    if (source.includes("weekendog-travel-map.png")) {
       requestedFeaturedImages.add(source);
     }
   });
@@ -365,7 +365,7 @@ test("uses one eager coastal hero image with explicit manual carousel controls",
   await page.goto("/");
   const heroPhoto = page.locator(".weekendoog-hero-photo-frame");
   await expect(heroPhoto.locator("img")).toHaveCount(1);
-  await expect(heroPhoto.locator("img")).toHaveAttribute("alt", "차창 밖으로 얼굴을 내민 골든리트리버와 푸른 해안도로 여행 풍경");
+  await expect(heroPhoto.locator("img")).toHaveAttribute("alt", "반려견과 함께하는 여행 지도가 펼쳐진 일러스트");
   await expect(heroPhoto.locator("img")).toHaveAttribute("loading", "eager");
   await expect(heroPhoto.getByRole("group", { name: "여행 이미지 선택" }).getByRole("button", { name: /^여행 이미지 [12]$/u })).toHaveCount(2);
   await expect.poll(() => requestedFeaturedImages.size).toBe(1);
