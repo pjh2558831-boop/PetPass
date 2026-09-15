@@ -61,42 +61,14 @@ function markerSearchValue(marker: HomepageMapMarker): string {
 }
 
 function WorkbenchModes({
-  mode,
   onModeChange,
-  regionId,
   panelId,
   interactive = true,
 }: {
-  mode: WorkbenchMode;
   onModeChange: (mode: WorkbenchMode) => void;
-  regionId: RegionId;
   panelId?: string;
   interactive?: boolean;
 }) {
-  const focusTab = (nextMode: WorkbenchMode) => {
-    onModeChange(nextMode);
-    requestAnimationFrame(() => {
-      document.getElementById(`homepage-workbench-${nextMode}-tab`)?.focus();
-    });
-  };
-  const handleTabKeyDown = (
-    event: KeyboardEvent<HTMLButtonElement>,
-    currentMode: WorkbenchMode,
-  ) => {
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight" &&
-      event.key !== "Home" && event.key !== "End") return;
-    event.preventDefault();
-    if (event.key === "Home") {
-      focusTab("browse");
-      return;
-    }
-    if (event.key === "End") {
-      focusTab("search");
-      return;
-    }
-    focusTab(currentMode === "browse" ? "search" : "browse");
-  };
-
   return (
     <div className="homepage-workbench-modes">
       {interactive && panelId ? (
@@ -106,35 +78,18 @@ function WorkbenchModes({
             type="button"
             role="tab"
             aria-controls={panelId}
-            aria-selected={mode === "browse"}
-            tabIndex={mode === "browse" ? 0 : -1}
+            aria-selected="true"
+            tabIndex={0}
             onClick={() => onModeChange("browse")}
-            onKeyDown={(event) => handleTabKeyDown(event, "browse")}
           >
             장소 찾기
-          </button>
-          <button
-            id="homepage-workbench-search-tab"
-            type="button"
-            role="tab"
-            aria-controls={panelId}
-            aria-selected={mode === "search"}
-            tabIndex={mode === "search" ? 0 : -1}
-            onClick={() => onModeChange("search")}
-            onKeyDown={(event) => handleTabKeyDown(event, "search")}
-          >
-            검색
           </button>
         </div>
       ) : (
         <div aria-label="홈 장소 탐색 모드">
           <span className="homepage-workbench-mode-label is-active">장소 찾기</span>
-          <span className="homepage-workbench-mode-label">검색</span>
         </div>
       )}
-      <Link href={`/results?tab=recommendations&region=${encodeURIComponent(regionId)}`}>
-        맞춤 일정 <ArrowUpRight size={15} aria-hidden="true" />
-      </Link>
     </div>
   );
 }
@@ -146,9 +101,10 @@ export function HomePlaceWorkbenchLoading({
   regionId: RegionId;
   regionLabel: string;
 }) {
+  void regionId;
   return (
     <section className="homepage-map-section" aria-label={`${regionLabel} 장소 작업 화면 불러오는 중`}>
-      <WorkbenchModes mode="browse" onModeChange={() => undefined} regionId={regionId} interactive={false} />
+      <WorkbenchModes onModeChange={() => undefined} interactive={false} />
       <div className="homepage-workbench-heading" aria-live="polite" aria-busy="true">
         <div>
           <p className="homepage-kicker">{regionLabel} 장소 작업 화면</p>
@@ -182,9 +138,10 @@ export function HomePlaceWorkbenchError({
   regionId: RegionId;
   regionLabel: string;
 }) {
+  void regionId;
   return (
     <section className="homepage-map-section" aria-label={`${regionLabel} 장소 작업 화면 연결 오류`}>
-      <WorkbenchModes mode="browse" onModeChange={() => undefined} regionId={regionId} interactive={false} />
+      <WorkbenchModes onModeChange={() => undefined} interactive={false} />
       <div className="homepage-workbench-heading">
         <div>
           <p className="homepage-kicker">{regionLabel} 장소 작업 화면</p>
@@ -370,9 +327,7 @@ export function HomePlaceWorkbench({
   return (
     <section className="homepage-map-section" aria-labelledby="homepage-map-title">
       <WorkbenchModes
-        mode={mode}
         onModeChange={setMode}
-        regionId={regionId}
         panelId="homepage-workbench-mode-panel"
       />
       <div className="homepage-workbench-heading">
@@ -387,7 +342,7 @@ export function HomePlaceWorkbench({
         id="homepage-workbench-mode-panel"
         className="homepage-workbench-tools"
         role="tabpanel"
-        aria-labelledby={`homepage-workbench-${mode}-tab`}
+        aria-labelledby="homepage-workbench-browse-tab"
       >
         {(
           <div className="homepage-place-search" role="search">
