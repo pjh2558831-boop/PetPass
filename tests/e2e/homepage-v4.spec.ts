@@ -54,7 +54,7 @@ test("v4 manual hero controls and responsive reference composition", async ({ pa
     expect(await page.locator(".home-landscape img").evaluate(image => {
       const style = getComputedStyle(image);
       return [style.position, style.objectFit, style.objectPosition];
-    })).toEqual(["absolute", "cover", "50% 100%"]);
+    })).toEqual(["absolute", "contain", "50% 50%"]);
     const primary = await page.locator(".hero-planner-submit").boundingBox();
     const secondary = await page.locator(".hero-planner-secondary").boundingBox();
     expect(secondary!.x).toBeGreaterThanOrEqual(primary!.x + primary!.width);
