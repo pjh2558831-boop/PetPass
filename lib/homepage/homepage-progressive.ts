@@ -109,7 +109,7 @@ function initialCards(
   details: ReadonlyMap<string, HomepageInitialCardDetailV1>,
 ): HomepagePlaceCard[] {
   return [
-    ...markers.filter(({ layer, isAllowed }) => layer === "official" && isAllowed).slice(0, 5),
+    ...markers.filter(({ layer, isAllowed }) => layer === "official" && isAllowed),
     ...markers.filter(({ layer }) => layer === "kakao_candidate").slice(0, 10),
     ...markers.filter(({ layer }) => layer === "veterinary").slice(0, 10),
     ...markers.filter(({ layer }) => layer === "pet_shop").slice(0, 10),
