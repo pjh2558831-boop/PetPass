@@ -11,8 +11,8 @@ import type { ContentFeed, PetEventItem } from "@/types/pet-content";
 export async function fetchPetEvents(environment: NodeJS.ProcessEnv = process.env, fetcher: typeof fetch = fetch, now = new Date()) {
   if (!environment.TOUR_API_SERVICE_KEY?.trim()) throw new TourProviderError("CONFIGURATION", "행사 설정 필요");
   const today = kstToday(now);
-  const windowStart = offsetDate(today, -30);
-  const windowEnd = offsetDate(today, 90);
+  const windowStart = today;
+  const windowEnd = offsetDate(today, 30);
   const signal = AbortSignal.timeout(20000);
   const items: TourItem[] = [];
   let requests = 0;
@@ -44,7 +44,7 @@ export async function getPetEventFeed(): Promise<ContentFeed<PetEventItem>> {
     const items = result.items.flatMap(item => {
       const status = eventStatus(item.startDate, item.endDate, today);
       return status ? [{ ...item, status }] : [];
-    }).slice(0, 3);
+    });
     return { state: items.length ? "ready" : "empty", items, coverageLimited: result.coverageLimited };
   } catch (error) {
     const code = error instanceof TourProviderError ? error.code : error instanceof Error && /TimeoutError|AbortError/.test(error.name) ? "TIMEOUT" : "INVALID_RESPONSE";

@@ -65,7 +65,8 @@ describe("homepage content boundaries", () => {
       const page = Number(url.searchParams.get("pageNo"));
       expect(url.pathname).toBe("/B551011/KorService2/searchFestival2");
       expect(url.searchParams.has("areaCode")).toBe(false);
-      expect(url.searchParams.get("eventStartDate")).toBe("20260810");
+      expect(url.searchParams.get("eventStartDate")).toBe("20260909");
+      expect(url.searchParams.get("eventEndDate")).toBe("20261009");
       return new Response(envelope(Array.from({ length: 100 }, (_, i) => ({ ...event, contentid: String(page * 100 + i), title: "음악 축제" })), 9999, page));
     });
     const result = await fetchPetEvents({ NODE_ENV: "test", TOUR_API_SERVICE_KEY: "synthetic" }, fetcher, new Date("2026-09-09T00:00:00Z"));
@@ -92,6 +93,24 @@ describe("homepage content boundaries", () => {
     vi.setSystemTime(new Date("2026-09-09T15:00:00Z"));
     expect(await getPetEventFeed()).toMatchObject({ state: "empty", items: [] });
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it("returns every qualifying event in the 30-day range", async () => {
+    vi.resetModules();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-09T14:59:00Z"));
+    vi.stubEnv("TOUR_API_SERVICE_KEY", "synthetic");
+    const fetcher = vi.fn().mockResolvedValue(new Response(envelope(
+      Array.from({ length: 5 }, (_, index) => ({
+        ...event,
+        contentid: String(index + 1),
+        eventstartdate: `202609${String(10 + index).padStart(2, "0")}`,
+        eventenddate: `202609${String(10 + index).padStart(2, "0")}`,
+      })),
+    )));
+    vi.stubGlobal("fetch", fetcher);
+    const { getPetEventFeed } = await import("@/lib/tour-api/pet-events");
+
+    expect((await getPetEventFeed()).items).toHaveLength(5);
   });
   it("honors Retry-After and does not expose errors or credentials", async () => {
     vi.resetModules();

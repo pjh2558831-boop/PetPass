@@ -52,7 +52,16 @@ export function HomepagePetContent() {
   const eventItems = events?.items.flatMap(item => {
     const status = today ? eventStatus(item.startDate, item.endDate, today) : item.status;
     return status ? [{ ...item, status }] : [];
-  }).slice(0, 3) ?? [];
+  }) ?? [];
+  const [eventIndex, setEventIndex] = useState(0);
+  const [eventPaused, setEventPaused] = useState(false);
+  useEffect(() => {
+    if (eventItems.length < 2 || eventPaused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = setInterval(() => setEventIndex(index => (index + 1) % eventItems.length), 6000);
+    return () => clearInterval(timer);
+  }, [eventItems.length, eventPaused]);
+  const displayedIndex = eventItems.length ? eventIndex % eventItems.length : 0;
+  const activeEvent = eventItems[displayedIndex];
 
   return <section className={`homepage-shell ${styles.section}`} aria-label="반려생활 소식과 행사">
     <div ref={newsRef} className={styles.panel} aria-labelledby="pet-news-heading">
@@ -78,19 +87,27 @@ export function HomepagePetContent() {
       <h2 id="pet-events-heading">다가오는 반려동물 행사</h2>
       <p className={styles.description}>전국의 반려동물 관련 행사 일정을 확인해 보세요.</p>
       <div className={styles.rows} aria-busy={!events}>
-        {!events ? <p className={styles.message}>행사 정보를 불러오는 중입니다.</p> : events.state === "unavailable" ? <p className={styles.message}>행사 정보를 불러오지 못했습니다.</p> : !eventItems.length ? <p className={styles.message}>조회 기간에 확인된 반려동물 행사가 없습니다.</p> :
-          <ul>{eventItems.map(item => <li className={styles.eventRow} key={item.id}>
-            <time className={styles.dateBlock} dateTime={item.startDate}><span>{Number(item.startDate.slice(5, 7))}월</span><strong>{item.startDate.slice(8)}</strong></time>
+        {!events ? <p className={styles.message}>행사 정보를 불러오는 중입니다.</p> : events.state === "unavailable" ? <p className={styles.message}>행사 정보를 불러오지 못했습니다.</p> : !activeEvent ? <p className={styles.message}>조회 기간에 확인된 반려동물 행사가 없습니다.</p> :
+          <div className={styles.eventCarousel} role="region" aria-roledescription="carousel" aria-label="다가오는 행사">
+          <ul aria-live="polite"><li className={styles.eventRow} key={activeEvent.id}>
+            <time className={styles.dateBlock} dateTime={activeEvent.startDate}><span>{Number(activeEvent.startDate.slice(5, 7))}월</span><strong>{activeEvent.startDate.slice(8)}</strong></time>
             <div className={styles.eventDetails}>
-              <p className={styles.metadata}>{item.regionLabel} · {item.status === "ongoing" ? "진행 중" : "예정"}</p>
-              <h3>{item.title}</h3>
-              <p className={styles.metadata}>{item.venueLabel ?? "장소 확인 필요"}</p>
-              <p className={styles.metadata}><time dateTime={item.startDate}>{item.startDate.replaceAll("-", ".")}</time>{item.endDate ? <> ~ <time dateTime={item.endDate}>{item.endDate.replaceAll("-", ".")}</time></> : " · 종료일 확인 필요"}</p>
-              {item.informationUrl && <a className={styles.eventLink} href={item.informationUrl} target="_blank" rel="noopener noreferrer">행사 안내 <ExternalMark /></a>}
+              <p className={styles.metadata}>{activeEvent.regionLabel} · {activeEvent.status === "ongoing" ? "진행 중" : "예정"}</p>
+              <h3>{activeEvent.title}</h3>
+              <p className={styles.metadata}>{activeEvent.venueLabel ?? "장소 확인 필요"}</p>
+              <p className={styles.metadata}><time dateTime={activeEvent.startDate}>{activeEvent.startDate.replaceAll("-", ".")}</time>{activeEvent.endDate ? <> ~ <time dateTime={activeEvent.endDate}>{activeEvent.endDate.replaceAll("-", ".")}</time></> : " · 종료일 확인 필요"}</p>
+              {activeEvent.informationUrl && <a className={styles.eventLink} href={activeEvent.informationUrl} target="_blank" rel="noopener noreferrer">행사 안내 <ExternalMark /></a>}
             </div>
-          </li>)}</ul>}
+          </li></ul>
+          {eventItems.length > 1 && <div className={styles.carouselControls} role="group" aria-label="행사 슬라이드 제어">
+            <button type="button" onClick={() => setEventIndex(index => (index - 1 + eventItems.length) % eventItems.length)} aria-label="이전 행사">←</button>
+            <span aria-live="off">{displayedIndex + 1} / {eventItems.length}</span>
+            <button type="button" onClick={() => setEventIndex(index => (index + 1) % eventItems.length)} aria-label="다음 행사">→</button>
+            <button type="button" aria-pressed={eventPaused} onClick={() => setEventPaused(paused => !paused)}>{eventPaused ? "자동 넘김 재개" : "자동 넘김 일시정지"}</button>
+          </div>}
+          </div>}
       </div>
-      <p className={styles.note}>한국관광공사 · 향후 90일 일정, 시작일 기준 지난 30일까지 조회{events?.coverageLimited ? " · 일부 조회 결과" : ""}</p>
+      <p className={styles.note}>한국관광공사 · 오늘부터 30일 이내 행사{events?.coverageLimited ? " · 일부 조회 결과" : ""}</p>
       <p className={styles.note}>반려동물 입장 조건과 일정 변경 여부는 행사 안내를 확인해 주세요.</p>
     </div>
   </section>;

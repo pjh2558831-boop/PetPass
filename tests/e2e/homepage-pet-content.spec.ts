@@ -23,8 +23,10 @@ for (const width of [1440, 768, 390, 320]) {
     expect(calls).toEqual({ news: 0, events: 0 });
     const section = page.getByRole("region", { name: "반려생활 소식과 행사" });
     await section.scrollIntoViewIfNeeded();
-    await expect(section.locator("li")).toHaveCount(7);
-    await expect(section.getByText("종료일 확인 필요", { exact: false })).toBeVisible();
+    await expect(section.getByRole("listitem")).toHaveCount(5);
+    const eventCarousel = section.getByRole("region", { name: "다가오는 행사" });
+    await expect(eventCarousel.getByRole("listitem")).toHaveCount(1);
+    await expect(eventCarousel.getByText("1 / 3", { exact: true })).toBeVisible();
     expect(calls).toEqual({ news: 1, events: 1 });
     const panels = section.locator(":scope > div");
     const left = await panels.nth(0).boundingBox();
@@ -42,6 +44,11 @@ for (const width of [1440, 768, 390, 320]) {
       await expect(link).toBeFocused();
       expect(await link.evaluate(el => getComputedStyle(el).outlineStyle)).not.toBe("none");
     }
+    await eventCarousel.getByRole("button", { name: "다음 행사" }).click();
+    await expect(eventCarousel.getByRole("heading", { name: /합성 테스트 2/u })).toBeVisible();
+    await expect(section.getByText("종료일 확인 필요", { exact: false })).toBeVisible();
+    await eventCarousel.getByRole("button", { name: "자동 넘김 일시정지" }).click();
+    await expect(eventCarousel.getByRole("button", { name: "자동 넘김 재개" })).toBeVisible();
     await section.screenshot({ path: `verification-evidence/homepage-content/synthetic-${width}.png` });
     await page.evaluate(() => window.scrollTo(0, 0));
     await section.scrollIntoViewIfNeeded();
@@ -49,6 +56,18 @@ for (const width of [1440, 768, 390, 320]) {
     expect(errors).toEqual([]);
   });
 }
+
+test("automatically advances through the event carousel", async ({ page }) => {
+  await page.route("**/api/content/pet-news", route => route.fulfill({ json: { ok: true, data: { state: "empty", items: [] } } }));
+  await page.route("**/api/content/pet-events", route => route.fulfill({ json: { ok: true, data: events } }));
+  await page.goto("/");
+  const section = page.getByRole("region", { name: "반려생활 소식과 행사" });
+  await section.scrollIntoViewIfNeeded();
+  const carousel = section.getByRole("region", { name: "다가오는 행사" });
+  await expect(carousel.getByText("1 / 3", { exact: true })).toBeVisible();
+  await expect(carousel.getByText("2 / 3", { exact: true })).toBeVisible({ timeout: 8000 });
+  await expect(carousel.getByRole("heading", { name: /합성 테스트 2/u })).toBeVisible();
+});
 
 test("independent loading, empty and failure states", async ({ page }) => {
   let release!: () => void;
@@ -59,7 +78,7 @@ test("independent loading, empty and failure states", async ({ page }) => {
   const section = page.getByRole("region", { name: "반려생활 소식과 행사" });
   await section.scrollIntoViewIfNeeded();
   await expect(section.getByText("소식을 불러오는 중입니다.")).toBeVisible();
-  await expect(section.locator("li")).toHaveCount(3);
+  await expect(section.getByRole("region", { name: "다가오는 행사" }).getByRole("listitem")).toHaveCount(1);
   release();
   await expect(section.getByText("소식을 불러오지 못했습니다.")).toBeVisible();
   await section.screenshot({ path: "verification-evidence/homepage-content/synthetic-news-failure.png" });
