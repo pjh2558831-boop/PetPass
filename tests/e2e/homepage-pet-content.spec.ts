@@ -97,3 +97,27 @@ test("search event card keeps its source and handles unavailable images", async 
   await expect(section.locator("ol > li")).toHaveCount(5);
   await expect(section.getByText("네이버 뉴스에서 보기", { exact: false })).toHaveCount(0);
 });
+
+for (const width of [1440, 390]) test(`event card keeps the same height at ${width}px when the title length changes`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 844 });
+  await page.route("**/api/content/pet-news", route => route.fulfill({ json: { ok: true, data: news } }));
+  await page.route("**/api/content/pet-events", route => route.fulfill({ json: { ok: true, data: {
+    state: "ready",
+    items: [
+      { ...events.items[0], title: "짧은 행사명" },
+      { ...events.items[1], title: "매우 긴 반려동물 행사 제목이 카드 안에서 여러 줄로 길게 이어져도 카드 높이가 변하지 않도록 확인하는 테스트" },
+    ],
+  } } }));
+  await page.goto("/");
+  const section = page.getByRole("region", { name: "반려동물 뉴스와 행사" });
+  await section.scrollIntoViewIfNeeded();
+  const carousel = section.getByRole("region", { name: "30일 이내 반려동물 행사" });
+  const firstSlide = carousel.getByRole("group", { name: "1 / 2", exact: true });
+  await expect(firstSlide.getByRole("heading", { name: "짧은 행사명", exact: true })).toBeVisible();
+  const shortTitleHeight = (await firstSlide.boundingBox())!.height;
+  await carousel.getByRole("button", { name: "다음 행사" }).click();
+  const secondSlide = carousel.getByRole("group", { name: "2 / 2", exact: true });
+  await expect(secondSlide.getByRole("heading", { name: /매우 긴 반려동물 행사 제목/u })).toBeVisible();
+  const longTitleHeight = (await secondSlide.boundingBox())!.height;
+  expect(longTitleHeight).toBe(shortTitleHeight);
+});
