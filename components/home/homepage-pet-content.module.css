@@ -52,8 +52,8 @@
 .dateBadge { position:absolute; top:12px; left:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; width:76px; min-height:76px; padding:10px; border-radius:50%; background:#285d2e; color:white; font-size:16px; font-weight:750; line-height:1.25; }
 .dateBadge > span { font-size:11px; }
 .imageCredit { position:absolute; bottom:0; right:0; padding:3px 6px; background:#0009; color:white; font-size:9px; }
-.eventCaption { position:relative; padding:14px 62px 16px 16px; }
-.eventCaption h3 { font-size:18px; line-height:1.5; font-weight:750; overflow-wrap:anywhere; }
+.eventCaption { position:relative; box-sizing:border-box; height:160px; overflow:hidden; padding:14px 62px 16px 16px; }
+.eventCaption h3 { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; font-size:18px; line-height:1.5; font-weight:750; overflow-wrap:anywhere; }
 .eventCaption p { font-size:11px; color:#e3efd8; margin-bottom:3px; }
 .eventCaption > div { display:flex; align-items:flex-start; gap:5px; margin-top:6px; font-size:13px; }
 .eventCaption svg { flex-shrink:0; }
