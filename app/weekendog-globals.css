@@ -2313,6 +2313,18 @@ select {
   padding: 16px 0;
 }
 
+.account-pet-avatar {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
 .account-destructive-zone {
   border-top: 1px solid #e5bdb7;
   padding-top: 20px;

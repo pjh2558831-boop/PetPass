@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { Plus, UserRound, PawPrint, Lightbulb, Pencil, LogOut } from "lucide-react";
+import { Plus, UserRound, PawPrint, Lightbulb, Pencil, LogOut, Dog, Cat } from "lucide-react";
 import { redirect } from "next/navigation";
 import { signOut } from "@/app/account/actions";
 import { PET_IMAGE_BUCKET } from "@/lib/auth/pet-image";
@@ -17,6 +17,7 @@ export const dynamic = "force-dynamic";
 
 const speciesLabels = { DOG: "강아지", CAT: "고양이", OTHER: "기타 반려동물" } as const;
 const sizeLabels = { SMALL: "소형", MEDIUM: "중형", LARGE: "대형" } as const;
+const petFallbackIcons = { DOG: Dog, CAT: Cat, OTHER: PawPrint } as const;
 
 export default async function AccountPage({ searchParams }: { searchParams: Promise<{ pet?: string; profile?: string }> }) {
   const supabase = await createAuthServerClient();
@@ -105,7 +106,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             <div className="account-pet-list mt-6">
               {pets.map(({ pet, imageUrl }) => (
                 <article key={pet.id} className="account-pet-row">
-                  {imageUrl ? <Image src={imageUrl} alt={`${pet.name} 사진`} width={64} height={64} unoptimized className="size-16 shrink-0 rounded-lg object-cover" /> : null}
+                  <div className="account-pet-avatar">
+                    {imageUrl ? <Image src={imageUrl} alt={`${pet.name} 사진`} width={64} height={64} unoptimized className="size-full object-cover" /> : (() => { const Icon = petFallbackIcons[pet.species]; return <Icon size={30} aria-hidden="true" />; })()}
+                  </div>
                   <div className="min-w-0 flex-1">
                     <h3 className="break-words text-xl font-black [overflow-wrap:anywhere]">{pet.name}</h3>
                     <p className="mt-1 text-sm font-semibold text-[var(--muted)]">{speciesLabels[pet.species]} · {sizeLabels[pet.size]}</p>
