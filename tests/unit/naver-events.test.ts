@@ -29,6 +29,14 @@ describe("Naver event search evidence", () => {
     expect(() => normalizeNaverEvents({ items: "bad" }, now)).toThrow();
     expect(normalizeNaverEvents({ items: [{ ...item, link: "javascript:alert(1)" }, { ...item, title: "트럼펫 축제" }] }, now)).toEqual([]);
   });
+  it.each([
+    "https://blog.naver.com/person/123",
+    "https://cafe.naver.com/petcafe/123",
+    "https://someone.tistory.com/entry/event",
+    "https://www.instagram.com/p/event",
+  ])("excludes personal posts from event results: %s", link => {
+    expect(normalizeNaverEvents({ items: [{ ...item, link }] }, now)).toEqual([]);
+  });
   it("excludes general trade fairs and stops venue text at the next field", () => {
     const result = normalizeNaverEvents({ items: [
       { ...item, title: "국제할랄박람회", description: "2026.09.08 ~ 09.10 / 전시 품목: 반려동물 사료 및 용품" },

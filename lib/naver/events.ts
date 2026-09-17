@@ -13,6 +13,12 @@ const plain = (value: string) => decodeHTML(value.replace(/<[^>]*>/g, "")).trim(
 
 const posterCache = new TourRequestCache();
 const namedEvent = (title: string) => title.match(/(?:케이펫페어|마이펫페어)\s+[가-힣]+(?:\s+시즌\d+)?|(?:냥냥펀치\s+)?[가-힣]+캣쇼(?:\s+AT\b)?|[가-힣]+펫쇼/u)?.[0];
+const userContentHosts = /(^|\.)(blog\.naver\.com|cafe\.naver\.com|post\.naver\.com|tistory\.com|brunch\.co\.kr|instagram\.com|facebook\.com|youtube\.com)$/i;
+
+function isOfficialEventUrl(value: string): boolean {
+  const url = new URL(value);
+  return !userContentHosts.test(url.hostname);
+}
 
 function eventKey(item: Pick<PetEventItem, "title" | "startDate" | "endDate">): string {
   const name = item.title.match(/(?:케이펫페어|마이펫페어)\s+[가-힣]+|[가-힣]*캣쇼(?:\s+[A-Za-z]+)?|[가-힣]*펫쇼/u)?.[0]
@@ -29,7 +35,7 @@ export function normalizeNaverEvents(input: unknown, now = new Date()): PetEvent
     const title = plain(item.title), sourceText = plain(item.description);
     const text = `${title} ${sourceText}`;
     const informationUrl = safeContentUrl(item.link);
-    if (!title || !informationUrl || !PET_EVENT_TERMS.test(title) || /취소|연기|입찰|대행\s*용역|협상에\s*의한\s*계약/u.test(text)) continue;
+    if (!title || !informationUrl || !isOfficialEventUrl(informationUrl) || !PET_EVENT_TERMS.test(title) || /취소|연기|입찰|대행\s*용역|협상에\s*의한\s*계약/u.test(text)) continue;
     // ponytail: accept one explicit year-qualified date range only; ambiguous search snippets stay out.
     const labelledDates = [...sourceText.matchAll(/(?:전시|행사|개최)\s*기간\s*[:：]\s*([^;|]+)/gu)].map(match => match[1]);
     const dateText = labelledDates.length ? labelledDates.join(" / ") : text;

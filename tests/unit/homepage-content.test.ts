@@ -25,6 +25,14 @@ describe("homepage content boundaries", () => {
     expect(items[0]).toMatchObject({ regionLabel: "부산광역시", informationUrl: null, checkedAt: "checked" });
     expect(items[0]).not.toHaveProperty("petAdmission");
   });
+  it("deduplicates the same official event across provider content IDs", () => {
+    const items = selectEvents([
+      event,
+      { ...event, contentid: "duplicate", title: " 반려동물 박람회 ", eventplace: "부산 전시장" },
+      { ...event, contentid: "original", eventplace: "부산 전시장" },
+    ], today, "checked");
+    expect(items).toHaveLength(1);
+  });
   it("normalizes only safe news links, keeps provider order and fewer rows", () => {
     const news = normalizeNews({ items: [{ title: "<b>반려동물</b> &amp; &#xC5EC;행", originallink: "https://paper.example/a", link: "https://news.example/a", pubDate: "Wed, 09 Sep 2026 09:00:00 +0900" }, { title: "기사", originallink: "https://user:pass@example.com", link: "javascript:alert(1)" }] });
     expect(news).toHaveLength(1);

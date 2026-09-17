@@ -44,10 +44,14 @@ export function selectEvents(items: TourItem[], today: string, checkedAt: string
     if (startDate > offsetDate(today, 30)) continue;
     if (/취소|연기/u.test(item.progresstype ?? "")) continue;
     const status = eventStatus(startDate, endDate, today);
-    if (!status || unique.has(item.contentid)) continue;
+    if (!status) continue;
     const address = [item.addr1, item.addr2].filter(Boolean).join(" ").trim();
+    const identity = [title, startDate, endDate ?? "", item.addr1?.trim().split(/\s+/u)[0] ?? ""]
+      .map(value => value.replace(/[^가-힣a-z0-9]/giu, "").toLowerCase())
+      .join(":");
+    if (unique.has(identity)) continue;
     // An address is displayed as an address, never inferred as a named venue.
-    unique.set(item.contentid, {
+    unique.set(identity, {
       id: item.contentid, title, startDate, endDate, status,
       regionLabel: item.addr1?.trim().split(/\s+/)[0] || "지역 확인 필요",
       venueLabel: item.eventplace?.trim() || address || null,
