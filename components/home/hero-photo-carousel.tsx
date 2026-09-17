@@ -16,7 +16,7 @@ export function HeroPhotoCarousel() {
     return () => window.clearInterval(timer);
   }, []);
   return <figure className="weekendoog-hero-photo-frame">
-    <Image src={photos[active].src} alt={photos[active].alt} fill loading="eager" sizes="100vw" className="weekendoog-hero-photo" />
+    <Image key={photos[active].src} src={photos[active].src} alt={photos[active].alt} fill loading="eager" sizes="100vw" className="weekendoog-hero-photo" />
     <div className="home-hero-pages" role="group" aria-label="여행 이미지 선택">
       {photos.map((photo, index) => <button key={photo.src} type="button" aria-label={"여행 이미지 " + (index + 1)} aria-pressed={active === index} onClick={() => setActive(index)}>{String(index + 1).padStart(2, "0")}</button>)}
       <button type="button" aria-label="다음 여행 이미지" onClick={() => setActive((active + 1) % photos.length)}><ChevronRight size={23} aria-hidden="true" /></button>

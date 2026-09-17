@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Heart, Map, Route } from "lucide-react";
+import { Building2, Castle, ChevronDown, Heart, Landmark, Map, Mountain, Route, Ship, Trees, Waves } from "lucide-react";
 import Link from "next/link";
 import { WeekendoogHero } from "./weekendoog-hero";
 import { HomepageLiveExperience } from "./homepage-live-experience";
@@ -11,8 +11,12 @@ import type { RegionId } from "@/types/region";
 
 export type HomeSearchRequest = { query: string; regionId: RegionId };
 
+const FEATURED_REGION_IDS: RegionId[] = ["seoul", "incheon", "daejeon", "daegu", "gwangju", "busan", "ulsan", "sejong", "jeju"];
+const REGION_ICONS = { seoul: Landmark, incheon: Ship, daejeon: Trees, daegu: Castle, gwangju: Building2, busan: Waves, ulsan: Ship, sejong: Building2, jeju: Mountain } satisfies Record<string, typeof Landmark>;
+
 export function HomepageLanding({ staticMapEnabled }: { staticMapEnabled: boolean }) {
   const [region, setRegion] = useState<RegionId>("seoul");
+  const [showAllRegions, setShowAllRegions] = useState(false);
   const [searchRequest, setSearchRequest] = useState<HomeSearchRequest>();
   return <>
     <WeekendoogHero onSearch={(query, regionId) => {
@@ -28,7 +32,11 @@ export function HomepageLanding({ staticMapEnabled }: { staticMapEnabled: boolea
       <section className="home-recommendations" aria-labelledby="home-recommendations-title">
         <h2 id="home-recommendations-title">추천하는 장소</h2>
         <div className="home-region-chips" role="group" aria-label="추천 장소 지역">
-          {REGION_CONFIGS.filter((item) => item.mapEnabled).map((item) => <button key={item.id} type="button" aria-pressed={region === item.id} onClick={() => setRegion(item.id)}>{item.displayName}</button>)}
+          {REGION_CONFIGS.filter((item) => item.mapEnabled && (showAllRegions || FEATURED_REGION_IDS.includes(item.id))).map((item) => {
+            const Icon = REGION_ICONS[item.id as keyof typeof REGION_ICONS] ?? Map;
+            return <button key={item.id} type="button" aria-pressed={region === item.id} onClick={() => setRegion(item.id)}><Icon aria-hidden="true" /><span>{item.displayName}</span></button>;
+          })}
+          <button type="button" className="home-region-more" aria-expanded={showAllRegions} onClick={() => setShowAllRegions(value => !value)}><ChevronDown aria-hidden="true" /><span>{showAllRegions ? "접기" : "더보기"}</span></button>
         </div>
         <HomepageLiveExperience cardsOnly regionId={region} staticMapEnabled={staticMapEnabled} />
       </section>
