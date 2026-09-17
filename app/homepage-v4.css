@@ -54,8 +54,8 @@ body:has(.weekendoog-home) .home-header-search { display:grid; flex:0 0 44px; he
 .home-recommendations { min-width:0; }
 .home-recommendations > h2 { font-size:clamp(26px,2.6vw,36px); font-weight:900; letter-spacing:-.045em; line-height:1.3; }
 .home-region-chips { display:flex; overflow-x:auto; gap:5px; padding:10px 0 8px; scrollbar-width:thin; }
-.home-region-chips button { display:flex; flex:1 0 auto; min-width:78px; min-height:82px; flex-direction:column; align-items:center; justify-content:center; gap:5px; padding:6px 8px; border:1px solid var(--ui2-line-strong); border-radius:10px; font-size:13px; font-weight:700; }
-.home-region-chips button svg { width:30px; height:30px; color:#4f8b77; }
+.home-region-chips button { display:flex; flex:1 0 auto; min-width:92px; min-height:112px; flex-direction:column; align-items:center; justify-content:center; gap:3px; padding:7px 8px 8px; border:1px solid var(--ui2-line-strong); border-radius:10px; font-size:13px; font-weight:700; }
+.home-region-image { width:72px; height:72px; object-fit:contain; }
 .home-region-chips .home-region-more { min-width:70px; background:#f7faf8; color:var(--ui2-brand); }
 .home-region-chips .home-region-more svg { width:20px; height:20px; transition:transform 180ms ease; }
 .home-region-chips .home-region-more[aria-expanded=true] svg { transform:rotate(180deg); }

@@ -48,6 +48,35 @@ const resultPage: PublicMapPlacePage = {
 };
 
 describe("public Kakao map catalog route", () => {
+  it("removes department-store tenants while retaining the representative facility", async () => {
+    const parent = {
+      ...publicPlace,
+      id: "kakao:department",
+      providerPlaceId: "department",
+      name: "신세계백화점 센텀시티점",
+      category: "shopping" as const,
+      district: { code: "350", name: "해운대구" },
+      address: "부산광역시 해운대구 센텀남대로 35",
+      coordinates: { latitude: 35.169, longitude: 129.129 },
+    };
+    const tenant = {
+      ...publicPlace,
+      id: "kakao:tenant",
+      providerPlaceId: "tenant",
+      name: "카페 신세계백화점 센텀시티점",
+      district: { code: "350", name: "해운대구" },
+      address: "부산광역시 해운대구 센텀남대로 35 4층",
+      coordinates: { latitude: 35.169, longitude: 129.129 },
+    };
+    const response = await createMapPlacesHandler({
+      query: async () => ({ ...resultPage, items: [parent, tenant], totalCount: 2 }),
+    })(new Request("http://localhost/api/map/places?region=busan"));
+    const body = await response.json();
+
+    expect(body.data.items).toEqual([parent]);
+    expect(body.data.totalCount).toBe(2);
+  });
+
   it("accepts the offset timestamp returned by Postgres timestamptz", () => {
     expect(publicMapPlaceSchema.parse({
       ...publicPlace,

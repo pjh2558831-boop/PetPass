@@ -11,6 +11,7 @@ import { normalizePublicMapCatalogMarker } from "@/types/public-catalog-place";
 import { getRegionConfig } from "@/lib/regions/config";
 import { publicMapPlaceMatchesRegion } from "@/lib/map-places/region-contract";
 import { queryPublicShoppingCatalogSnapshot } from "@/lib/map-places/shopping-catalog";
+import { removeMajorRetailComplexTenants } from "@/lib/places/major-retail-complex";
 import type { PublicMapPlacePage } from "@/types/public-map-place";
 import type {
   MapPlacesSnapshot,
@@ -201,15 +202,17 @@ export async function assembleMapPlacesSnapshot(
 
   if (items.length !== (expectedTotal ?? 0)) throw new Error("Snapshot partial count does not match the complete catalog count.");
 
+  const visibleItems = removeMajorRetailComplexTenants(items);
+
   const providerCounts = { tour: 0, kakao: 0 };
   const categoryCounts: MapPlacesSnapshot["categoryCounts"] = {};
-  for (const item of items) {
+  for (const item of visibleItems) {
     providerCounts[item.layer === "tourism" ? "tour" : "kakao"] += 1;
     categoryCounts[item.category] = (categoryCounts[item.category] ?? 0) + 1;
   }
   const dataHash = createHash("sha256");
   dataHash.update(`${input.version}:${input.region}:${input.scope}:${input.dataset}\n`);
-  for (const item of items) dataHash.update(`${JSON.stringify(lightweightMarker(item))}\n`);
+  for (const item of visibleItems) dataHash.update(`${JSON.stringify(lightweightMarker(item))}\n`);
   const dataVersion = `v1-${dataHash.digest("hex").slice(0, 16)}`;
   const resolvedPublicationVersion = publicationVersion ??
     `p1-${createHash("sha256").update(`${input.region}:${input.dataset}:${dataVersion}`).digest("hex").slice(0, 16)}`;
@@ -222,11 +225,11 @@ export async function assembleMapPlacesSnapshot(
     generatedAt,
     publicationVersion: resolvedPublicationVersion,
     dataVersion,
-    totalCount: items.length,
+    totalCount: visibleItems.length,
     providerCounts,
     categoryCounts,
     freshness: { status: "fresh" },
-    items,
+    items: visibleItems,
   };
 }
 
