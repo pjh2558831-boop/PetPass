@@ -386,7 +386,6 @@ function Timeline({
                 {stop.mandatoryConditions.map((condition) => <li key={`${condition.type}:${condition.label}`}>· {condition.label}</li>)}
               </ul>
             ) : null}
-            {inclusion.length ? <p className="route-result-stop__reason"><Info size={17} aria-hidden="true" /><span><b>추천 이유</b>{inclusion[0]}</span></p> : null}
             <div className="route-result-stop__footer">
             <details className="route-result-stop__details">
               <summary className="cursor-pointer text-sm font-black text-[var(--brand)]">추천 근거와 이용 안내</summary>
