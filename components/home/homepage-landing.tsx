@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, Heart, Map, Route } from "lucide-react";
+import { useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Heart, Map, Route } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { WeekendoogHero } from "./weekendoog-hero";
@@ -12,13 +12,20 @@ import type { RegionId } from "@/types/region";
 
 export type HomeSearchRequest = { query: string; regionId: RegionId };
 
-const FEATURED_REGION_IDS: RegionId[] = ["seoul", "incheon", "daejeon", "daegu", "gwangju", "busan", "ulsan", "sejong", "jeju"];
 const regionImage = (regionId: RegionId) => `/images/regions/${regionId}.png`;
 
 export function HomepageLanding({ staticMapEnabled }: { staticMapEnabled: boolean }) {
   const [region, setRegion] = useState<RegionId>("seoul");
-  const [showAllRegions, setShowAllRegions] = useState(false);
+  const regionScrollerRef = useRef<HTMLDivElement>(null);
   const [searchRequest, setSearchRequest] = useState<HomeSearchRequest>();
+  const moveRegions = (direction: -1 | 1) => {
+    const scroller = regionScrollerRef.current;
+    if (!scroller) return;
+    scroller.scrollBy({
+      left: direction * scroller.clientWidth * 0.8,
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+    });
+  };
   return <>
     <WeekendoogHero onSearch={(query, regionId) => {
       setSearchRequest({ query, regionId });
@@ -32,11 +39,14 @@ export function HomepageLanding({ staticMapEnabled }: { staticMapEnabled: boolea
     <div className="homepage-shell weekendoog-live-shell">
       <section className="home-recommendations" aria-labelledby="home-recommendations-title">
         <h2 id="home-recommendations-title">추천하는 장소</h2>
-        <div className="home-region-chips" role="group" aria-label="추천 장소 지역">
-          {REGION_CONFIGS.filter((item) => item.mapEnabled && (showAllRegions || FEATURED_REGION_IDS.includes(item.id))).map((item) => {
-            return <button key={item.id} type="button" aria-pressed={region === item.id} onClick={() => setRegion(item.id)}><Image src={regionImage(item.id)} alt="" width={72} height={72} className="home-region-image" /><span>{item.displayName}</span></button>;
-          })}
-          <button type="button" className="home-region-more" aria-expanded={showAllRegions} onClick={() => setShowAllRegions(value => !value)}><ChevronDown aria-hidden="true" /><span>{showAllRegions ? "접기" : "더보기"}</span></button>
+        <div className="home-region-carousel">
+          <button type="button" className="home-region-arrow home-region-arrow--left" aria-label="이전 지역 보기" onClick={() => moveRegions(-1)}><ChevronLeft aria-hidden="true" /></button>
+          <div ref={regionScrollerRef} className="home-region-chips" role="group" aria-label="추천 장소 지역">
+            {REGION_CONFIGS.filter((item) => item.mapEnabled).map((item) => (
+              <button key={item.id} type="button" aria-pressed={region === item.id} onClick={() => setRegion(item.id)}><Image src={regionImage(item.id)} alt="" width={88} height={88} className="home-region-image" /><span>{item.displayName}</span></button>
+            ))}
+          </div>
+          <button type="button" className="home-region-arrow home-region-arrow--right" aria-label="다음 지역 보기" onClick={() => moveRegions(1)}><ChevronRight aria-hidden="true" /></button>
         </div>
         <HomepageLiveExperience cardsOnly regionId={region} staticMapEnabled={staticMapEnabled} />
       </section>
