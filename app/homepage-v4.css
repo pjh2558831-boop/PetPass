@@ -81,7 +81,7 @@ body:has(.weekendoog-home) .home-header-search { display:grid; flex:0 0 44px; he
 .home-recommendations .homepage-place-phone { font-size:11px; }
 .home-recommendations .homepage-place-warning { font-size:10px; line-height:1.5; }
 .home-recommendations .homepage-carousel-loading { min-height:285px; padding:32px 0; }
-#home-discovery { scroll-margin-top:85px; }
+#home-discovery { scroll-margin-top:85px; margin-top:24px; }
 .weekendoog-home .homepage-live-ready { gap:12px; }
 .weekendoog-home .homepage-map-section { gap:8px; border-top:1px solid var(--line); padding-top:12px; }
 .weekendoog-home .homepage-workbench-modes { min-height:44px; order:6; margin-bottom:2px; }
