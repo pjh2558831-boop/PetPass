@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #faf8f3;
+  --background: #ffffff;
   --surface: #ffffff;
   --surface-strong: #ffffff;
   --surface-muted: #f4f7f2;
@@ -2910,7 +2910,7 @@ select {
 .site-header {
   --ui2-brand: #0b503a;
   --ui2-brand-deep: #073f2e;
-  --ui2-background: #faf8f3;
+  --ui2-background: #ffffff;
   --ui2-paper: #fffdf9;
   --ui2-text: #13201b;
   --ui2-muted: #5d6963;
