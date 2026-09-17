@@ -43,8 +43,8 @@ body:has(.weekendoog-home) .home-header-search { display:grid; flex:0 0 44px; he
 .home-hero-pages button { display:grid; width:44px; height:44px; place-items:center; color:white; border-radius:50%; background:#10232c80; font-size:13px; }
 .home-hero-pages button[aria-pressed=true] { background:#101c21; font-weight:800; }
 .home-hero-pages button:last-child { border:1px solid white; }
-.home-value-row { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); padding:12px 0; }
-.home-value-row > a { display:flex; align-items:center; justify-content:center; gap:24px; min-height:56px; padding:0 20px; }
+.home-value-row { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); padding:24px 0; }
+.home-value-row > a { display:flex; align-items:center; justify-content:center; gap:24px; min-height:72px; padding:0 20px; }
 .home-value-row > a + a { border-left:1px solid var(--line); }
 .home-value-row svg { width:34px; height:34px; color:var(--brand); flex-shrink:0; stroke-width:1.7; }
 .home-value-row strong { display:block; font-size:19px; font-weight:850; color:#142328; }
