@@ -3,7 +3,17 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Check, LockKeyhole, MapPin, RotateCcw } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Cat,
+  Check,
+  Dog,
+  LockKeyhole,
+  MapPin,
+  PawPrint,
+  RotateCcw,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { PlannerFormProgress } from "@/components/layout/planner-progress";
 import { DepartureMapPicker } from "@/components/planner/departure-map-picker";
@@ -54,6 +64,8 @@ const speciesOptions: Array<{ value: PetSpecies; label: string }> = [
   { value: "CAT", label: "고양이" },
   { value: "OTHER", label: "기타" },
 ];
+
+const savedPetIcons = { DOG: Dog, CAT: Cat, OTHER: PawPrint } as const;
 
 const sizeOptions: Array<{ value: PetSize; label: string; note: string }> = [
   { value: "SMALL", label: "소형", note: "약 10kg 미만" },
@@ -738,11 +750,15 @@ export function UnifiedPlannerForm({
                             <Image
                               src={savedPet.imageUrl}
                               alt=""
-                              width={40}
-                              height={40}
+                              fill
+                              sizes="48px"
+                              className="object-cover"
                               unoptimized
                             />
-                          ) : null}
+                          ) : (() => {
+                              const Icon = savedPetIcons[savedPet.profile.species];
+                              return <Icon size={24} aria-hidden="true" />;
+                            })()}
                         </span>
                         <b>{savedPet.profile.name}</b>
                         <small>
@@ -1019,7 +1035,7 @@ export function UnifiedPlannerForm({
                       </option>
                     ))}
                   </select>
-                  <p className="text-xs text-[var(--muted)]">가까운 곳 우선은 이동거리를 중시합니다. 구·군을 고르면 해당 범위에서 추천하며, 직접 선택한 장소는 유지합니다.</p>
+                  <p className="planner-scope-help text-xs text-[var(--muted)]">가까운 곳 우선은 이동거리를 중시합니다. 구·군을 고르면 해당 범위에서 추천하며, 직접 선택한 장소는 유지합니다.</p>
                 </div>
               <div className="planner-field">
                 <label htmlFor="trip-date">여행 날짜 <small>(선택)</small></label>
