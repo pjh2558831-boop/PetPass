@@ -13,6 +13,7 @@ const nextConfig: NextConfig = {
       { pathname: "/og.png", search: "" },
       { pathname: "/og.png", search: "?weekendog-cta=1" },
       { pathname: "/images/home/hero/**", search: "" },
+      { pathname: "/images/regions/**", search: "" },
       { pathname: "/brand/partners/**", search: "" },
       { pathname: "/api/places/**/location-thumbnail" },
     ],

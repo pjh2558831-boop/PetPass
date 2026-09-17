@@ -280,6 +280,35 @@ function license(
 }
 
 describe("automatic-route eligibility V1", () => {
+  it.each([
+    ["롯데백화점 부산본점", "shopping"],
+    ["카페온 롯데백화점 부산본점", "food"],
+  ] as const)("excludes a major retail complex or tenant: %s", (title, category) => {
+    const candidate = input();
+    candidate.summary.title = title;
+    candidate.summary.category = category;
+    candidate.detail.summary.title = title;
+    candidate.detail.summary.category = category;
+    candidate.tripRequest.selectedCategories = [category];
+    candidate.tripRequest.includeShopping = category === "shopping";
+
+    expect(evaluateAutomaticRouteEligibility(candidate)).toMatchObject({
+      eligible: false,
+      status: "ineligible",
+      reasonCodes: expect.arrayContaining(["major_retail_complex"]),
+    });
+  });
+
+  it("keeps an independent restaurant with a similar brand word eligible", () => {
+    const candidate = input();
+    candidate.summary.title = "현대옥 전주본점";
+    candidate.summary.category = "food";
+    candidate.detail.summary.title = "현대옥 전주본점";
+    candidate.detail.summary.category = "food";
+    candidate.tripRequest.selectedCategories = ["food"];
+
+    expect(evaluateAutomaticRouteEligibility(candidate).reasonCodes).not.toContain("major_retail_complex");
+  });
   it("accepts an exposed KTO Service2 place with consumed primary evidence", () => {
     expect(evaluateAutomaticRouteEligibility(input())).toMatchObject({
       eligible: true,

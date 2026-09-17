@@ -2,6 +2,7 @@ import "server-only";
 
 import { evaluateCanonicalPetConditions } from "@/lib/pet-access/canonical-condition-eligibility";
 import { assessPetSizeCompatibility } from "@/lib/pet-access/tourism/size-compatibility";
+import { classifyMajorRetailComplex } from "@/lib/places/major-retail-complex";
 import {
   getRegionConfigByService2LegalDongCode,
   matchesKtoRegionIdentity,
@@ -547,6 +548,15 @@ export function evaluateAutomaticRouteEligibility(
   ) {
     addUnique(reasons, "shopping_not_explicitly_selected");
   }
+  if (classifyMajorRetailComplex({
+    name: input.detail.summary.title,
+    address: [input.detail.summary.address, input.detail.summary.detailAddress]
+      .filter(Boolean)
+      .join(" "),
+    category,
+  }) !== "independent") {
+    addUnique(reasons, "major_retail_complex");
+  }
 
   // Provider availability describes evidence freshness, never pet incompatibility.
   // The hard-reason check below still excludes technically invalid records.
@@ -567,6 +577,7 @@ export function evaluateAutomaticRouteEligibility(
     "operating_time_conflict",
     "category_not_selected",
     "shopping_not_explicitly_selected",
+    "major_retail_complex",
   ]);
   const hardIneligible = reasons.some((reason) =>
     hardIneligibleReasons.has(reason) ||

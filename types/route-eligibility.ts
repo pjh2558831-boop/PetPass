@@ -118,6 +118,7 @@ export const AUTOMATIC_ROUTE_ELIGIBILITY_REASON_CODES = [
   "operating_time_conflict",
   "category_not_selected",
   "shopping_not_explicitly_selected",
+  "major_retail_complex",
 ] as const;
 
 export type AutomaticRouteEligibilityReasonCode =

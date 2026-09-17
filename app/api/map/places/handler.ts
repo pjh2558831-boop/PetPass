@@ -3,6 +3,7 @@ import {
   queryPublicMapCatalog,
   type PublicMapCatalogQuery,
 } from "@/lib/map-places/public-catalog";
+import { removeMajorRetailComplexTenants } from "@/lib/places/major-retail-complex";
 import {
   getRegionConfig,
   getRegionDistrict,
@@ -142,11 +143,15 @@ export function createMapPlacesHandler(dependencies: MapPlacesRouteDependencies 
       if (page.items.some((place) => !publicMapPlaceMatchesRegion(place, parsed.region))) {
         throw new Error("지도 장소 응답이 지역 계약과 일치하지 않습니다.");
       }
+      const visiblePage = {
+        ...page,
+        items: removeMajorRetailComplexTenants(page.items),
+      };
       return apiSuccess(new URL(request.url).searchParams.get("view") !== "markers"
-        ? page
+        ? visiblePage
         : {
-            ...page,
-            items: page.items.map((place) =>
+            ...visiblePage,
+            items: visiblePage.items.map((place) =>
               normalizePublicMapCatalogMarker(place, parsed.region.id)),
           }, 200, {
           ...CACHE_HEADERS,
