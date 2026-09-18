@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { Plus, UserRound, PawPrint, Lightbulb, Pencil, LogOut, Dog, Cat } from "lucide-react";
+import { Plus, UserRound, PawPrint, Pencil, LogOut, Dog, Cat } from "lucide-react";
 import { redirect } from "next/navigation";
 import { signOut } from "@/app/account/actions";
 import { PET_IMAGE_BUCKET } from "@/lib/auth/pet-image";
@@ -90,13 +90,11 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         <section className="account-document__section" aria-labelledby="saved-pet-heading">
           <div className="account-pet-section-heading flex flex-wrap items-end justify-between gap-4">
             <div>
-              <p className="eyebrow">나의 반려동물</p>
-              <h2 id="saved-pet-heading" className="mt-2 text-2xl font-black">등록한 반려동물</h2>
-              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">여행 계획 입력과 별도로 마이페이지에서 여러 마리를 관리할 수 있습니다.</p>
+              <h2 id="saved-pet-heading" className="text-2xl font-black">나의 반려동물</h2>
+              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">반려동물을 등록하면 여행계획에서 바로 사용할 수 있어요.</p>
             </div>
             <div className="account-pet-section-actions">
               {!isLegacyPetSchema && pets.length > 0 ? <Link href="/account/pets/new" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-extrabold text-white"><Plus size={17} aria-hidden="true" />반려동물 정보 추가하기</Link> : null}
-              <aside className="account-pet-tip"><Lightbulb size={23} aria-hidden="true" /><p>등록한 반려동물은<br /><b>맞춤 일정</b>을 만들 때 바로 사용할 수 있어요.</p></aside>
             </div>
           </div>
 

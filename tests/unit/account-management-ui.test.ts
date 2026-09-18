@@ -10,7 +10,7 @@ describe("account pet and profile management UI", () => {
   it("keeps pet registration separate from the planner and supports multiple editable cards", () => {
     const account = source("app", "account", "page.tsx");
     expect(account).toContain('href="/account/pets/new"');
-    expect(account).toContain("여행 계획 입력과 별도로");
+    expect(account).toContain("반려동물을 등록하면 여행계획에서 바로 사용할 수 있어요.");
     expect(account).toContain("pets.map");
     expect(account).toContain("개별 정보 수정");
     expect(account).not.toContain('href="/planner/pet"');
