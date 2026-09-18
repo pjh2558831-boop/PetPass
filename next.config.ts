@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
 
+const deploymentId = process.env.VERCEL_GIT_COMMIT_SHA
+  ? `${process.env.VERCEL_GIT_COMMIT_SHA.slice(0, 12)}-${process.env.VERCEL_ENV ?? "local"}`
+  : undefined;
+
 const nextConfig: NextConfig = {
-  deploymentId: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12),
+  deploymentId,
   allowedDevOrigins: ["127.0.0.1"],
   experimental: {
     serverActions: {

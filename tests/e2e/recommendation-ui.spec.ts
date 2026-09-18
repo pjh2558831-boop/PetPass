@@ -600,6 +600,7 @@ test("keeps factual conditions non-blocking after manual revision and uses the r
   await expect(page.getByRole("heading", { name: "이 일정에 필요한 사실만 확인해 주세요" })).toHaveCount(0);
   await expect(page.getByText("반려동물 동반 가능", { exact: true })).toHaveCount(2);
   await expect(page.getByRole("button", { name: "일정 저장", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "하단 저장", exact: true })).toBeVisible();
   expect(requests[0]?.conditionAnswers).toBeUndefined();
   expect(requests[0]?.orderedPlaceIds).toEqual(["tour:2001", "kakao:9001"]);
   await page.getByRole("button", { name: "일정 저장", exact: true }).click();

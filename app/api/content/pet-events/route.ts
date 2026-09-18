@@ -22,5 +22,5 @@ export async function GET(request: Request) {
     items,
     coverageLimited: sources.some(source => source.state === "unavailable" || source.coverageLimited),
   };
-  return apiSuccess(feed, 200, { "Cache-Control": "no-store" });
+  return apiSuccess(feed, 200, { "Cache-Control": "public, max-age=300, s-maxage=21600, stale-while-revalidate=86400" });
 }

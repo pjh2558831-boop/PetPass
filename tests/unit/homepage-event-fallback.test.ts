@@ -9,6 +9,7 @@ it("supplements official events with search results when both sources have event
   mocks.search.mockResolvedValue({ state: "ready", items: [{ id: "naver", title: "검색 행사", startDate: "2026-09-20", endDate: null, source: "네이버 검색" }] });
   const response = await GET(new Request("https://example.com/api/content/pet-events"));
   expect((await response.json()).data.items.map((item: { id: string }) => item.id)).toEqual(["official", "naver"]);
+  expect(response.headers.get("Cache-Control")).toBe("public, max-age=300, s-maxage=21600, stale-while-revalidate=86400");
   expect(mocks.search).toHaveBeenCalledTimes(1);
 });
 it("deduplicates matching events while keeping the official record", async () => {

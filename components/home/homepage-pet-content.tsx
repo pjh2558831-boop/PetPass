@@ -7,13 +7,13 @@ import { eventStatus, kstToday, offsetDate } from "@/lib/homepage/pet-content";
 import type { ContentFeed, PetEventItem, PetNewsItem } from "@/types/pet-content";
 import styles from "./homepage-pet-content.module.css";
 
-function useContent<T>(endpoint: string, ref: RefObject<HTMLDivElement | null>) {
+function useContent<T>(endpoint: string, ref: RefObject<HTMLDivElement | null>, eager = false) {
   const pending = useRef<Promise<ContentFeed<T>> | null>(null);
   const [feed, setFeed] = useState<ContentFeed<T> | null>(null);
   useEffect(() => {
     let active = true;
     const load = () => {
-      pending.current ??= fetch(endpoint, { cache: "no-store", signal: AbortSignal.timeout(40000) })
+      pending.current ??= fetch(endpoint, { cache: eager ? "default" : "no-store", signal: AbortSignal.timeout(40000) })
         .then(async response => {
           if (!response.ok) throw new Error("unavailable");
           const envelope = await response.json();
@@ -24,13 +24,14 @@ function useContent<T>(endpoint: string, ref: RefObject<HTMLDivElement | null>) 
         }).catch(() => ({ state: "unavailable" as const, items: [] }));
       void pending.current.then(result => { if (active) setFeed(result); });
     };
+    if (eager) { load(); return () => { active = false; }; }
     const observer = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver(entries => {
       if (entries.some(entry => entry.isIntersecting)) { observer?.disconnect(); load(); }
     }, { rootMargin: "300px" });
     if (observer && ref.current) observer.observe(ref.current);
     else load();
     return () => { active = false; observer?.disconnect(); };
-  }, [endpoint, ref]);
+  }, [eager, endpoint, ref]);
   return feed;
 }
 
@@ -96,7 +97,7 @@ export function HomepagePetContent() {
   const newsRef = useRef<HTMLDivElement>(null);
   const eventsRef = useRef<HTMLDivElement>(null);
   const news = useContent<PetNewsItem>("/api/content/pet-news", newsRef);
-  const events = useContent<PetEventItem>("/api/content/pet-events", eventsRef);
+  const events = useContent<PetEventItem>("/api/content/pet-events", eventsRef, true);
   const [today, setToday] = useState<string | null>(null);
   useEffect(() => {
     const update = () => setToday(kstToday());

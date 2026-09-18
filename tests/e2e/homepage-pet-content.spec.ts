@@ -21,7 +21,8 @@ for (const width of [1440, 768, 390, 320]) {
     await page.route("**/api/content/pet-events", route => { calls.events++; return route.fulfill({ json: { ok: true, data: events } }); });
     await page.goto("/");
     await expect(page.locator(".weekendoog-home")).toBeVisible();
-    expect(calls).toEqual({ news: 0, events: 0 });
+    await expect.poll(() => calls.events).toBe(1);
+    expect(calls.news).toBe(0);
     const section = page.getByRole("region", { name: "반려동물 뉴스와 행사" });
     await section.scrollIntoViewIfNeeded();
     await expect(section.locator("ol > li")).toHaveCount(5);

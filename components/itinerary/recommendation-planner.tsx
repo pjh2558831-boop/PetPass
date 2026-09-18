@@ -1018,7 +1018,7 @@ export function RecommendationPlanner({
 
       {ready.routeOptions || availableRoutes.length > 1 ? (
         <section className="route-result-alternatives" aria-labelledby="route-alternatives-heading">
-          <h2 id="route-alternatives-heading" className="text-sm font-black">추천 기준을 바꿔 비교해 보세요</h2>
+          <h2 id="route-alternatives-heading" className="text-base font-black">어떤 일정이 좋으세요?</h2>
           <div className="mt-3 flex flex-wrap gap-2" role="tablist" aria-label="일정 대안">
             {availableRoutes.map((route) => {
               const noticeCount = route.stops.filter((stop) =>
@@ -1040,6 +1040,7 @@ export function RecommendationPlanner({
                     if (target >= 0) { event.preventDefault(); tabs[target]!.click(); tabs[target]!.focus(); }
                   }}
                   aria-selected={activeRoute?.id === route.id}
+                  aria-label={`${route.label}: ${route.routeSummary.stopCount}곳, 이동 ${formatDuration(route.routeSummary.totalDrivingSeconds)}`}
                   onClick={() => {
                     setActiveRoute(route);
                     setEditableIds(route.stops.map(({ placeId }) => placeId));
@@ -1050,11 +1051,11 @@ export function RecommendationPlanner({
                   className={`grid min-h-11 min-w-[220px] gap-1 rounded-lg border px-4 py-3 text-left text-sm ${activeRoute?.id === route.id ? "border-[var(--mint-500)] bg-[var(--brand-soft)] text-[var(--brand)]" : "border-[var(--line)] bg-white text-[#607168]"}`}
                 >
                   <strong className="font-black">{route.label}</strong>
-                  <span className="text-xs font-bold">{route.routeSummary.stopCount}곳 · 이동 {formatDuration(route.routeSummary.totalDrivingSeconds)} · 대기 {formatDuration(route.routeSummary.totalWaitSeconds)}</span>
-                  <span className="text-xs">종료 {koreaTime(route.estimatedFinishAt ?? route.routeSummary.endAt, route.routeSummary.totalElapsedSeconds, route.schedule)} · {routeCategorySummary(route) || "장소 유형 확인"}</span>
-                  <span className="text-xs">자동 추가 {route.automaticPlaceCount ?? route.stops.filter(({ provenance }) => provenance === "auto_fill").length}곳 · 운영 안내 {noticeCount}곳</span>
+                  <span className="route-option-meta text-xs font-bold">{route.routeSummary.stopCount}곳 · 이동 {formatDuration(route.routeSummary.totalDrivingSeconds)} · 대기 {formatDuration(route.routeSummary.totalWaitSeconds)}</span>
+                  <span className="route-option-meta text-xs">종료 {koreaTime(route.estimatedFinishAt ?? route.routeSummary.endAt, route.routeSummary.totalElapsedSeconds, route.schedule)} · {routeCategorySummary(route) || "장소 유형 확인"}</span>
+                  <span className="route-option-meta text-xs">자동 추가 {route.automaticPlaceCount ?? route.stops.filter(({ provenance }) => provenance === "auto_fill").length}곳 · 운영 안내 {noticeCount}곳</span>
                   {reduced ? <span className="text-xs font-bold text-[#76542f]">축소 결과 · 이동시간 안에 계산한 경로</span> : null}
-                  <span className="text-xs leading-5">차이: {routeDifferenceSummary(route)}</span>
+                  <span className="route-option-meta text-xs leading-5">차이: {routeDifferenceSummary(route)}</span>
                 </button>
               );
             })}
@@ -1079,6 +1080,13 @@ export function RecommendationPlanner({
           {displayedRoute.kind === "manual" && ready.route.kind !== "manual" ? <Button type="button" variant="brandSecondary" className="mt-4 w-full" onClick={() => { setActiveRoute(ready.route); setEditableIds(ready.route.stops.map(({ placeId }) => placeId)); setEditDirty(false); setSelectedPlaceId(ready.route.stops[0]?.placeId ?? null); }}><RotateCcw size={16} aria-hidden="true" /> 원래 추천 일정 복원</Button> : null}
         </aside>
       </div>
+      <section className="route-result-save-cta" aria-labelledby="route-save-heading">
+        <div>
+          <h2 id="route-save-heading">이 일정으로 여행을 시작해볼까요?</h2>
+          <p>{ready.requestSummary.tripDate} · {summary.stopCount}곳 · 이동 {formatDuration(summary.totalDrivingSeconds)}</p>
+        </div>
+        <Button type="button" variant="brand" aria-label="하단 저장" disabled={editDirty || loading || revalidating} onClick={() => { const saved = saveRouteRecommendation(ready, displayedRoute, undefined, new Date(), lastReadyRequest?.departure); setSaved(saved); setSaveMessage(saved ? "현재 일정을 이 브라우저에 저장했습니다." : "저장하지 못했습니다. 브라우저 저장 공간을 확인해 주세요."); }}><Save size={16} aria-hidden="true" /> 이 일정 저장하기</Button>
+      </section>
     </div>
   );
 }
