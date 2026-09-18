@@ -5575,11 +5575,14 @@ body:has(.weekendoog-home) .site-header {
   margin-top: 10px;
   border: 1px solid var(--line);
   border-radius: var(--planner-control-radius);
-  padding: 9px 12px;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 11px 16px;
 }
 
 .planner-inline-check span {
   min-width: 0;
+  line-height: 1.5;
 }
 
 .planner-scope-help {
