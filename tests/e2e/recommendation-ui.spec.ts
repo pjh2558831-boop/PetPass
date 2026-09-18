@@ -323,6 +323,10 @@ test("compact timeline preserves evidence and editing at desktop and mobile widt
   await generate(page, testInfo);
   const first = page.locator(".route-result-stop").first();
   await expect(first.locator(".route-result-stop__photo img")).toBeVisible();
+  await expect(first.getByRole("link", { name: "장소 정보 보기" })).toHaveAttribute("href", /\/places\/\d+\?region=busan$/u);
+  await expect(first.getByRole("link", { name: "다른 장소로 변경" })).toHaveAttribute("href", /mode=select&replace=tour%3A\d+$/u);
+  await expect(page.getByText("새 장소 선택 폭을 넓히는 방법", { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/현재 조건에서 의미 있게 다른 이동 경로/u)).toHaveCount(0);
   for (const width of [1292, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 986 });
     await expectNoHorizontalOverflow(page);

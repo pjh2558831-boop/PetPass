@@ -50,7 +50,6 @@ import {
 import { createRouteRecommendationRequest } from "@/lib/recommendation/recommendation-ui-request";
 import { getRecommendationStopEditCopy } from "@/lib/recommendation/recommendation-stop-ui";
 import {
-  REROLL_RECOVERY_ACTIONS,
   recommendationRerollUiState,
 } from "@/lib/recommendation/recommendation-reroll-ui";
 import {
@@ -327,6 +326,9 @@ function Timeline({
   return (
     <ol className="route-result-timeline" aria-label={`${route.label} 방문 순서`}>
       {route.stops.map((stop, index) => {
+        const catalogPlaceId = stop.placeId.includes(":")
+          ? stop.placeId
+          : `${stop.source === "tourism_service2" ? "tour" : "kakao"}:${stop.placeId}`;
         const editCopy = getRecommendationStopEditCopy(stop, replacementSupported);
         const inclusion = stop.inclusionReasonCodes.flatMap((code) => {
           const copy = recommendationReasonCopy(code);
@@ -400,6 +402,8 @@ function Timeline({
               {stop.catalogEvidence?.length ? <div className="mt-3 border-t border-[var(--line)] pt-3"><h4 className="text-sm font-black">공개 카탈로그 출처</h4>{stop.catalogEvidence.map((item) => <p key={`${item.provider}:${item.providerPlaceId}`} className="mt-2 text-xs leading-5 text-[var(--muted)]">{item.provider === "kto" ? "한국관광공사" : "카카오맵"}{item.retrievedAt ? ` · 조회 ${new Date(item.retrievedAt).toLocaleDateString("ko-KR")}` : ""}{item.originalText ? ` · ${item.originalText}` : " · 동반 안내 원문 없음"}</p>)}</div> : null}
             </details>
             <div className="route-result-stop__actions" aria-label={`${stop.title} 순서 편집`}>
+              {stop.source === "tourism_service2" ? <Link href={`/places/${catalogPlaceId.slice(5)}?region=${regionId}`} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[var(--line)] px-3 text-xs font-extrabold text-[var(--brand)]">장소 정보 보기</Link> : null}
+              <Link href={`/results?tab=catalog&region=${regionId}&mode=select&replace=${encodeURIComponent(catalogPlaceId)}`} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[var(--line)] px-3 text-xs font-extrabold text-[var(--brand)]">다른 장소로 변경</Link>
               <button type="button" disabled={index === 0} onClick={() => onMove(stop.placeId, -1)} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[var(--line)] px-3 text-xs font-extrabold disabled:opacity-40"><ArrowUp size={15} aria-hidden="true" /> 앞으로</button>
               <button type="button" disabled={index === route.stops.length - 1} onClick={() => onMove(stop.placeId, 1)} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[var(--line)] px-3 text-xs font-extrabold disabled:opacity-40"><ArrowDown size={15} aria-hidden="true" /> 뒤로</button>
               <button type="button" disabled={route.stops.length <= 1} onClick={() => onRemove(stop.placeId)} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[#e5bdb7] px-3 text-xs font-extrabold text-[#8d3838] disabled:opacity-40"><Trash2 size={15} aria-hidden="true" /> {editCopy.removeLabel}</button>
@@ -988,16 +992,6 @@ export function RecommendationPlanner({
         </dl>
       </header>
 
-      {rerollUi.showRecoveryActions ? (
-        <section className="rounded-lg border border-[#eed8ae] bg-[#fff8ec] p-4" aria-labelledby="reroll-recovery-heading">
-          <h2 id="reroll-recovery-heading" className="text-sm font-black text-[#76542f]">새 장소 선택 폭을 넓히는 방법</h2>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm font-semibold leading-6 text-[#76542f]">
-            {REROLL_RECOVERY_ACTIONS.map((action) => <li key={action}>{action}</li>)}
-          </ul>
-          <p className="mt-2 text-xs font-semibold text-[#76542f]">직접 선택·제외 장소와 날짜·시간 예산은 유지합니다.</p>
-        </section>
-      ) : null}
-
       {ready.selectionIssues && ready.selectionIssues.length > 0 ? (
         <section className="rounded-lg border border-[#eed8ae] bg-[#fff8ec] p-4" aria-labelledby="selection-issues-heading">
           <h2 id="selection-issues-heading" className="flex items-center gap-2 text-sm font-black text-[#76542f]"><AlertTriangle size={17} aria-hidden="true" /> 선택 장소 확인사항</h2>
@@ -1052,7 +1046,6 @@ export function RecommendationPlanner({
             })}
           </div>
           {activeStyle ? <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{ROUTE_STYLE_COPY[activeStyle]}</p> : null}
-          {ready.alternativeAvailability === "limited" ? <p className="mt-2 text-xs font-semibold text-[var(--muted)]">현재 조건에서 의미 있게 다른 이동 경로는 {availableRoutes.length}개입니다. 빈 대안은 표시하지 않았어요.</p> : null}
         </section>
       ) : null}
 

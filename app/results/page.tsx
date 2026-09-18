@@ -33,6 +33,7 @@ export default async function ResultsPage({
         initialCatalogState={initialCatalogState}
         staticMapEnabled={staticMapThumbnailsEnabled()}
         itineraryMode={itineraryMode}
+        replacementPlaceId={typeof params.replace === "string" ? params.replace : null}
       />
     </div>
   );

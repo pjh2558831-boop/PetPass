@@ -354,11 +354,12 @@ function ExplorerResultsSkeleton() {
   );
 }
 
-export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, staticMapEnabled = false, itineraryMode = "browse" }: {
+export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, staticMapEnabled = false, itineraryMode = "browse", replacementPlaceId = null }: {
   initialTab?: ExplorerTab;
   initialCatalogState: PublicCatalogUrlState;
   staticMapEnabled?: boolean;
   itineraryMode?: "browse" | "selection" | "hybrid";
+  replacementPlaceId?: string | null;
 }) {
   const router = useRouter();
   // App Router can restore a cached route tree whose original props predate pushState filters.
@@ -431,6 +432,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     message: selectionMessage,
     toggle: toggleSelection,
     remove: removeSelection,
+    replace: replaceSelection,
     move: moveSelection,
     setAutoFill,
     resetRegion: resetSelectionRegion,
@@ -686,7 +688,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       sort,
     });
     const desiredUrl = itineraryMode === "selection"
-      ? `${baseUrl}&mode=select`
+      ? `${baseUrl}&mode=select${replacementPlaceId ? `&replace=${encodeURIComponent(replacementPlaceId)}` : ""}`
       : itineraryMode === "hybrid"
         ? `${baseUrl}&mode=selected`
         : baseUrl;
@@ -703,7 +705,7 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       window.history.pushState(null, "", desiredUrl);
     }
     applyingBrowserHistoryRef.current = false;
-  }, [activeTab, categories, district, itineraryMode, layers, page, region, sort]);
+  }, [activeTab, categories, district, itineraryMode, layers, page, region, replacementPlaceId, sort]);
 
   const requestedQuery = useMemo(() => ({ categories, page, sort, searchQuery }), [categories, page, sort, searchQuery]);
   const displayScope = JSON.stringify([region, district, layers, activeBounds]);
@@ -1110,6 +1112,12 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     if (index !== undefined) setPage(Math.floor(index / PUBLIC_CATALOG_PAGE_SIZE) + 1);
   };
   const toggleItineraryPlace = (place: PublicCatalogPlace) => {
+    if (replacementPlaceId) {
+      if (replaceSelection(replacementPlaceId, selectedItineraryPlaceFromCatalog(place))) {
+        router.push("/planner/pet?mode=selected");
+      }
+      return;
+    }
     const result = toggleSelection(selectedItineraryPlaceFromCatalog(place));
     if (result.status === "selected") {
       selectPlace(place.id);
@@ -1448,7 +1456,10 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
                 staticMapEnabled={staticMapEnabled}
                 itinerarySelection={itineraryMode === "selection" && regionConfig.routeCapabilities.selectedPlaceRouting ? {
                   selected: selectionSnapshot.places.some(({ id }) => id === place.id),
-                  disabledReason: selectionSnapshot.places.some(({ id }) => id === place.id)
+                  actionLabel: replacementPlaceId ? "이 장소로 변경" : undefined,
+                  disabledReason: replacementPlaceId && selectionSnapshot.places.some(({ id }) => id === place.id)
+                    ? place.id === replacementPlaceId ? "현재 일정의 장소예요" : "이미 일정에 담은 장소예요"
+                    : selectionSnapshot.places.some(({ id }) => id === place.id)
                     ? undefined
                     : selectionSnapshot.places.length >= MAX_SELECTED_ITINERARY_PLACES
                             ? `최대 ${MAX_SELECTED_ITINERARY_PLACES}곳까지 담을 수 있어요`

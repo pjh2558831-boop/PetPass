@@ -238,6 +238,27 @@ export function selectedItineraryVerdictLabel(
   return "반려동물 동반 가능";
 }
 
+export function replaceSelectedItineraryPlace(
+  snapshot: SelectedItinerarySnapshot,
+  placeId: string,
+  replacement: SelectedItineraryPlace,
+): SelectedItinerarySnapshot | null {
+  const index = snapshot.places.findIndex(({ id }) => id === placeId);
+  if (
+    index < 0 ||
+    replacement.regionId !== snapshot.regionId ||
+    snapshot.places.some(({ id }) => id === replacement.id && id !== placeId)
+  ) return null;
+  const places = [...snapshot.places];
+  places[index] = replacement;
+  return {
+    ...snapshot,
+    places,
+    acknowledgedVerificationRequiredPlaceIds:
+      snapshot.acknowledgedVerificationRequiredPlaceIds.filter((id) => id !== placeId),
+  };
+}
+
 export function selectedItineraryNeedsWarning(place: SelectedItineraryPlace): boolean {
   void place;
   return false;
