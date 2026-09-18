@@ -23,11 +23,9 @@ import { LicenseInformationPanel } from "@/components/places/license-information
 import {
   PetAccessAssessmentPanel,
   PetAccessDecisionSummary,
-  PetAccessTechnicalDisclosure,
 } from "@/components/places/pet-access-assessment-panel";
 import {
   SourceTrustPanel,
-  SourceTrustTechnicalDisclosure,
 } from "@/components/places/source-trust-panel";
 import { InformationReportDraftPanel } from "@/components/places/information-report-draft-panel";
 import { Button } from "@/components/ui/button";
@@ -40,6 +38,7 @@ import type { TourPlaceDetailResponse } from "@/types/place";
 import type { RegionId } from "@/types/region";
 
 type DetailState = "loading" | "ready" | "error";
+type DetailTab = "overview" | "pet-access" | "source" | "basic" | "location";
 
 class PublicDetailLoadError extends Error {}
 
@@ -75,6 +74,7 @@ export function LivePlaceDetail({
   const selection = useSelectedItinerarySelection({ regionId });
   const [error, setError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
+  const [activeTab, setActiveTab] = useState<DetailTab>("overview");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -284,7 +284,7 @@ export function LivePlaceDetail({
               id: `tour:${contentId}`, regionId, providerPlaceId: contentId, name: title, layer: "tourism", category: ["attraction", "food", "accommodation", "shopping", "leisure"].includes(detail.summary.category) ? detail.summary.category as "attraction" | "food" | "accommodation" | "shopping" | "leisure" : "other",
               sourceLabel: "한국관광공사", publicLabel: "한국관광공사 제공 장소", petAccessVerdict: "unknown", imageUrl: detailImageUrl,
             })}><CalendarPlus size={18} aria-hidden="true" />{selection.snapshot.places.some(p => p.id === `tour:${contentId}`) ? "일정에 담음" : "일정에 담기"}</button>
-            {coordinates ? <a href="#detail-location"><MapPin size={18} aria-hidden="true" />지도에서 보기</a> : null}
+            {coordinates ? <button type="button" onClick={() => setActiveTab("location")}><MapPin size={18} aria-hidden="true" />지도에서 보기</button> : null}
           </div>
           <NaverSearchDisclosure name={title} address={address} />
           {selection.message ? <p role="status" className="text-sm mt-2">{selection.message}</p> : null}
@@ -301,12 +301,29 @@ export function LivePlaceDetail({
         </div>
       </div>
 
-      <nav className="detail-section-nav" aria-label="장소 상세 목차">
-        <a href="#place-overview-heading">장소 소개</a><a href="#pet-access-evidence-heading">동반 가능 조건</a><a href="#source-trust-heading">출처와 신뢰도</a><a href="#detail-basic">기본 정보</a>{coordinates ? <a href="#detail-location">위치</a> : null}
+      <nav className="detail-section-nav" aria-label="장소 상세 목차" role="tablist">
+        {([
+          ["overview", "장소 소개"],
+          ["pet-access", "동반 가능 조건"],
+          ["source", "출처와 신뢰도"],
+          ["basic", "기본 정보"],
+          ...(coordinates ? [["location", "위치"]] : []),
+        ] as Array<[DetailTab, string]>).map(([tab, label]) => (
+          <button
+            key={tab}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab}
+            className={activeTab === tab ? "is-active" : ""}
+            onClick={() => setActiveTab(tab)}
+          >
+            {label}
+          </button>
+        ))}
       </nav>
-      <div className="detail-body-grid">
+      <div className={`detail-body-grid ${activeTab === "pet-access" ? "detail-body-grid--main-only" : activeTab === "basic" || activeTab === "location" ? "detail-body-grid--sidebar-only" : ""}`}>
       <div className="detail-main">
-      <section className="place-detail-overview" aria-labelledby="place-overview-heading">
+      <section className="place-detail-overview" aria-labelledby="place-overview-heading" hidden={activeTab !== "overview"}>
         <h2 id="place-overview-heading" className="text-xl font-black tracking-[-0.03em]">
           장소 소개
         </h2>
@@ -315,7 +332,7 @@ export function LivePlaceDetail({
         </p>
       </section>
 
-      <div className="place-detail-evidence-layer mt-10">
+      <div className="place-detail-evidence-layer mt-10" hidden={activeTab !== "pet-access"}>
         <div className="place-detail-assessment">
           <PetAccessAssessmentPanel
             assessment={detail.petAccessAssessment}
@@ -324,43 +341,24 @@ export function LivePlaceDetail({
 
 
 
-        <section
-          className="place-detail-technical-layer mt-10"
-          aria-labelledby="place-technical-heading"
-        >
-          <h2
-            id="place-technical-heading"
-            className="text-base font-black tracking-[-0.025em] text-[#344a40]"
-          >
-            기술 정보
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-[#617168]">
-            평가 규칙과 계산 시각은 필요할 때 펼쳐 확인할 수 있습니다.
-          </p>
-          <div className="place-detail-technical-layer__disclosures mt-4">
-            <PetAccessTechnicalDisclosure assessment={detail.petAccessAssessment} />
-            <SourceTrustTechnicalDisclosure trust={detail.trust} />
-          </div>
-        </section>
       </div>
 
-      <div className="place-detail-support mt-10 grid gap-6 lg:grid-cols-2 lg:items-start">
+      <div className="place-detail-support mt-10 grid gap-6 lg:grid-cols-2 lg:items-start" hidden={activeTab !== "source"}>
           <LicenseInformationPanel licensing={detail.licensing} />
           <InformationReportDraftPanel
             placeName={title}
             providerIds={detail.sourceRecords.flatMap(({ providerIds }) => providerIds)}
           />
       </div>
-
       </div>
       <aside className="detail-sidebar">
-        <section id="detail-basic" className="detail-at-a-glance"><h2><ShieldCheck size={20} aria-hidden="true" />한눈에 보기</h2>
+        <section id="detail-basic" className="detail-at-a-glance" hidden={activeTab !== "overview" && activeTab !== "basic"}><h2><ShieldCheck size={20} aria-hidden="true" />한눈에 보기</h2>
           <dl>{informationCards.map(({label,value}) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
         </section>
-        <div className="place-detail-source mt-10">
+        <div className="place-detail-source mt-10" hidden={activeTab !== "overview" && activeTab !== "source"}>
           <SourceTrustPanel sourceRecords={detail.sourceRecords} trust={detail.trust} />
         </div>      {coordinates ? (
-        <section id="detail-location" className="detail-location"><h2><MapPin size={20} aria-hidden="true" />위치</h2>
+        <section id="detail-location" className="detail-location" hidden={activeTab !== "location"}><h2><MapPin size={20} aria-hidden="true" />위치</h2>
           <MapPanel
             regionId={regionId}
             compact
