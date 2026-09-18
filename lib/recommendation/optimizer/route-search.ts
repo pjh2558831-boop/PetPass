@@ -121,6 +121,16 @@ function completedConstraint(input: RouteOptimizationInput, visits: ScheduledRou
   if (input.tripRequest.requiredPlaceIds?.some((placeId) => !visitedIds.has(placeId))) {
     return false;
   }
+  const placement = input.tripRequest.selectedPlacePlacement;
+  if (placement) {
+    const locked = visits.map(({ candidate }) => Boolean(candidate.locked));
+    const firstOptional = locked.indexOf(false);
+    const firstSelected = locked.indexOf(true);
+    if (
+      (placement === "before_recommendations" && firstOptional >= 0 && locked.slice(firstOptional).includes(true)) ||
+      (placement === "after_recommendations" && firstSelected >= 0 && locked.slice(firstSelected).includes(false))
+    ) return false;
+  }
   const requestedCategories = new Set(input.tripRequest.selectedCategories);
   const coveredRequestedCategories = new Set(
     visits

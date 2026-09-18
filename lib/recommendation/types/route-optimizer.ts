@@ -87,6 +87,7 @@ export interface RouteOptimizationTripRequest {
   minimumRequestedCategoryCount?: number;
   /** Every completed route must contain this canonical set. */
   requiredPlaceIds?: string[];
+  selectedPlacePlacement?: "before_recommendations" | "after_recommendations";
 }
 
 export interface RouteOptimizationInput {

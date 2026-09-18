@@ -54,8 +54,24 @@ describe("selected itinerary request", () => {
       ],
       acknowledgedVerificationRequiredPlaceIds: [],
       autoFill: true,
-      trip: { selectedCategories: ["attraction", "food"] },
+      trip: {
+        selectedCategories: ["attraction", "food"],
+        recommendationBasis: "departure",
+      },
     });
+  });
+
+  it("sends the selected-place recommendation basis to the route engine", () => {
+    const request = createRouteRecommendationRequest(profile, {
+      ...preferences,
+      recommendationBasis: "selected_places",
+    }, {}, {
+      selectedPlaces: [{ id: "tour:7001", regionId: "busan" }],
+      autoFill: true,
+      selectedCategories: ["attraction"],
+    });
+
+    expect(request.trip.recommendationBasis).toBe("selected_places");
   });
 
   it("keeps the automatic request backward compatible", () => {

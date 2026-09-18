@@ -45,6 +45,7 @@ export interface TravelPreferences {
   districtCode?: string;
   districtName?: string;
   searchScope?: "nearby" | "district" | "region";
+  recommendationBasis?: "departure" | "selected_places";
   tripDate: string;
   tripType: TripType;
   tripPace: TripPace;

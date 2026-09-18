@@ -144,6 +144,51 @@ describe("constraint-aware route composition V2", () => {
     expect(selectSpatialShortlistV2({ ...request, preferNearby: false }).candidates[0].node.id).toBe("far");
   });
 
+  it("uses the requested origin when ranking nearby automatic places", () => {
+    const selected = candidate("selected");
+    selected.node = { ...selected.node, latitude: 35.5 };
+    const nearDeparture = candidate("near-departure");
+    const nearSelection = candidate("near-selection");
+    nearSelection.node = { ...nearSelection.node, latitude: 35.5 };
+    const request = {
+      candidates: [selected, nearDeparture, nearSelection],
+      departure: nearDeparture.node,
+      lockedPlaceIds: ["selected"],
+      seed: "recommendation-origin",
+      rerollVariant: 0,
+      limit: 2,
+    };
+
+    expect(selectSpatialShortlistV2({
+      ...request,
+      proximityOrigins: [nearDeparture.node],
+    }).candidates[1].node.id).toBe("near-departure");
+    expect(selectSpatialShortlistV2({
+      ...request,
+      proximityOrigins: [selected.node],
+    }).candidates[1].node.id).toBe("near-selection");
+  });
+
+  it.each([
+    ["before_recommendations", "selected", 0],
+    ["after_recommendations", "selected", 2],
+  ] as const)("places selected stops %s", (placement, selectedId, expectedIndex) => {
+    const base = input([
+      candidate("automatic-a"),
+      candidate(selectedId, "attraction", { locked: true }),
+      candidate("automatic-b"),
+    ], {
+      desiredStopCount: 3,
+      minimumStopCount: 3,
+      requiredPlaceIds: [selectedId],
+      selectedPlacePlacement: placement,
+    });
+    const routes = searchRoutesV1(base, { deadlineMs: 5_000, maxStates: 100_000 });
+
+    expect(routes.finalists.length).toBeGreaterThan(0);
+    expect(routes.finalists.every(route => route.orderedPlaceIds.indexOf(selectedId) === expectedIndex)).toBe(true);
+  });
+
   it("builds broad geographic drafts through unknown, closed, and reservation-warning venues without changing their facts", async () => {
     const unknown = candidate("unknown");
     unknown.schedule = { ...unknown.schedule, status: "unknown", windows: [] };

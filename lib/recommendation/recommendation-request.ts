@@ -75,6 +75,7 @@ export const routeRecommendationRequestSchema = z
         regionId: z.enum(REGION_IDS),
         districtId: z.string().trim().min(1).max(20).nullable(),
         searchScope: z.enum(["nearby", "district", "region"]).optional(),
+        recommendationBasis: z.enum(["departure", "selected_places"]).default("departure"),
         date: z.string().date().nullable().default(null),
         startTime: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/u).nullable().default(null),
         tripType: z.enum(["day_trip", "overnight"]),

@@ -81,14 +81,11 @@ for (const searchScope of ["nearby", "district", "region"] as const) {
     await continueToTrip(page);
     await chooseConfirmedDeparture(page);
     const scope = page.getByRole("combobox", { name: "추천 범위", exact: true });
-    await expect(scope).toHaveValue("nearby");
+    await expect(scope).toHaveValue("nearby-departure");
     if (searchScope === "district") await scope.selectOption({ label: "연제구" });
     if (searchScope === "region") {
       await scope.selectOption({ label: "연제구" });
-      await scope.focus();
-      await page.keyboard.press("Home");
-      await page.keyboard.press("ArrowDown");
-      await page.keyboard.press("Tab");
+      await scope.selectOption("all");
       await expect(scope).toHaveValue("all");
     }
     const value = await scope.inputValue();
@@ -99,12 +96,37 @@ for (const searchScope of ["nearby", "district", "region"] as const) {
     await page.getByRole("button", { name: "여행 추천 받기" }).click();
     expect((await requestPromise).postDataJSON()).toMatchObject({ trip: {
       regionId: "busan", searchScope, districtId: searchScope === "district" ? value : null,
+      recommendationBasis: "departure",
     } });
     await page.goto("/planner/pet");
     await continueToTrip(page);
     await expect(scope).toHaveValue(value);
   });
 }
+
+test("selected-place recommendation starts at the selected place", async ({ page }, testInfo) => {
+  await page.route(`**${DEPARTURE_PATH}?**`, (route) => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({ ok: true, data: [{ id: "place:basis-test", kind: "place", label: "부산광역시 연제구 중앙대로 1001", address: "부산광역시 연제구 중앙대로 1001", coordinates: { latitude: 35.1795543, longitude: 129.0756416 } }] }),
+  }));
+  await page.route(`**${GENERATE_PATH}`, (route) => route.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({ status: "insufficient_candidates", apiVersion: "route-recommendation-response-v1", reasonCodes: ["insufficient_candidates"], userMessage: "추천 기준 확인용 응답", retryable: true }),
+  }));
+  await openPetPlanner(page, testInfo, "recommendation-basis");
+  await continueToTrip(page);
+  await chooseConfirmedDeparture(page);
+  const scope = page.getByRole("combobox", { name: "추천 범위", exact: true });
+  await scope.selectOption("nearby-selected");
+  await expect(page.getByText("출발지에서 선택 장소로 먼저 이동한 뒤, 선택 장소 주변을 추천합니다.")).toBeVisible();
+  await continueToDay(page);
+  const requestPromise = page.waitForRequest((request) => new URL(request.url()).pathname === GENERATE_PATH && request.method() === "POST");
+  await page.getByRole("button", { name: "여행 추천 받기" }).click();
+  expect((await requestPromise).postDataJSON()).toMatchObject({ trip: {
+    searchScope: "nearby",
+    recommendationBasis: "selected_places",
+  } });
+});
 
 function installFakeCoordinatePicker(page: Page) {
   return page.addInitScript(() => {

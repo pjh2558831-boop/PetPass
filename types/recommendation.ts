@@ -35,6 +35,7 @@ export interface RouteRecommendationRequest {
     regionId: RegionId;
     districtId: string | null;
     searchScope?: "nearby" | "district" | "region";
+    recommendationBasis?: "departure" | "selected_places";
     date: string | null;
     startTime: string | null;
     tripType: "day_trip" | "overnight";
