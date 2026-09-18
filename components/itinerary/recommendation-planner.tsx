@@ -34,6 +34,7 @@ import { MapPanel } from "@/components/map/map-panel";
 import { RecommendationStopProvenance } from "@/components/itinerary/recommendation-stop-provenance";
 import { usePlannerState } from "@/components/planner/planner-state";
 import { Button } from "@/components/ui/button";
+import { saveAccountItinerary } from "@/app/itinerary/actions";
 import { ProductState } from "@/components/ui/product-state";
 import {
   REGION_CONFIGS,
@@ -56,7 +57,7 @@ import {
   manualRouteValidationResponseSchema,
   routeRecommendationResponseSchema,
 } from "@/lib/recommendation/recommendation-response";
-import { saveRouteRecommendation } from "@/lib/storage/recommendation-storage";
+import { createSavedRouteRecommendation } from "@/lib/storage/recommendation-storage";
 import { loadRecommendationHistory, saveRecommendationHistory } from "@/lib/storage/recommendation-history-storage";
 import { formatScheduleTime as koreaTime } from "@/lib/recommendation/schedule/schedule-display";
 import { saveTravelPreferences } from "@/lib/storage/profile-storage";
@@ -942,6 +943,17 @@ export function RecommendationPlanner({
     : ready.resultState === "ready_with_reduced_stops"
       ? `요청한 ${displayedRoute.requestedTarget ?? "목표"}곳보다 적은 ${summary.stopCount}곳으로 이동 경로를 계산했어요.`
       : null;
+  const saveItinerary = async () => {
+    const snapshot = createSavedRouteRecommendation(ready, displayedRoute, new Date(), lastReadyRequest?.departure);
+    if (!snapshot) {
+      setSaveMessage("저장할 일정 정보를 확인해 주세요.");
+      return;
+    }
+    setSaved(false);
+    const result = await saveAccountItinerary(snapshot);
+    setSaved(result.ok);
+    setSaveMessage(result.ok ? "마이페이지에 일정을 저장했습니다." : result.message);
+  };
   return (
     <div className="route-redesign space-y-6" aria-busy={loading || revalidating}>
       {displayedRoute.planningPolicy === "full_public_catalog_v1" ? <p className="rounded border border-[var(--line)] p-4 text-sm"><strong>전체 장소 기반 추천</strong> · 등록된 WEEKENDOG 장소로 이동 경로를 계산한 초안입니다.</p> : null}
@@ -975,15 +987,15 @@ export function RecommendationPlanner({
                 지도에서 장소 추가
               </Link>
             ) : null}
-            <Button type="button" variant="brandSecondary" disabled={editDirty || loading || revalidating} onClick={() => { const saved = saveRouteRecommendation(ready, displayedRoute, undefined, new Date(), lastReadyRequest?.departure); setSaved(saved); setSaveMessage(saved ? "현재 일정을 이 브라우저에 저장했습니다." : "저장하지 못했습니다. 브라우저 저장 공간을 확인해 주세요."); }}><Save size={16} aria-hidden="true" /> 일정 저장</Button>
+            <Button type="button" variant="brandSecondary" disabled={editDirty || loading || revalidating} onClick={() => void saveItinerary()}><Save size={16} aria-hidden="true" /> 일정 저장</Button>
             {selectionMode === "automatic" || (hybridAutoFill && hasAutoFilledStops) ? (
               <Button type="button" variant="brandSecondary" disabled={rerollUi.kind === "exhausted"} onClick={() => void runRecommendation("reroll")}><RefreshCw size={16} aria-hidden="true" /> {rerollUi.buttonLabel}</Button>
             ) : null}
           </div>
         </div>
         {saveMessage ? <p className="mt-3 text-sm font-bold text-[var(--brand)]" role="status">{saveMessage}</p> : null}
-        <p className="mt-2 text-sm text-[#52635a]">저장은 이 브라우저의 일정 한 개를 교체합니다. {displayedRoute.planningPolicy === "full_public_catalog_v1" ? "전체 장소 기반 경로는 일정 초안으로 보관됩니다." : "미정 일정과 미적용 제안은 초안으로 보관됩니다."}</p>
-        {saved ? <Link href="/itinerary" className="mt-3 inline-flex min-h-11 items-center font-bold underline">저장된 일정 보기</Link> : null}
+        <p className="mt-2 text-sm text-[#52635a]">계정에 최대 5개 일정을 저장할 수 있습니다. {displayedRoute.planningPolicy === "full_public_catalog_v1" ? "전체 장소 기반 경로는 일정 초안으로 보관됩니다." : "미정 일정과 미적용 제안은 초안으로 보관됩니다."}</p>
+        {saved ? <Link href="/account" className="mt-3 inline-flex min-h-11 items-center font-bold underline">마이페이지에서 보기</Link> : null}
         <dl className="route-result-summary">
           <div><dt>일정</dt><dd>{ready.requestSummary.tripDate} · {editDirty ? "시간 재계산 필요" : `${koreaTime(summary.startAt, 0, displayedRoute.schedule)} ~ ${koreaTime(summary.endAt, summary.totalElapsedSeconds, displayedRoute.schedule)}`}</dd></div>
           <div><dt>여행 속도</dt><dd>{PACE_LABEL[ready.requestSummary.tripPace]} · 총 {summary.stopCount}곳</dd></div>
@@ -1069,7 +1081,7 @@ export function RecommendationPlanner({
           <h2 id="route-save-heading">이 일정으로 여행을 시작해볼까요?</h2>
           <p>{ready.requestSummary.tripDate} · {summary.stopCount}곳 · 이동 {formatDuration(summary.totalDrivingSeconds)}</p>
         </div>
-        <Button type="button" variant="brand" aria-label="하단 저장" disabled={editDirty || loading || revalidating} onClick={() => { const saved = saveRouteRecommendation(ready, displayedRoute, undefined, new Date(), lastReadyRequest?.departure); setSaved(saved); setSaveMessage(saved ? "현재 일정을 이 브라우저에 저장했습니다." : "저장하지 못했습니다. 브라우저 저장 공간을 확인해 주세요."); }}><Save size={16} aria-hidden="true" /> 이 일정 저장하기</Button>
+        <Button type="button" variant="brand" aria-label="하단 저장" disabled={editDirty || loading || revalidating} onClick={() => void saveItinerary()}><Save size={16} aria-hidden="true" /> 이 일정 저장하기</Button>
       </section>
     </div>
   );

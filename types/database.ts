@@ -86,6 +86,27 @@ export type Database = {
         }
         Relationships: []
       }
+      saved_itineraries: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          snapshot: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          snapshot: Json
+          created_at?: string
+        }
+        Update: {
+          title?: string
+          snapshot?: Json
+        }
+        Relationships: []
+      }
       map_ingest_run_queries: {
         Row: {
           accepted_result_count: number

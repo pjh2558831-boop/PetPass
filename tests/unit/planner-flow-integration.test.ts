@@ -65,6 +65,6 @@ describe("unified planner product flow", () => {
     expect(planner).toContain("orderedPlaceIds: editableIds");
     expect(planner).toContain("지도에서 장소 추가");
     expect(planner).toContain("rerollUi.buttonLabel");
-    expect(planner).toContain("REROLL_RECOVERY_ACTIONS");
+    expect(planner).not.toContain("REROLL_RECOVERY_ACTIONS");
   });
 });
