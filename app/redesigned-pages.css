@@ -91,7 +91,6 @@
 .recommendation-loading__stops { gap:10px; margin-top:12px; }
 .recommendation-loading-stop { border:0; }
 .recommendation-loading-stop>div { padding:20px; border:1px solid var(--line); border-radius:7px; }
-.recommendation-loading__notice { display:flex; align-items:center; gap:10px; padding:16px; margin:20px 0; background:#edf6f1; border-radius:7px; color:var(--brand); font-size:13px; }
 @media(max-width:900px) {
  .detail-redesign .place-detail-intro.has-photo,.detail-body-grid,.route-result-columns { grid-template-columns:1fr; }
  .detail-hero-photo,.detail-hero-photo>div { min-height:300px; height:360px; }

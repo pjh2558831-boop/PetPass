@@ -6088,14 +6088,6 @@ body:has(.weekendoog-home) .site-header {
   opacity: 0.72;
 }
 
-.recommendation-loading__slow {
-  margin-top: 16px;
-  border-left: 3px solid #d0aa62;
-  padding: 8px 12px;
-  color: #76542f;
-  font-size: 13px;
-  font-weight: 750;
-}
 
 @media (max-width: 640px) {
   .recommendation-preinput,

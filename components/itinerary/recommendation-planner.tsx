@@ -4,7 +4,6 @@ import Link from "next/link";
 import {
   AlertTriangle,
   PawPrint,
-  Info,
   Route,
   Clock3,
   Car,
@@ -212,11 +211,9 @@ function EmptyResult({
 }
 
 function LoadingResult({
-  slow,
   conditions,
   onCancel,
 }: {
-  slow: boolean;
   conditions: string[];
   onCancel: () => void;
 }) {
@@ -254,8 +251,6 @@ function LoadingResult({
           </li>
         ))}
       </ol>
-      <p className="recommendation-loading__notice"><Info size={19} aria-hidden="true" />일정이 완성되면 이 화면에 자동으로 표시됩니다.</p>
-      {slow ? <p className="recommendation-loading__slow">공개 장소와 도로 경로를 확인하는 데 시간이 조금 더 걸리고 있습니다.</p> : null}
       <Button type="button" variant="brandSecondary" onClick={onCancel}>요청 취소</Button>
     </section>
   );
@@ -460,7 +455,6 @@ export function RecommendationPlanner({
   const [editableIds, setEditableIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [revalidating, setRevalidating] = useState(false);
-  const [slow, setSlow] = useState(false);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState("");
   const [editDirty, setEditDirty] = useState(false);
@@ -537,7 +531,6 @@ export function RecommendationPlanner({
     setLoading(true);
     setRevalidating(false);
     setManualConfirmation(null);
-    setSlow(false);
     setSaveMessage("");
     setSaved(false);
     if (excludedAutoPlaceId) { rememberExclusion(); persistExclusions([...new Set([...excludedRef.current, excludedAutoPlaceId])].slice(-30)); }
@@ -545,7 +538,6 @@ export function RecommendationPlanner({
     const controller = new AbortController();
     controllerRef.current?.abort();
     controllerRef.current = controller;
-    const slowTimer = window.setTimeout(() => setSlow(true), 8_000);
     try {
       const history = {
         rerollVariant: rerollVariantRef.current,
@@ -640,7 +632,6 @@ export function RecommendationPlanner({
         retryable: true,
       });
     } finally {
-      window.clearTimeout(slowTimer);
       if (controllerRef.current === controller) controllerRef.current = null;
       if (requestSequenceRef.current === requestSequence) setLoading(false);
     }
@@ -880,7 +871,7 @@ export function RecommendationPlanner({
     return <EmptyResult selectionMode={selectionMode} />;
   }
   if (presentationState === "generating" && !displayedRoute) {
-    return <LoadingResult slow={slow} conditions={submittedConditions} onCancel={cancelRequest} />;
+    return <LoadingResult conditions={submittedConditions} onCancel={cancelRequest} />;
   }
   const confirmation = manualConfirmation ?? (response?.status === "confirmation_required" ? response : null);
   if (confirmation?.routeOptions?.[0]) {
