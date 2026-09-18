@@ -99,9 +99,6 @@ export function PetAccessAssessmentPanel({
             한국관광공사가 제공한 원문과 방문 전 확인할 조건을 함께 보여드립니다.
           </p>
         </div>
-        <p className="text-xs font-extrabold text-[#607269]">
-          원문 근거 {assessment.evidence.length}개
-        </p>
       </div>
 
       {assessment.conditions.length > 0 ? (

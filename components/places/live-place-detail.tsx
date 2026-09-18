@@ -18,7 +18,6 @@ import {
 import { MapPanel } from "@/components/map/map-panel";
 import { useSelectedItinerarySelection } from "@/components/places/use-selected-itinerary-selection";
 import { PlaceImage } from "@/components/places/place-image";
-import { NaverSearchDisclosure } from "@/components/places/naver-search-disclosure";
 import { LicenseInformationPanel } from "@/components/places/license-information-panel";
 import {
   PetAccessAssessmentPanel,
@@ -286,7 +285,6 @@ export function LivePlaceDetail({
             })}><CalendarPlus size={18} aria-hidden="true" />{selection.snapshot.places.some(p => p.id === `tour:${contentId}`) ? "일정에 담음" : "일정에 담기"}</button>
             {coordinates ? <button type="button" onClick={() => setActiveTab("location")}><MapPin size={18} aria-hidden="true" />지도에서 보기</button> : null}
           </div>
-          <NaverSearchDisclosure name={title} address={address} />
           {selection.message ? <p role="status" className="text-sm mt-2">{selection.message}</p> : null}
           {detail.homepageUrl ? (
             <a
@@ -305,7 +303,6 @@ export function LivePlaceDetail({
         {([
           ["overview", "장소 소개"],
           ["pet-access", "동반 가능 조건"],
-          ["source", "출처와 신뢰도"],
           ["basic", "기본 정보"],
           ...(coordinates ? [["location", "위치"]] : []),
         ] as Array<[DetailTab, string]>).map(([tab, label]) => (
