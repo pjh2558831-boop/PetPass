@@ -1069,7 +1069,23 @@ export async function generateRouteRecommendation(
         Number(Boolean(right.locked)) - Number(Boolean(left.locked)) ||
         right.placeUtility.total - left.placeUtility.total ||
         left.node.id.localeCompare(right.node.id));
-    const spatial = selectSpatialShortlistV2({ candidates: adaptedAll, departure: request.departure, lockedPlaceIds: selectedPlaceIds, selectedCategories: usefulCategories, recentlySelectedCandidateIds: scopedRecentlySelectedCandidateIds, seed: normalized.generationSeed, rerollVariant: personalizationRequest.rerollVariant, preferNearby: request.trip.searchScope !== "region", limit: Math.min(6, Math.max(selectedPlaceIds.length, targetCapacity + 1)) });
+    const selectedProximityOrigins = anchors.flatMap(candidate => candidate ? [candidate.coordinates] : []);
+    const spatial = selectSpatialShortlistV2({
+      candidates: adaptedAll,
+      departure: request.departure,
+      lockedPlaceIds: selectedPlaceIds,
+      selectedCategories: usefulCategories,
+      recentlySelectedCandidateIds: scopedRecentlySelectedCandidateIds,
+      seed: normalized.generationSeed,
+      rerollVariant: personalizationRequest.rerollVariant,
+      preferNearby: request.trip.searchScope !== "region",
+      proximityOrigins: hybridMode && request.trip.searchScope === "nearby"
+        ? request.trip.recommendationBasis === "selected_places" && selectedProximityOrigins.length
+          ? selectedProximityOrigins
+          : [request.departure]
+        : undefined,
+      limit: Math.min(6, Math.max(selectedPlaceIds.length, targetCapacity + 1)),
+    });
     let adapted = hybridMode && request.autoFill === false ? adaptedAll.filter(candidate => selectedIdSet.has(candidate.node.id)) : spatial.candidates;
     let adaptedIds = new Set(adapted.map(({ node }) => node.id));
     const candidateById = new Map(
@@ -1127,6 +1143,11 @@ export async function generateRouteRecommendation(
       durationMinutes: request.trip.durationMinutes,
       allowReducedStops: true,
       ...(hybridMode ? { requiredPlaceIds: selectedPlaceIds } : {}),
+      ...(hybridMode ? {
+        selectedPlacePlacement: request.trip.recommendationBasis === "selected_places"
+          ? "before_recommendations" as const
+          : "after_recommendations" as const,
+      } : {}),
     };
     let feasibilityInput: RouteOptimizationInput = {
       signal: dependencies.signal,
@@ -1480,7 +1501,11 @@ export async function generateRouteRecommendation(
           selectedPlaceReferences: request.selectedPlaceReferences ?? [],
         },
         ...(hybridMode ? {
-          selection: { selectedPlaceIds, autoFill: request.autoFill ?? true },
+          selection: {
+            selectedPlaceIds,
+            autoFill: request.autoFill ?? true,
+            recommendationBasis: request.trip.recommendationBasis ?? "departure",
+          },
         } : {}),
       }),
       historyContextKey,

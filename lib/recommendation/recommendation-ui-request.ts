@@ -61,6 +61,7 @@ export function createRouteRecommendationRequest(
       regionId: region.id,
       districtId: preferences.districtCode ?? null,
       searchScope: preferences.districtCode ? "district" : preferences.searchScope === "region" ? "region" : "nearby",
+      recommendationBasis: preferences.recommendationBasis ?? "departure",
       date: preferences.tripDate || null,
       startTime: preferences.startTime || null,
       tripType:

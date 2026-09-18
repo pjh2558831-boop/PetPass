@@ -48,6 +48,7 @@ export const DEFAULT_PLANNER_PREFERENCES: TravelPreferences = {
   environmentPreference: "any",
   includeShopping: false,
   roundTrip: false,
+  recommendationBasis: "departure",
 };
 
 export type PlannerGenerationPhase = "idle" | "loading" | "ready" | "error";

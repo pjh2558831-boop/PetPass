@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { Plus, UserRound, PawPrint, Pencil, LogOut, Dog, Cat } from "lucide-react";
+import { Plus, UserRound, PawPrint, Pencil, LogOut, Dog, Cat, CalendarDays, Trash2 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { signOut } from "@/app/account/actions";
 import { PET_IMAGE_BUCKET } from "@/lib/auth/pet-image";
@@ -11,6 +11,7 @@ import {
   savedPetProfileFromRow,
 } from "@/lib/auth/pet-profile";
 import { createAuthServerClient } from "@/lib/supabase/server";
+import { deleteAccountItinerary } from "@/app/itinerary/actions";
 
 export const metadata: Metadata = { title: "마이페이지" };
 export const dynamic = "force-dynamic";
@@ -19,16 +20,18 @@ const speciesLabels = { DOG: "강아지", CAT: "고양이", OTHER: "기타 반�
 const sizeLabels = { SMALL: "소형", MEDIUM: "중형", LARGE: "대형" } as const;
 const petFallbackIcons = { DOG: Dog, CAT: Cat, OTHER: PawPrint } as const;
 
-export default async function AccountPage({ searchParams }: { searchParams: Promise<{ pet?: string; profile?: string }> }) {
+export default async function AccountPage({ searchParams }: { searchParams: Promise<{ pet?: string; profile?: string; itinerary?: string }> }) {
   const supabase = await createAuthServerClient();
   const { data: claimsData } = await supabase.auth.getClaims();
   const userId = claimsData?.claims?.sub;
   if (!userId) redirect("/login");
 
-  const [{ data: profile }, { data: petRows, error: petError }] = await Promise.all([
+  const [{ data: profile }, { data: petRows, error: petError }, { data: itineraries, error: itineraryError }] = await Promise.all([
     supabase.from("profiles").select("display_name, avatar_url, onboarding_completed").eq("id", userId).maybeSingle(),
     supabase.from("pet_profiles").select("id, user_id, name, species, size, has_carrier, has_leash, has_muzzle, accepts_outdoor_only, image_path, created_at, updated_at").eq("user_id", userId).order("created_at", { ascending: true }),
+    supabase.from("saved_itineraries").select("id, title, created_at").eq("user_id", userId).order("created_at", { ascending: false }),
   ]);
+  if (itineraryError) throw new Error("저장된 일정을 불러오지 못했습니다.");
   if (!profile?.onboarding_completed) redirect("/onboarding");
   let isLegacyPetSchema = false;
   let pets: Array<{ pet: ReturnType<typeof savedPetProfileFromRow>; imageUrl: string | null }>;
@@ -63,6 +66,8 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           ? "반려동물 정보를 삭제했습니다."
           : status.profile === "updated"
             ? "프로필 정보를 수정했습니다."
+            : status.itinerary === "deleted"
+              ? "저장된 일정을 삭제했습니다."
             : null;
 
   return (
@@ -122,6 +127,20 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               {!isLegacyPetSchema ? <Link href="/account/pets/new" className="account-add-pet"><Plus size={18} aria-hidden="true" />반려동물 정보 추가하기</Link> : null}
             </div>
           )}
+        </section>
+
+        <section className="account-document__section" aria-labelledby="saved-itinerary-heading">
+          <div className="account-pet-section-heading flex flex-wrap items-end justify-between gap-4">
+            <div><h2 id="saved-itinerary-heading" className="text-2xl font-black">나의 여행 계획</h2><p className="mt-2 text-sm leading-6 text-[var(--muted)]">저장한 일정은 최대 5개까지 보관됩니다.</p></div>
+          </div>
+          {itineraries?.length ? <div className="account-pet-list mt-6">{itineraries.map((itinerary) => (
+            <article key={itinerary.id} className="account-pet-row">
+              <CalendarDays className="text-[var(--brand)]" size={28} aria-hidden="true" />
+              <div className="min-w-0 flex-1"><h3 className="break-words text-lg font-black">{itinerary.title}</h3><p className="mt-1 text-sm text-[var(--muted)]">{new Date(itinerary.created_at).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" })} 저장</p></div>
+              <Link href={`/account/itineraries/${itinerary.id}`} className="inline-flex min-h-11 items-center rounded-lg border border-[var(--line)] px-4 text-sm font-extrabold">일정 보기</Link>
+              <form action={async () => { "use server"; await deleteAccountItinerary(itinerary.id); redirect("/account?itinerary=deleted"); }}><button type="submit" aria-label={`${itinerary.title} 삭제`} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[#e5bdb7] px-3 text-sm font-extrabold text-[#8d3838]"><Trash2 size={16} aria-hidden="true" />삭제</button></form>
+            </article>
+          ))}</div> : <div className="account-pet-empty"><CalendarDays size={38} aria-hidden="true" /><p className="font-extrabold">아직 저장한 여행 계획이 없습니다.</p></div>}
         </section>
 
         <form action={signOut} noValidate className="account-document__footer flex justify-end">

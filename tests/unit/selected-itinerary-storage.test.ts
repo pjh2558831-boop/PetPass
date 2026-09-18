@@ -5,6 +5,7 @@ import {
   getSelectedItineraryCategories,
   loadSelectedItinerary,
   removeSelectedItineraryPlace,
+  replaceSelectedItineraryPlace,
   requiresSelectionRegionClear,
   saveSelectedItinerary,
   setSelectedItineraryVerificationAcknowledged,
@@ -111,6 +112,17 @@ describe("selected itinerary storage", () => {
 
     const removed = removeSelectedItineraryPlace(snapshot, "tour:7001");
     expect(removed.places).toEqual([]);
+  });
+
+  it("replaces a selected place in place without duplicating another stop", () => {
+    const first = place("tour:7001");
+    const second = place("tour:7002");
+    const replacement = place("tour:7003");
+    const snapshot = { ...createSelectedItinerarySnapshot("busan"), places: [first, second] };
+
+    expect(replaceSelectedItineraryPlace(snapshot, first.id, replacement)?.places.map(({ id }) => id))
+      .toEqual([replacement.id, second.id]);
+    expect(replaceSelectedItineraryPlace(snapshot, first.id, second)).toBeNull();
   });
 
   it("enforces the five-place limit without using pet policy or facility type as admission gates", () => {

@@ -27,7 +27,11 @@ export function requestFingerprintV2(input: {
   catalogVersion: string;
   candidates: readonly CanonicalRecommendationCandidateV2[];
   schedules?: Array<ProductRouteV1["schedule"]>;
-  selection?: { selectedPlaceIds: readonly string[]; autoFill: boolean };
+  selection?: {
+    selectedPlaceIds: readonly string[];
+    autoFill: boolean;
+    recommendationBasis?: "departure" | "selected_places";
+  };
   eligibilityPolicy?: {
     includeVerificationRequired: boolean;
     acknowledgedVerificationRequiredPlaceIds: readonly string[];

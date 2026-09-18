@@ -7,6 +7,7 @@ import {
   createSelectedItinerarySnapshot,
   loadSelectedItinerary,
   removeSelectedItineraryPlace,
+  replaceSelectedItineraryPlace,
   saveSelectedItinerary,
   type AddSelectedItineraryPlaceResult,
   type SelectedItineraryPlace,
@@ -32,6 +33,7 @@ export type SelectedItinerarySelectionState = {
   message: string;
   toggle: (place: SelectedItineraryPlace) => SelectedItineraryToggleResult;
   remove: (placeId: string) => void;
+  replace: (placeId: string, replacement: SelectedItineraryPlace) => boolean;
   move: (placeId: string, direction: SelectedItineraryMoveDirection) => boolean;
   setAutoFill: (enabled: boolean) => void;
   resetRegion: (
@@ -112,6 +114,18 @@ export function useSelectedItinerarySelection({
     );
   }, [persist, snapshot]);
 
+  const replace = useCallback((placeId: string, replacement: SelectedItineraryPlace) => {
+    const nextSnapshot = replaceSelectedItineraryPlace(snapshot, placeId, replacement);
+    if (!nextSnapshot) {
+      setMessage(snapshot.places.some(({ id }) => id === replacement.id)
+        ? "이미 일정에 담은 장소입니다."
+        : "교체할 장소를 찾지 못했습니다.");
+      return false;
+    }
+    persist(nextSnapshot, `${replacement.name}으로 변경했습니다.`);
+    return true;
+  }, [persist, snapshot]);
+
   const toggle = useCallback((place: SelectedItineraryPlace): SelectedItineraryToggleResult => {
     if (snapshot.places.some(({ id }) => id === place.id)) {
       const nextSnapshot = removeSelectedItineraryPlace(snapshot, place.id);
@@ -189,8 +203,9 @@ export function useSelectedItinerarySelection({
     message,
     toggle,
     remove,
+    replace,
     move,
     setAutoFill,
     resetRegion,
-  }), [hydrated, message, move, remove, resetRegion, setAutoFill, snapshot, toggle]);
+  }), [hydrated, message, move, remove, replace, resetRegion, setAutoFill, snapshot, toggle]);
 }

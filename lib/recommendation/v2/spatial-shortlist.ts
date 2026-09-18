@@ -20,6 +20,7 @@ export function selectSpatialShortlistV2(input: {
   rerollVariant: number;
   limit?: number;
   preferNearby?: boolean;
+  proximityOrigins?: readonly { latitude: number; longitude: number }[];
 }): { candidates: RouteOptimizationCandidate[]; reserveIds: string[]; scoredIds: string[] } {
   const byId = new Map(input.candidates.map(candidate => [candidate.node.id, candidate]));
   const lockedIds = new Set([
@@ -37,7 +38,9 @@ export function selectSpatialShortlistV2(input: {
 
   const rank = () => {
     const categories = new Set(selected.map(candidate => candidate.category));
-    const hubs = [input.departure, ...selected.map(candidate => candidate.node)];
+    const hubs = input.proximityOrigins?.length
+      ? input.proximityOrigins
+      : [input.departure, ...selected.map(candidate => candidate.node)];
     return [...byId.values()].filter(candidate => !selectedIds.has(candidate.node.id)).map(candidate => {
       const distanceKm = Math.min(...hubs.map(hub => haversineKm(hub, candidate.node)));
       // Geographic fit only chooses which real roads to query; it is never a road-time estimate.

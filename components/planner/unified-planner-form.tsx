@@ -136,6 +136,7 @@ function preferencesFromDraft(
       : current.preferredCategories,
     includeShopping: draft.requestedCategories.includes("shopping"),
     searchScope: draft.searchScope,
+    recommendationBasis: draft.recommendationBasis ?? "departure",
     desiredStopCount: draft.requestedStopCount,
     planningMode: "stop_count",
     roundTrip: draft.roundTrip,
@@ -1008,7 +1009,7 @@ export function UnifiedPlannerForm({
                   <label htmlFor="district">추천 범위</label>
                   <select
                     id="district"
-                    value={preferences.districtCode ?? (preferences.searchScope === "region" ? "all" : "nearby")}
+                    value={preferences.districtCode ?? (preferences.searchScope === "region" ? "all" : `nearby-${preferences.recommendationBasis ?? "departure"}`)}
                     onChange={(event) => {
                       const district = activeDistricts.find(
                         ({ legalDongDistrictCode }) =>
@@ -1021,10 +1022,14 @@ export function UnifiedPlannerForm({
                         districtCode: district?.legalDongDistrictCode,
                         districtName: district?.name,
                         searchScope: district ? "district" : event.target.value === "all" ? "region" : "nearby",
+                        recommendationBasis: event.target.value === "nearby-selected"
+                          ? "selected_places"
+                          : "departure",
                       }));
                     }}
                   >
-                    <option value="nearby">출발지와 선택 장소 가까운 곳 우선</option>
+                    <option value="nearby-departure">출발지에서 추천</option>
+                    <option value="nearby-selected">선택지에서 추천</option>
                     <option value="all">{activeRegion.displayName} 전체로 넓히기</option>
                     {activeDistricts.map((district) => (
                       <option
@@ -1035,7 +1040,11 @@ export function UnifiedPlannerForm({
                       </option>
                     ))}
                   </select>
-                  <p className="planner-scope-help text-xs text-[var(--muted)]">가까운 곳 우선은 이동거리를 중시합니다. 구·군을 고르면 해당 범위에서 추천하며, 직접 선택한 장소는 유지합니다.</p>
+                  <p className="planner-scope-help text-xs text-[var(--muted)]">
+                    {(preferences.recommendationBasis ?? "departure") === "selected_places"
+                      ? "출발지에서 선택 장소로 먼저 이동한 뒤, 선택 장소 주변을 추천합니다."
+                      : "출발지 주변을 먼저 추천한 뒤, 직접 선택한 장소로 이동합니다."}
+                  </p>
                 </div>
               <div className="planner-field">
                 <label htmlFor="trip-date">여행 날짜 <small>(선택)</small></label>
