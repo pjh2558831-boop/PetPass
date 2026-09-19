@@ -6,8 +6,10 @@ const formSteps = ["반려동물", "출발·시간", "원하는 하루"];
 
 export function PlannerFormProgress({
   current,
+  onChange,
 }: {
   current: 1 | 2 | 3;
+  onChange?: (step: 1 | 2 | 3) => void;
 }) {
   return (
     <nav className="planner-form-progress" aria-label="여행 정보 입력 단계">
@@ -23,7 +25,17 @@ export function PlannerFormProgress({
               data-complete={complete || undefined}
             >
               <span aria-hidden="true">{complete ? <Check size={14} /> : number}</span>
-              <b>{step}</b>
+              {onChange ? (
+                <button
+                  type="button"
+                  className="planner-form-progress__button"
+                  aria-label={`${number}단계 ${step}로 이동`}
+                  aria-current={active ? "step" : undefined}
+                  onClick={() => onChange(number)}
+                >
+                  <b>{step}</b>
+                </button>
+              ) : <b>{step}</b>}
             </li>
           );
         })}

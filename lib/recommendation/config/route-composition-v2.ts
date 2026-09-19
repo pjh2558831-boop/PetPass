@@ -17,6 +17,12 @@ export const ROUTE_COMPOSITION_V2_CONFIG = {
     additionalVisitPenalty: 150,
     consecutiveVisitPenalty: 120,
   },
+  diningCategoryLimit: {
+    /** Maximum recommended stops per restaurant/cafe subtype for each trip pace. */
+    relaxed: 1,
+    balanced: 1,
+    packed: 2,
+  },
   routeOptions: {
     recentSignaturePenalty: 1_200,
     recentPlaceSetPenalty: 1_000,

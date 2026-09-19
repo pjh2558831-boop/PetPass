@@ -202,6 +202,7 @@ describe("Stage 5 recommendation product contract", () => {
         tripPace: "packed",
         selectedCategories: ["food", "leisure", "shopping"],
         roundTrip: true,
+        recommendationBasis: "departure",
         environmentPreference: "indoor_preferred",
         travelMode: "driving",
       },

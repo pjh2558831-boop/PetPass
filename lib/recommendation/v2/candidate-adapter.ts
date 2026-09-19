@@ -50,6 +50,16 @@ function role(candidate: CanonicalRecommendationCandidateV2): RouteVisitRole {
   }
 }
 
+function diningCategory(
+  candidate: CanonicalRecommendationCandidateV2,
+): RouteOptimizationCandidate["diningCategory"] {
+  if (
+    candidate.catalogCategory === "cafe" ||
+    candidate.ktoCandidate?.travelSuitability.travelRole === "cafe"
+  ) return "cafe";
+  return candidate.category === "food" ? "restaurant" : undefined;
+}
+
 function highActivity(candidate: CanonicalRecommendationCandidateV2): boolean {
   return candidate.ktoCandidate
     ? isHighActivity(candidate.ktoCandidate)
@@ -159,6 +169,7 @@ export function adaptCanonicalCandidateForRouteV2(input: {
     schedule: schedule(input.candidate),
     category: input.candidate.category,
     visitRole: role(input.candidate),
+    diningCategory: diningCategory(input.candidate),
     highActivity: candidateHighActivity,
     popularity: input.candidate.ktoCandidate?.popularity ?? {
       score: 0.5,

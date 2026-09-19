@@ -933,7 +933,6 @@ export function RecommendationPlanner({
   const summary = displayedRoute.routeSummary;
   const exact = ready.optimality === "optimal_within_candidate_set_current_matrix";
   const availableRoutes = ready.routeOptions ?? [ready.route, ...ready.alternatives];
-  const activeStyle = displayedRoute.style;
   const replacementSupported = ready.alternativeAvailability === "available";
   const hybridAutoFill = selectionMode === "hybrid" && hybridSelection?.autoFill === true;
   const hasAutoFilledStops = displayedRoute.stops.some(({ provenance }) => provenance === "auto_fill");
@@ -1048,6 +1047,7 @@ export function RecommendationPlanner({
                   className={`grid min-h-11 min-w-[220px] gap-1 rounded-lg border px-4 py-3 text-left text-sm ${activeRoute?.id === route.id ? "border-[var(--mint-500)] bg-[var(--brand-soft)] text-[var(--brand)]" : "border-[var(--line)] bg-white text-[#607168]"}`}
                 >
                   <strong className="font-black">{route.label}</strong>
+                  <span className="route-option-description">{ROUTE_STYLE_COPY[route.style ?? "balanced"]}</span>
                   <span className="route-option-meta text-xs font-bold">{route.routeSummary.stopCount}곳 · 이동 {formatDuration(route.routeSummary.totalDrivingSeconds)} · 대기 {formatDuration(route.routeSummary.totalWaitSeconds)}</span>
                   <span className="route-option-meta text-xs">종료 {koreaTime(route.estimatedFinishAt ?? route.routeSummary.endAt, route.routeSummary.totalElapsedSeconds, route.schedule)} · {routeCategorySummary(route) || "장소 유형 확인"}</span>
                   <span className="route-option-meta text-xs">자동 추가 {route.automaticPlaceCount ?? route.stops.filter(({ provenance }) => provenance === "auto_fill").length}곳 · 운영 안내 {noticeCount}곳</span>
@@ -1057,7 +1057,6 @@ export function RecommendationPlanner({
               );
             })}
           </div>
-          {activeStyle ? <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{ROUTE_STYLE_COPY[activeStyle]}</p> : null}
         </section>
       ) : null}
 

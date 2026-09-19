@@ -3,7 +3,7 @@ import "server-only";
 import { ROUTE_OBJECTIVE_V1_CONFIG } from "@/lib/recommendation/config/route-objective-v1";
 import { ROUTE_SOLVER_V1_CONFIG } from "@/lib/recommendation/config/route-solver-v1";
 import { paceWaitLimitsV2 } from "@/lib/recommendation/config/route-composition-v2";
-import { getRouteTripConstraints } from "@/lib/recommendation/optimizer/trip-constraints";
+import { canAddDiningCandidate, getRouteTripConstraints } from "@/lib/recommendation/optimizer/trip-constraints";
 import { compareCompletedRoutes, scoreCompletedRouteV1 } from "@/lib/recommendation/optimizer/route-score";
 import {
   appendScheduledVisit,
@@ -212,6 +212,15 @@ function expandState(
 ): PartialState | null {
   const candidate = input.candidates[candidateIndex];
   if (state.used.has(candidate.node.id)) return null;
+  if (!canAddDiningCandidate({
+    request: input.tripRequest,
+    visits: state.visits,
+    candidate,
+    candidates: input.candidates,
+  })) {
+    diagnostics.prunedByConstraint += 1;
+    return null;
+  }
   if (!accommodationAllowed(input, state, candidate.visitRole)) {
     diagnostics.prunedByConstraint += 1;
     return null;

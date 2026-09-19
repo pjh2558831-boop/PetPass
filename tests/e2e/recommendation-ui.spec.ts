@@ -929,8 +929,8 @@ for (const mode of [
     });
     await openPetPlanner(page, testInfo, "completion-mode");
     await continueToTrip(page);
-    if (!mode.date) await page.getByRole("button", { name: "날짜 미정", exact: true }).click();
-    if (!mode.time) await page.getByRole("button", { name: "시간 미정", exact: true }).click();
+    if (!mode.date) await page.getByLabel("여행 날짜").fill("");
+    if (!mode.time) await page.getByLabel("시작 시간").fill("");
     await chooseConfirmedDeparture(page);
     await continueToDay(page);
     await page.getByRole("button", { name: "여행 추천 받기" }).click();
@@ -1077,6 +1077,9 @@ test("removal and undo preserve route state while exclusions survive reroll and 
 test("route style tabs support arrow keys, Home, End, and panel association", async ({ page }, testInfo) => {
   await generate(page, testInfo);
   const balanced = page.getByRole("tab", { name: "균형 추천" });
+  await expect(balanced).toContainText("카테고리, 이동, 대기, 취향을 함께 고려한 균형 경로예요.");
+  await expect(page.getByRole("tab", { name: "여유 일정" })).toContainText("긴 단일 이동과 대기 부담이 더 낮은 여유 경로예요.");
+  await expect(page.getByRole("tab", { name: "이동 최소" })).toContainText("검증된 실제 이동시간과 거리가 가장 작은 동선을 우선했어요.");
   await balanced.focus();
   await balanced.press("ArrowRight");
   await expect(page.getByRole("tab", { name: "여유 일정" })).toBeFocused().catch(async (error) => {

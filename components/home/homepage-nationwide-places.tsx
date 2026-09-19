@@ -93,8 +93,12 @@ export function HomepageNationwidePlaces({ staticMapEnabled = false, searchReque
       regionalMap={{ overviewLocations: overview ? HOMEPAGE_REGION_LOCATIONS : undefined,
         onRegionSelect: id => { const region = HOMEPAGE_MAP_REGIONS.find(region => region.id === id); if (region) chooseRegion(region.id); },
         onViewportIdle, focusBounds: cameraBounds,
-        countLabel: overview ? `${HOMEPAGE_MAP_REGIONS.length}개 지역` : loading ? "불러오는 중" : failed ? "조회 실패" : undefined,
+        countLabel: overview ? `${HOMEPAGE_MAP_REGIONS.length}개 지역` : loading ? "불러오는 중" : failed ? "조회 실패" : `${visible.length.toLocaleString("ko-KR")}곳`,
         listContent,
+        regionControl: <nav className="homepage-region-rail" aria-label="지역 선택">
+          <button type="button" aria-pressed={overview} onClick={() => chooseRegion(null)}><span aria-hidden="true">▦</span>전체</button>
+          {HOMEPAGE_MAP_REGIONS.map(region => <button key={region.id} type="button" aria-pressed={activeRegion === region.id} onClick={() => chooseRegion(region.id)}><span aria-hidden="true">⌖</span>{region.displayName}</button>)}
+        </nav>,
       }}
       filterControl={<details className="home-map-filters"><summary><SlidersHorizontal size={18} aria-hidden="true" /> 필터</summary><div className="home-map-filters__fields flex flex-wrap gap-2">
         <label className="text-sm">지역<select className="ml-2 min-h-11 rounded border px-2" aria-label="홈 지도 지역" value={activeRegion ?? "all"}

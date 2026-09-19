@@ -742,7 +742,7 @@ describe("selected-place hybrid recommendation", () => {
 
     expect(result.status).toBe("ready");
     if (result.status !== "ready") return;
-    expect(result.route.stops.map(({ placeId }) => placeId)).toEqual(["tour:1001", "tour:1002"]);
+    expect(result.route.stops.map(({ placeId }) => placeId)).toEqual(["tour:1002", "tour:1001"]);
   });
 
   it("preserves every anchor without relabeling a reordered copy as another option", async () => {

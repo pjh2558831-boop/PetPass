@@ -209,6 +209,7 @@ export function HomePlaceWorkbench({
     focusBounds: MapPanelProps["focusBounds"];
     countLabel?: string;
     listContent?: ReactNode;
+    regionControl?: ReactNode;
   };
 }) {
   const [mode, setMode] = useState<WorkbenchMode>(searchRequest ? "search" : "browse");
@@ -332,10 +333,10 @@ export function HomePlaceWorkbench({
       />
       <div className="homepage-workbench-heading">
         <div>
-          <p className="homepage-kicker">{regionLabel} 장소 작업 화면</p>
+          <p className="homepage-kicker">WEEKENDOG</p>
           <h2 id="homepage-map-title">함께 갈 곳을 지도와 목록에서 고르세요</h2>
+          <p className="homepage-workbench-subtitle">지도를 클릭하거나 지역을 선택하면, 반려견과 함께할 수 있는 장소를 확인할 수 있어요.</p>
         </div>
-        <strong aria-live="polite">{regionalMap?.countLabel ?? `${visibleMarkers.length.toLocaleString("ko-KR")}곳`}</strong>
       </div>
 
       <div
@@ -394,6 +395,7 @@ export function HomePlaceWorkbench({
       </div>
 
       <div className="homepage-workbench" data-mobile-view={mobileView}>
+        {regionalMap?.regionControl}
         <div className="homepage-workbench__map">
           <Link href={`/results?tab=catalog&region=${encodeURIComponent(regionId)}`} className="homepage-map-open-link">
             지도 크게 보기 <ArrowUpRight size={15} aria-hidden="true" />
@@ -430,6 +432,10 @@ export function HomePlaceWorkbench({
         </div>
 
         <aside className="homepage-workbench__list" aria-label={`${regionLabel} 장소 목록`}>
+          <header className="homepage-workbench__list-header">
+            <div><MapPin size={21} aria-hidden="true" /><strong>{regionLabel}의 장소</strong></div>
+            <span aria-live="polite">총 {regionalMap?.countLabel ?? `${visibleMarkers.length.toLocaleString("ko-KR")}곳`}</span>
+          </header>
           {photoError === photoKey && photoKey !== "[]" ? (
             <p role="status" className="px-3 py-2 text-xs">
               장소 사진을 불러오지 못했습니다. <button type="button" className="min-h-11 underline" onClick={() => setPhotoRetry((value) => value + 1)}>사진 다시 불러오기</button>
