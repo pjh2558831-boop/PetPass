@@ -67,6 +67,13 @@ describe("full public catalog candidate fusion", () => {
     expect(fuse({ catalogCandidates: [marker({ category: "other" })] }).candidates[0]?.category).toBe("unknown");
   });
 
+  it("preserves cafe as a dining subtype while using the canonical food category", () => {
+    expect(fuse({ catalogCandidates: [marker({ category: "cafe" })] }).candidates[0]).toMatchObject({
+      category: "food",
+      catalogCategory: "cafe",
+    });
+  });
+
   it("keeps pet-service places out of automatic candidates", () => {
     const result = fuse({ catalogCandidates: [tourismMarker(),
       marker({ id: "kakao:1", providerPlaceId: "1", name: "공개 병원", layer: "veterinary" }),

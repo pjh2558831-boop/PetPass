@@ -12,7 +12,7 @@ import type { OrderedRouteValidationInput, TravelMatrixEdge, TravelMatrixResult,
 function candidate(
   id: string,
   category: UsefulTourCategory = "attraction",
-  options: { window?: [number, number]; role?: RouteVisitRole; locked?: boolean } = {},
+  options: { window?: [number, number]; role?: RouteVisitRole; locked?: boolean; diningCategory?: "restaurant" | "cafe" } = {},
 ): RouteOptimizationCandidate {
   return {
     place: {
@@ -37,6 +37,7 @@ function candidate(
     },
     category,
     visitRole: options.role ?? (category === "food" ? "meal" : "activity"),
+    diningCategory: options.diningCategory,
     highActivity: false,
     popularity: { version: "popularity-v1", score: 0.5, status: "insufficient_data", qualityComponent: 0, trendComponent: 0, sampleWeight: 0 },
     informationTrust: { ruleVersion: "petpass-trust-v1", score: 90, level: "high", evidenceCount: 1, computedAt: "2026-08-15T00:00:00.000Z", components: [], flags: [] },
@@ -327,6 +328,83 @@ describe("constraint-aware route composition V2", () => {
     const categories = searched.finalists[0]!.visitedCategories;
     expect(categories.filter((category) => category === "culture")).toHaveLength(2);
     expect(categories.filter((category) => category === "food")).toHaveLength(3);
+  });
+
+  it.each(["relaxed", "balanced"] as const)("limits %s routes to one restaurant and one cafe", (tripPace) => {
+    const base = input([
+      candidate("restaurant-1", "food", { diningCategory: "restaurant" }),
+      candidate("restaurant-2", "food", { diningCategory: "restaurant" }),
+      candidate("cafe-1", "food", { role: "rest", diningCategory: "cafe" }),
+      candidate("cafe-2", "food", { role: "rest", diningCategory: "cafe" }),
+    ], {
+      tripPace,
+      desiredStopCount: 2,
+      minimumStopCount: 2,
+      selectedCategories: ["food"],
+    });
+
+    const searched = searchRoutesV1(base, { deadlineMs: 5_000, maxStates: 100_000 });
+
+    expect(analyzeRouteFeasibilityV2(input([
+      candidate("restaurant-only-1", "food", { diningCategory: "restaurant" }),
+      candidate("restaurant-only-2", "food", { diningCategory: "restaurant" }),
+    ], {
+      tripPace,
+      desiredStopCount: 2,
+      selectedCategories: ["food"],
+    }))).toMatchObject({ status: "ready", maximumFeasibleStopCount: 1 });
+    expect(searched.finalists.length).toBeGreaterThan(0);
+    for (const route of searched.finalists) {
+      const dining = route.visits.map(({ candidate: value }) => value.diningCategory);
+      expect(dining.filter((value) => value === "restaurant")).toHaveLength(1);
+      expect(dining.filter((value) => value === "cafe")).toHaveLength(1);
+    }
+  });
+
+  it("allows two restaurants and two cafes for packed routes", () => {
+    const base = input([
+      candidate("restaurant-1", "food", { diningCategory: "restaurant" }),
+      candidate("restaurant-2", "food", { diningCategory: "restaurant" }),
+      candidate("cafe-1", "food", { role: "rest", diningCategory: "cafe" }),
+      candidate("cafe-2", "food", { role: "rest", diningCategory: "cafe" }),
+      candidate("attraction-1"),
+    ], {
+      tripPace: "packed",
+      desiredStopCount: 5,
+      minimumStopCount: 5,
+      selectedCategories: ["food", "attraction"],
+    });
+
+    const searched = searchRoutesV1(base, { deadlineMs: 5_000, maxStates: 100_000 });
+
+    expect(analyzeRouteFeasibilityV2(base)).toMatchObject({ status: "ready", maximumFeasibleStopCount: 5 });
+    expect(searched.finalists.length).toBeGreaterThan(0);
+    const dining = searched.finalists[0]!.visits.map(({ candidate: value }) => value.diningCategory);
+    expect(dining.filter((value) => value === "restaurant")).toHaveLength(2);
+    expect(dining.filter((value) => value === "cafe")).toHaveLength(2);
+  });
+
+  it("keeps selected dining places and does not add another automatic place of the same kind", () => {
+    const base = input([
+      candidate("selected-restaurant", "food", { diningCategory: "restaurant", locked: true }),
+      candidate("automatic-restaurant", "food", { diningCategory: "restaurant" }),
+      candidate("automatic-cafe", "food", { role: "rest", diningCategory: "cafe" }),
+    ], {
+      tripPace: "balanced",
+      desiredStopCount: 2,
+      minimumStopCount: 2,
+      selectedCategories: ["food"],
+      requiredPlaceIds: ["selected-restaurant"],
+    });
+
+    const searched = searchRoutesV1(base, { deadlineMs: 5_000, maxStates: 100_000 });
+
+    expect(searched.finalists.length).toBeGreaterThan(0);
+    expect(searched.finalists.every((route) =>
+      route.orderedPlaceIds.includes("selected-restaurant") &&
+      route.orderedPlaceIds.includes("automatic-cafe") &&
+      !route.orderedPlaceIds.includes("automatic-restaurant")
+    )).toBe(true);
   });
 
   it("does not treat an avoidable 115-minute packed wait as a normal ready route", () => {

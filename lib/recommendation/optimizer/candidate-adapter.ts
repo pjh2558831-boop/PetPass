@@ -157,6 +157,9 @@ export function adaptEligibleCandidateForRouteV1(input: {
     schedule: normalizeSchedule(candidate),
     category: candidate.category,
     visitRole: visitRole(candidate),
+    diningCategory: candidate.category === "food"
+      ? candidate.travelSuitability.travelRole === "cafe" ? "cafe" : "restaurant"
+      : undefined,
     highActivity: isHighActivity(candidate),
     popularity: candidate.popularity,
     informationTrust: candidate.trust,

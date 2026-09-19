@@ -22,7 +22,7 @@
         "warnings": [
           "current_traffic_matrix_used_for_search"
         ],
-        "solverDurationMs": 3,
+        "solverDurationMs": 6,
         "exactSearchCompleted": true,
         "beamFallbackUsed": false
       },
@@ -71,7 +71,7 @@
         "warnings": [
           "current_traffic_matrix_used_for_search"
         ],
-        "solverDurationMs": 2,
+        "solverDurationMs": 3,
         "exactSearchCompleted": true,
         "beamFallbackUsed": false
       },
@@ -169,7 +169,7 @@
         "warnings": [
           "current_traffic_matrix_used_for_search"
         ],
-        "solverDurationMs": 0,
+        "solverDurationMs": 1,
         "exactSearchCompleted": true,
         "beamFallbackUsed": false
       },
@@ -208,18 +208,18 @@
       "id": "balanced_day_one_way",
       "optimizer": {
         "status": "ready",
-        "score": 2915,
+        "score": 2861,
         "stopIds": [
-          "activity5",
-          "rest4",
+          "culture2",
           "activity1",
+          "activity5",
           "meal3"
         ],
-        "drivingSeconds": 2160,
+        "drivingSeconds": 2400,
         "warnings": [
           "current_traffic_matrix_used_for_search"
         ],
-        "solverDurationMs": 2,
+        "solverDurationMs": 7,
         "exactSearchCompleted": true,
         "beamFallbackUsed": false
       },
@@ -261,7 +261,7 @@
       "id": "balanced_day_round",
       "optimizer": {
         "status": "ready",
-        "score": 2990,
+        "score": 2900,
         "stopIds": [
           "culture2",
           "rest4",
@@ -272,7 +272,7 @@
         "warnings": [
           "current_traffic_matrix_used_for_search"
         ],
-        "solverDurationMs": 2,
+        "solverDurationMs": 5,
         "exactSearchCompleted": true,
         "beamFallbackUsed": false
       },
@@ -325,7 +325,7 @@
         "warnings": [
           "current_traffic_matrix_used_for_search"
         ],
-        "solverDurationMs": 1,
+        "solverDurationMs": 3,
         "exactSearchCompleted": true,
         "beamFallbackUsed": false
       },
@@ -378,7 +378,7 @@
         "warnings": [
           "current_traffic_matrix_used_for_search"
         ],
-        "solverDurationMs": 1,
+        "solverDurationMs": 2,
         "exactSearchCompleted": true,
         "beamFallbackUsed": false
       },
@@ -420,7 +420,7 @@
       "id": "packed_day_one_way",
       "optimizer": {
         "status": "ready",
-        "score": 3604,
+        "score": 3514,
         "stopIds": [
           "culture2",
           "activity5",
@@ -432,7 +432,7 @@
         "warnings": [
           "current_traffic_matrix_used_for_search"
         ],
-        "solverDurationMs": 3,
+        "solverDurationMs": 13,
         "exactSearchCompleted": true,
         "beamFallbackUsed": false
       },
@@ -440,7 +440,7 @@
       "baselines": [
         {
           "name": "nearest_neighbor",
-          "score": 3184,
+          "score": 3094,
           "stopIds": [
             "culture2",
             "activity1",
@@ -452,7 +452,7 @@
         },
         {
           "name": "highest_utility_fastest",
-          "score": 3363,
+          "score": 3273,
           "stopIds": [
             "culture2",
             "activity1",
@@ -464,7 +464,7 @@
         },
         {
           "name": "category_greedy",
-          "score": 3246,
+          "score": 3156,
           "stopIds": [
             "culture2",
             "activity1",
@@ -480,7 +480,7 @@
       "id": "packed_day_round",
       "optimizer": {
         "status": "ready",
-        "score": 3569,
+        "score": 3479,
         "stopIds": [
           "culture2",
           "activity5",
@@ -492,7 +492,7 @@
         "warnings": [
           "current_traffic_matrix_used_for_search"
         ],
-        "solverDurationMs": 3,
+        "solverDurationMs": 12,
         "exactSearchCompleted": true,
         "beamFallbackUsed": false
       },
@@ -500,7 +500,7 @@
       "baselines": [
         {
           "name": "nearest_neighbor",
-          "score": 2866,
+          "score": 2776,
           "stopIds": [
             "culture2",
             "activity1",
@@ -512,7 +512,7 @@
         },
         {
           "name": "highest_utility_fastest",
-          "score": 3328,
+          "score": 3238,
           "stopIds": [
             "culture2",
             "activity1",
@@ -524,7 +524,7 @@
         },
         {
           "name": "category_greedy",
-          "score": 3098,
+          "score": 3008,
           "stopIds": [
             "culture2",
             "activity1",
@@ -540,19 +540,19 @@
       "id": "packed_overnight_one_way",
       "optimizer": {
         "status": "ready",
-        "score": 3541,
+        "score": 3518,
         "stopIds": [
-          "activity5",
-          "rest4",
           "activity1",
+          "activity5",
           "meal3",
+          "culture2",
           "hotel6"
         ],
-        "drivingSeconds": 2940,
+        "drivingSeconds": 3180,
         "warnings": [
           "current_traffic_matrix_used_for_search"
         ],
-        "solverDurationMs": 3,
+        "solverDurationMs": 7,
         "exactSearchCompleted": true,
         "beamFallbackUsed": false
       },
@@ -560,7 +560,7 @@
       "baselines": [
         {
           "name": "nearest_neighbor",
-          "score": 2868,
+          "score": 2778,
           "stopIds": [
             "culture2",
             "activity1",
@@ -572,7 +572,7 @@
         },
         {
           "name": "highest_utility_fastest",
-          "score": 3493,
+          "score": 3403,
           "stopIds": [
             "rest4",
             "activity1",
@@ -600,19 +600,19 @@
       "id": "packed_overnight_round",
       "optimizer": {
         "status": "ready",
-        "score": 3496,
+        "score": 3473,
         "stopIds": [
-          "activity5",
-          "rest4",
           "activity1",
+          "activity5",
           "meal3",
+          "culture2",
           "hotel6"
         ],
-        "drivingSeconds": 3480,
+        "drivingSeconds": 3720,
         "warnings": [
           "current_traffic_matrix_used_for_search"
         ],
-        "solverDurationMs": 3,
+        "solverDurationMs": 7,
         "exactSearchCompleted": true,
         "beamFallbackUsed": false
       },
@@ -620,7 +620,7 @@
       "baselines": [
         {
           "name": "nearest_neighbor",
-          "score": 2899,
+          "score": 2809,
           "stopIds": [
             "culture2",
             "activity1",
@@ -632,7 +632,7 @@
         },
         {
           "name": "highest_utility_fastest",
-          "score": 3448,
+          "score": 3358,
           "stopIds": [
             "rest4",
             "activity1",

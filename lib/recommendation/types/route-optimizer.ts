@@ -55,6 +55,8 @@ export interface RouteOptimizationCandidate {
   schedule: NormalizedVisitSchedule;
   category: UsefulTourCategory;
   visitRole: RouteVisitRole;
+  /** Preserves the restaurant/cafe split after both map to the canonical food category. */
+  diningCategory?: "restaurant" | "cafe";
   highActivity: boolean;
   popularity: PopularityResult;
   informationTrust: PlaceTrustResult;

@@ -69,8 +69,8 @@ export function HomeSelectedItineraryTray({
     <section className="home-selected-itinerary" aria-labelledby="home-selected-itinerary-title">
       <header className="home-selected-itinerary__header">
         <div>
-          <p>맞춤 일정</p>
           <h2 id="home-selected-itinerary-title">선택한 장소 {snapshot.places.length}곳</h2>
+          <p>일정에 추가한 장소들이에요.</p>
         </div>
         <span>홈에서는 최대 {HOME_VISIBLE_SELECTION_LIMIT}곳 추가</span>
       </header>
@@ -134,7 +134,7 @@ export function HomeSelectedItineraryTray({
         </p>
       ) : null}
 
-      <Link className="home-selected-itinerary__add" href={selectionCatalogHref}><Plus size={20} aria-hidden="true" /> 장소 더 담기</Link>
+      <Link className="home-selected-itinerary__add" href={selectionCatalogHref}><Plus size={20} aria-hidden="true" /> 장소 더 추가하기</Link>
       {onClear && <button type="button" className="home-selected-itinerary__clear" onClick={onClear} disabled={!snapshot.places.length}><Trash2 size={18} aria-hidden="true" /> 전체 지우기</button>}
       <button
         type="button"

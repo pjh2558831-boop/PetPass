@@ -468,13 +468,13 @@ export function UnifiedPlannerForm({
         "검색 결과나 지도에서 실제 출발지를 선택해 주세요.";
     }
     if (includes("tripDate") && preferences.tripDate !== "" && (!isValidIsoDate(preferences.tripDate) || preferences.tripDate < new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()))) {
-      nextErrors.tripDate = "오늘 이후 날짜를 선택하거나 날짜 미정으로 바꿔 주세요.";
+      nextErrors.tripDate = "오늘 이후 날짜를 선택하거나 입력값을 비워 주세요.";
     }
     if (
       includes("startTime") && preferences.startTime !== "" &&
       !/^(?:[01]\d|2[0-3]):[0-5]\d$/u.test(preferences.startTime)
     ) {
-      nextErrors.startTime = "올바른 시간을 입력하거나 시간 미정으로 바꿔 주세요.";
+      nextErrors.startTime = "올바른 시간을 입력하거나 입력값을 비워 주세요.";
     }
 
     if (includes("planning")) {
@@ -708,7 +708,7 @@ export function UnifiedPlannerForm({
       }}
     >
       <fieldset disabled={!inputsReady} aria-busy={!inputsReady} aria-label="여행 정보" className="m-0 min-w-0 border-0 p-0">
-      <PlannerFormProgress current={currentStep} />
+        <PlannerFormProgress current={currentStep} onChange={moveToStep} />
 
       {selectedMode && selectedItinerary?.places.length ? (
         <p className="planner-selected-mode-status" role="status">
@@ -1048,7 +1048,6 @@ export function UnifiedPlannerForm({
                 </div>
               <div className="planner-field">
                 <label htmlFor="trip-date">여행 날짜 <small>(선택)</small></label>
-                <button type="button" aria-pressed={!preferences.tripDate} onClick={() => { updatePreferences("tripDate", ""); clearError("tripDate"); }}>날짜 미정</button>
                 <input
                   id="trip-date"
                   type="date"
@@ -1074,7 +1073,6 @@ export function UnifiedPlannerForm({
               </div>
               <div className="planner-field">
                 <label htmlFor="start-time">시작 시간 <small>(선택)</small></label>
-                <button type="button" aria-pressed={!preferences.startTime} onClick={() => { updatePreferences("startTime", ""); clearError("startTime"); clearError("planning"); }}>시간 미정</button>
                 <input
                   id="start-time"
                   type="time"
@@ -1235,85 +1233,6 @@ export function UnifiedPlannerForm({
                 ) : null}
               </section>
             ) : null}
-
-            <fieldset
-              className="planner-field"
-              aria-describedby={errors.planning ? "planning-error" : undefined}
-            >
-              <legend>일정 기준</legend>
-              <div className="planner-segments planner-segments--two">
-                <label data-selected={planningMode === "stop_count"}>
-                  <input
-                    type="radio"
-                    name="planningMode"
-                    checked={planningMode === "stop_count"}
-                    onChange={() => {
-                      updatePreferences("planningMode", "stop_count");
-                      clearError("planning");
-                    }}
-                  />
-                  <span>방문 장소 수 기준</span>
-                </label>
-                <label data-selected={planningMode === "duration"}>
-                  <input
-                    type="radio"
-                    name="planningMode"
-                    checked={planningMode === "duration"}
-                    onChange={() => {
-                      updatePreferences("planningMode", "duration");
-                      clearError("planning");
-                    }}
-                  />
-                  <span>전체 일정 시간 기준</span>
-                </label>
-              </div>
-              {planningMode === "stop_count" ? (
-                <div className="planner-number-field">
-                  <label htmlFor="planning-stop-count">방문 장소 수</label>
-                  <input
-                    id="planning-stop-count"
-                    type="number"
-                    min={1}
-                    max={5}
-                    step={1}
-                    value={desiredStopCount}
-                    onChange={(event) => {
-                      updatePreferences(
-                        "desiredStopCount",
-                        Number(event.target.value),
-                      );
-                      clearError("planning");
-                    }}
-                  />
-                  <span>1–5곳</span>
-                </div>
-              ) : (
-                <div className="planner-number-field">
-                  <label htmlFor="planning-duration">전체 일정 시간</label>
-                  <input
-                    id="planning-duration"
-                    type="number"
-                    min={120}
-                    max={600}
-                    step={30}
-                    value={desiredDurationMinutes}
-                    onChange={(event) => {
-                      updatePreferences(
-                        "desiredDurationMinutes",
-                        Number(event.target.value),
-                      );
-                      clearError("planning");
-                    }}
-                  />
-                  <span>분 · 120–600</span>
-                </div>
-              )}
-              {errors.planning ? (
-                <p id="planning-error" className="planner-error" role="alert">
-                  {errors.planning}
-                </p>
-              ) : null}
-            </fieldset>
 
             <fieldset className="planner-field planner-block">
               <legend>일정 페이스</legend>

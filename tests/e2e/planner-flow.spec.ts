@@ -45,7 +45,7 @@ test("opens automatic planning outside Busan and offers all 17 regions", async (
   await expectNoHorizontalOverflow(page);
 });
 
-test("offers explicit planning length controls while keeping the pace choice", async ({
+test("keeps the pace choice without a separate planning length block", async ({
   page,
 }) => {
   await page.goto("/planner/pet");
@@ -62,9 +62,16 @@ test("offers explicit planning length controls while keeping the pace choice", a
   await packed.check({ force: true });
   await expect(packed).toBeChecked();
   await expect(balanced).not.toBeChecked();
-  await expect(page.getByRole("radio", { name: "방문 장소 수 기준" })).toBeChecked();
-  await expect(page.getByRole("spinbutton", { name: "방문 장소 수" })).toHaveValue("5");
-  await expect(page.getByRole("spinbutton", { name: "전체 일정 시간" })).toBeHidden();
+  await expect(page.getByText("일정 기준")).toHaveCount(0);
+});
+
+test("moves to any planner step from the progress navigation", async ({ page }) => {
+  await page.goto("/planner/pet");
+  await expect(page.getByRole("heading", { name: "반려동물 정보" })).toBeVisible();
+  await page.getByRole("button", { name: "3단계 원하는 하루로 이동" }).click();
+  await expect(page.getByRole("heading", { name: "원하는 하루" })).toBeVisible();
+  await page.getByRole("button", { name: /2단계 출발·시간로 이동/u }).click();
+  await expect(page.getByRole("heading", { name: "출발지와 시간" })).toBeVisible();
 });
 
 for (const searchScope of ["nearby", "district", "region"] as const) {
@@ -228,6 +235,8 @@ test("shows only the neutral pet step without sample selections", async ({
   await page.getByRole("button", { name: "출발지와 시간 입력" }).click();
   await expect(page.getByLabel("여행 날짜")).toHaveValue("");
   await expect(page.getByLabel("시작 시간")).toHaveValue("");
+  await expect(page.getByRole("button", { name: "날짜 미정" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "시간 미정" })).toHaveCount(0);
 
   await page.goto("/planner/trip");
   await expect(page).toHaveURL(/\/planner\/pet$/u);
@@ -545,7 +554,7 @@ test("runs the original full validation on the final action and moves focus to a
   await page.getByRole("button", { name: "여행 추천 받기" }).click();
   await expect(page.getByRole("heading", { name: "출발지와 시간" })).toBeVisible();
   await expect(page.getByLabel("여행 날짜")).toBeFocused();
-  await expect(page.getByText("오늘 이후 날짜를 선택하거나 날짜 미정으로 바꿔 주세요.")).toBeVisible();
+  await expect(page.getByText("오늘 이후 날짜를 선택하거나 입력값을 비워 주세요.")).toBeVisible();
   await expect(page).toHaveURL(/\/planner\/pet$/u);
 });
 

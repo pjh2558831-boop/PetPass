@@ -1,7 +1,7 @@
 import "server-only";
 
 import { ROUTE_COMPOSITION_V2_CONFIG, paceWaitLimitsV2 } from "@/lib/recommendation/config/route-composition-v2";
-import { getRouteTripConstraints } from "@/lib/recommendation/optimizer/trip-constraints";
+import { canAddDiningCandidate, getRouteTripConstraints } from "@/lib/recommendation/optimizer/trip-constraints";
 import { appendScheduledVisit, isUsableTravelEdge, tripStartMs } from "@/lib/recommendation/optimizer/schedule-simulator";
 import type { RouteOptimizationInput, ScheduledRouteVisit } from "@/lib/recommendation/types/route-optimizer";
 
@@ -128,6 +128,12 @@ export function analyzeRouteFeasibilityV2(input: RouteOptimizationInput, budget?
       if (expandedStates >= ROUTE_COMPOSITION_V2_CONFIG.feasibility.maxExpandedStates ||
         (budget && feasibilityBudgetExhausted(budget))) return;
       if (state.used.has(candidate.node.id) || !accommodationAllowed(input, state, candidate.visitRole)) continue;
+      if (!canAddDiningCandidate({
+        request: input.tripRequest,
+        visits: state.visits,
+        candidate,
+        candidates: input.candidates,
+      })) continue;
       if (!fullCatalog && candidate.schedule.mandatoryReservationImpossible) continue;
       if (!fullCatalog && candidate.schedule.status === "unknown" && !input.tripRequest.scheduleIntent && !candidate.locked && state.unknownCount >= 1) continue;
       expandedStates += 1;
