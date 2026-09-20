@@ -2,7 +2,7 @@
 body:has(.weekendoog-home) { --ui2-paper:#fff; --ui2-text:#101d43; --ui2-muted:#69758a; --ui2-brand:#07563f; --ui2-line:#e3e7ed; --ui2-line-strong:#d5dce7; --brand:#07563f; --brand-deep:#043e2d; --line:#e3e7ed; background:white; color:var(--ui2-text); }
 .weekendoog-home { --ui2-paper:#fff; --ui2-text:#101d43; --ui2-muted:#69758a; --ui2-brand:#07563f; --ui2-line:#e3e7ed; --ui2-line-strong:#d5dce7; background:white; color:var(--ui2-text); }
 .weekendoog-home .homepage-shell { width:min(1280px, calc(100% - 64px)); }
-body:has(.weekendoog-home) .site-header { position:sticky; top:0; background:white; border-bottom:1px solid #eef0f4; }
+body:has(.weekendoog-home) .site-header { position:absolute; inset:0 0 auto; background:rgba(255,253,249,.88); border-bottom-color:rgba(19,32,27,.12); }
 body:has(.weekendoog-home) .site-header-inner { min-height:clamp(54px,5vw,68px); gap:16px; }
 body:has(.weekendoog-home) .site-header-navigation { margin-left:auto; margin-right:auto; gap:clamp(20px,3vw,42px); }
 body:has(.weekendoog-home) .site-header-account-slot a { border-radius:8px; min-height:44px; }
