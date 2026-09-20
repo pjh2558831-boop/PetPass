@@ -277,6 +277,8 @@ body:has(.weekendoog-home) .site-brand { min-width:0; }
 .weekendoog-home .homepage-workbench { grid-template-columns:136px minmax(0,1.35fr) minmax(390px,1fr); gap:0; height:650px; border:1px solid var(--ui2-line-strong); border-radius:12px; overflow:hidden; }
 .weekendoog-home .homepage-region-rail { display:flex; min-width:0; flex-direction:column; gap:2px; padding:12px; overflow-y:auto; background:#fff; border-right:1px solid var(--ui2-line-strong); }
 .weekendoog-home .homepage-region-rail button { display:flex; align-items:center; gap:11px; min-height:38px; padding:0 12px; border-radius:8px; color:#253c54; font-weight:750; text-align:left; }
+.weekendoog-home .homepage-region-rail button:hover,
+.weekendoog-home .homepage-region-rail button:focus-visible { background:#e4f3e9; color:#07563f; }
 .weekendoog-home .homepage-region-rail button[aria-pressed=true] { background:#07563f; color:white; }
 .weekendoog-home .homepage-region-rail button span { width:18px; text-align:center; font-size:16px; }
 .weekendoog-home .homepage-workbench__map,

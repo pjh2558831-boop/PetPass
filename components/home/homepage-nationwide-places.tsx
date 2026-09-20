@@ -98,8 +98,8 @@ export function HomepageNationwidePlaces({ staticMapEnabled = false, searchReque
         countLabel: loading ? "불러오는 중" : failed ? "조회 실패" : `${visible.length.toLocaleString("ko-KR")}곳`,
         listContent,
         regionControl: <nav className="homepage-region-rail" aria-label="지역 선택">
-          <button type="button" aria-pressed={overview} onClick={() => chooseRegion(null)}><span aria-hidden="true">▦</span>전체</button>
-          {HOMEPAGE_MAP_REGIONS.map(region => <button key={region.id} type="button" aria-pressed={activeRegion === region.id} onClick={() => chooseRegion(region.id)}><span aria-hidden="true">⌖</span>{region.displayName}</button>)}
+          <button type="button" aria-pressed={overview} onClick={() => chooseRegion(null)}>전체</button>
+          {HOMEPAGE_MAP_REGIONS.map(region => <button key={region.id} type="button" aria-pressed={activeRegion === region.id} onClick={() => chooseRegion(region.id)}>{region.displayName}</button>)}
         </nav>,
       }}
       filterControl={<details className="home-map-filters"><summary><SlidersHorizontal size={18} aria-hidden="true" /> 필터</summary><div className="home-map-filters__fields">
