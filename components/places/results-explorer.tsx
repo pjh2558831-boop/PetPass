@@ -1230,18 +1230,6 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   return (
     <div className={`full-map-explorer ${itineraryMode === "selection" ? "is-itinerary-selection" : ""}`} id="catalog-panel">
       <div className="full-map-explorer__toolbar">
-        {itineraryMode !== "selection" ? (
-          <div className="explorer-toolbar-row explorer-mode-row" role="group" aria-label="탐색 모드">
-            <span className="explorer-toolbar-label">탐색 모드</span>
-            <div className="explorer-mode-tabs" role="navigation" aria-label="장소 및 추천 보기">
-              <Link href={`/results?tab=catalog&region=${region}`} aria-current="page"><Rows3 size={16} aria-hidden="true" />장소 찾기</Link>
-              {regionConfig.routeCapabilities.selectedPlaceRouting ? (
-                <Link href={`/results?tab=catalog&region=${region}&page=${currentPage}&mode=select`}><Route size={16} aria-hidden="true" />맞춤 일정</Link>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
-
         <div className="explorer-toolbar-row explorer-scope-row" role="group" aria-label="탐색 범위">
           <span className="explorer-toolbar-label">탐색 범위</span>
           <RegionSelector value={region} onChange={requestRegionChange} />
