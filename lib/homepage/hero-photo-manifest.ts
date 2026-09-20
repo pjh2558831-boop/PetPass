@@ -66,6 +66,24 @@ export const HERO_PHOTOS = [
     objectPositionDesktop: "50% 65%",
     objectPositionMobile: "50% 67%",
   },
+  {
+    src: "/images/home/hero/12-busan-bay-dog.png",
+    alt: "부산 광안대교와 바다를 바라보는 반려견",
+    objectPositionDesktop: "50% 58%",
+    objectPositionMobile: "58% 58%",
+  },
+  {
+    src: "/images/home/hero/13-gyeongju-dog.png",
+    alt: "눈 내린 경주 전통 다리 앞에 선 반려견",
+    objectPositionDesktop: "50% 58%",
+    objectPositionMobile: "35% 58%",
+  },
+  {
+    src: "/images/home/hero/14-pet-travel-flatlay.png",
+    alt: "여행 사진과 여권, 지도가 놓인 반려동물 여행 준비 장면",
+    objectPositionDesktop: "50% 50%",
+    objectPositionMobile: "68% 50%",
+  },
 ] as const satisfies readonly HeroPhoto[];
 
 /**
