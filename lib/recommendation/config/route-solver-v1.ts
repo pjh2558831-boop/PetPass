@@ -14,9 +14,9 @@ export const ROUTE_SOLVER_V1_CONFIG = {
   maxExcludedHighlights: 5,
   maxUnknownScheduleStops: 1,
   pace: {
-    relaxed: { targetStops: 2, minStops: 1, maxStops: 3, maxDurationMinutes: 360 },
-    balanced: { targetStops: 3, minStops: 2, maxStops: 4, maxDurationMinutes: 480 },
-    packed: { targetStops: 5, minStops: 3, maxStops: 5, maxDurationMinutes: 600 },
+    relaxed: { targetStops: 2, minStops: 1, maxStops: 2, maxDurationMinutes: 360 },
+    balanced: { targetStops: 3, minStops: 3, maxStops: 4, maxDurationMinutes: 480 },
+    packed: { targetStops: 5, minStops: 5, maxStops: 5, maxDurationMinutes: 600 },
   },
 } as const;
 

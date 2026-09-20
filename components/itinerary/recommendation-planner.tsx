@@ -955,21 +955,9 @@ export function RecommendationPlanner({
   };
   return (
     <div className="route-redesign space-y-6" aria-busy={loading || revalidating}>
-      {displayedRoute.planningPolicy === "full_public_catalog_v1" ? <p className="rounded border border-[var(--line)] p-4 text-sm"><strong>전체 장소 기반 추천</strong> · 등록된 WEEKENDOG 장소로 이동 경로를 계산한 초안입니다.</p> : null}
       {loading ? <p role="status">새 일정을 확인하고 있습니다. 이전 경로를 계속 볼 수 있어요. <button type="button" className="underline" onClick={() => { controllerRef.current?.abort(); requestSequenceRef.current++; setLoading(false); setRevalidating(false); }}>요청 취소</button></p> : null}
       {response && response.status !== "ready" ? <section role="alert" className="rounded border border-[#dfccb3] bg-[#fff8ec] p-4"><p>{response.userMessage}</p><p>아래 경로는 마지막으로 성공한 입력 기준입니다.</p><Button type="button" onClick={() => void runRecommendation()}>현재 입력으로 다시 시도</Button><Link href="/planner/pet" className="ml-4 underline">입력 수정</Link></section> : null}
       {excludedIds.length ? <div className="text-sm">이번 여행에서 {excludedIds.length}곳 제외 <button type="button" className="ml-3 min-h-11 underline disabled:opacity-50" disabled={!canUndoExclusion} onClick={undoExclusion}>마지막 제외 실행 취소</button><button type="button" className="ml-3 min-h-11 underline" onClick={() => { rememberExclusion(); persistExclusions([]); }}>이번 여행 제외 초기화</button></div> : null}
-      {displayedRoute.schedule && (displayedRoute.schedule.requested.date || displayedRoute.schedule.state === "adjustment_proposal") ? <section className="rounded border border-[var(--line)] p-4" aria-label="일정 상태">
-        <p>{displayedRoute.schedule.requested.date ?? "날짜 미정"} · 요청 출발 {displayedRoute.schedule.requested.startTime ?? "시간 미정"}</p>
-        {displayedRoute.schedule.state === "adjustment_proposal" ? <><p>입력한 시간 대신 {displayedRoute.schedule.effective.startTime} 출발을 제안합니다. 적용 전까지 원래 입력이 유지됩니다.</p><Button type="button" variant="brand" disabled={loading || revalidating} onClick={() => {
-          if (!lastReadyRequest || !displayedRoute.schedule?.effective.startTime) return;
-          if (displayedRoute.kind === "manual" || editDirty) { void revalidate(undefined, true); return; }
-          const time = displayedRoute.schedule.effective.startTime;
-          void runRecommendation("initial", undefined, { ...lastReadyRequest, conditionConfirmation: undefined, trip: { ...lastReadyRequest.trip, startTime: time } }, time);
-        }}>이 시간 적용</Button></> : !displayedRoute.schedule.requested.startTime && displayedRoute.schedule.requested.date ? <p>추천 출발 시간: {displayedRoute.schedule.effective.startTime}</p> : null}
-        {!displayedRoute.schedule.requested.date ? <p>날짜 미정 초안입니다. 요일·날짜별 운영 여부는 아직 확인하지 않았습니다.</p> : null}
-        {displayedRoute.schedule.operatingAvailability === "requires_confirmation" ? <p>운영시간 미상 장소가 있습니다. 영업을 확정한 결과가 아닙니다.</p> : null}
-      </section> : null}
       {displayedRoute.schedule?.operatingAvailability === "requires_confirmation" && !displayedRoute.schedule.requested.date && displayedRoute.schedule.state !== "adjustment_proposal" ? <p className="text-sm text-[#76542f]">운영시간 미상 장소가 있습니다. 영업을 확정한 결과가 아닙니다.</p> : null}
       <header className="route-result-header">
         <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
@@ -978,21 +966,17 @@ export function RecommendationPlanner({
             <h1 ref={resultHeadingRef} tabIndex={-1} className="mt-2 text-3xl font-black tracking-[-0.045em] [overflow-wrap:anywhere]">{ready.requestSummary.departureLabel}에서 시작하는 {summary.stopCount}곳 일정</h1>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--muted)]">{editDirty ? displayedRoute.planningPolicy === "full_public_catalog_v1" ? "방문 순서를 수정했습니다. 도로 이동시간을 다시 계산하면 초안으로 저장할 수 있습니다." : "방문 순서를 수정했습니다. 실제 거리와 운영시간을 다시 확인해야 확정됩니다." : displayedRoute.kind === "manual" ? "직접 정한 방문 순서의 이동 경로를 다시 확인한 결과입니다." : reducedCopy ?? (exact ? "현재 후보와 확인된 이동 정보 안에서 가장 적합한 일정을 찾았습니다." : "제한 시간 안에서 확인한 일정 중 가장 적합한 결과입니다.")}</p>
             {!editDirty && displayedRoute.kind !== "manual" && reducedCopy && !exact ? <p className="mt-2 text-xs font-semibold text-[var(--muted)]">제한 시간 안에서 확인한 일정 중 가장 적합한 결과입니다.</p> : null}
-            {!editDirty && displayedRoute.temporalBasis.searchMatrix !== displayedRoute.temporalBasis.finalRoute ? <p className="mt-2 text-xs font-bold text-[#76542f]">장소 순서는 확인된 이동 정보로 비교하고, 표시된 시간과 경로는 최종 길찾기 결과를 반영했습니다.</p> : null}
           </div>
           <div className="flex flex-wrap gap-2">
-            {selectionMode === "hybrid" ? (
-              <Link href={`/results?tab=catalog&region=${plannerRegion.id}&mode=select`} className="inline-flex min-h-11 items-center rounded-lg border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">
-                지도에서 장소 추가
-              </Link>
-            ) : null}
+            <Link href={`/results?tab=catalog&region=${plannerRegion.id}&mode=select`} className="inline-flex min-h-11 items-center rounded-lg border border-[var(--line)] bg-white px-4 text-sm font-extrabold text-[var(--brand)]">
+              장소 추가
+            </Link>
             <Button type="button" variant="brandSecondary" disabled={editDirty || loading || revalidating} onClick={() => void saveItinerary()}><Save size={16} aria-hidden="true" /> 일정 저장</Button>
             {selectionMode === "automatic" || (hybridAutoFill && hasAutoFilledStops) ? (
               <Button type="button" variant="brandSecondary" disabled={rerollUi.kind === "exhausted"} onClick={() => void runRecommendation("reroll")}><RefreshCw size={16} aria-hidden="true" /> {rerollUi.buttonLabel}</Button>
             ) : null}
           </div>
         </div>
-        {saveMessage ? <p className="mt-3 text-sm font-bold text-[var(--brand)]" role="status">{saveMessage}</p> : null}
         <p className="mt-2 text-sm text-[#52635a]">계정에 최대 5개 일정을 저장할 수 있습니다. {displayedRoute.planningPolicy === "full_public_catalog_v1" ? "전체 장소 기반 경로는 일정 초안으로 보관됩니다." : "미정 일정과 미적용 제안은 초안으로 보관됩니다."}</p>
         {saved ? <Link href="/account" className="mt-3 inline-flex min-h-11 items-center font-bold underline">마이페이지에서 보기</Link> : null}
         <dl className="route-result-summary">
@@ -1079,6 +1063,7 @@ export function RecommendationPlanner({
         <div>
           <h2 id="route-save-heading">이 일정으로 여행을 시작해볼까요?</h2>
           <p>{ready.requestSummary.tripDate} · {summary.stopCount}곳 · 이동 {formatDuration(summary.totalDrivingSeconds)}</p>
+          {saveMessage ? <p className="mt-2 text-sm font-bold text-[var(--brand)]" role="status">{saveMessage}</p> : null}
         </div>
         <Button type="button" variant="brand" aria-label="하단 저장" disabled={editDirty || loading || revalidating} onClick={() => void saveItinerary()}><Save size={16} aria-hidden="true" /> 이 일정 저장하기</Button>
       </section>

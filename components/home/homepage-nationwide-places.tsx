@@ -1,16 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { SlidersHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { HomePlaceWorkbench } from "@/components/home/home-place-workbench";
-import { PlaceCategoryToggleGroup } from "@/components/places/place-category-toggle-group";
 import { HomeSelectedItineraryTray } from "@/components/home/home-selected-itinerary-tray";
 import { useSelectedItinerarySelection } from "@/components/places/use-selected-itinerary-selection";
 import { HOMEPAGE_MAP_REGIONS, HOMEPAGE_NATIONWIDE_BOUNDS, HOMEPAGE_REGION_LOCATIONS, homepageRegionForViewport, projectNationwideMarker } from "@/lib/homepage/nationwide";
 import { mapPlacesSnapshotBrowserClient } from "@/lib/map-places/snapshot-client";
 import { getRegionConfig } from "@/lib/regions/config";
-import { DEFAULT_PLACE_CATEGORIES, PLACE_CATEGORY_LABELS, type PlaceCategory } from "@/lib/map-places/place-categories";
 import type { MapPanelProps } from "@/components/map/map-panel";
 import type { MapPlacesSnapshot } from "@/types/map-places-snapshot";
 import type { SelectedItineraryPlace } from "@/lib/storage/selected-itinerary-storage";
@@ -24,7 +21,6 @@ export function HomepageNationwidePlaces({ staticMapEnabled = false, searchReque
   const [cameraBounds, setCameraBounds] = useState(searchRequest ? getRegionConfig(searchRequest.regionId).mapBounds : HOMEPAGE_NATIONWIDE_BOUNDS);
   const [result, setResult] = useState<{ key: string; data?: MapPlacesSnapshot; failed?: boolean } | null>(null);
   const [retry, setRetry] = useState(0);
-  const [category, setCategory] = useState<PlaceCategory | "all">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selection = useSelectedItinerarySelection({ regionId: listRegion, surfaceAddLimit: 3 });
   const viewportTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -78,7 +74,7 @@ export function HomepageNationwidePlaces({ staticMapEnabled = false, searchReque
   const candidates = useMemo(() => new Map((data?.items ?? []).map(item => [item.id, {
     ...item, imageUrl: item.imageUrl ?? null,
   } as SelectedItineraryPlace])), [data]);
-  const visible = useMemo(() => markers.filter(marker => category === "all" || marker.category === category), [markers, category]);
+  const visible = markers;
   const focus = (id: string) => {
     setSelectedId(id);
   };
@@ -102,13 +98,7 @@ export function HomepageNationwidePlaces({ staticMapEnabled = false, searchReque
           {HOMEPAGE_MAP_REGIONS.map(region => <button key={region.id} type="button" aria-pressed={activeRegion === region.id} onClick={() => chooseRegion(region.id)}>{region.displayName}</button>)}
         </nav>,
       }}
-      filterControl={<details className="home-map-filters"><summary><SlidersHorizontal size={18} aria-hidden="true" /> 필터</summary><div className="home-map-filters__fields">
-        <label className="text-sm">지역<select className="ml-2 min-h-11 rounded border px-2" aria-label="홈 지도 지역" value={activeRegion ?? "all"}
-          onChange={event => chooseRegion(event.target.value === "all" ? null : event.target.value as RegionId)}>
-          <option value="all">전국 지역 보기</option>{HOMEPAGE_MAP_REGIONS.map(region => <option key={region.id} value={region.id}>{region.displayName}</option>)}
-        </select></label>
-        <PlaceCategoryToggleGroup title="장소 유형" categories={DEFAULT_PLACE_CATEGORIES} active={category === "all" ? [] : [category]} counts={Object.fromEntries(DEFAULT_PLACE_CATEGORIES.map(value => [value, null])) as Record<PlaceCategory, number | null>} onToggle={value => { setCategory(category === value ? "all" : value); setSelectedId(null); }} />
-      </div></details>}
+      filterControl={null}
       selectionSnapshot={selection.snapshot} selectionCandidates={candidates} onToggleItinerary={place => selection.toggle(place)}
       completionState="complete" onRetryCompletion={retryFailed} providerUnavailable={false} staticMapEnabled={staticMapEnabled}
     />
