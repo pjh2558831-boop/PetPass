@@ -351,10 +351,9 @@ export function LivePlaceDetail({
       <aside className="detail-sidebar">
         <section id="detail-basic" className="detail-at-a-glance" hidden={activeTab !== "overview" && activeTab !== "basic"}><h2><ShieldCheck size={20} aria-hidden="true" />한눈에 보기</h2>
           <dl>{informationCards.map(({label,value}) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+          <div className="mt-6"><SourceTrustPanel sourceRecords={detail.sourceRecords} trust={detail.trust} /></div>
         </section>
-        <div className="place-detail-source mt-10" hidden={activeTab !== "overview" && activeTab !== "source"}>
-          <SourceTrustPanel sourceRecords={detail.sourceRecords} trust={detail.trust} />
-        </div>      {coordinates ? (
+        {coordinates ? (
         <section id="detail-location" className="detail-location" hidden={activeTab !== "location"}><h2><MapPin size={20} aria-hidden="true" />위치</h2>
           <MapPanel
             regionId={regionId}

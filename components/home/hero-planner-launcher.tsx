@@ -111,7 +111,7 @@ export function HeroPlannerLauncher({ onSearch }: { onSearch?: (query: string, r
         }}
         className="hero-planner-secondary"
       >
-        장소 없이 알아서 추천받기
+        AI 맞춤 일정
       </button>
         </div>
       </div>
