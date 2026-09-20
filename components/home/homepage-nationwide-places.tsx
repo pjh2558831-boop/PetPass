@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { HomePlaceWorkbench } from "@/components/home/home-place-workbench";
+import { PlaceCategoryToggleGroup } from "@/components/places/place-category-toggle-group";
 import { HomeSelectedItineraryTray } from "@/components/home/home-selected-itinerary-tray";
 import { useSelectedItinerarySelection } from "@/components/places/use-selected-itinerary-selection";
 import { HOMEPAGE_MAP_REGIONS, HOMEPAGE_NATIONWIDE_BOUNDS, HOMEPAGE_REGION_LOCATIONS, homepageRegionForViewport, projectNationwideMarker } from "@/lib/homepage/nationwide";
@@ -100,15 +101,12 @@ export function HomepageNationwidePlaces({ staticMapEnabled = false, searchReque
           {HOMEPAGE_MAP_REGIONS.map(region => <button key={region.id} type="button" aria-pressed={activeRegion === region.id} onClick={() => chooseRegion(region.id)}><span aria-hidden="true">⌖</span>{region.displayName}</button>)}
         </nav>,
       }}
-      filterControl={<details className="home-map-filters"><summary><SlidersHorizontal size={18} aria-hidden="true" /> 필터</summary><div className="home-map-filters__fields flex flex-wrap gap-2">
+      filterControl={<details className="home-map-filters"><summary><SlidersHorizontal size={18} aria-hidden="true" /> 필터</summary><div className="home-map-filters__fields">
         <label className="text-sm">지역<select className="ml-2 min-h-11 rounded border px-2" aria-label="홈 지도 지역" value={activeRegion ?? "all"}
           onChange={event => chooseRegion(event.target.value === "all" ? null : event.target.value as RegionId)}>
           <option value="all">전국 지역 보기</option>{HOMEPAGE_MAP_REGIONS.map(region => <option key={region.id} value={region.id}>{region.displayName}</option>)}
         </select></label>
-        <label className="text-sm">유형<select className="ml-2 min-h-11 rounded border px-2" aria-label="홈 지도 장소 유형" value={category}
-          onChange={event => { setCategory(event.target.value as PlaceCategory | "all"); setSelectedId(null); }}>
-          <option value="all">전체 유형</option>{DEFAULT_PLACE_CATEGORIES.map(value => <option key={value} value={value}>{PLACE_CATEGORY_LABELS[value]}</option>)}
-        </select></label>
+        <PlaceCategoryToggleGroup title="장소 유형" categories={DEFAULT_PLACE_CATEGORIES} active={category === "all" ? [] : [category]} counts={Object.fromEntries(DEFAULT_PLACE_CATEGORIES.map(value => [value, null])) as Record<PlaceCategory, number | null>} onToggle={value => { setCategory(category === value ? "all" : value); setSelectedId(null); }} />
       </div></details>}
       selectionSnapshot={selection.snapshot} selectionCandidates={candidates} onToggleItinerary={place => selection.toggle(place)}
       completionState="complete" onRetryCompletion={retryFailed} providerUnavailable={false} staticMapEnabled={staticMapEnabled}

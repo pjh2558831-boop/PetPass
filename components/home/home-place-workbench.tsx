@@ -543,9 +543,6 @@ export function HomePlaceWorkbench({
               </nav>
             ) : null}
           </div>
-          <Link href={`/results?tab=catalog&region=${encodeURIComponent(regionId)}`} className="homepage-more-places-link">
-            더 많은 장소 보기 <ArrowUpRight size={15} aria-hidden="true" />
-          </Link>
         </aside>
       </div>
     </section>
