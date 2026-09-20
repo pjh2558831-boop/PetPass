@@ -6,7 +6,6 @@ import {
   ArrowLeft,
   CalendarPlus,
   Share2,
-  ShieldCheck,
   CalendarX2,
   Car,
   Clock3,
@@ -24,7 +23,6 @@ import {
   PetAccessDecisionSummary,
 } from "@/components/places/pet-access-assessment-panel";
 import {
-  SourceTrustPanel,
 } from "@/components/places/source-trust-panel";
 import { InformationReportDraftPanel } from "@/components/places/information-report-draft-panel";
 import { Button } from "@/components/ui/button";
@@ -303,7 +301,6 @@ export function LivePlaceDetail({
         {([
           ["overview", "장소 소개"],
           ["pet-access", "동반 가능 조건"],
-          ["basic", "기본 정보"],
           ...(coordinates ? [["location", "위치"]] : []),
         ] as Array<[DetailTab, string]>).map(([tab, label]) => (
           <button
@@ -318,7 +315,7 @@ export function LivePlaceDetail({
           </button>
         ))}
       </nav>
-      <div className={`detail-body-grid ${activeTab === "pet-access" ? "detail-body-grid--main-only" : activeTab === "basic" || activeTab === "location" ? "detail-body-grid--sidebar-only" : ""}`}>
+      <div className={`detail-body-grid ${activeTab === "pet-access" ? "detail-body-grid--main-only" : activeTab === "location" ? "detail-body-grid--sidebar-only" : ""}`}>
       <div className="detail-main">
       <section className="place-detail-overview" aria-labelledby="place-overview-heading" hidden={activeTab !== "overview"}>
         <h2 id="place-overview-heading" className="text-xl font-black tracking-[-0.03em]">
@@ -349,10 +346,6 @@ export function LivePlaceDetail({
       </div>
       </div>
       <aside className="detail-sidebar">
-        <section id="detail-basic" className="detail-at-a-glance" hidden={activeTab !== "overview" && activeTab !== "basic"}><h2><ShieldCheck size={20} aria-hidden="true" />한눈에 보기</h2>
-          <dl>{informationCards.map(({label,value}) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
-          <div className="mt-6"><SourceTrustPanel sourceRecords={detail.sourceRecords} trust={detail.trust} /></div>
-        </section>
         {coordinates ? (
         <section id="detail-location" className="detail-location" hidden={activeTab !== "location"}><h2><MapPin size={20} aria-hidden="true" />위치</h2>
           <MapPanel

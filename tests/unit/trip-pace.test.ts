@@ -25,15 +25,17 @@ describe("trip pace", () => {
     }
   });
 
-  it("uses the V2 normal minima while retaining the existing targets", () => {
-    expect(TRIP_PACE_OPTIONS.map(({ id, minStops, desiredStopCount }) => ({
+  it("uses the requested recommendation ranges and targets", () => {
+    expect(TRIP_PACE_OPTIONS.map(({ id, rangeLabel, minStops, maxStops, desiredStopCount }) => ({
       id,
+      rangeLabel,
       minStops,
+      maxStops,
       desiredStopCount,
     }))).toEqual([
-      { id: "relaxed", minStops: 1, desiredStopCount: 2 },
-      { id: "balanced", minStops: 2, desiredStopCount: 3 },
-      { id: "packed", minStops: 3, desiredStopCount: 5 },
+      { id: "relaxed", rangeLabel: "1~2곳", minStops: 1, maxStops: 2, desiredStopCount: 2 },
+      { id: "balanced", rangeLabel: "3~4곳", minStops: 3, maxStops: 4, desiredStopCount: 3 },
+      { id: "packed", rangeLabel: "5곳", minStops: 5, maxStops: 5, desiredStopCount: 5 },
     ]);
   });
 });

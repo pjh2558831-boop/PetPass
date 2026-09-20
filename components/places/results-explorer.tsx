@@ -1354,13 +1354,6 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
                     : "방문 전 장소별 동반 조건을 확인해 주세요."}
               </p> : null}
             </div>
-            <label className="explorer-sort-control" htmlFor="explorer-sort">
-              <span className="sr-only">정렬</span>
-              <select id="explorer-sort" value={sort} onChange={(event) => { setSort(event.target.value as ExplorerSort); setPage(1); }}>
-                <option value="recommendation">추천순</option>
-                <option value="popularity">인기도순</option>
-              </select>
-            </label>
           </header>
           {activeBounds ? <p className="explorer-active-bounds">지도 범위 적용 중</p> : null}
           {sort === "popularity" && allPopularityInsufficient ? <p className="explorer-popularity-notice" role="status">이용 데이터가 쌓이는 동안 추천순을 함께 반영합니다.</p> : null}
@@ -1400,7 +1393,9 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
                 itinerarySelection={itineraryMode === "selection" && regionConfig.routeCapabilities.selectedPlaceRouting ? {
                   selected: selectionSnapshot.places.some(({ id }) => id === place.id),
                   actionLabel: replacementPlaceId ? "이 장소로 변경" : undefined,
-                  disabledReason: replacementPlaceId && selectionSnapshot.places.some(({ id }) => id === place.id)
+                  disabledReason: !selectionHydrated
+                    ? "장소 목록을 불러오는 중이에요"
+                    : replacementPlaceId && selectionSnapshot.places.some(({ id }) => id === place.id)
                     ? place.id === replacementPlaceId ? "현재 일정의 장소예요" : "이미 일정에 담은 장소예요"
                     : selectionSnapshot.places.some(({ id }) => id === place.id)
                     ? undefined

@@ -139,7 +139,7 @@ function preferencesFromDraft(
     recommendationBasis: draft.recommendationBasis ?? "departure",
     desiredStopCount: draft.requestedStopCount,
     planningMode: "stop_count",
-    roundTrip: draft.roundTrip,
+    roundTrip: false,
     departure: draft.origin ? {
       label: draft.origin.name,
       source: draft.origin.source,
@@ -1123,16 +1123,6 @@ export function UnifiedPlannerForm({
                   </label>
                 ))}
               </div>
-              <label className="planner-inline-check">
-                <input
-                  type="checkbox"
-                  checked={preferences.roundTrip ?? false}
-                  onChange={(event) =>
-                    updatePreferences("roundTrip", event.target.checked)
-                  }
-                />
-                <span>마지막 장소 방문 후 출발지로 돌아오기</span>
-              </label>
             </fieldset>
           </section>
 

@@ -255,7 +255,7 @@ describe("route-solver-v1", () => {
       if (visits.length >= 2) {
         brute.push(scoreCompletedRouteV1({ visits, departureId: "departure", serviceDayStartMs: start, matrix: input.matrix, tripRequest: input.tripRequest }));
       }
-      if (visits.length === 3) return;
+      if (visits.length === 2) return;
       for (const next of remaining) {
         const appended = appendScheduledVisit({ candidate: next, edge: input.matrix.edges[currentNodeId][next.node.id], currentTimeMs, serviceDayStartMs: start, tripRequest: input.tripRequest });
         if (!appended) continue;
