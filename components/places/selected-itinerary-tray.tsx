@@ -76,7 +76,6 @@ function SelectionTrayContents({
       >
         <Route size={16} aria-hidden="true" /> 선택한 장소로 일정 만들기
       </button>
-      {automaticRecommendationSupported ? <button type="button" className="selected-itinerary-tray__automatic" onClick={onAutomaticStart}>장소 없이 알아서 추천받기</button> : null}
     </>
   );
 }

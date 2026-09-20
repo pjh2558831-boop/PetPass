@@ -34,7 +34,6 @@ import {
   PUBLIC_CATALOG_PAGE_SIZE,
   getPublicCatalogDistrictName,
   parsePublicCatalogUrlState,
-  resolvePublicCatalogDistrictQuery,
   serializeResultsUrl,
   type PublicCatalogUrlState,
 } from "@/lib/map-places/catalog-url";
@@ -390,8 +389,6 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       ? "catalog"
       : initialTab);
   const [district, setDistrict] = useState(startingCatalogState.district);
-  const [districtQuery, setDistrictQuery] = useState(() =>
-    getPublicCatalogDistrictName(startingCatalogState.region, startingCatalogState.district));
   const [categories, setCategories] = useState<PlaceCategory[]>(startingCatalogState.categories);
   const [layers, setLayers] = useState<PublicCatalogLayer[]>(startingCatalogState.layers);
   const [draftCategories, setDraftCategories] = useState<PlaceCategory[]>(startingCatalogState.categories);
@@ -656,7 +653,6 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
       applyingBrowserHistoryRef.current = true;
       setRegion(restored.region);
       setDistrict(restored.district);
-      setDistrictQuery(getPublicCatalogDistrictName(restored.region, restored.district));
       setCategories(restored.categories);
       setDraftCategories(restored.categories);
       setLayers(restored.layers);
@@ -985,7 +981,6 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
     setRegion(nextRegion);
     setActiveTab("catalog");
     setDistrict("all");
-    setDistrictQuery(getPublicCatalogDistrictName(nextRegion, "all"));
     const nextDefaultCategories = getRegionDefaultCatalogCategories(nextConfig) as PlaceCategory[];
     setCategories([...nextDefaultCategories]);
     setDraftCategories([...nextDefaultCategories]);
@@ -1038,19 +1033,6 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   };
   const changeFilter = (update: () => void) => {
     update(); setPage(1); setSelectedId(null); resetViewportScope();
-  };
-  const changeDistrict = (nextDistrict: string) => {
-    changeFilter(() => {
-      setDistrict(nextDistrict);
-      setDistrictQuery(getPublicCatalogDistrictName(region, nextDistrict));
-      setOptionalLoadedFor(null);
-    });
-    const draft = loadPlanDraft() ?? createPlanDraft(region);
-    savePlanDraft(updatePlanDraftScope(
-      draft,
-      region,
-      nextDistrict === "all" ? null : nextDistrict,
-    ));
   };
   const toggleDraftCategory = (category: PlaceCategory) => {
     setDraftCategories((current) => current.includes(category)
@@ -1233,29 +1215,6 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
         <div className="explorer-toolbar-row explorer-scope-row" role="group" aria-label="탐색 범위">
           <span className="explorer-toolbar-label">탐색 범위</span>
           <RegionSelector value={region} onChange={requestRegionChange} />
-          <label className="explorer-district-control">
-            <span className="sr-only">{regionConfig.displayName} 세부 지역</span>
-            <input
-              type="search"
-              list={`district-options-${region}`}
-              value={districtQuery}
-              aria-label={`${regionConfig.displayName} 세부 지역 검색`}
-              autoComplete="off"
-              onChange={(event) => {
-                const value = event.target.value;
-                setDistrictQuery(value);
-                const resolved = resolvePublicCatalogDistrictQuery(region, value);
-                if (resolved !== null) changeDistrict(resolved);
-              }}
-              onBlur={() => setDistrictQuery(getPublicCatalogDistrictName(region, district))}
-            />
-            <datalist id={`district-options-${region}`}>
-              <option value={`${regionConfig.displayName} 전체`} />
-              {regionConfig.districts.map((item) => (
-                <option key={item.legalDongDistrictCode} value={item.name} />
-              ))}
-            </datalist>
-          </label>
         </div>
 
         <div className="explorer-toolbar-row explorer-tools-row" role="group" aria-label="결과 도구">
