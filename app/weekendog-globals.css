@@ -8489,7 +8489,7 @@ body:has(.weekendoog-home) .site-footer {
 .map-navigation-controls {
   position: absolute;
   right: 20px;
-  bottom: 16px;
+  bottom: 56px;
   z-index: 10;
   display: grid;
   justify-items: end;
