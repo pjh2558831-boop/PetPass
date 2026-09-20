@@ -1212,13 +1212,9 @@ export function ResultsExplorer({ initialTab = "catalog", initialCatalogState, s
   return (
     <div className={`full-map-explorer ${itineraryMode === "selection" ? "is-itinerary-selection" : ""}`} id="catalog-panel">
       <div className="full-map-explorer__toolbar">
-        <div className="explorer-toolbar-row explorer-scope-row" role="group" aria-label="탐색 범위">
-          <span className="explorer-toolbar-label">탐색 범위</span>
-          <RegionSelector value={region} onChange={requestRegionChange} />
-        </div>
-
         <div className="explorer-toolbar-row explorer-tools-row" role="group" aria-label="결과 도구">
           <span className="explorer-toolbar-label">결과 도구</span>
+          <RegionSelector value={region} onChange={requestRegionChange} />
           <label className="explorer-place-search">
             <span className="sr-only">장소 검색</span>
             <Search size={17} aria-hidden="true" />

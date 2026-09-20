@@ -337,15 +337,12 @@ export function HomePlaceWorkbench({
           <h2 id="homepage-map-title">함께 갈 곳을 지도와 목록에서 고르세요</h2>
           <p className="homepage-workbench-subtitle">지도를 클릭하거나 지역을 선택하면, 반려견과 함께할 수 있는 장소를 확인할 수 있어요.</p>
         </div>
-      </div>
-
-      <div
-        id="homepage-workbench-mode-panel"
-        className="homepage-workbench-tools"
-        role="tabpanel"
-        aria-labelledby="homepage-workbench-browse-tab"
-      >
-        {(
+        <div
+          id="homepage-workbench-mode-panel"
+          className="homepage-workbench-tools"
+          role="tabpanel"
+          aria-labelledby="homepage-workbench-browse-tab"
+        >
           <div className="homepage-place-search" role="search">
             <Search size={18} aria-hidden="true" />
             <input
@@ -367,8 +364,8 @@ export function HomePlaceWorkbench({
               </button>
             ) : null}
           </div>
-        )}
-        {filterControl}
+          {filterControl}
+        </div>
       </div>
 
       {providerUnavailable ? (

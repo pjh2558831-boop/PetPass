@@ -12,7 +12,7 @@ const photos = [
 export function HeroPhotoCarousel() {
   const [active, setActive] = useState(0);
   useEffect(() => {
-    const timer = window.setInterval(() => setActive(value => (value + 1) % photos.length), 12000);
+    const timer = window.setInterval(() => setActive(value => (value + 1) % photos.length), 10000);
     return () => window.clearInterval(timer);
   }, []);
   return <figure className="weekendoog-hero-photo-frame">

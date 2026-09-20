@@ -20,29 +20,31 @@ import type { RegionId } from "@/types/region";
 export function HomepageNationwidePlaces({ staticMapEnabled = false, searchRequest }: { staticMapEnabled?: boolean; searchRequest?: HomeSearchRequest }) {
   const router = useRouter();
   const [activeRegion, setActiveRegion] = useState<RegionId | null>(searchRequest?.regionId ?? null);
+  const [listRegion, setListRegion] = useState<RegionId>(searchRequest?.regionId ?? "seoul");
   const [cameraBounds, setCameraBounds] = useState(searchRequest ? getRegionConfig(searchRequest.regionId).mapBounds : HOMEPAGE_NATIONWIDE_BOUNDS);
   const [result, setResult] = useState<{ key: string; data?: MapPlacesSnapshot; failed?: boolean } | null>(null);
   const [retry, setRetry] = useState(0);
   const [category, setCategory] = useState<PlaceCategory | "all">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selection = useSelectedItinerarySelection({ regionId: activeRegion ?? "busan", surfaceAddLimit: 3 });
+  const selection = useSelectedItinerarySelection({ regionId: listRegion, surfaceAddLimit: 3 });
   const viewportTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastViewport = useRef("");
-  const requestKey = `${activeRegion}:${retry}`;
+  const requestKey = `${listRegion}:${retry}`;
   useEffect(() => {
-    if (!activeRegion) return;
+    if (!listRegion) return;
     const controller = new AbortController();
-    void mapPlacesSnapshotBrowserClient.load(activeRegion, "core", controller.signal).then(data => {
+    void mapPlacesSnapshotBrowserClient.load(listRegion, "core", controller.signal).then(data => {
       if (!controller.signal.aborted) setResult({ key: requestKey, data });
     }).catch(() => {
       if (!controller.signal.aborted) setResult({ key: requestKey, failed: true });
     });
     return () => controller.abort();
-  }, [activeRegion, requestKey]);
+  }, [listRegion, requestKey]);
   useEffect(() => () => { if (viewportTimer.current) clearTimeout(viewportTimer.current); }, [searchRequest]);
   const chooseRegion = (region: RegionId | null) => {
     if (viewportTimer.current) clearTimeout(viewportTimer.current);
     setActiveRegion(region);
+    if (region) setListRegion(region);
     setSelectedId(null);
     setCameraBounds({ ...(region ? getRegionConfig(region).mapBounds : HOMEPAGE_NATIONWIDE_BOUNDS) });
   };
@@ -55,18 +57,20 @@ export function HomepageNationwidePlaces({ staticMapEnabled = false, searchReque
     viewportTimer.current = setTimeout(() => {
       const region = homepageRegionForViewport(viewport, level);
       setActiveRegion(current => current === region ? current : region);
+      if (region) setListRegion(current => current === region ? current : region);
     }, 250);
   }, []);
   const [appliedSearch, setAppliedSearch] = useState(searchRequest);
   if (searchRequest && appliedSearch !== searchRequest) {
     setAppliedSearch(searchRequest);
     setActiveRegion(searchRequest.regionId);
+    setListRegion(searchRequest.regionId);
     setCameraBounds({ ...getRegionConfig(searchRequest.regionId).mapBounds });
     setSelectedId(null);
   }
-  const data = activeRegion && result?.key === requestKey ? result.data : undefined;
-  const failed = Boolean(activeRegion && result?.key === requestKey && result.failed);
-  const loading = Boolean(activeRegion && !data && !failed);
+  const data = result?.key === requestKey ? result.data : undefined;
+  const failed = Boolean(result?.key === requestKey && result.failed);
+  const loading = Boolean(!data && !failed);
   const markers = useMemo(() => (data?.items ?? []).flatMap(item => {
     const marker = projectNationwideMarker(item);
     return marker ? [marker] : [];
@@ -78,23 +82,20 @@ export function HomepageNationwidePlaces({ staticMapEnabled = false, searchReque
   const focus = (id: string) => {
     setSelectedId(id);
   };
-  const regionLabel = activeRegion ? getRegionConfig(activeRegion).displayName : "전국";
+  const regionLabel = getRegionConfig(listRegion).displayName;
   const retryFailed = () => setRetry(value => value + 1);
   const overview = !activeRegion;
-  const listContent = overview ? <div className="home-region-overview">
-    <p>지역을 선택하거나 지도를 확대해 장소를 확인하세요.</p>
-    <div>{HOMEPAGE_MAP_REGIONS.map(region => <button key={region.id} type="button" onClick={() => chooseRegion(region.id)}>{region.displayName} <span aria-hidden="true">↗</span></button>)}</div>
-  </div> : loading ? <p className="home-region-overview" role="status">{regionLabel} 장소를 불러오는 중입니다.</p>
+  const listContent = loading ? <p className="home-region-overview" role="status">{regionLabel} 장소를 불러오는 중입니다.</p>
     : failed ? <div className="home-region-overview" role="status"><p>{regionLabel} 장소를 불러오지 못했습니다.</p><button type="button" onClick={retryFailed}>다시 시도</button></div> : undefined;
   return <div className="homepage-live-ready" data-active-region={activeRegion ?? "overview"}>
     <HomePlaceWorkbench
       nationwide searchRequest={searchRequest}
-      regionId={activeRegion ?? "busan"} regionLabel={regionLabel} markers={visible}
+      regionId={listRegion} regionLabel={regionLabel} markers={visible}
       selectedLocationId={selectedId} onLocationFocus={focus} onMapDataUpdate={() => undefined}
       regionalMap={{ overviewLocations: overview ? HOMEPAGE_REGION_LOCATIONS : undefined,
         onRegionSelect: id => { const region = HOMEPAGE_MAP_REGIONS.find(region => region.id === id); if (region) chooseRegion(region.id); },
         onViewportIdle, focusBounds: cameraBounds,
-        countLabel: overview ? `${HOMEPAGE_MAP_REGIONS.length}개 지역` : loading ? "불러오는 중" : failed ? "조회 실패" : `${visible.length.toLocaleString("ko-KR")}곳`,
+        countLabel: loading ? "불러오는 중" : failed ? "조회 실패" : `${visible.length.toLocaleString("ko-KR")}곳`,
         listContent,
         regionControl: <nav className="homepage-region-rail" aria-label="지역 선택">
           <button type="button" aria-pressed={overview} onClick={() => chooseRegion(null)}><span aria-hidden="true">▦</span>전체</button>

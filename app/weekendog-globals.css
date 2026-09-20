@@ -8282,6 +8282,12 @@ body:has(.weekendoog-home) .site-footer {
   margin: 0;
 }
 
+.explorer-tools-row .explorer-region-picker__trigger {
+  min-width: 132px;
+  border-radius: 7px;
+  box-shadow: none;
+}
+
 .explorer-tools-row .full-map-explorer__mobile-switch {
   margin-left: auto;
 }
