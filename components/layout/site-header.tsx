@@ -16,7 +16,7 @@ const navigationItems = [
   {
     kind: "link",
     href: "/planner/pet",
-    label: "맞춤 일정",
+    label: "AI 맞춤 일정",
     intent: "recommendation",
   },
   { kind: "link", href: "/account", label: "마이페이지", intent: "account" },
