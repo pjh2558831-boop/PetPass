@@ -5,7 +5,7 @@ import { PlaceImage } from "@/components/places/place-image";
 import { PlaceCardMedia } from "@/components/places/place-card-media";
 import { hasRecentPhotoFailure, rememberPhotoFailure, retryPhoto } from "@/lib/places/photo-failure-cache";
 
-vi.mock("next/image", () => ({ default: ({ fill, priority, ...props }: ImgHTMLAttributes<HTMLImageElement> & { fill?: boolean; priority?: boolean }) => { void fill; void priority; return createElement("img", props); } }));
+vi.mock("next/image", () => ({ default: ({ fill, priority, unoptimized, ...props }: ImgHTMLAttributes<HTMLImageElement> & { fill?: boolean; priority?: boolean; unoptimized?: boolean }) => { void fill; void priority; return createElement("img", { ...props, "data-unoptimized": String(Boolean(unoptimized)) }); } }));
 let root: Root;
 let container: HTMLDivElement;
 beforeEach(() => {
@@ -63,6 +63,15 @@ for (const kind of ["detail", "card"] as const) {
     });
   });
 }
+it("loads Tourism Organization card photos directly over HTTPS", () => {
+  act(() => root.render(createElement(PlaceCardMedia, {
+    image: { kind: "provider_photo", src: "http://tong.visitkorea.or.kr/cms/resource/place.jpg", alt: "관광공사 장소" },
+    fallbackCategory: "attraction",
+  })));
+  const image = container.querySelector("img");
+  expect(image?.getAttribute("src")).toBe("https://tong.visitkorea.or.kr/cms/resource/place.jpg");
+  expect(image?.dataset.unoptimized).toBe("true");
+});
 it("bounds failed URL memory and expires failures after one minute", () => {
   rememberPhotoFailure("oldest", 100);
   for (let i = 0; i < 128; i++) rememberPhotoFailure(`bounded-${i}`, 100);

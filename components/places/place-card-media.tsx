@@ -39,7 +39,10 @@ export function PlaceCardMedia({
   className?: string;
   sizes?: string;
 }) {
-  const source = image.kind === "category_placeholder" ? null : image.src;
+  const source = image.kind === "category_placeholder" ? null
+    : image.kind === "provider_photo"
+      ? image.src.replace(/^http:\/\/tong\.visitkorea\.or\.kr\//u, "https://tong.visitkorea.or.kr/")
+      : image.src;
   const photo = usePlacePhotoState(source);
   if (image.kind === "category_placeholder" || photo.state === "failed") {
     return (
@@ -52,10 +55,11 @@ export function PlaceCardMedia({
   return (
     <div className={`relative overflow-hidden bg-[#edf3ee] ${className}`} data-image-kind={image.kind} data-image-state={photo.state}>
       <Image
-        key={image.src}
-        src={image.src}
+        key={source}
+        src={source!}
         alt={image.alt}
         fill
+        unoptimized={image.kind === "provider_photo"}
         sizes={sizes}
         className="object-cover"
         onLoad={photo.onLoad}
