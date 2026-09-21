@@ -412,6 +412,7 @@ describe("GET /api/map/places/snapshot", () => {
     expect(response.headers.get("cache-control")).toContain("public");
     expect(response.headers.get("cdn-cache-control")).toContain("stale-while-revalidate");
     expect(response.headers.get("vercel-cdn-cache-control")).toContain("max-age=300");
+    expect(response.headers.get("vercel-cdn-cache-control")).toContain("stale-while-revalidate=86400");
     expect(response.headers.get("etag")).toBe(`"${snapshot.dataVersion}"`);
     const body = await response.json() as { data: { items: Record<string, unknown>[] } };
     expect(body).toMatchObject({ data: { contractVersion: 1, region: "busan" } });

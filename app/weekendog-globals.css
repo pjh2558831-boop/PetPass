@@ -2949,7 +2949,7 @@ select {
   top: 0;
   z-index: var(--z-sticky);
   border-bottom: 1px solid var(--ui2-line);
-  background: var(--ui2-paper);
+  background: #ffffff;
   color: var(--ui2-text);
 }
 
@@ -2957,7 +2957,7 @@ body:has(.weekendoog-home) .site-header {
   position: absolute;
   inset: 0 0 auto;
   border-bottom-color: rgba(19, 32, 27, 0.12);
-  background: rgba(255, 253, 249, 0.88);
+  background: #ffffff;
 }
 
 .site-header-inner {
@@ -4579,7 +4579,7 @@ body:has(.weekendoog-home) .site-header {
 
 @media (min-width: 768px) {
   body:has(.weekendoog-home) .site-header {
-    background: rgba(255, 253, 249, 0.16);
+    background: #ffffff;
   }
 }
 
@@ -5460,7 +5460,24 @@ body:has(.weekendoog-home) .site-header {
   font-weight: 850;
 }
 
-.planner-saved-pets > div {
+.planner-saved-pets__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.planner-saved-pets__add {
+  color: var(--brand);
+  font-weight: 850;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+.planner-saved-pets__options {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
@@ -5904,7 +5921,7 @@ body:has(.weekendoog-home) .site-header {
     min-height: 260px;
   }
 
-  .planner-saved-pets > div,
+  .planner-saved-pets__options,
   .planner-selected-summary ul {
     grid-template-columns: 1fr;
   }

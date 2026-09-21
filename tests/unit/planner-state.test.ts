@@ -80,7 +80,7 @@ describe("PlannerStateProvider generation state", () => {
     expect(getPlannerState().preferences).toMatchObject({
       tripDate: "",
       startTime: "",
-      preferredCategories: [],
+      preferredCategories: ["ATTRACTION", "RESTAURANT", "CAFE"],
     });
 
     const nextProfile = {

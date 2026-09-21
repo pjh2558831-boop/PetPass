@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Heart, Map, Route } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { WeekendoogHero } from "./weekendoog-hero";
-import { HomepageLiveExperience } from "./homepage-live-experience";
+import { HomepageLiveExperience, prefetchHomepageRegion } from "./homepage-live-experience";
 import { HomepageNationwidePlaces } from "./homepage-nationwide-places";
 import { REGION_CONFIGS } from "@/lib/regions/config";
 import type { RegionId } from "@/types/region";
@@ -43,7 +43,15 @@ export function HomepageLanding({ staticMapEnabled }: { staticMapEnabled: boolea
           <button type="button" className="home-region-arrow home-region-arrow--left" aria-label="이전 지역 보기" onClick={() => moveRegions(-1)}><ChevronLeft aria-hidden="true" /></button>
           <div ref={regionScrollerRef} className="home-region-chips" role="group" aria-label="추천 장소 지역">
             {REGION_CONFIGS.filter((item) => item.mapEnabled).map((item) => (
-              <button key={item.id} type="button" aria-pressed={region === item.id} onClick={() => setRegion(item.id)}><Image src={regionImage(item.id)} alt="" width={88} height={88} className="home-region-image" /><span>{item.displayName}</span></button>
+              <button
+                key={item.id}
+                type="button"
+                aria-pressed={region === item.id}
+                onPointerEnter={() => prefetchHomepageRegion(item.id)}
+                onFocus={() => prefetchHomepageRegion(item.id)}
+                onTouchStart={() => prefetchHomepageRegion(item.id)}
+                onClick={() => setRegion(item.id)}
+              ><Image src={regionImage(item.id)} alt="" width={88} height={88} className="home-region-image" /><span>{item.displayName}</span></button>
             ))}
           </div>
           <button type="button" className="home-region-arrow home-region-arrow--right" aria-label="다음 지역 보기" onClick={() => moveRegions(1)}><ChevronRight aria-hidden="true" /></button>

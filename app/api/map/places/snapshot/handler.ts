@@ -23,9 +23,9 @@ const querySchema = z.object({
   dataset: z.enum(MAP_PLACES_SNAPSHOT_DATASETS),
 });
 const PUBLIC_CACHE_HEADERS = {
-  "Cache-Control": "public, max-age=60, stale-while-revalidate=60, stale-if-error=3600",
-  "CDN-Cache-Control": "public, max-age=300, stale-while-revalidate=300, stale-if-error=3600",
-  "Vercel-CDN-Cache-Control": "public, max-age=300, stale-while-revalidate=300, stale-if-error=3600",
+  "Cache-Control": "public, max-age=300, stale-while-revalidate=3600, stale-if-error=3600",
+  "CDN-Cache-Control": "public, max-age=300, stale-while-revalidate=86400, stale-if-error=3600",
+  "Vercel-CDN-Cache-Control": "public, max-age=300, stale-while-revalidate=86400, stale-if-error=3600",
 } as const;
 const SERIALIZED_SNAPSHOT_LIMIT = 40;
 const serializedSnapshots = new Map<string, string>();

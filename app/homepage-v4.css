@@ -34,10 +34,10 @@ body:has(.weekendoog-home) .home-header-search { display:grid; flex:0 0 44px; he
 .hero-search-field > svg { flex-shrink:0; }
 .hero-search-field button { display:grid; place-items:center; min-width:44px; min-height:44px; margin-right:-10px; }
 .hero-search-field:focus-within { outline:2px solid var(--brand); outline-offset:2px; }
-.weekendoog-home .hero-planner-submit { display:flex; flex:1 1 0; align-items:center; justify-content:center; gap:12px; padding:0 24px; border-radius:7px; font-size:15px; }
+.weekendoog-home .hero-planner-submit { display:flex; flex:1 1 0; align-items:center; justify-content:center; gap:12px; padding:0 24px; border-radius:7px; font-size:15px; white-space:nowrap; }
 .weekendoog-home .hero-planner-actions { display:flex; align-items:stretch; gap:10px; min-width:0; }
 .weekendoog-home .hero-planner-actions button { min-height:54px; }
-.weekendoog-home .hero-planner-secondary { position:static; flex:1 1 0; border:1px solid #c9ddd4; border-radius:7px; background:#f0f7f3; padding:0 12px; font-size:12px; }
+.weekendoog-home .hero-planner-secondary { position:static; flex:1 1 0; border:1px solid #c9ddd4; border-radius:7px; background:#f0f7f3; padding:0 12px; font-size:12px; white-space:nowrap; }
 .weekendoog-home .hero-planner-launcher > small { position:absolute; top:calc(100% + 4px); right:0; padding:3px 8px; background:white; }
 .home-hero-pages { position:absolute; right:24px; bottom:12px; z-index:4; display:flex; gap:4px; }
 .home-hero-pages button { display:grid; width:44px; height:44px; place-items:center; color:white; border-radius:50%; background:#10232c80; font-size:13px; }
@@ -274,9 +274,9 @@ body:has(.weekendoog-home) .site-brand { min-width:0; }
 .weekendoog-home .homepage-workbench-tools { position:absolute; top:24px; right:0; width:min(52%,640px); }
 .weekendoog-home .homepage-place-search { width:auto; min-height:50px; }
 .weekendoog-home .homepage-map-section { position:relative; }
-.weekendoog-home .homepage-workbench { grid-template-columns:136px minmax(0,1.35fr) minmax(390px,1fr); gap:0; height:650px; border:1px solid var(--ui2-line-strong); border-radius:12px; overflow:hidden; }
+.weekendoog-home .homepage-workbench { grid-template-columns:112px minmax(0,1.35fr) minmax(390px,1fr); gap:0; height:650px; border:1px solid var(--ui2-line-strong); border-radius:12px; overflow:hidden; }
 .weekendoog-home .homepage-region-rail { display:flex; min-width:0; flex-direction:column; gap:0; padding:6px 8px; overflow-y:auto; background:#fff; border-right:1px solid var(--ui2-line-strong); }
-.weekendoog-home .homepage-region-rail button { display:flex; align-items:center; justify-content:center; min-height:32px; padding:0 8px; border-radius:8px; color:#253c54; font-weight:750; text-align:center; }
+.weekendoog-home .homepage-region-rail button { display:flex; align-items:center; justify-content:center; min-height:32px; padding:0 4px; border-radius:8px; color:#253c54; font-size:15px; font-weight:750; text-align:center; }
 .weekendoog-home .homepage-region-rail button:hover,
 .weekendoog-home .homepage-region-rail button:focus-visible { background:#e4f3e9; color:#07563f; }
 .weekendoog-home .homepage-region-rail button[aria-pressed=true] { background:#07563f; color:white; }

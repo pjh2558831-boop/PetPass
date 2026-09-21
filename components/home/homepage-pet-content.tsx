@@ -13,7 +13,7 @@ function useContent<T>(endpoint: string, ref: RefObject<HTMLDivElement | null>, 
   useEffect(() => {
     let active = true;
     const load = () => {
-      pending.current ??= fetch(endpoint, { cache: eager ? "default" : "no-store", signal: AbortSignal.timeout(40000) })
+      pending.current ??= fetch(endpoint, { cache: "default", signal: AbortSignal.timeout(40000) })
         .then(async response => {
           if (!response.ok) throw new Error("unavailable");
           const envelope = await response.json();

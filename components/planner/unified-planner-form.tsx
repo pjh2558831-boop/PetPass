@@ -297,13 +297,10 @@ export function UnifiedPlannerForm({
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [searchVersion, setSearchVersion] = useState(0);
-  const [selectedSavedPetId, setSelectedSavedPetId] = useState<string | null>(
-    profileConfirmed &&
-      initialSavedPets.some(
-        ({ profile: savedProfile }) => savedProfile.id === profile.id,
-      )
-      ? profile.id
-      : null,
+  const [selectedSavedPetIds, setSelectedSavedPetIds] = useState<string[]>(
+    profileConfirmed && initialSavedPets.some(({ profile: savedProfile }) => savedProfile.id === profile.id)
+      ? [profile.id]
+      : [],
   );
   const [selectedItinerary, setSelectedItinerary] =
     useState<SelectedItinerarySnapshot | null>(null);
@@ -382,7 +379,7 @@ export function UnifiedPlannerForm({
     key: K,
     value: PetProfile[K],
   ) => {
-    setSelectedSavedPetId(null);
+    setSelectedSavedPetIds([]);
     setProfile((current) => ({ ...current, [key]: value }));
   };
 
@@ -404,7 +401,9 @@ export function UnifiedPlannerForm({
     setProfile({ ...savedProfile });
     setSpecies(savedProfile.species);
     setSize(savedProfile.size);
-    setSelectedSavedPetId(savedProfile.id);
+    setSelectedSavedPetIds((current) => current.includes(savedProfile.id)
+      ? current.filter((id) => id !== savedProfile.id)
+      : [...current, savedProfile.id]);
     setErrors((current) => {
       const next = { ...current };
       delete next.name;
@@ -578,7 +577,7 @@ export function UnifiedPlannerForm({
     setErrors({});
     setSpecies(null);
     setSize(null);
-    setSelectedSavedPetId(null);
+    setSelectedSavedPetIds([]);
     setProfile({ ...DEFAULT_PLANNER_PROFILE });
     setPreferences({ ...DEFAULT_PLANNER_PREFERENCES });
     setSearchVersion((value) => value + 1);
@@ -734,10 +733,13 @@ export function UnifiedPlannerForm({
             {initialSavedPets.length > 0 ? (
               <fieldset className="planner-saved-pets">
                 <legend>저장된 반려동물 불러오기</legend>
-                <div>
+                <div className="planner-saved-pets__header">
+                  <span>여러 반려동물을 선택할 수 있어요.</span>
+                  <Link href="/account/pets/new" className="planner-saved-pets__add">반려동물 등록</Link>
+                </div>
+                <div className="planner-saved-pets__options">
                   {initialSavedPets.map((savedPet) => {
-                    const selected =
-                      selectedSavedPetId === savedPet.profile.id;
+                    const selected = selectedSavedPetIds.includes(savedPet.profile.id);
                     return (
                       <button
                         key={savedPet.profile.id}
@@ -829,7 +831,7 @@ export function UnifiedPlannerForm({
                         value={option.value}
                         checked={species === option.value}
                         onChange={() => {
-                          setSelectedSavedPetId(null);
+                          setSelectedSavedPetIds([]);
                           setSpecies(option.value);
                           clearError("species");
                         }}
@@ -868,7 +870,7 @@ export function UnifiedPlannerForm({
                         value={option.value}
                         checked={size === option.value}
                         onChange={() => {
-                          setSelectedSavedPetId(null);
+                          setSelectedSavedPetIds([]);
                           setSize(option.value);
                           clearError("size");
                         }}

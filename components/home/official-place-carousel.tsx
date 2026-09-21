@@ -38,7 +38,8 @@ export function HomepagePlaceCarousel({
   const scrollerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef(new Map<string, HTMLElement>());
   const [photos, setPhotos] = useState<{ region: RegionId; images: Map<string, string>; failed: boolean } | null>(null);
-  const photoRequestKey = places.filter(place => !place.imageUrl && (place.layer === "official" || place.layer === "kakao_candidate"))
+  const carouselPlaces = places.slice(0, MAP_PLACE_CARD_PAGE_SIZE);
+  const photoRequestKey = carouselPlaces.filter(place => !place.imageUrl && (place.layer === "official" || place.layer === "kakao_candidate"))
     .map(place => place.id).sort().join(",");
   useEffect(() => {
     if (!photoRequestKey) return;
@@ -60,7 +61,7 @@ export function HomepagePlaceCarousel({
     });
     return () => controller.abort();
   }, [photoRequestKey, regionId]);
-  const visiblePlaces = places.map(place => ({ ...place,
+  const visiblePlaces = carouselPlaces.map(place => ({ ...place,
     imageUrl: place.imageUrl ?? (photos?.region === regionId ? photos.images.get(place.id) : null) ?? null,
   })).filter(place => Boolean(place.imageUrl))
     .sort((left, right) => Number(right.layer === "official") - Number(left.layer === "official"));

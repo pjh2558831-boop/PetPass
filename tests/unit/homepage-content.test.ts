@@ -129,7 +129,7 @@ describe("homepage content boundaries", () => {
     vi.stubGlobal("fetch", fetcher);
     const { GET } = await import("@/app/api/content/pet-news/route");
     const response = await GET(new Request("https://example.com/api/content/pet-news"));
-    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=300, s-maxage=1800, stale-while-revalidate=86400");
     expect(await response.json()).toMatchObject({ ok: true, data: { state: "ready", items: [{ title: "반려동물 여행 뉴스" }] } });
     expect((await GET(new Request("https://example.com/api/content/pet-news?query=anything"))).status).toBe(400);
     expect(fetcher).toHaveBeenCalledTimes(1);

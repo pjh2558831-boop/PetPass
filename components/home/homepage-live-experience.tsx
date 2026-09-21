@@ -34,6 +34,7 @@ import {
   recordHomepageBrowserTiming,
   type HomepageBrowserTimingStage,
 } from "@/lib/homepage/browser-performance";
+import { createHomepageBrowserRequestCache } from "@/lib/homepage/browser-request-cache";
 import {
   mergeHomepageEnrichment,
   mergeHomepageCompletion,
@@ -238,6 +239,20 @@ function requestHomepageCompletion(
     validate: isHomepageCompletionSnapshot,
     signal,
   });
+}
+
+const homepageInitialRequestCache = createHomepageBrowserRequestCache(
+  (region: RegionId) => requestHomepageInitial(region),
+);
+const homepageEnrichmentRequestCache = createHomepageBrowserRequestCache(
+  (region: RegionId) => requestHomepageEnrichment(region),
+);
+
+export function prefetchHomepageRegion(region: RegionId): void {
+  void homepageInitialRequestCache.load(region).catch(() => undefined);
+  if (getRegionConfig(region).homepageFeaturedEnabled) {
+    void homepageEnrichmentRequestCache.load(region).catch(() => undefined);
+  }
 }
 
 function scheduleLowPriority(callback: () => void): () => void {
@@ -464,7 +479,7 @@ export function HomepageLiveExperience({
       return {
         key: initialKey,
         controller,
-        promise: requestHomepageInitial(regionId, controller.signal),
+        promise: homepageInitialRequestCache.load(regionId),
       };
     })();
     if (initialAbortTimerRef.current) clearTimeout(initialAbortTimerRef.current);
@@ -532,6 +547,7 @@ export function HomepageLiveExperience({
   }, [loadState, snapshot]);
 
   useEffect(() => {
+    if (cardsOnly) return;
     const initial = baseInitialRef.current;
     if (!baseRequestKey || loadState !== "ready" || !initial || initial.scope !== "default" ||
       !shouldApplyHomepageResponse(activeRequestKeyRef.current, baseRequestKey)) return;
@@ -598,7 +614,7 @@ export function HomepageLiveExperience({
         completionRequestRef.current = null;
       }, STRICT_EFFECT_ABORT_GRACE_MS);
     };
-  }, [baseRequestKey, completionRetryToken, loadState, regionId, setSnapshot]);
+  }, [baseRequestKey, cardsOnly, completionRetryToken, loadState, regionId, setSnapshot]);
 
   useEffect(() => {
     if (completionUpdateStartedAtRef.current === null) return;
@@ -630,7 +646,7 @@ export function HomepageLiveExperience({
       return {
         key: baseRequestKey,
         controller,
-        promise: requestHomepageEnrichment(regionId, controller.signal),
+        promise: homepageEnrichmentRequestCache.load(regionId),
       };
     })();
     if (enrichmentAbortTimerRef.current) clearTimeout(enrichmentAbortTimerRef.current);
@@ -673,6 +689,8 @@ export function HomepageLiveExperience({
   }, []);
 
   const retry = () => {
+    homepageInitialRequestCache.invalidate(regionId);
+    homepageEnrichmentRequestCache.invalidate(regionId);
     initialRequestRef.current?.controller.abort();
     enrichmentRequestRef.current?.controller.abort();
     for (const request of optionalRequestsRef.current.values()) request.controller.abort();

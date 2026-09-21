@@ -14,6 +14,12 @@ import type { SelectedItineraryPlace } from "@/lib/storage/selected-itinerary-st
 import type { HomeSearchRequest } from "./homepage-landing";
 import type { RegionId } from "@/types/region";
 
+function prefetchRegion(region: RegionId) {
+  void mapPlacesSnapshotBrowserClient
+    .load(region, "core", new AbortController().signal)
+    .catch(() => undefined);
+}
+
 export function HomepageNationwidePlaces({ staticMapEnabled = false, searchRequest }: { staticMapEnabled?: boolean; searchRequest?: HomeSearchRequest }) {
   const router = useRouter();
   const [activeRegion, setActiveRegion] = useState<RegionId | null>(searchRequest?.regionId ?? null);
@@ -95,7 +101,9 @@ export function HomepageNationwidePlaces({ staticMapEnabled = false, searchReque
         listContent,
         regionControl: <nav className="homepage-region-rail" aria-label="지역 선택">
           <button type="button" aria-pressed={overview} onClick={() => chooseRegion(null)}>전체</button>
-          {HOMEPAGE_MAP_REGIONS.map(region => <button key={region.id} type="button" aria-pressed={activeRegion === region.id} onClick={() => chooseRegion(region.id)}>{region.displayName}</button>)}
+          {HOMEPAGE_MAP_REGIONS.map(region => <button key={region.id} type="button" aria-pressed={activeRegion === region.id}
+            onPointerEnter={() => prefetchRegion(region.id)} onFocus={() => prefetchRegion(region.id)}
+            onClick={() => chooseRegion(region.id)}>{region.displayName}</button>)}
         </nav>,
       }}
       filterControl={null}

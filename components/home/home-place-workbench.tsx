@@ -10,7 +10,6 @@ import {
   MapPin,
   RefreshCw,
   Search,
-  X,
 } from "lucide-react";
 import {
   useEffect,
@@ -222,12 +221,6 @@ export function HomePlaceWorkbench({
   }
   const [mobileView, setMobileView] = useState<"list" | "map">("list");
   const [listPage, setListPage] = useState({ key: "", page: 0 });
-  const composingRef = useRef(false);
-  const searchRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (!searchRequest) return;
-    searchRef.current?.focus({ preventScroll: true });
-  }, [searchRequest]);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const normalizedQuery = normalizeSearchValue(query);
   const visibleMarkers = useMemo(() => {
@@ -312,19 +305,6 @@ export function HomePlaceWorkbench({
     onLocationFocus(id);
   };
 
-  const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== "Escape" || composingRef.current || event.nativeEvent.isComposing) return;
-    event.preventDefault();
-    if (query) {
-      setQuery("");
-      return;
-    }
-    setMode("browse");
-    requestAnimationFrame(() => {
-      document.getElementById("homepage-workbench-browse-tab")?.focus();
-    });
-  };
-
   return (
     <section className="homepage-map-section" aria-labelledby="homepage-map-title">
       <WorkbenchModes
@@ -343,27 +323,6 @@ export function HomePlaceWorkbench({
           role="tabpanel"
           aria-labelledby="homepage-workbench-browse-tab"
         >
-          <div className="homepage-place-search" role="search">
-            <Search size={18} aria-hidden="true" />
-            <input
-              ref={searchRef}
-              type="search"
-              name="homepage-place-search"
-              value={query}
-              aria-label="불러온 장소 검색"
-              placeholder="이름, 지역, 카테고리 검색…"
-              autoComplete="off"
-              onChange={(event) => { setQuery(event.target.value); setMode("search"); }}
-              onKeyDown={handleSearchKeyDown}
-              onCompositionStart={() => { composingRef.current = true; }}
-              onCompositionEnd={() => { composingRef.current = false; }}
-            />
-            {query ? (
-              <button type="button" onClick={() => { setQuery(""); searchRef.current?.focus(); }} aria-label="검색어 지우기">
-                <X size={17} aria-hidden="true" />
-              </button>
-            ) : null}
-          </div>
           {filterControl}
         </div>
       </div>

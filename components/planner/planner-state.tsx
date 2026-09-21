@@ -41,7 +41,7 @@ export const DEFAULT_PLANNER_PREFERENCES: TravelPreferences = {
   tripType: "DAY_TRIP",
   tripPace: "balanced",
   startTime: "",
-  preferredCategories: [],
+  preferredCategories: ["ATTRACTION", "RESTAURANT", "CAFE"],
   planningMode: "stop_count",
   desiredStopCount: 3,
   desiredDurationMinutes: 360,
