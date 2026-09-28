@@ -14,6 +14,7 @@ import { createAuthServerClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
   title: "여행 정보 입력",
+  robots: { index: false, follow: true },
 };
 export const dynamic = "force-dynamic";
 

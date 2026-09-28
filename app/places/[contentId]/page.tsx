@@ -37,7 +37,9 @@ export async function generateMetadata({
   const place = getDemoPlace(contentId);
   return {
     title: place?.name ?? "장소 상세",
-    description: place?.summary,
+    description: place?.summary ?? "한국관광공사 반려동물 동반 여행 장소 정보를 확인해 보세요.",
+    alternates: { canonical: `/places/${encodeURIComponent(contentId)}` },
+    robots: { index: false, follow: true },
   };
 }
 

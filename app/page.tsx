@@ -8,6 +8,19 @@ import { staticMapThumbnailsEnabled } from "@/lib/kakao/static-map";
 export default function HomePage() {
   return (
     <div className="weekendoog-home">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            name: "WEEKENDOG",
+            url: "https://weekendog.site/",
+            inLanguage: "ko-KR",
+            description: "반려동물 동반 여행 장소와 일정을 찾는 서비스",
+          }),
+        }}
+      />
       <HomepageLanding staticMapEnabled={staticMapThumbnailsEnabled()} />
       <HomepagePetContent />
       <div className="home-landscape" aria-hidden="true">

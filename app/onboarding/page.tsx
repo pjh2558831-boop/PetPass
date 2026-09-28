@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { completeOnboarding } from "@/app/onboarding/actions";
 import { AvatarField } from "@/components/auth/avatar-field";
@@ -7,6 +8,7 @@ import { socialProfileDefaults } from "@/lib/auth/profile";
 import { createAuthServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = { title: "프로필 설정", robots: { index: false, follow: true } };
 
 export default async function OnboardingPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const supabase = await createAuthServerClient();

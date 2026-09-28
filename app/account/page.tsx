@@ -13,7 +13,7 @@ import {
 import { createAuthServerClient } from "@/lib/supabase/server";
 import { deleteAccountItinerary } from "@/app/itinerary/actions";
 
-export const metadata: Metadata = { title: "마이페이지" };
+export const metadata: Metadata = { title: "마이페이지", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
 
 const speciesLabels = { DOG: "강아지", CAT: "고양이", OTHER: "기타 반려동물" } as const;

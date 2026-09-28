@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -6,6 +7,7 @@ import { FormErrorMessage } from "@/components/ui/form-error-message";
 import { createAuthServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = { title: "로그인", robots: { index: false, follow: true } };
 
 export default async function LoginPage({
   searchParams,

@@ -6,6 +6,8 @@ import { staticMapThumbnailsEnabled } from "@/lib/kakao/static-map";
 
 export const metadata: Metadata = {
   title: "반려동물 장소 찾기",
+  alternates: { canonical: "/results" },
+  robots: { index: false, follow: true },
 };
 
 export default async function ResultsPage({
