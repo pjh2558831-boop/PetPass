@@ -192,10 +192,10 @@ export function initialLayer(layer: HomepagePlaceLayer): HomepageInitialLayer {
 
 export function initialSnapshot(
   snapshot = SNAPSHOT,
-  scope: "default" | "optional" = "default",
+  scope: HomepageInitialPlacesSnapshot["scope"] = "default",
   region: RegionId = "busan",
 ): HomepageInitialPlacesSnapshot {
-  const includedLayers: HomepagePlaceLayer[] = scope === "default"
+  const includedLayers: HomepagePlaceLayer[] = scope !== "optional"
     ? ["official", "kakao_candidate"]
     : ["veterinary", "pet_shop"];
   const markers: HomepageInitialMarkerV1[] = snapshot.markers.flatMap((marker) =>
@@ -217,7 +217,7 @@ export function initialSnapshot(
     count: snapshot.layers[layer].count,
     markerCount: markers.filter((marker) => marker[2] === initialLayer(layer)).length,
   });
-  const layers = scope === "default" ? {
+  const layers = scope !== "optional" ? {
     tourism: sourceLayer("official"),
     kakao: sourceLayer("kakao_candidate"),
     veterinary: deferred,
@@ -228,7 +228,7 @@ export function initialSnapshot(
     veterinary: sourceLayer("veterinary"),
     pet_shop: sourceLayer("pet_shop"),
   };
-  const categoryCounts: HomepageInitialPlacesSnapshot["categoryCounts"] = scope === "default"
+  const categoryCounts: HomepageInitialPlacesSnapshot["categoryCounts"] = scope !== "optional"
     ? [
         ...snapshot.official.categoryCounts.map(({ category, count }) => ["tourism" as const, category, count] as const),
         ...markers.filter((marker) => marker[2] === "kakao").map((marker) => ["kakao" as const, marker[3], 1] as const),
@@ -242,7 +242,7 @@ export function initialSnapshot(
     contractVersion: 1,
     region,
     scope,
-    providers: scope === "default" ? "default" : "kakao",
+    providers: scope !== "optional" ? "default" : "kakao",
     generatedAt: snapshot.official.retrievedAt,
     dataVersion: scope === "default" ? "v1-0123456789abcdef" : "v1-fedcba9876543210",
     generationId: scope === "default" ? "g1-0123456789abcdef" : "g1-fedcba9876543210",
@@ -252,7 +252,7 @@ export function initialSnapshot(
     layers,
     categoryCounts,
     markers,
-    cardDetails: scope === "optional"
+    cardDetails: scope !== "default"
       ? snapshot.markers.flatMap((marker) => includedLayers.includes(marker.layer)
         ? [[
             marker.id,
@@ -430,10 +430,12 @@ export async function fulfillInitial(
   scope: "default" | "optional" = "default",
 ) {
   const region = new URL(route.request().url()).searchParams.get("region") as RegionId;
+  const requestedScope = new URL(route.request().url()).searchParams.get("scope");
+  const responseScope = requestedScope === "cards" ? "cards" : scope;
   await route.fulfill({
     status: 200,
     contentType: "application/json",
-    body: JSON.stringify({ ok: true, data: initialSnapshot(snapshot, scope, region), requestId: "homepage-initial-e2e" }),
+    body: JSON.stringify({ ok: true, data: initialSnapshot(snapshot, responseScope, region), requestId: "homepage-initial-e2e" }),
   });
 }
 

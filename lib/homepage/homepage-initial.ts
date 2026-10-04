@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
+import { MAP_PLACE_CARD_PAGE_SIZE } from "@/types/map-place-card-details";
 import {
   getHomepageCatalogDatasets,
   homepageDatasetCacheKey,
@@ -54,8 +55,8 @@ function layerSnapshot(
 
 function emptyLayers(scope: HomepageInitialPlacesRequest["scope"]): Record<HomepageInitialLayer, HomepageInitialLayerSnapshot> {
   return {
-    tourism: scope === "default" ? layerSnapshot("empty", 0, 0) : layerSnapshot("deferred", null, null),
-    kakao: scope === "default" ? layerSnapshot("empty", 0, 0) : layerSnapshot("deferred", null, null),
+    tourism: scope !== "optional" ? layerSnapshot("empty", 0, 0) : layerSnapshot("deferred", null, null),
+    kakao: scope !== "optional" ? layerSnapshot("empty", 0, 0) : layerSnapshot("deferred", null, null),
     veterinary: scope === "optional" ? layerSnapshot("empty", 0, 0) : layerSnapshot("deferred", null, null),
     pet_shop: scope === "optional" ? layerSnapshot("empty", 0, 0) : layerSnapshot("deferred", null, null),
   };
@@ -170,7 +171,7 @@ async function assembleDefault(
       providers: [descriptor.provider],
       kinds: [descriptor.kind],
       page: 1,
-      pageSize: descriptor.pageSize,
+      pageSize: input.scope === "cards" ? MAP_PLACE_CARD_PAGE_SIZE : descriptor.pageSize,
     }),
   }))).finally(() => observeTiming?.({
       name: "supabase_catalog",
@@ -182,6 +183,7 @@ async function assembleDefault(
 
   const layers = emptyLayers(input.scope);
   const markers: HomepageInitialMarkerV1[] = [];
+  const cardDetails: HomepageInitialCardDetailV1[] = [];
   const selectedCategories: Array<{
     layer: HomepageInitialLayer;
     category: HomepageInitialMarkerV1[3];
@@ -212,6 +214,9 @@ async function assembleDefault(
         category,
         petAccessVerdict: marker.petAccessVerdict ?? "unknown",
       });
+      if (compact && input.scope === "cards") {
+        cardDetails.push([marker.id, marker.address, marker.phone ?? null, marker.imageUrl ?? null]);
+      }
       return compact ? [compact] : [];
     });
     layers[descriptor.layer] = layerSnapshot(
@@ -239,7 +244,7 @@ async function assembleDefault(
     scope: input.scope,
     providers: input.providers,
     generatedAt,
-    dataVersion: dataVersion(input, observedGenerationId, markers),
+    dataVersion: dataVersion(input, observedGenerationId, markers, cardDetails),
     generationId: observedGenerationId,
     totalCount,
     markerCount: markers.length,
@@ -247,7 +252,7 @@ async function assembleDefault(
     layers,
     categoryCounts: homepageCategoryCounts(selectedCategories),
     markers,
-    cardDetails: [],
+    cardDetails,
     continuations,
   };
 }
@@ -372,7 +377,7 @@ export async function assembleHomepageInitialPlaces(
     observeTiming?: HomepageTimingObserver;
   } = {},
 ): Promise<HomepageInitialPlacesSnapshot> {
-  return input.scope === "default"
+  return input.scope !== "optional"
     ? assembleDefault(input, queryPublicCatalog, now, observeTiming)
     : assembleOptional(input, queryPublicCatalog, now, observeTiming);
 }

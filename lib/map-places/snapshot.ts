@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
+import { unstable_cache } from "next/cache";
 import { queryPublicMapCatalog, type PublicMapCatalogQuery } from "@/lib/map-places/public-catalog";
 import {
   publicationInputForSnapshot,
@@ -359,7 +360,24 @@ export function createMapPlacesSnapshotLoader({
   };
 }
 
+// Cache bounded public pages so large regions do not exceed the Data Cache
+// entry limit. Publication and catalog configuration are part of each key.
+const queryCachedMapSnapshotPage = unstable_cache(
+  async (input: PublicMapCatalogQuery, publicationVersion: MapCatalogPublicationVersion, catalogKey: string) => {
+    void publicationVersion;
+    void catalogKey;
+    return queryPublicMapCatalog(input);
+  },
+  ["map-region-snapshot-page-v1"],
+  { revalidate: MAP_SNAPSHOT_FRESH_MS / 1_000 },
+);
+
 export const loadMapPlacesSnapshot = createMapPlacesSnapshotLoader({
+  assemble: (input, publicationVersion) =>
+    assembleMapPlacesSnapshot(input, {
+      publicationVersion,
+      query: (page) => queryCachedMapSnapshotPage(page, publicationVersion, snapshotKey(input)),
+    }),
   resolvePublicationVersion: (input) =>
     resolveMapCatalogPublicationVersion(publicationInputForSnapshot(input)),
 });

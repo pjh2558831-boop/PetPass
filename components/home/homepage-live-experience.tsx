@@ -179,11 +179,12 @@ async function requestHomepageData<T>({
 function requestHomepageInitial(
   region: RegionId,
   signal?: AbortSignal,
+  scope: "default" | "cards" = "default",
 ): Promise<ApiResult<HomepageInitialPlacesSnapshot>> {
   const params = new URLSearchParams({
     version: "1",
     region,
-    scope: "default",
+    scope,
     providers: "default",
   });
   return requestHomepageData({
@@ -244,12 +245,15 @@ function requestHomepageCompletion(
 const homepageInitialRequestCache = createHomepageBrowserRequestCache(
   (region: RegionId) => requestHomepageInitial(region),
 );
+const homepageCardsRequestCache = createHomepageBrowserRequestCache(
+  (region: RegionId) => requestHomepageInitial(region, undefined, "cards"),
+);
 const homepageEnrichmentRequestCache = createHomepageBrowserRequestCache(
   (region: RegionId) => requestHomepageEnrichment(region),
 );
 
 export function prefetchHomepageRegion(region: RegionId): void {
-  void homepageInitialRequestCache.load(region).catch(() => undefined);
+  void homepageCardsRequestCache.load(region).catch(() => undefined);
   if (getRegionConfig(region).homepageFeaturedEnabled) {
     void homepageEnrichmentRequestCache.load(region).catch(() => undefined);
   }
@@ -357,7 +361,7 @@ export function HomepageLiveExperience({
   }, [regionId]);
   const [error, setError] = useState<ApiError>(GENERIC_ERROR);
   const [retryToken, setRetryToken] = useState(0);
-  const initialKey = `${regionId}:${retryToken}`;
+  const initialKey = `${regionId}:${cardsOnly ? "cards" : "default"}:${retryToken}`;
   const [loadedInitialKey, setLoadedInitialKey] = useState<string | null>(null);
   const [baseRequestKey, setBaseRequestKey] = useState<string | null>(null);
   const [requestedSelectionId, setRequestedSelectionId] = useState<string | null>(null);
@@ -479,7 +483,7 @@ export function HomepageLiveExperience({
       return {
         key: initialKey,
         controller,
-        promise: homepageInitialRequestCache.load(regionId),
+        promise: (cardsOnly ? homepageCardsRequestCache : homepageInitialRequestCache).load(regionId),
       };
     })();
     if (initialAbortTimerRef.current) clearTimeout(initialAbortTimerRef.current);
@@ -496,7 +500,7 @@ export function HomepageLiveExperience({
       }
       if (
         result.data.region !== regionId ||
-        result.data.scope !== "default" ||
+        result.data.scope !== (cardsOnly ? "cards" : "default") ||
         result.data.providers !== "default"
       ) {
         setSnapshot(null);
@@ -537,7 +541,7 @@ export function HomepageLiveExperience({
         initialRequestRef.current = null;
       }, STRICT_EFFECT_ABORT_GRACE_MS);
     };
-  }, [initialKey, regionId, setSnapshot]);
+  }, [cardsOnly, initialKey, regionId, setSnapshot]);
 
   useEffect(() => {
     if (loadState !== "ready" || !snapshot || stateUpdateStartedAtRef.current === null) return;
@@ -690,6 +694,7 @@ export function HomepageLiveExperience({
 
   const retry = () => {
     homepageInitialRequestCache.invalidate(regionId);
+    homepageCardsRequestCache.invalidate(regionId);
     homepageEnrichmentRequestCache.invalidate(regionId);
     initialRequestRef.current?.controller.abort();
     enrichmentRequestRef.current?.controller.abort();
@@ -773,7 +778,7 @@ export function HomepageLiveExperience({
     );
   }
 
-  if (cardsOnly) return <HomepagePlaceCarousel regionId={regionId} places={snapshot.cards} layers={snapshot.layers}
+  if (cardsOnly) return <HomepagePlaceCarousel photosResolved regionId={regionId} places={snapshot.cards} layers={snapshot.layers}
     featuredState={snapshot.official.featuredState} staticMapEnabled={staticMapEnabled} />;
 
   const categoryCounts = Object.fromEntries(PLACE_CATEGORIES.map((category) => {

@@ -28,12 +28,14 @@ export function HomepagePlaceCarousel({
   featuredState,
   staticMapEnabled,
   regionId = "busan",
+  photosResolved = false,
 }: {
   places: HomepagePlaceCard[];
   layers: Record<HomepagePlaceLayer, HomepageLayerSnapshot>;
   featuredState: HomepageFeaturedState;
   staticMapEnabled: boolean;
   regionId?: RegionId;
+  photosResolved?: boolean;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef(new Map<string, HTMLElement>());
@@ -42,7 +44,7 @@ export function HomepagePlaceCarousel({
   const photoRequestKey = carouselPlaces.filter(place => !place.imageUrl && (place.layer === "official" || place.layer === "kakao_candidate"))
     .map(place => place.id).sort().join(",");
   useEffect(() => {
-    if (!photoRequestKey) return;
+    if (!photoRequestKey || photosResolved) return;
     const controller = new AbortController();
     const ids = photoRequestKey.split(",");
     const requests = [];
@@ -60,7 +62,7 @@ export function HomepagePlaceCarousel({
       setPhotos({ region: regionId, images, failed: results.some(result => result.status === "rejected") });
     });
     return () => controller.abort();
-  }, [photoRequestKey, regionId]);
+  }, [photoRequestKey, photosResolved, regionId]);
   const visiblePlaces = carouselPlaces.map(place => ({ ...place,
     imageUrl: place.imageUrl ?? (photos?.region === regionId ? photos.images.get(place.id) : null) ?? null,
   })).filter(place => Boolean(place.imageUrl))

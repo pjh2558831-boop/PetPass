@@ -103,6 +103,7 @@ export function HomepageNationwidePlaces({ staticMapEnabled = false, searchReque
           <button type="button" aria-pressed={overview} onClick={() => chooseRegion(null)}>전체</button>
           {HOMEPAGE_MAP_REGIONS.map(region => <button key={region.id} type="button" aria-pressed={activeRegion === region.id}
             onPointerEnter={() => prefetchRegion(region.id)} onFocus={() => prefetchRegion(region.id)}
+            onTouchStart={() => prefetchRegion(region.id)}
             onClick={() => chooseRegion(region.id)}>{region.displayName}</button>)}
         </nav>,
       }}

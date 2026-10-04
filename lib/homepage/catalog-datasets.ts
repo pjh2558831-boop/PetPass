@@ -129,10 +129,11 @@ function capabilityEnabled(
 
 export function getHomepageCatalogDatasets(
   region: RegionConfig<string>,
-  scope?: HomepageCatalogDatasetDescriptor["scope"],
+  scope?: HomepageCatalogDatasetDescriptor["scope"] | "cards",
 ): HomepageCatalogDatasetDescriptor[] {
+  const datasetScope = scope === "cards" ? "default" : scope;
   return DATASETS
-    .filter((dataset) => (!scope || dataset.scope === scope) && capabilityEnabled(region, dataset.capability))
+    .filter((dataset) => (!datasetScope || dataset.scope === datasetScope) && capabilityEnabled(region, dataset.capability))
     .map((dataset) => ({
       ...dataset,
       contractVersion: HOMEPAGE_DATASET_CONTRACT_VERSION,
