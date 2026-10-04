@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { preload } from "react-dom";
+import { getKakaoMapsSdkUrl } from "@/lib/kakao/sdk-loader";
 import { ChevronLeft, ChevronRight, Heart, Map, Route } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -15,6 +17,8 @@ export type HomeSearchRequest = { query: string; regionId: RegionId };
 const regionImage = (regionId: RegionId) => `/images/regions/${regionId}.png`;
 
 export function HomepageLanding({ staticMapEnabled }: { staticMapEnabled: boolean }) {
+  const mapKey = process.env.NEXT_PUBLIC_KAKAO_MAP_JS_KEY?.trim();
+  if (mapKey) preload(getKakaoMapsSdkUrl(mapKey), { as: "script" });
   const [region, setRegion] = useState<RegionId>("seoul");
   const regionScrollerRef = useRef<HTMLDivElement>(null);
   const [searchRequest, setSearchRequest] = useState<HomeSearchRequest>();

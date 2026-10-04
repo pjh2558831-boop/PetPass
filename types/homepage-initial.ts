@@ -7,7 +7,7 @@ import { REGION_IDS, type RegionId } from "@/types/region";
 import type { HomepageDatasetContinuationV1 } from "@/types/homepage-completion";
 
 export const HOMEPAGE_INITIAL_VERSION = 1 as const;
-export const HOMEPAGE_INITIAL_SCOPES = ["default", "optional"] as const;
+export const HOMEPAGE_INITIAL_SCOPES = ["default", "optional", "cards"] as const;
 export const HOMEPAGE_INITIAL_PROVIDER_SELECTIONS = [
   "default",
   "tour",
@@ -60,7 +60,7 @@ export type HomepageInitialCategoryCountV1 = readonly [
   count: number,
 ];
 
-/** Optional-scope card fields, loaded only after a facility filter is requested. */
+/** Card fields for the compact carousel or requested facility filters. */
 export type HomepageInitialCardDetailV1 = readonly [
   id: string,
   address: string,

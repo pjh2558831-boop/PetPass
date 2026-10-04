@@ -87,6 +87,34 @@ function catalogQuery(region: "busan" | "jeju", count = 1) {
 }
 
 describe("homepage initial compact projection", () => {
+  it("serves a bounded carousel with photos in one response instead of the full map page", async () => {
+    const query = vi.fn(async (input: TestCatalogQueryInput) => ({
+      ...catalogPage("busan", input.providers[0], input.pageSize),
+      totalCount: 200,
+      hasNext: input.pageSize < 200,
+      nextCursor: input.pageSize < 200 ? input.pageSize : null,
+    }));
+    const full = await assembleHomepageInitialPlaces(request(), { queryPublicCatalog: query });
+    query.mockClear();
+    const cards = await assembleHomepageInitialPlaces(request({ scope: "cards" }), { queryPublicCatalog: query });
+    expect(query.mock.calls.every(([input]) => input.pageSize === 12)).toBe(true);
+    expect(cards.markers).toHaveLength(24);
+    expect(cards.cardDetails).toHaveLength(24);
+    expect(cards.cardDetails[0][3]).toBe("https://example.com/0.jpg");
+    expect(cards.totalCount).toBe(full.totalCount);
+    expect(cards.continuations.every(({ complete }) => !complete)).toBe(true);
+    expect(isHomepageInitialPlacesSnapshot(cards)).toBe(true);
+    expect(isHomepageInitialPlacesSnapshot({ ...cards, scope: "default" })).toBe(false);
+    expect(homepageInitialCacheKey(request({ scope: "cards" }))).not.toBe(homepageInitialCacheKey(request()));
+    const response = await createHomepageInitialPlacesHandler({ loadInitial: async () => cards })(
+      new Request("http://localhost/api/homepage/places/initial?version=1&region=busan&scope=cards&providers=default"),
+    );
+    expect(response.status).toBe(200);
+    const sizes = [full, cards].map(value => Buffer.byteLength(JSON.stringify(value), "utf8"));
+    expect(sizes[1]).toBeLessThan(sizes[0] * 0.2);
+    console.log(JSON.stringify({ fullMapBytes: sizes[0], carouselBytes: sizes[1], fullMapRows: 400, carouselRows: 24 }));
+  });
+
   it("projects bounded trusted catalog pages without KTO services or card-only fields", async () => {
     const queryPublicCatalog = catalogQuery("busan");
     const result = await assembleHomepageInitialPlaces(request(), {
