@@ -353,3 +353,29 @@ body:has(.weekendoog-home) .site-brand { min-width:0; }
   .weekendoog-home .homepage-workbench-row__focus { min-height:78px; }
   .weekendoog-home .home-selected-itinerary__list { display:grid; grid-template-columns:1fr; }
 }
+
+/* ui_new_test: homepage layout exploration */
+.weekendoog-home .weekendoog-hero-layout { max-width:1280px; height:680px; margin:auto; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:center; gap:40px; padding:96px 32px 60px; }
+.weekendoog-home .weekendoog-hero { background:#f1f5ed; }
+.weekendoog-home .weekendoog-hero-media { position:relative; grid-column:2; grid-row:1; height:100%; border-radius:30px; overflow:hidden; }
+.weekendoog-home .weekendoog-hero-copy { position:relative; grid-column:1; grid-row:1; left:auto; top:auto; transform:none; width:auto; text-align:left; }
+.weekendoog-home .weekendoog-hero-copy h1 { font-size:clamp(38px,4vw,58px); color:#153b2d; line-height:1.18; }
+.weekendoog-home .weekendoog-hero-copy p { margin:22px 0 0; }
+.weekendoog-home .weekendoog-hero-launcher { bottom:48px; left:32px; transform:none; width:min(750px,60%); }
+.weekendoog-home .home-value-row { padding:38px 0; }
+.weekendoog-home .weekendoog-live-shell { gap:64px; padding-top:36px; }
+.weekendoog-home .home-recommendations > h2 { margin-bottom:20px; }
+.weekendoog-home .home-region-chips button { border-radius:16px; }
+.weekendoog-home .homepage-place-scroller { gap:20px; }
+.weekendoog-home .homepage-map-section { padding-top:24px; }
+@media (max-width:800px) {
+ .weekendoog-home .weekendoog-hero-layout { height:auto; min-height:0; display:flex; flex-direction:column; gap:22px; padding:100px 20px 28px; }
+ .weekendoog-home .weekendoog-hero-copy { order:0; width:100%; }
+ .weekendoog-home .weekendoog-hero-media { order:1; width:100%; height:260px; }
+ .weekendoog-home .weekendoog-hero-launcher { position:relative; order:2; bottom:auto; left:auto; width:100%; }
+ .weekendoog-home .weekendoog-live-shell { gap:36px; }
+}
+@media (max-width:800px) {
+ .weekendoog-home .weekendoog-hero-media { inset:auto; flex:none; }
+ .weekendoog-home .weekendoog-hero-launcher { top:auto; right:auto; transform:none; }
+}
